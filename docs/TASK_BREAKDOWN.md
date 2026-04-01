@@ -47,7 +47,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ## 2. Phase 1: Foundation
 
-### P1-T01: Initialize monorepo structure
+### P1-T01: Initialize monorepo structure ✅
 
 | | |
 |---|---|

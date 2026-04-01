@@ -1,0 +1,50 @@
+# Go
+backend/cmd/oversite/oversite
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+# Node / Frontend
+node_modules/
+.next/
+out/
+frontend/.next/
+frontend/out/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+data/
+minio-data/
+
+# Debug
+*.log
+debug/
+
+# Test coverage
+coverage/
+*.cover
+*.prof
+
+# Temporary
+tmp/
+*.tmp
