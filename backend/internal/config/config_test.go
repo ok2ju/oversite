@@ -106,6 +106,7 @@ func TestLoadOverrideDefaults(t *testing.T) {
 }
 
 func TestLoadMissingDatabaseURL(t *testing.T) {
+	t.Setenv("DATABASE_URL", "")
 	t.Setenv("REDIS_URL", "redis://localhost:6379")
 	t.Setenv("MINIO_ENDPOINT", "localhost:9000")
 	t.Setenv("MINIO_ACCESS_KEY", "minioadmin")
@@ -118,6 +119,7 @@ func TestLoadMissingDatabaseURL(t *testing.T) {
 }
 
 func TestLoadMissingRedisURL(t *testing.T) {
+	t.Setenv("REDIS_URL", "")
 	t.Setenv("DATABASE_URL", "postgres://localhost:5432/oversite")
 	t.Setenv("MINIO_ENDPOINT", "localhost:9000")
 	t.Setenv("MINIO_ACCESS_KEY", "minioadmin")
@@ -130,6 +132,7 @@ func TestLoadMissingRedisURL(t *testing.T) {
 }
 
 func TestLoadMissingMinioEndpoint(t *testing.T) {
+	t.Setenv("MINIO_ENDPOINT", "")
 	t.Setenv("DATABASE_URL", "postgres://localhost:5432/oversite")
 	t.Setenv("REDIS_URL", "redis://localhost:6379")
 	t.Setenv("MINIO_ACCESS_KEY", "minioadmin")
@@ -142,6 +145,7 @@ func TestLoadMissingMinioEndpoint(t *testing.T) {
 }
 
 func TestLoadMissingMinioAccessKey(t *testing.T) {
+	t.Setenv("MINIO_ACCESS_KEY", "")
 	t.Setenv("DATABASE_URL", "postgres://localhost:5432/oversite")
 	t.Setenv("REDIS_URL", "redis://localhost:6379")
 	t.Setenv("MINIO_ENDPOINT", "localhost:9000")
@@ -154,6 +158,7 @@ func TestLoadMissingMinioAccessKey(t *testing.T) {
 }
 
 func TestLoadMissingMinioSecretKey(t *testing.T) {
+	t.Setenv("MINIO_SECRET_KEY", "")
 	t.Setenv("DATABASE_URL", "postgres://localhost:5432/oversite")
 	t.Setenv("REDIS_URL", "redis://localhost:6379")
 	t.Setenv("MINIO_ENDPOINT", "localhost:9000")
@@ -166,6 +171,12 @@ func TestLoadMissingMinioSecretKey(t *testing.T) {
 }
 
 func TestLoadMissingAllRequiredVars(t *testing.T) {
+	t.Setenv("DATABASE_URL", "")
+	t.Setenv("REDIS_URL", "")
+	t.Setenv("MINIO_ENDPOINT", "")
+	t.Setenv("MINIO_ACCESS_KEY", "")
+	t.Setenv("MINIO_SECRET_KEY", "")
+
 	_, err := config.Load()
 	if err == nil {
 		t.Fatal("expected error for missing all required vars, got nil")

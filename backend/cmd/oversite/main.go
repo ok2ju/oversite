@@ -96,7 +96,7 @@ func migrateCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				defer m.Close()
+				defer func() { _, _ = m.Close() }()
 
 				slog.Info("running migrations up")
 				if err := m.Up(); err != nil {
@@ -118,7 +118,7 @@ func migrateCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				defer m.Close()
+				defer func() { _, _ = m.Close() }()
 
 				slog.Info("rolling back last migration")
 				if err := m.Steps(-1); err != nil {
