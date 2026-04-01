@@ -1,18 +1,21 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/spf13/cobra"
 
+	"github.com/ok2ju/oversite/backend/internal/auth"
 	"github.com/ok2ju/oversite/backend/internal/config"
 	"github.com/ok2ju/oversite/backend/internal/handler"
 )
@@ -47,8 +50,24 @@ func serveCmd() *cobra.Command {
 
 			setupLogger(cfg.LogLevel)
 
+			oauthCfg := auth.FaceitOAuthConfig{
+				ClientID:     cfg.FaceitClientID,
+				ClientSecret: cfg.FaceitClientSecret,
+				RedirectURI:  cfg.FaceitRedirectURI,
+				AuthURL:      "https://cdn.faceit.com/widgets/sso/index.html",
+				TokenURL:     "https://api.faceit.com/auth/v1/oauth/token",
+				UserInfoURL:  "https://api.faceit.com/auth/v1/resources/userinfo",
+			}
+
+			// Use no-op state store until Redis is wired in P2-T02
+			sessions := &noopStateStore{}
+			faceitClient := auth.NewFaceitClient(oauthCfg)
+			oauthSvc := auth.NewOAuthService(oauthCfg, sessions, nil, faceitClient)
+			secure := cfg.Environment == "production"
+			authHandler := handler.NewAuthHandler(oauthSvc, sessions, secure)
+
 			health := handler.NewHealthHandler()
-			router := handler.NewRouter(health)
+			router := handler.NewRouter(health, authHandler)
 
 			slog.Info("starting API server", "port", cfg.Port, "env", cfg.Environment)
 			return http.ListenAndServe(":"+cfg.Port, router)
@@ -190,6 +209,21 @@ func (l *slogMigrateLogger) Printf(format string, v ...interface{}) {
 
 func (l *slogMigrateLogger) Verbose() bool {
 	return false
+}
+
+// noopStateStore is a placeholder until Redis is wired in P2-T02.
+type noopStateStore struct{}
+
+func (s *noopStateStore) Create(_ context.Context, _ string, _ []byte, _ time.Duration) error {
+	return nil
+}
+
+func (s *noopStateStore) Get(_ context.Context, _ string) ([]byte, error) {
+	return nil, nil
+}
+
+func (s *noopStateStore) Delete(_ context.Context, _ string) error {
+	return nil
 }
 
 func setupLogger(level string) {

@@ -6,12 +6,21 @@ import (
 	"github.com/ok2ju/oversite/backend/internal/config"
 )
 
-func TestLoadWithAllRequiredVars(t *testing.T) {
+// setRequiredEnv sets all required environment variables for config.Load().
+func setRequiredEnv(t *testing.T) {
+	t.Helper()
 	t.Setenv("DATABASE_URL", "postgres://localhost:5432/oversite")
 	t.Setenv("REDIS_URL", "redis://localhost:6379")
 	t.Setenv("MINIO_ENDPOINT", "localhost:9000")
 	t.Setenv("MINIO_ACCESS_KEY", "minioadmin")
 	t.Setenv("MINIO_SECRET_KEY", "minioadmin")
+	t.Setenv("FACEIT_CLIENT_ID", "test-client-id")
+	t.Setenv("FACEIT_CLIENT_SECRET", "test-client-secret")
+	t.Setenv("FACEIT_REDIRECT_URI", "http://localhost:3000/api/v1/auth/faceit/callback")
+}
+
+func TestLoadWithAllRequiredVars(t *testing.T) {
+	setRequiredEnv(t)
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -36,11 +45,7 @@ func TestLoadWithAllRequiredVars(t *testing.T) {
 }
 
 func TestLoadDefaults(t *testing.T) {
-	t.Setenv("DATABASE_URL", "postgres://localhost:5432/oversite")
-	t.Setenv("REDIS_URL", "redis://localhost:6379")
-	t.Setenv("MINIO_ENDPOINT", "localhost:9000")
-	t.Setenv("MINIO_ACCESS_KEY", "minioadmin")
-	t.Setenv("MINIO_SECRET_KEY", "minioadmin")
+	setRequiredEnv(t)
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -68,11 +73,7 @@ func TestLoadDefaults(t *testing.T) {
 }
 
 func TestLoadOverrideDefaults(t *testing.T) {
-	t.Setenv("DATABASE_URL", "postgres://localhost:5432/oversite")
-	t.Setenv("REDIS_URL", "redis://localhost:6379")
-	t.Setenv("MINIO_ENDPOINT", "localhost:9000")
-	t.Setenv("MINIO_ACCESS_KEY", "minioadmin")
-	t.Setenv("MINIO_SECRET_KEY", "minioadmin")
+	setRequiredEnv(t)
 	t.Setenv("PORT", "9090")
 	t.Setenv("WS_PORT", "9091")
 	t.Setenv("GO_ENV", "production")
@@ -105,12 +106,58 @@ func TestLoadOverrideDefaults(t *testing.T) {
 	}
 }
 
+func TestLoadFaceitConfig(t *testing.T) {
+	setRequiredEnv(t)
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.FaceitClientID != "test-client-id" {
+		t.Errorf("expected FaceitClientID 'test-client-id', got %q", cfg.FaceitClientID)
+	}
+	if cfg.FaceitClientSecret != "test-client-secret" {
+		t.Errorf("expected FaceitClientSecret 'test-client-secret', got %q", cfg.FaceitClientSecret)
+	}
+	if cfg.FaceitRedirectURI != "http://localhost:3000/api/v1/auth/faceit/callback" {
+		t.Errorf("expected FaceitRedirectURI 'http://localhost:3000/api/v1/auth/faceit/callback', got %q", cfg.FaceitRedirectURI)
+	}
+}
+
+func TestLoadMissingFaceitClientID(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("FACEIT_CLIENT_ID", "")
+
+	_, err := config.Load()
+	if err == nil {
+		t.Fatal("expected error for missing FACEIT_CLIENT_ID, got nil")
+	}
+}
+
+func TestLoadMissingFaceitClientSecret(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("FACEIT_CLIENT_SECRET", "")
+
+	_, err := config.Load()
+	if err == nil {
+		t.Fatal("expected error for missing FACEIT_CLIENT_SECRET, got nil")
+	}
+}
+
+func TestLoadMissingFaceitRedirectURI(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("FACEIT_REDIRECT_URI", "")
+
+	_, err := config.Load()
+	if err == nil {
+		t.Fatal("expected error for missing FACEIT_REDIRECT_URI, got nil")
+	}
+}
+
 func TestLoadMissingDatabaseURL(t *testing.T) {
+	setRequiredEnv(t)
 	t.Setenv("DATABASE_URL", "")
-	t.Setenv("REDIS_URL", "redis://localhost:6379")
-	t.Setenv("MINIO_ENDPOINT", "localhost:9000")
-	t.Setenv("MINIO_ACCESS_KEY", "minioadmin")
-	t.Setenv("MINIO_SECRET_KEY", "minioadmin")
 
 	_, err := config.Load()
 	if err == nil {
@@ -119,11 +166,8 @@ func TestLoadMissingDatabaseURL(t *testing.T) {
 }
 
 func TestLoadMissingRedisURL(t *testing.T) {
+	setRequiredEnv(t)
 	t.Setenv("REDIS_URL", "")
-	t.Setenv("DATABASE_URL", "postgres://localhost:5432/oversite")
-	t.Setenv("MINIO_ENDPOINT", "localhost:9000")
-	t.Setenv("MINIO_ACCESS_KEY", "minioadmin")
-	t.Setenv("MINIO_SECRET_KEY", "minioadmin")
 
 	_, err := config.Load()
 	if err == nil {
@@ -132,11 +176,8 @@ func TestLoadMissingRedisURL(t *testing.T) {
 }
 
 func TestLoadMissingMinioEndpoint(t *testing.T) {
+	setRequiredEnv(t)
 	t.Setenv("MINIO_ENDPOINT", "")
-	t.Setenv("DATABASE_URL", "postgres://localhost:5432/oversite")
-	t.Setenv("REDIS_URL", "redis://localhost:6379")
-	t.Setenv("MINIO_ACCESS_KEY", "minioadmin")
-	t.Setenv("MINIO_SECRET_KEY", "minioadmin")
 
 	_, err := config.Load()
 	if err == nil {
@@ -145,11 +186,8 @@ func TestLoadMissingMinioEndpoint(t *testing.T) {
 }
 
 func TestLoadMissingMinioAccessKey(t *testing.T) {
+	setRequiredEnv(t)
 	t.Setenv("MINIO_ACCESS_KEY", "")
-	t.Setenv("DATABASE_URL", "postgres://localhost:5432/oversite")
-	t.Setenv("REDIS_URL", "redis://localhost:6379")
-	t.Setenv("MINIO_ENDPOINT", "localhost:9000")
-	t.Setenv("MINIO_SECRET_KEY", "minioadmin")
 
 	_, err := config.Load()
 	if err == nil {
@@ -158,11 +196,8 @@ func TestLoadMissingMinioAccessKey(t *testing.T) {
 }
 
 func TestLoadMissingMinioSecretKey(t *testing.T) {
+	setRequiredEnv(t)
 	t.Setenv("MINIO_SECRET_KEY", "")
-	t.Setenv("DATABASE_URL", "postgres://localhost:5432/oversite")
-	t.Setenv("REDIS_URL", "redis://localhost:6379")
-	t.Setenv("MINIO_ENDPOINT", "localhost:9000")
-	t.Setenv("MINIO_ACCESS_KEY", "minioadmin")
 
 	_, err := config.Load()
 	if err == nil {
@@ -176,6 +211,9 @@ func TestLoadMissingAllRequiredVars(t *testing.T) {
 	t.Setenv("MINIO_ENDPOINT", "")
 	t.Setenv("MINIO_ACCESS_KEY", "")
 	t.Setenv("MINIO_SECRET_KEY", "")
+	t.Setenv("FACEIT_CLIENT_ID", "")
+	t.Setenv("FACEIT_CLIENT_SECRET", "")
+	t.Setenv("FACEIT_REDIRECT_URI", "")
 
 	_, err := config.Load()
 	if err == nil {

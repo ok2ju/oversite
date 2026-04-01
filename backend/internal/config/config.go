@@ -9,17 +9,20 @@ import (
 
 // Config holds all configuration values for the application.
 type Config struct {
-	Port          string
-	WSPort        string
-	DatabaseURL   string
-	RedisURL      string
-	MinioEndpoint string
-	MinioAccessKey string
-	MinioSecretKey string
-	MinioUseSSL   bool
-	MinioBucket   string
-	Environment   string
-	LogLevel      string
+	Port               string
+	WSPort             string
+	DatabaseURL        string
+	RedisURL           string
+	MinioEndpoint      string
+	MinioAccessKey     string
+	MinioSecretKey     string
+	MinioUseSSL        bool
+	MinioBucket        string
+	FaceitClientID     string
+	FaceitClientSecret string
+	FaceitRedirectURI  string
+	Environment        string
+	LogLevel           string
 }
 
 // Load reads configuration from environment variables.
@@ -37,11 +40,14 @@ func Load() (*Config, error) {
 
 	// Required vars
 	required := map[string]*string{
-		"DATABASE_URL":   &cfg.DatabaseURL,
-		"REDIS_URL":      &cfg.RedisURL,
-		"MINIO_ENDPOINT": &cfg.MinioEndpoint,
-		"MINIO_ACCESS_KEY": &cfg.MinioAccessKey,
-		"MINIO_SECRET_KEY": &cfg.MinioSecretKey,
+		"DATABASE_URL":        &cfg.DatabaseURL,
+		"REDIS_URL":           &cfg.RedisURL,
+		"MINIO_ENDPOINT":      &cfg.MinioEndpoint,
+		"MINIO_ACCESS_KEY":    &cfg.MinioAccessKey,
+		"MINIO_SECRET_KEY":    &cfg.MinioSecretKey,
+		"FACEIT_CLIENT_ID":     &cfg.FaceitClientID,
+		"FACEIT_CLIENT_SECRET": &cfg.FaceitClientSecret,
+		"FACEIT_REDIRECT_URI":  &cfg.FaceitRedirectURI,
 	}
 
 	var missing []string

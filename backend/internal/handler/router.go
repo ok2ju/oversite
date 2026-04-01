@@ -9,7 +9,7 @@ import (
 
 // NewRouter creates and configures the main chi router with middleware
 // and route definitions.
-func NewRouter(health *HealthHandler) chi.Router {
+func NewRouter(health *HealthHandler, authH *AuthHandler) chi.Router {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -29,7 +29,10 @@ func NewRouter(health *HealthHandler) chi.Router {
 	r.Get("/readyz", health.Readyz)
 
 	r.Route("/api/v1", func(r chi.Router) {
-		// Route groups will be added in later tasks
+		r.Route("/auth", func(r chi.Router) {
+			r.Get("/faceit", authH.HandleLogin)
+			r.Get("/faceit/callback", authH.HandleCallback)
+		})
 	})
 
 	return r

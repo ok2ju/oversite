@@ -265,7 +265,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ## 3. Phase 2: Auth & Demo Pipeline
 
-### P2-T01: Implement Faceit OAuth 2.0 + PKCE flow
+### P2-T01: Implement Faceit OAuth 2.0 + PKCE flow ✅
 
 | | |
 |---|---|
