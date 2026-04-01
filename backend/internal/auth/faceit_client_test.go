@@ -41,7 +41,7 @@ func TestFaceitClient_ExchangeCode_Success(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"access_token":  "access-123",
 			"refresh_token": "refresh-456",
 			"expires_in":    3600,
@@ -73,7 +73,7 @@ func TestFaceitClient_ExchangeCode_Success(t *testing.T) {
 func TestFaceitClient_ExchangeCode_Non200(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error":"invalid_grant"}`))
+		_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
 	}))
 	defer server.Close()
 
@@ -89,7 +89,7 @@ func TestFaceitClient_ExchangeCode_Non200(t *testing.T) {
 func TestFaceitClient_ExchangeCode_MalformedJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`not json`))
+		_, _ = w.Write([]byte(`not json`))
 	}))
 	defer server.Close()
 
@@ -112,7 +112,7 @@ func TestFaceitClient_GetUserInfo_Success(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"guid":     "player-id-123",
 			"nickname": "testplayer",
 			"avatar":   "https://example.com/avatar.png",
@@ -139,7 +139,7 @@ func TestFaceitClient_GetUserInfo_Success(t *testing.T) {
 func TestFaceitClient_GetUserInfo_Non200(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{"error":"unauthorized"}`))
+		_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
 	}))
 	defer server.Close()
 
@@ -155,7 +155,7 @@ func TestFaceitClient_GetUserInfo_Non200(t *testing.T) {
 func TestFaceitClient_GetUserInfo_MalformedJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`not json`))
+		_, _ = w.Write([]byte(`not json`))
 	}))
 	defer server.Close()
 

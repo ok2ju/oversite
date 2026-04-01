@@ -284,7 +284,7 @@ func TestHandleCallback_FullFlow(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"access_token":  "access-123",
 			"refresh_token": "refresh-456",
 			"expires_in":    3600,
@@ -292,7 +292,7 @@ func TestHandleCallback_FullFlow(t *testing.T) {
 	})
 	mux.HandleFunc("/userinfo", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"guid":     "faceit-xyz",
 			"nickname": "testplayer",
 			"avatar":   "https://example.com/av.png",

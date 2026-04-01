@@ -44,7 +44,7 @@ func (c *FaceitClient) ExchangeCode(ctx context.Context, code, codeVerifier stri
 	if err != nil {
 		return nil, fmt.Errorf("executing token request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -75,7 +75,7 @@ func (c *FaceitClient) GetUserInfo(ctx context.Context, accessToken string) (*Fa
 	if err != nil {
 		return nil, fmt.Errorf("executing userinfo request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
