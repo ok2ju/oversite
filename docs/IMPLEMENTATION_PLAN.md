@@ -8,14 +8,15 @@
 ## Table of Contents
 
 1. [Git Worktree Strategy](#1-git-worktree-strategy)
-2. [Phase Overview](#2-phase-overview)
-3. [Phase 1: Foundation](#3-phase-1-foundation)
-4. [Phase 2: Auth & Demo Pipeline](#4-phase-2-auth--demo-pipeline)
-5. [Phase 3: Core 2D Viewer](#5-phase-3-core-2d-viewer)
-6. [Phase 4: Faceit & Heatmaps](#6-phase-4-faceit--heatmaps)
-7. [Phase 5: Strategy Board & Lineups](#7-phase-5-strategy-board--lineups)
-8. [Phase 6: Polish & Deploy](#8-phase-6-polish--deploy)
-9. [Dependency Graph](#9-dependency-graph)
+2. [TDD Methodology](#2-tdd-methodology)
+3. [Phase Overview](#3-phase-overview)
+4. [Phase 1: Foundation](#4-phase-1-foundation)
+5. [Phase 2: Auth & Demo Pipeline](#5-phase-2-auth--demo-pipeline)
+6. [Phase 3: Core 2D Viewer](#6-phase-3-core-2d-viewer)
+7. [Phase 4: Faceit & Heatmaps](#7-phase-4-faceit--heatmaps)
+8. [Phase 5: Strategy Board & Lineups](#8-phase-5-strategy-board--lineups)
+9. [Phase 6: Polish & Deploy](#9-phase-6-polish--deploy)
+10. [Dependency Graph](#10-dependency-graph)
 
 ---
 
@@ -55,7 +56,66 @@ git worktree remove ../oversite-feat-demo-parser
 
 ---
 
-## 2. Phase Overview
+## 2. TDD Methodology
+
+The project follows **Test-Driven Development** from the first line of code. Every feature is built using the Red-Green-Refactor cycle.
+
+### 2.1 Red-Green-Refactor Workflow
+
+```
+    ┌─────────────────────────────────────┐
+    │                                     │
+    ▼                                     │
+┌───────┐      ┌───────┐      ┌──────────┴──┐
+│  RED  │─────▶│ GREEN │─────▶│  REFACTOR   │
+│       │      │       │      │             │
+│ Write │      │ Write │      │ Clean up,   │
+│failing│      │minimal│      │ DRY, rename │
+│ test  │      │ code  │      │ — tests     │
+│       │      │to pass│      │ stay green  │
+└───────┘      └───────┘      └─────────────┘
+```
+
+1. **RED**: Write a test that defines the expected behavior. Run it -- it must fail. This confirms the test actually tests something.
+2. **GREEN**: Write the minimum code to make the test pass. No more.
+3. **REFACTOR**: Clean up the implementation and the test. All tests must remain green.
+4. **COMMIT**: Commit after each green-to-refactor cycle.
+
+### 2.2 TDD Applicability by Layer
+
+Not every layer uses classical TDD. The approach is adapted to the nature of the code:
+
+| Layer | TDD Approach | Rationale |
+|-------|-------------|-----------|
+| Go services | Classical TDD | Pure business logic; interfaces enable mocking |
+| Go HTTP handlers | TDD with httptest | Request/response tests written first |
+| Go demo parser | Golden-file TDD + spike | Spike validates external library, then golden tests |
+| sqlc queries | TDD with testcontainers | Write expected-result tests against real DB first |
+| Zustand stores | Classical TDD | Pure state + actions, no I/O |
+| React components | TDD with React Testing Library | Render + interaction tests written first |
+| TanStack Query hooks | TDD with MSW | Hook behavior tests with mock server first |
+| PixiJS rendering | Test-alongside | TDD the logic (transforms, interpolation); screenshot-test the visuals |
+| Yjs collaboration | TDD with in-memory docs | Convergence tests written first |
+| E2E flows | Test-alongside | Written after features work, not strict Red-Green-Refactor |
+
+### 2.3 Test Infrastructure Requirements per Phase
+
+| Phase | Test Infrastructure Added | CI Gate |
+|-------|--------------------------|---------|
+| **P1** | testcontainers-go base, Vitest + RTL + MSW, Playwright config | `go test` + `pnpm test` pass |
+| **P2** | Demo fixture files, golden file framework, auth mock helpers | Golden tests pass; integration tests pass |
+| **P3** | PixiJS screenshot test pipeline, coordinate fixture data | Screenshot comparison stable |
+| **P4** | Faceit API mock handlers (MSW), KDE test fixtures | Mock API tests pass |
+| **P5** | Yjs in-memory test helpers, WebSocket test client | Convergence tests pass |
+| **P6** | Full E2E test suite, coverage reporting | Coverage targets met; all E2E pass |
+
+### 2.4 Testing Milestones Convention
+
+Every phase includes a **testing milestone** (`Px-MT`) that must be met before the phase is considered complete. These milestones verify that the TDD process was followed and that test coverage is adequate for the phase's deliverables.
+
+---
+
+## 3. Phase Overview
 
 ```
 Phase 1          Phase 2             Phase 3           Phase 4          Phase 5            Phase 6
@@ -81,7 +141,7 @@ CI pipeline      Job processing      Scoreboard         Dashboard UI     Sharing
 
 ---
 
-## 3. Phase 1: Foundation
+## 4. Phase 1: Foundation
 
 **Goal**: Monorepo scaffolding, Docker Compose environment, database schema, CI pipeline. After this phase, `docker compose up` brings up all services, and the CI pipeline runs lint + test + build.
 
@@ -95,6 +155,7 @@ CI pipeline      Job processing      Scoreboard         Dashboard UI     Sharing
 | P1-M4 | Go scaffold works | `GET /healthz` returns 200 |
 | P1-M5 | Next.js scaffold works | Home page renders with shadcn/ui components |
 | P1-M6 | CI pipeline passes | Lint, test, build all green |
+| P1-MT | Test infrastructure works | `go test ./...` runs; `pnpm test` runs; CI runs both; testcontainers works in CI |
 
 ### Tasks
 
@@ -110,10 +171,12 @@ CI pipeline      Job processing      Scoreboard         Dashboard UI     Sharing
 | P1-T08 | Set up Zustand stores (skeleton) | S |
 | P1-T09 | Set up CI pipeline (lint, test, build) | M |
 | P1-T10 | Create root Makefile with dev commands | S |
+| P1-T11 | Set up Go test infrastructure (testcontainers, test helpers, mock interfaces, CI integration stage) | M |
+| P1-T12 | Set up frontend test infrastructure (Vitest config, RTL, MSW, Playwright, test helpers) | M |
 
 ---
 
-## 4. Phase 2: Auth & Demo Pipeline
+## 5. Phase 2: Auth & Demo Pipeline
 
 **Goal**: Users can log in with Faceit, upload `.dem` files, and have them parsed into queryable data. This is the critical foundation for all features.
 
@@ -125,6 +188,7 @@ CI pipeline      Job processing      Scoreboard         Dashboard UI     Sharing
 | P2-M2 | Demo upload works | File uploaded to MinIO, demo record in DB |
 | P2-M3 | Demo parsing works | Parse job processes, tick data + events in DB |
 | P2-M4 | Demo library works | UI lists user's demos with status |
+| P2-MT | Tests pass | Parser golden file tests pass; auth integration tests pass; upload handler tests pass |
 
 ### Tasks
 
@@ -156,7 +220,7 @@ Budget extra time here. Consider a spike/prototype before the full implementatio
 
 ---
 
-## 5. Phase 3: Core 2D Viewer
+## 6. Phase 3: Core 2D Viewer
 
 **Goal**: Users can watch a parsed demo in a 2D top-down view with full playback controls. This is the flagship feature.
 
@@ -169,6 +233,7 @@ Budget extra time here. Consider a spike/prototype before the full implementatio
 | P3-M3 | Events render | Kills, grenades, bomb events visible on map |
 | P3-M4 | Playback works | Play/pause, speed, seek, round select all functional |
 | P3-M5 | Scoreboard works | Accurate stats overlay for current round |
+| P3-MT | Tests pass | Playback engine unit tests pass; coordinate transform tests pass; Playwright screenshots stable |
 
 ### Tasks
 
@@ -189,7 +254,7 @@ Budget extra time here. Consider a spike/prototype before the full implementatio
 
 ---
 
-## 6. Phase 4: Faceit & Heatmaps
+## 7. Phase 4: Faceit & Heatmaps
 
 **Goal**: Faceit stats dashboard with ELO history + interactive KDE heatmaps for kills and positioning.
 
@@ -202,6 +267,7 @@ Budget extra time here. Consider a spike/prototype before the full implementatio
 | P4-M3 | Auto-fetch | Background job syncs Faceit matches on login |
 | P4-M4 | Kill heatmap | KDE overlay renders correctly for a demo |
 | P4-M5 | Aggregated heatmap | Multi-demo heatmap with filters |
+| P4-MT | Tests pass | Faceit client mock tests pass; KDE algorithm unit tests pass; heatmap endpoint integration tests pass |
 
 ### Tasks
 
@@ -220,7 +286,7 @@ Budget extra time here. Consider a spike/prototype before the full implementatio
 
 ---
 
-## 7. Phase 5: Strategy Board & Lineups
+## 8. Phase 5: Strategy Board & Lineups
 
 **Goal**: Real-time collaborative strategy drawing with Yjs + WebSocket, and a grenade lineup catalog auto-populated from demos.
 
@@ -234,6 +300,7 @@ Budget extra time here. Consider a spike/prototype before the full implementatio
 | P5-M4 | Persistence works | Board state survives all clients disconnecting |
 | P5-M5 | Lineup catalog works | Auto-extracted lineups browsable by map/type |
 | P5-M6 | Personal collection | Users can save, tag, favorite lineups |
+| P5-MT | Tests pass | WebSocket hub unit tests pass; Yjs convergence tests pass; drawing tool logic tests pass |
 
 ### Tasks
 
@@ -256,7 +323,7 @@ Budget extra time here. Consider a spike/prototype before the full implementatio
 
 ---
 
-## 8. Phase 6: Polish & Deploy
+## 9. Phase 6: Polish & Deploy
 
 **Goal**: Performance optimization, security hardening, responsive design, documentation, and production Docker setup.
 
@@ -269,6 +336,7 @@ Budget extra time here. Consider a spike/prototype before the full implementatio
 | P6-M3 | Responsive UI | Usable on tablet (1024px+), functional on mobile |
 | P6-M4 | Documentation complete | README, API docs, contributing guide |
 | P6-M5 | Production deployment | `docker compose -f docker-compose.prod.yml up` works |
+| P6-MT | Coverage targets met | E2E suite passes all critical paths; 80% Go / 75% frontend coverage; performance benchmarks pass |
 
 ### Tasks
 
@@ -287,7 +355,7 @@ Budget extra time here. Consider a spike/prototype before the full implementatio
 
 ---
 
-## 9. Dependency Graph
+## 10. Dependency Graph
 
 ```
 P1 (Foundation)
@@ -316,8 +384,11 @@ P1 (Foundation)
 | P5 depends on P3 | Strat board reuses map rendering + coordinate system |
 | P5-T12 depends on P2-T08 | Grenade extraction extends the demo parser |
 | P6 depends on P4, P5 | Polish and deploy all features |
+| P2+ depends on P1-T11, P1-T12 | All TDD tasks require test infrastructure to write tests first |
 
 ### Parallel Work Opportunities
+
+Within P1, **P1-T11** and **P1-T12** (test infrastructure) can be done in parallel with **P1-T04 through P1-T10**.
 
 Once P2 is complete, P3 can begin immediately. Within P3, once the basic viewer works (P3-M2), the following can begin in parallel:
 

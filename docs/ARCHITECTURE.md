@@ -21,6 +21,7 @@
 11. [Cross-Cutting Concerns](#11-cross-cutting-concerns)
 12. [Monorepo Directory Structure](#12-monorepo-directory-structure)
 13. [Cloud Migration Path](#13-cloud-migration-path)
+14. [Testing Architecture](#14-testing-architecture)
 
 ---
 
@@ -1109,9 +1110,13 @@ oversite/
 │   │   ├── store/                 # sqlc-generated + custom DB queries
 │   │   ├── strat/                 # Strategy board service
 │   │   ├── websocket/             # WS hub, viewer, Yjs relay
-│   │   └── worker/                # Background job processor
+│   │   ├── worker/                # Background job processor
+│   │   └── testutil/              # Test helpers, containers, mocks
 │   ├── migrations/                # SQL migration files (golang-migrate)
 │   ├── queries/                   # sqlc SQL files
+│   ├── testdata/                  # Test fixtures and golden files
+│   │   ├── demos/                 # Small .dem fixture files
+│   │   └── golden/                # Golden file snapshots
 │   ├── sqlc.yaml                  # sqlc configuration
 │   ├── go.mod
 │   ├── go.sum
@@ -1134,7 +1139,11 @@ oversite/
 │   │   │   └── maps/              # Map radar images + calibration data
 │   │   ├── stores/                # Zustand stores
 │   │   ├── types/                 # TypeScript types
-│   │   └── utils/                 # Utility functions
+│   │   ├── utils/                 # Utility functions
+│   │   └── test/                  # Test infrastructure
+│   │       ├── msw/               # MSW handlers and server setup
+│   │       ├── render.tsx          # Custom renderWithProviders helper
+│   │       └── setup.ts           # Vitest global setup
 │   ├── public/
 │   │   └── maps/                  # Radar images (de_dust2.png, etc.)
 │   ├── next.config.js
@@ -1151,6 +1160,8 @@ oversite/
 │   ├── ARCHITECTURE.md
 │   ├── IMPLEMENTATION_PLAN.md
 │   └── TASK_BREAKDOWN.md
+├── e2e/                            # Playwright E2E tests
+│   └── tests/                      # E2E test specs
 ├── CLAUDE.md
 ├── Makefile                       # Root-level commands (up, down, logs, etc.)
 └── README.md
@@ -1182,6 +1193,311 @@ The architecture is designed for Docker Compose locally but structured for strai
 5. Move MinIO bucket to S3 -- only change: endpoint URL in config
 6. Add CI/CD pipeline for container image builds and deployments
 7. Configure secrets management (AWS Secrets Manager, GCP Secret Manager, etc.)
+
+---
+
+## 14. Testing Architecture
+
+The project follows **Test-Driven Development (TDD)**: write a failing test first (RED), implement just enough to pass (GREEN), then refactor (REFACTOR). This section defines the testing strategy across every layer.
+
+### 14.1 Test Pyramid Strategy
+
+```
+                    ╱╲
+                   ╱ E2E ╲             ~10 tests per phase
+                  ╱────────╲           Playwright + Docker Compose
+                 ╱Integration╲         ~100 tests total
+                ╱──────────────╲       testcontainers, MSW, httptest
+               ╱   Unit Tests   ╲      ~500+ tests total
+              ╱──────────────────╲     go test, Vitest, RTL
+             ╱════════════════════╲
+```
+
+| Tier | Scope | Runtime Budget | Trigger | Go Tools | Frontend Tools |
+|------|-------|---------------|---------|----------|---------------|
+| **Unit** | Single function/component, no I/O | < 30s total | Every save, pre-commit | `go test`, table-driven | Vitest, RTL |
+| **Integration** | Real DB, real Redis, real API mocks | < 3m total | Pre-push, CI | testcontainers-go, httptest | MSW, Playwright components |
+| **E2E** | Full Docker Compose stack, browser | < 10m total | CI only | N/A | Playwright |
+
+### 14.2 Go Backend Testing Strategy
+
+#### 14.2.1 Table-Driven Tests
+
+All Go tests follow the canonical table-driven pattern:
+
+```go
+func TestFunctionName(t *testing.T) {
+    tests := []struct {
+        name     string
+        input    InputType
+        expected OutputType
+        wantErr  bool
+    }{
+        {"valid input", validInput, expectedOutput, false},
+        {"empty input", emptyInput, zeroValue, true},
+        // ...
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            got, err := FunctionName(tt.input)
+            if tt.wantErr {
+                require.Error(t, err)
+                return
+            }
+            require.NoError(t, err)
+            assert.Equal(t, tt.expected, got)
+        })
+    }
+}
+```
+
+#### 14.2.2 Interface-Based Dependency Injection
+
+All services accept interfaces for their dependencies, enabling unit testing with mocks and integration testing with real implementations.
+
+| Interface | Methods | Real Implementation | Mock Usage |
+|-----------|---------|-------------------|------------|
+| `Store` | CRUD for all entities | sqlc-generated queries | Unit tests for handlers and services |
+| `S3Client` | PutObject, GetObject, RemoveObject, PresignedURL | MinIO SDK wrapper | Unit tests for upload/download logic |
+| `SessionStore` | Create, Get, Delete, Refresh | Redis client | Unit tests for auth middleware |
+| `JobQueue` | Enqueue, Consume, Ack | Redis Streams | Unit tests for API handlers producing jobs |
+| `FaceitAPI` | GetProfile, GetMatches, GetMatchDetail | HTTP client | Unit tests for sync worker |
+
+#### 14.2.3 Integration Tests with testcontainers-go
+
+Integration tests use ephemeral containers per test suite, not shared databases:
+
+```go
+//go:build integration
+
+func TestMain(m *testing.M) {
+    ctx := context.Background()
+    pg := testutil.StartPostgres(ctx)    // TimescaleDB container
+    redis := testutil.StartRedis(ctx)     // Redis container
+    defer pg.Terminate(ctx)
+    defer redis.Terminate(ctx)
+
+    testutil.RunMigrations(pg.ConnectionString())
+    os.Exit(m.Run())
+}
+```
+
+- **Build tag**: `//go:build integration` separates integration tests from fast unit tests
+- **Run unit only**: `go test ./...`
+- **Run integration**: `go test -tags integration ./...`
+- **Run all**: `go test -tags integration ./...`
+- **Container reuse**: One container per test suite (`TestMain`), not per test function
+
+#### 14.2.4 HTTP Handler Tests
+
+Handler tests use `httptest.NewRecorder` with the real chi router but mock service-layer dependencies:
+
+```go
+func TestDemoUploadHandler(t *testing.T) {
+    mockStore := &mocks.MockStore{}
+    mockS3 := &mocks.MockS3Client{}
+    mockQueue := &mocks.MockJobQueue{}
+
+    handler := handler.NewDemoHandler(mockStore, mockS3, mockQueue)
+    router := chi.NewRouter()
+    router.Post("/api/v1/demos", handler.Upload)
+
+    // Create multipart request...
+    req := httptest.NewRequest("POST", "/api/v1/demos", body)
+    rec := httptest.NewRecorder()
+    router.ServeHTTP(rec, req)
+
+    assert.Equal(t, http.StatusAccepted, rec.Code)
+}
+```
+
+This tests routing, middleware, request parsing, and response serialization without network or database I/O.
+
+#### 14.2.5 Demo Parser Tests with Fixture Files
+
+The demo parser (highest-risk task in the project) uses **golden file testing**:
+
+- **Fixture files**: Small, real CS2 `.dem` files (< 5 MB) stored in `backend/testdata/demos/`
+- **Golden files**: Expected parse output stored as `.golden.json` in `backend/testdata/golden/`
+- **Update flag**: Run `go test -update` to regenerate golden files after intentional changes
+- **Coverage**: At least 3 fixture demos covering normal match, overtime, and bot/disconnect edge cases
+
+```go
+func TestParseDemo(t *testing.T) {
+    result := parser.Parse("../../testdata/demos/small_match.dem")
+    golden := testutil.GoldenFile(t, "small_match_events", result)
+    assert.Equal(t, golden, result)
+}
+```
+
+Unit tests separately cover edge case functions: warmup detection, overtime detection, bot filtering, tick sampling rate.
+
+#### 14.2.6 sqlc Query Tests
+
+sqlc queries are tested against a real PostgreSQL + TimescaleDB instance via testcontainers:
+
+- Run the actual generated Go code against a real database
+- Seed test data, execute queries, assert results
+- Catches SQL regressions when `backend/queries/*.sql` files are modified
+- Particularly important for complex queries: tick range retrieval, heatmap aggregation, cross-demo stats
+
+### 14.3 Frontend Testing Strategy
+
+#### 14.3.1 Vitest Configuration
+
+```typescript
+// vitest.config.ts
+export default defineConfig({
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    globals: true,
+    css: false,
+  },
+  resolve: { alias: { '@': '/src' } },
+})
+```
+
+#### 14.3.2 React Testing Library
+
+Custom `renderWithProviders()` helper wraps components in all required providers:
+
+```typescript
+// src/test/render.tsx
+export function renderWithProviders(
+  ui: React.ReactElement,
+  options?: { initialRoute?: string }
+) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(ui, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={[options?.initialRoute ?? '/']}>
+          {children}
+        </MemoryRouter>
+      </QueryClientProvider>
+    ),
+  })
+}
+```
+
+#### 14.3.3 MSW (Mock Service Worker)
+
+API mocks intercept `fetch` at the network level for realistic testing of TanStack Query hooks:
+
+```typescript
+// src/test/msw/handlers.ts
+export const handlers = [
+  http.get('/api/v1/auth/me', () => HttpResponse.json({ data: mockUser })),
+  http.get('/api/v1/demos', () => HttpResponse.json({ data: mockDemos, meta: { page: 1, total: 5 } })),
+  // ...per-feature handlers added as features are built
+]
+```
+
+#### 14.3.4 Zustand Store Tests
+
+Stores are tested as pure units -- no React rendering needed:
+
+```typescript
+import { useViewerStore } from '@/stores/viewer'
+
+beforeEach(() => useViewerStore.setState(useViewerStore.getInitialState()))
+
+test('setSpeed updates playback speed', () => {
+  useViewerStore.getState().setSpeed(2.0)
+  expect(useViewerStore.getState().speed).toBe(2.0)
+})
+```
+
+#### 14.3.5 PixiJS / Canvas Layer Testing
+
+PixiJS code uses a **split testing strategy**:
+
+| Aspect | Approach | Example |
+|--------|----------|---------|
+| **Logic** (transforms, interpolation, state) | Classical TDD with unit tests | `worldToPixel(x, y, calibration)` tested with known coordinate pairs |
+| **Visual rendering** (draw calls, sprites) | Screenshot tests with Playwright | Render PlayerLayer with mock data, compare to reference screenshot |
+
+The "brain" is TDD'd; the "eyes" are screenshot-tested. This avoids forcing classical TDD on raw PixiJS draw calls where visual output is the real specification.
+
+#### 14.3.6 TanStack Query Hook Tests
+
+```typescript
+test('useDemos fetches demo list', async () => {
+  const { result } = renderHook(() => useDemos(), { wrapper: createWrapper() })
+  await waitFor(() => expect(result.current.isSuccess).toBe(true))
+  expect(result.current.data).toHaveLength(5)
+})
+```
+
+#### 14.3.7 Yjs Collaboration Tests
+
+Yjs tests use in-memory providers -- no WebSocket server needed:
+
+```typescript
+test('two docs converge on shared map', () => {
+  const doc1 = new Y.Doc()
+  const doc2 = new Y.Doc()
+
+  // Sync mechanism: apply updates from one to the other
+  doc1.on('update', (update) => Y.applyUpdate(doc2, update))
+  doc2.on('update', (update) => Y.applyUpdate(doc1, update))
+
+  doc1.getMap('board').set('title', 'A Site Execute')
+  expect(doc2.getMap('board').get('title')).toBe('A Site Execute')
+})
+```
+
+### 14.4 Test Database Strategy
+
+- Tests **never** use a shared database. Each integration test suite gets an ephemeral container via testcontainers-go
+- Migrations run automatically during `TestMain` setup
+- Frontend tests use MSW (no database needed)
+- Test data is inserted per test or per suite, never persisted between runs
+- `TRUNCATE` between tests within a suite for isolation without container restart overhead
+
+### 14.5 Fixture Management
+
+| Fixture Type | Location | Strategy |
+|--------------|----------|----------|
+| `.dem` files (small, < 5 MB) | `backend/testdata/demos/` | Committed to repo |
+| `.dem` files (large, > 5 MB) | Downloaded in CI | `make download-test-fixtures` |
+| API response mocks | `frontend/src/test/msw/handlers.ts` | MSW handlers, co-evolve with API |
+| Golden files (parser output) | `backend/testdata/golden/` | JSON snapshots, `-update` flag |
+| Golden files (sqlc queries) | `backend/testdata/golden/queries/` | Expected result sets |
+| Map calibration test data | `frontend/src/lib/maps/__tests__/fixtures/` | Known world→pixel coordinate pairs |
+| Radar images (test) | `frontend/public/maps/` | Same as production (small PNGs) |
+
+### 14.6 CI Test Pipeline Flow
+
+```
+┌──────┐    ┌────────────┐    ┌─────────────────┐    ┌───────┐    ┌────────────┐
+│ Lint │───▶│ Unit Tests │───▶│Integration Tests│───▶│ Build │───▶│ E2E Tests  │
+│      │    │ go test    │    │ testcontainers  │    │       │    │ Playwright │
+│      │    │ pnpm test  │    │ MSW             │    │       │    │ Docker     │
+└──────┘    └────────────┘    └─────────────────┘    └───────┘    └────────────┘
+                                                          │
+                                                     Each stage
+                                                     gates the next
+```
+
+- **Lint** fails → nothing else runs
+- **Unit tests** fail → no integration tests
+- **Integration tests** fail → no build artifacts
+- **Build** fails → no E2E
+- **E2E** tests fail → PR cannot merge
+
+### 14.7 Test File Conventions
+
+| Codebase | Pattern | Location | Example |
+|----------|---------|----------|---------|
+| Go unit test | `*_test.go` (same package) | Colocated with source | `backend/internal/auth/session_test.go` |
+| Go integration test | `*_integration_test.go` + `//go:build integration` | Colocated with source | `backend/internal/store/demo_integration_test.go` |
+| Frontend unit/component | `*.test.ts` / `*.test.tsx` | Colocated with source | `frontend/src/stores/viewer.test.ts` |
+| Frontend test helpers | `src/test/*` | Centralized | `frontend/src/test/render.tsx` |
+| E2E test | `*.spec.ts` | `e2e/tests/` | `e2e/tests/demo-upload.spec.ts` |
+| Golden files | `*.golden.json` | `backend/testdata/golden/` | `backend/testdata/golden/small_match_events.golden.json` |
 
 ---
 

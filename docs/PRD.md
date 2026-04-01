@@ -454,6 +454,27 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 | Max strategy boards per user | 50 |
 | Max concurrent strat board collaborators | 10 |
 
+### 7.6 Test Coverage & Quality
+
+The project follows **Test-Driven Development (TDD)**. Every feature is developed using the Red-Green-Refactor cycle: write a failing test first, implement the minimum code to pass, then refactor.
+
+| Metric | Target |
+|--------|--------|
+| Go backend line coverage | >= 80% |
+| Go critical-path coverage (parser, ingest, auth) | >= 90% |
+| Frontend component/hook test coverage | >= 75% |
+| Frontend utility/store coverage | >= 90% |
+| E2E critical path coverage | 100% of US-01 (login), US-04 (upload), US-08 (viewer), US-21 (strat board) |
+| CI gate | Zero merge to main without all tests passing |
+
+**Test execution time budgets:**
+
+| Test Tier | Budget |
+|-----------|--------|
+| Unit tests (Go + TS) | < 30 seconds total |
+| Integration tests (testcontainers, MSW) | < 3 minutes total |
+| End-to-end tests (Playwright) | < 10 minutes total |
+
 ---
 
 ## 8. Data Models
