@@ -45,6 +45,12 @@ coverage/
 *.cover
 *.prof
 
+# Playwright
+frontend/playwright-results/
+frontend/playwright-report/
+e2e/results/
+e2e/playwright-report/
+
 # Temporary
 tmp/
 *.tmp

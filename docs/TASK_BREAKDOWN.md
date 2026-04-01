@@ -62,7 +62,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - `pnpm install` succeeds in `frontend/` |
 | | - Root `.gitignore` covers Go binaries, `node_modules`, `.env`, IDE files |
 
-### P1-T02: Set up Docker Compose (all 8 services)
+### P1-T02: Set up Docker Compose (all 8 services) ✅
 
 | | |
 |---|---|
@@ -79,7 +79,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - MinIO console accessible on port 9001 |
 | | - Network segmentation: postgres/redis/minio not on `frontend` network |
 
-### P1-T03: Set up nginx reverse proxy config
+### P1-T03: Set up nginx reverse proxy config ✅
 
 | | |
 |---|---|
@@ -94,7 +94,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - WebSocket upgrade on `/ws/` succeeds |
 | | - Upload limit set to 500 MB |
 
-### P1-T04: Scaffold Go backend
+### P1-T04: Scaffold Go backend ✅
 
 | | |
 |---|---|
@@ -112,7 +112,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Health handler test passes |
 | | - Config loading test covers required env vars |
 
-### P1-T05: Create database migrations
+### P1-T05: Create database migrations ✅
 
 | | |
 |---|---|
@@ -130,7 +130,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Integration test verifies all 9 tables created via testcontainers |
 | | - Down migration test verifies clean rollback |
 
-### P1-T06: Configure sqlc and generate Go code
+### P1-T06: Configure sqlc and generate Go code ✅
 
 | | |
 |---|---|
@@ -149,7 +149,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Batch insert test for tick_data verifies 10k+ rows |
 | | - All sqlc integration tests pass in CI |
 
-### P1-T07: Scaffold Next.js frontend
+### P1-T07: Scaffold Next.js frontend ✅
 
 | | |
 |---|---|
@@ -168,7 +168,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Sidebar component test verifies all navigation links render |
 | | - Dark mode toggle test passes |
 
-### P1-T08: Set up Zustand stores
+### P1-T08: Set up Zustand stores ✅
 
 | | |
 |---|---|
@@ -185,7 +185,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Stores reset correctly between tests |
 | | - All store tests pass in CI |
 
-### P1-T09: Set up CI pipeline
+### P1-T09: Set up CI pipeline ✅
 
 | | |
 |---|---|
@@ -204,7 +204,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - CI runs integration tests (`go test -tags integration`) as separate stage |
 | | - Integration test stage has Docker/testcontainers support |
 
-### P1-T10: Create root Makefile
+### P1-T10: Create root Makefile ✅
 
 | | |
 |---|---|
@@ -225,7 +225,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - `make test-e2e` runs Playwright E2E tests |
 | | - `make test` runs all test tiers |
 
-### P1-T11: Set up Go test infrastructure
+### P1-T11: Set up Go test infrastructure ✅
 
 | | |
 |---|---|
@@ -243,7 +243,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - CI runs integration tests in a separate stage |
 | | - `go test -tags integration ./internal/testutil/...` passes |
 
-### P1-T12: Set up frontend test infrastructure
+### P1-T12: Set up frontend test infrastructure ✅
 
 | | |
 |---|---|
