@@ -1,0 +1,8 @@
+{
+    "faceit_id": "fixture-faceit-id",
+    "nickname": "FixturePlayer",
+    "avatar_url": "https://example.com/avatar.png",
+    "faceit_elo": 2100,
+    "faceit_level": 9,
+    "country": "US"
+}

@@ -1,0 +1,38 @@
+# Test files
+*_test.go
+testdata/
+
+# Binary output
+tmp/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+Dockerfile.dev
+.dockerignore
+
+# Debug/logs
+*.log
+debug/
+
+# Coverage
+*.cover
+*.prof
+coverage/

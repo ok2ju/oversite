@@ -1,4 +1,211 @@
 package main
 
+import (
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+	"path/filepath"
+
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/spf13/cobra"
+
+	"github.com/ok2ju/oversite/backend/internal/config"
+	"github.com/ok2ju/oversite/backend/internal/handler"
+)
+
 func main() {
+	rootCmd := &cobra.Command{
+		Use:   "oversite",
+		Short: "Oversite CS2 demo viewer backend",
+	}
+
+	rootCmd.AddCommand(
+		serveCmd(),
+		wsCmd(),
+		workerCmd(),
+		migrateCmd(),
+	)
+
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
+}
+
+func serveCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "serve",
+		Short: "Start the API server",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.Load()
+			if err != nil {
+				return fmt.Errorf("loading config: %w", err)
+			}
+
+			setupLogger(cfg.LogLevel)
+
+			health := handler.NewHealthHandler()
+			router := handler.NewRouter(health)
+
+			slog.Info("starting API server", "port", cfg.Port, "env", cfg.Environment)
+			return http.ListenAndServe(":"+cfg.Port, router)
+		},
+	}
+}
+
+func wsCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "ws",
+		Short: "Start the WebSocket server",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			slog.Info("WebSocket server not implemented yet")
+			return nil
+		},
+	}
+}
+
+func workerCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "worker",
+		Short: "Start the background worker",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			slog.Info("Worker not implemented yet")
+			return nil
+		},
+	}
+}
+
+func migrateCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "migrate",
+		Short: "Run database migrations",
+	}
+
+	var migrationsPath string
+	cmd.PersistentFlags().StringVar(&migrationsPath, "path", "", "path to migrations directory (default: auto-detected relative to binary)")
+
+	cmd.AddCommand(
+		&cobra.Command{
+			Use:   "up",
+			Short: "Run all pending migrations",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				m, err := newMigrate(migrationsPath)
+				if err != nil {
+					return err
+				}
+				defer m.Close()
+
+				slog.Info("running migrations up")
+				if err := m.Up(); err != nil {
+					if errors.Is(err, migrate.ErrNoChange) {
+						slog.Info("no new migrations to apply")
+						return nil
+					}
+					return fmt.Errorf("migrate up: %w", err)
+				}
+				slog.Info("migrations applied successfully")
+				return nil
+			},
+		},
+		&cobra.Command{
+			Use:   "down",
+			Short: "Rollback the last migration",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				m, err := newMigrate(migrationsPath)
+				if err != nil {
+					return err
+				}
+				defer m.Close()
+
+				slog.Info("rolling back last migration")
+				if err := m.Steps(-1); err != nil {
+					if errors.Is(err, migrate.ErrNoChange) {
+						slog.Info("no migrations to rollback")
+						return nil
+					}
+					return fmt.Errorf("migrate down: %w", err)
+				}
+				slog.Info("migration rolled back successfully")
+				return nil
+			},
+		},
+	)
+	return cmd
+}
+
+// newMigrate creates a golang-migrate instance configured with DATABASE_URL
+// and the migrations directory. It reads DATABASE_URL directly from the
+// environment so that running migrations doesn't require all other env vars
+// (Redis, MinIO, etc.) to be set.
+func newMigrate(migrationsPath string) (*migrate.Migrate, error) {
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		return nil, fmt.Errorf("DATABASE_URL environment variable is required")
+	}
+
+	sourceURL, err := resolveMigrationsSource(migrationsPath)
+	if err != nil {
+		return nil, err
+	}
+
+	m, err := migrate.New(sourceURL, dbURL)
+	if err != nil {
+		return nil, fmt.Errorf("creating migrate instance: %w", err)
+	}
+
+	m.Log = &slogMigrateLogger{}
+	return m, nil
+}
+
+// resolveMigrationsSource determines the file:// source URL for migrations.
+// If an explicit path is provided via --path flag, it uses that.
+// Otherwise, it looks for a migrations/ directory relative to the binary.
+func resolveMigrationsSource(explicit string) (string, error) {
+	if explicit != "" {
+		abs, err := filepath.Abs(explicit)
+		if err != nil {
+			return "", fmt.Errorf("resolving migrations path: %w", err)
+		}
+		return "file://" + abs, nil
+	}
+
+	// Default: migrations/ directory relative to the working directory.
+	// This works when running from the backend/ directory or via Docker.
+	abs, err := filepath.Abs("migrations")
+	if err != nil {
+		return "", fmt.Errorf("resolving default migrations path: %w", err)
+	}
+	return "file://" + abs, nil
+}
+
+// slogMigrateLogger adapts slog to the migrate.Logger interface.
+type slogMigrateLogger struct{}
+
+func (l *slogMigrateLogger) Printf(format string, v ...interface{}) {
+	slog.Info(fmt.Sprintf(format, v...))
+}
+
+func (l *slogMigrateLogger) Verbose() bool {
+	return false
+}
+
+func setupLogger(level string) {
+	var logLevel slog.Level
+	switch level {
+	case "debug":
+		logLevel = slog.LevelDebug
+	case "warn":
+		logLevel = slog.LevelWarn
+	case "error":
+		logLevel = slog.LevelError
+	default:
+		logLevel = slog.LevelInfo
+	}
+
+	opts := &slog.HandlerOptions{Level: logLevel}
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, opts))
+	slog.SetDefault(logger)
 }
