@@ -34,10 +34,12 @@ oversite/
 │   │   ├── model/                  # Domain types
 │   │   ├── store/                  # sqlc generated code
 │   │   ├── strat/                  # Strategy board service
+│   │   ├── testutil/               # Shared test helpers
 │   │   ├── websocket/              # WS hub, Yjs relay
 │   │   └── worker/                 # Job queue consumer
 │   ├── migrations/                 # SQL migration files
 │   ├── queries/                    # sqlc SQL files
+│   ├── testdata/                   # Golden files for parser tests
 │   └── Makefile
 ├── frontend/
 │   ├── src/
@@ -46,35 +48,40 @@ oversite/
 │   │   ├── hooks/                  # Custom React hooks
 │   │   ├── lib/                    # API client, pixi, yjs, maps
 │   │   ├── stores/                 # Zustand stores
+│   │   ├── test/                   # Test setup and helpers
 │   │   ├── types/                  # TypeScript types
 │   │   └── utils/
 │   └── public/maps/                # Radar images
+├── e2e/                            # Playwright E2E tests
 ├── nginx/nginx.conf
 ├── docker-compose.yml
 ├── docker-compose.dev.yml
+├── lefthook.yml                    # Pre-commit hook config
 ├── Makefile                        # Root dev commands
-└── docs/                           # PRD, Architecture, Plans
+└── docs/                           # PRD, Architecture, Plans, ADRs
 ```
 
 ## Development Commands
 
 ```bash
 # Docker
-make up                  # Start all services
+make up                  # Start all services in background
 make down                # Stop all services
-make dev                 # Start with hot-reload
+make dev                 # Start with hot-reload (foreground)
 make logs                # Tail all logs
 make logs s=api          # Tail specific service
+make ps                  # Show running services
+make restart s=api       # Restart a specific service
 
 # Database
-make migrate-up          # Run migrations
+make migrate-up          # Run all pending migrations
 make migrate-down        # Rollback last migration
-make migrate-create      # New migration files
+make migrate-create      # New migration files (interactive prompt)
 make sqlc                # Regenerate Go code from SQL
 
 # Backend (in backend/)
 go build ./cmd/oversite  # Build binary
-go test ./...            # Run tests
+go test ./...            # Run unit tests
 golangci-lint run        # Lint
 
 # Frontend (in frontend/)
@@ -84,14 +91,21 @@ pnpm lint                # ESLint
 pnpm typecheck           # tsc --noEmit
 pnpm test                # Vitest
 
-# All
+# Testing
+make test                # Run all tests (unit + integration)
+make test-unit           # Go + TS unit tests only
+make test-integration    # Go integration tests (requires Docker)
+make test-e2e            # Playwright E2E tests (in e2e/)
+
+# Quality
 make lint                # Lint Go + TS
-make test                # Test Go + TS
-make build               # Build all
+make typecheck           # TypeScript type checking
+make build               # Build all artifacts
+make clean               # Remove build artifacts
 
 # Git Hooks
 make hooks               # Install lefthook pre-commit hooks
-make hooks-fallback      # Fallback: no extra tools needed
+make hooks-fallback      # Fallback: git core.hooksPath, no extra tools
 ```
 
 ## Coding Conventions
@@ -159,6 +173,24 @@ Each CS2 map has calibration data (`origin_x`, `origin_y`, `scale`) mapping game
 - `/ws/viewer/:demoId` -- Demo playback sync
 - `/ws/strat/:stratId` -- Yjs strategy board collaboration
 - `/healthz`, `/readyz` -- Health checks
+
+## Claude Code Automations
+
+### Hooks (auto-run on edits)
+- **PostToolUse**: Auto-runs `eslint --fix` on TS/TSX, `gofmt`+`goimports` on Go files
+- **PreToolUse**: Blocks edits to lock files (`pnpm-lock.yaml`, `go.sum`) and sqlc-generated `*.sql.go` files
+
+### Subagents (`.claude/agents/`)
+- **security-reviewer** -- Reviews code for auth, injection, WebSocket, and data exposure vulnerabilities
+- **test-writer** -- Generates tests matching project TDD conventions (table-driven Go, RTL+MSW React, Vitest stores)
+
+### Skills
+- `/create-migration <name>` -- Creates numbered golang-migrate up/down SQL file pair
+- `/gen-test <file>` -- Generates test file for any Go or TS source file
+
+### MCP Servers (`.mcp.json`)
+- **Playwright** -- Browser automation for visual testing and debugging
+- **Context7** -- Live documentation lookup for project libraries
 
 ## Documentation
 
