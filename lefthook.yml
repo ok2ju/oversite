@@ -1,0 +1,12 @@
+pre-commit:
+  parallel: true
+  commands:
+    frontend-lint:
+      root: "frontend/"
+      glob: "frontend/**/*.{ts,tsx,js,mjs}"
+      run: npx eslint --no-warn-ignored {staged_files}
+
+    backend-lint:
+      root: "backend/"
+      glob: "backend/**/*.go"
+      run: bash ../.githooks/go-lint-staged.sh {staged_files}

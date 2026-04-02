@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Standalone fallback when lefthook is not installed.
+# Activate: git config core.hooksPath .githooks
+
+ROOT="$(git rev-parse --show-toplevel)"
+
+# --- Frontend ---
+FRONTEND_FILES=$(git diff --cached --name-only --diff-filter=d -- \
+  'frontend/**/*.ts' 'frontend/**/*.tsx' 'frontend/**/*.js' 'frontend/**/*.mjs' || true)
+
+if [ -n "$FRONTEND_FILES" ]; then
+  echo "[pre-commit] ESLint..."
+  cd "$ROOT/frontend"
+  RELATIVE_FILES=$(echo "$FRONTEND_FILES" | sed 's|^frontend/||')
+  # shellcheck disable=SC2086
+  npx eslint --no-warn-ignored $RELATIVE_FILES
+  cd "$ROOT"
+fi
+
+# --- Backend ---
+GO_FILES=$(git diff --cached --name-only --diff-filter=d -- 'backend/**/*.go' || true)
+
+if [ -n "$GO_FILES" ]; then
+  echo "[pre-commit] golangci-lint..."
+  cd "$ROOT/backend"
+  PACKAGES=$(echo "$GO_FILES" | sed 's|^backend/||' | xargs -n1 dirname | sort -u | sed 's|^|./|')
+  # shellcheck disable=SC2086
+  golangci-lint run $PACKAGES
+  cd "$ROOT"
+fi

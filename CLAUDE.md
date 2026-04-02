@@ -88,6 +88,10 @@ pnpm test                # Vitest
 make lint                # Lint Go + TS
 make test                # Test Go + TS
 make build               # Build all
+
+# Git Hooks
+make hooks               # Install lefthook pre-commit hooks
+make hooks-fallback      # Fallback: no extra tools needed
 ```
 
 ## Coding Conventions

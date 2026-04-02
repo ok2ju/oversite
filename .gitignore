@@ -51,6 +51,9 @@ frontend/playwright-report/
 e2e/results/
 e2e/playwright-report/
 
+# Lefthook
+lefthook-local.yml
+
 # Temporary
 tmp/
 *.tmp

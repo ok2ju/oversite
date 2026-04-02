@@ -1,4 +1,4 @@
-.PHONY: up down dev logs migrate-up migrate-down migrate-create sqlc lint test test-unit test-integration test-e2e build clean help
+.PHONY: up down dev logs migrate-up migrate-down migrate-create sqlc lint test test-unit test-integration test-e2e build clean hooks hooks-fallback help
 
 # ========================
 # Docker
@@ -49,6 +49,14 @@ lint: ## Run all linters
 
 typecheck: ## Run TypeScript type checking
 	cd frontend && pnpm tsc --noEmit
+
+hooks: ## Install pre-commit hooks (requires: brew install lefthook)
+	@command -v lefthook >/dev/null 2>&1 || { echo "Install lefthook: brew install lefthook"; exit 1; }
+	lefthook install
+
+hooks-fallback: ## Install pre-commit hooks (no extra tools)
+	git config core.hooksPath .githooks
+	@echo "Pre-commit hooks activated via core.hooksPath"
 
 # ========================
 # Testing
