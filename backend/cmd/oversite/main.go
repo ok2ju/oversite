@@ -1,18 +1,19 @@
 package main
 
 import (
-	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
 	"github.com/spf13/cobra"
 
 	"github.com/ok2ju/oversite/backend/internal/auth"
@@ -50,6 +51,22 @@ func serveCmd() *cobra.Command {
 
 			setupLogger(cfg.LogLevel)
 
+			// Database
+			db, err := sql.Open("postgres", cfg.DatabaseURL)
+			if err != nil {
+				return fmt.Errorf("opening database: %w", err)
+			}
+			defer func() { _ = db.Close() }()
+
+			// Redis
+			redisOpts, err := redis.ParseURL(cfg.RedisURL)
+			if err != nil {
+				return fmt.Errorf("parsing redis URL: %w", err)
+			}
+			redisClient := redis.NewClient(redisOpts)
+			defer func() { _ = redisClient.Close() }()
+
+			// OAuth
 			oauthCfg := auth.FaceitOAuthConfig{
 				ClientID:     cfg.FaceitClientID,
 				ClientSecret: cfg.FaceitClientSecret,
@@ -59,14 +76,18 @@ func serveCmd() *cobra.Command {
 				UserInfoURL:  "https://api.faceit.com/auth/v1/resources/userinfo",
 			}
 
-			// Use no-op state store until Redis is wired in P2-T02
-			sessions := &noopStateStore{}
+			stateStore := auth.NewRedisStateStore(redisClient)
 			faceitClient := auth.NewFaceitClient(oauthCfg)
-			oauthSvc := auth.NewOAuthService(oauthCfg, sessions, nil, faceitClient)
+			oauthSvc := auth.NewOAuthService(oauthCfg, stateStore, nil, faceitClient)
 			secure := cfg.Environment == "production"
-			authHandler := handler.NewAuthHandler(oauthSvc, sessions, secure)
+			authHandler := handler.NewAuthHandler(oauthSvc, stateStore, secure)
 
-			health := handler.NewHealthHandler()
+			// Health checks with real dependencies
+			health := handler.NewHealthHandler(
+				&handler.DBChecker{DB: db},
+				stateStore,
+				&handler.MinIOChecker{Endpoint: cfg.MinioEndpoint, UseSSL: cfg.MinioUseSSL},
+			)
 			router := handler.NewRouter(health, authHandler)
 
 			slog.Info("starting API server", "port", cfg.Port, "env", cfg.Environment)
@@ -209,21 +230,6 @@ func (l *slogMigrateLogger) Printf(format string, v ...interface{}) {
 
 func (l *slogMigrateLogger) Verbose() bool {
 	return false
-}
-
-// noopStateStore is a placeholder until Redis is wired in P2-T02.
-type noopStateStore struct{}
-
-func (s *noopStateStore) Create(_ context.Context, _ string, _ []byte, _ time.Duration) error {
-	return nil
-}
-
-func (s *noopStateStore) Get(_ context.Context, _ string) ([]byte, error) {
-	return nil, nil
-}
-
-func (s *noopStateStore) Delete(_ context.Context, _ string) error {
-	return nil
 }
 
 func setupLogger(level string) {
