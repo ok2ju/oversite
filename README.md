@@ -13,9 +13,6 @@ Install the following before starting development:
 | [pnpm](https://pnpm.io/) | 9+ | `corepack enable && corepack prepare pnpm@latest --activate` |
 | [Docker](https://www.docker.com/) | 24+ | [Docker Desktop](https://www.docker.com/products/docker-desktop/) |
 | [Docker Compose](https://docs.docker.com/compose/) | 2.20+ | Included with Docker Desktop |
-| [golangci-lint](https://golangci-lint.run/) | latest | `brew install golangci-lint` |
-| [sqlc](https://sqlc.dev/) | latest | `brew install sqlc` |
-| [lefthook](https://github.com/evilmartians/lefthook) | latest | `brew install lefthook` |
 
 ### Setup
 
@@ -27,7 +24,7 @@ cd oversite
 # Install frontend dependencies
 cd frontend && pnpm install && cd ..
 
-# Install pre-commit hooks
+# Install pre-commit hooks (tools auto-resolved from go.mod)
 make hooks
 
 # Start all services (Postgres, Redis, MinIO, etc.)

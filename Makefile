@@ -37,22 +37,21 @@ migrate-create: ## Create new migration files
 	docker compose exec api /app/oversite migrate create $$name
 
 sqlc: ## Regenerate Go code from SQL queries
-	cd backend && sqlc generate
+	cd backend && go tool sqlc generate
 
 # ========================
 # Quality
 # ========================
 
 lint: ## Run all linters
-	cd backend && golangci-lint run ./...
+	cd backend && go tool golangci-lint run ./...
 	cd frontend && pnpm lint
 
 typecheck: ## Run TypeScript type checking
 	cd frontend && pnpm tsc --noEmit
 
-hooks: ## Install pre-commit hooks (requires: brew install lefthook)
-	@command -v lefthook >/dev/null 2>&1 || { echo "Install lefthook: brew install lefthook"; exit 1; }
-	lefthook install
+hooks: ## Install pre-commit hooks
+	go -C backend tool lefthook install
 
 hooks-fallback: ## Install pre-commit hooks (no extra tools)
 	git config core.hooksPath .githooks

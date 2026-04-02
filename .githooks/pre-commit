@@ -27,6 +27,6 @@ if [ -n "$GO_FILES" ]; then
   cd "$ROOT/backend"
   PACKAGES=$(echo "$GO_FILES" | sed 's|^backend/||' | xargs -n1 dirname | sort -u | sed 's|^|./|')
   # shellcheck disable=SC2086
-  golangci-lint run $PACKAGES
+  go tool golangci-lint run $PACKAGES
   cd "$ROOT"
 fi

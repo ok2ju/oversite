@@ -13,7 +13,7 @@ test-integration:
 	go test -tags integration ./...
 
 lint:
-	golangci-lint run ./...
+	go tool golangci-lint run ./...
 
 sqlc:
-	sqlc generate
+	go tool sqlc generate

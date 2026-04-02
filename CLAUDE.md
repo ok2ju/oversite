@@ -82,7 +82,7 @@ make sqlc                # Regenerate Go code from SQL
 # Backend (in backend/)
 go build ./cmd/oversite  # Build binary
 go test ./...            # Run unit tests
-golangci-lint run        # Lint
+go tool golangci-lint run  # Lint
 
 # Frontend (in frontend/)
 pnpm dev                 # Dev server on :3000
