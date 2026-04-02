@@ -138,6 +138,15 @@ func TestMigrations_DownAndUp(t *testing.T) {
 		t.Fatalf("running migrations down: %v", err)
 	}
 
+	// Reopen connection — the old pool has connections with stale
+	// PostgreSQL relcache OIDs from the dropped TimescaleDB hypertable.
+	db.Close()
+	db, err = sql.Open("postgres", connURL)
+	if err != nil {
+		t.Fatalf("reopening db after down: %v", err)
+	}
+	defer db.Close()
+
 	// Verify tables are gone
 	for _, table := range tables {
 		var exists bool
