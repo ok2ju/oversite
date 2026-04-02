@@ -8,7 +8,7 @@ Install the following before starting development:
 
 | Tool | Version | Install |
 |------|---------|---------|
-| [Go](https://go.dev/) | 1.25+ | `brew install go` |
+| [Go](https://go.dev/) | 1.26+ | `brew install go` |
 | [Node.js](https://nodejs.org/) | 20+ | `brew install node` |
 | [pnpm](https://pnpm.io/) | 9+ | `corepack enable && corepack prepare pnpm@latest --activate` |
 | [Docker](https://www.docker.com/) | 24+ | [Docker Desktop](https://www.docker.com/products/docker-desktop/) |
