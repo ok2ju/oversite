@@ -32,6 +32,8 @@ func NewRouter(health *HealthHandler, authH *AuthHandler) chi.Router {
 		r.Route("/auth", func(r chi.Router) {
 			r.Get("/faceit", authH.HandleLogin)
 			r.Get("/faceit/callback", authH.HandleCallback)
+			r.Post("/logout", authH.HandleLogout)
+			r.Get("/me", authH.HandleMe)
 		})
 	})
 

@@ -284,7 +284,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Integration test: full callback flow with mock Faceit API |
 | | - All auth tests pass in CI |
 
-### P2-T02: Implement Redis session management
+### P2-T02: Implement Redis session management ✅
 
 | | |
 |---|---|

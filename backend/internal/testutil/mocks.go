@@ -3,7 +3,8 @@ package testutil
 import (
 	"context"
 	"io"
-	"time"
+
+	"github.com/ok2ju/oversite/backend/internal/auth"
 )
 
 // S3Client defines the interface for object storage operations.
@@ -14,12 +15,8 @@ type S3Client interface {
 	ObjectExists(ctx context.Context, bucket, key string) (bool, error)
 }
 
-// SessionStore defines the interface for session management (Redis-backed).
-type SessionStore interface {
-	Create(ctx context.Context, token string, data []byte, ttl time.Duration) error
-	Get(ctx context.Context, token string) ([]byte, error)
-	Delete(ctx context.Context, token string) error
-}
+// SessionStore is an alias for auth.SessionStore for documentation.
+// Use auth.SessionStore as the canonical interface.
 
 // JobQueue defines the interface for the background job queue (Redis Streams).
 type JobQueue interface {
@@ -57,18 +54,23 @@ func (s *StubS3Client) ObjectExists(ctx context.Context, bucket, key string) (bo
 }
 
 // StubSessionStore is a no-op session store for unit tests.
+// It implements auth.SessionStore.
 type StubSessionStore struct{}
 
-func (s *StubSessionStore) Create(ctx context.Context, token string, data []byte, ttl time.Duration) error {
-	return nil
+func (s *StubSessionStore) Create(ctx context.Context, data *auth.SessionData) (string, error) {
+	return "stub-token", nil
 }
 
-func (s *StubSessionStore) Get(ctx context.Context, token string) ([]byte, error) {
-	return nil, nil
+func (s *StubSessionStore) Get(ctx context.Context, token string) (*auth.SessionData, error) {
+	return nil, auth.ErrSessionNotFound
 }
 
 func (s *StubSessionStore) Delete(ctx context.Context, token string) error {
 	return nil
+}
+
+func (s *StubSessionStore) Refresh(ctx context.Context, token string) error {
+	return auth.ErrSessionNotFound
 }
 
 // StubJobQueue is a no-op job queue for unit tests.
