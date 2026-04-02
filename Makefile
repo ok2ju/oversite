@@ -62,7 +62,7 @@ hooks-fallback: ## Install pre-commit hooks (no extra tools)
 # Testing
 # ========================
 
-test: test-unit test-integration ## Run all tests
+test: test-unit test-integration test-e2e ## Run all tests
 
 test-unit: ## Run Go + TS unit tests
 	cd backend && go test ./...

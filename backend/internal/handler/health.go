@@ -1,16 +1,28 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 )
 
-// HealthHandler provides HTTP handlers for health check endpoints.
-type HealthHandler struct{}
+// HealthChecker defines a dependency that can be pinged for health.
+type HealthChecker interface {
+	Ping(ctx context.Context) error
+}
 
-// NewHealthHandler creates a new HealthHandler.
-func NewHealthHandler() *HealthHandler {
-	return &HealthHandler{}
+// HealthHandler provides HTTP handlers for health check endpoints.
+type HealthHandler struct {
+	db    HealthChecker
+	redis HealthChecker
+	minio HealthChecker
+}
+
+// NewHealthHandler creates a new HealthHandler with real dependency checkers.
+// Any checker may be nil, in which case it reports "not_configured".
+func NewHealthHandler(db, redis, minio HealthChecker) *HealthHandler {
+	return &HealthHandler{db: db, redis: redis, minio: minio}
 }
 
 // Healthz is a liveness probe -- always returns 200.
@@ -21,16 +33,43 @@ func (h *HealthHandler) Healthz(w http.ResponseWriter, r *http.Request) {
 }
 
 // Readyz is a readiness probe -- checks dependencies.
-// For now, returns ok for all checks. Real dependency checking will be wired later.
+// Returns 200 if all checks pass, 503 if any fail.
 func (h *HealthHandler) Readyz(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
+	checks := map[string]string{}
+	allOK := true
+
+	for name, checker := range map[string]HealthChecker{
+		"db":    h.db,
+		"redis": h.redis,
+		"minio": h.minio,
+	} {
+		if checker == nil {
+			checks[name] = "not_configured"
+			allOK = false
+			continue
+		}
+		if err := checker.Ping(ctx); err != nil {
+			checks[name] = "fail"
+			allOK = false
+		} else {
+			checks[name] = "ok"
+		}
+	}
+
+	status := "ok"
+	httpStatus := http.StatusOK
+	if !allOK {
+		status = "degraded"
+		httpStatus = http.StatusServiceUnavailable
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(httpStatus)
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"status": "ok",
-		"checks": map[string]string{
-			"db":    "ok",
-			"redis": "ok",
-			"minio": "ok",
-		},
+		"status": status,
+		"checks": checks,
 	})
 }

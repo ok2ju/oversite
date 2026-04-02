@@ -30,6 +30,24 @@ func RunMigrations(dbURL string) error {
 	return nil
 }
 
+// RunMigrationsDown rolls back all migrations against the given database URL.
+func RunMigrationsDown(dbURL string) error {
+	migrationsPath := MigrationsPath()
+	sourceURL := fmt.Sprintf("file://%s", migrationsPath)
+
+	m, err := migrate.New(sourceURL, dbURL)
+	if err != nil {
+		return fmt.Errorf("creating migrate instance: %w", err)
+	}
+	defer m.Close()
+
+	if err := m.Down(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("running migrations down: %w", err)
+	}
+
+	return nil
+}
+
 // MigrationsPath returns the absolute path to the migrations directory.
 // It uses runtime.Caller to find the path relative to this source file,
 // so it works regardless of the working directory.
