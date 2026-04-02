@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"time"
 )
@@ -40,5 +41,8 @@ func (c *MinIOChecker) Ping(ctx context.Context) error {
 		return err
 	}
 	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("minio health check returned status %d", resp.StatusCode)
+	}
 	return nil
 }

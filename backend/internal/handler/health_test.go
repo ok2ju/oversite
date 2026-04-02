@@ -126,8 +126,8 @@ func TestReadyz_NilChecker(t *testing.T) {
 
 	h.Readyz(rec, req)
 
-	if rec.Code != http.StatusServiceUnavailable {
-		t.Errorf("expected status %d, got %d", http.StatusServiceUnavailable, rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
 
 	var body struct {
@@ -136,6 +136,10 @@ func TestReadyz_NilChecker(t *testing.T) {
 	}
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatalf("failed to decode response body: %v", err)
+	}
+
+	if body.Status != "ok" {
+		t.Errorf("expected status 'ok', got %q", body.Status)
 	}
 
 	if body.Checks["redis"] != "not_configured" {

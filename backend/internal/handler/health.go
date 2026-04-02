@@ -48,7 +48,6 @@ func (h *HealthHandler) Readyz(w http.ResponseWriter, r *http.Request) {
 	} {
 		if checker == nil {
 			checks[name] = "not_configured"
-			allOK = false
 			continue
 		}
 		if err := checker.Ping(ctx); err != nil {
