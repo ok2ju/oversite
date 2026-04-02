@@ -27,12 +27,12 @@ func newMockStateStore() *mockStateStore {
 	return &mockStateStore{data: make(map[string][]byte)}
 }
 
-func (m *mockStateStore) Create(ctx context.Context, key string, data []byte, ttl time.Duration) error {
+func (m *mockStateStore) Create(_ context.Context, key string, data []byte, _ time.Duration) error {
 	m.data[key] = data
 	return nil
 }
 
-func (m *mockStateStore) Get(ctx context.Context, key string) ([]byte, error) {
+func (m *mockStateStore) Get(_ context.Context, key string) ([]byte, error) {
 	d, ok := m.data[key]
 	if !ok {
 		return nil, errors.New("not found")
@@ -40,8 +40,44 @@ func (m *mockStateStore) Get(ctx context.Context, key string) ([]byte, error) {
 	return d, nil
 }
 
-func (m *mockStateStore) Delete(ctx context.Context, key string) error {
+func (m *mockStateStore) Delete(_ context.Context, key string) error {
 	delete(m.data, key)
+	return nil
+}
+
+type mockSessionStore struct {
+	sessions  map[string]*auth.SessionData
+	lastToken string
+}
+
+func newMockSessionStore() *mockSessionStore {
+	return &mockSessionStore{sessions: make(map[string]*auth.SessionData)}
+}
+
+func (m *mockSessionStore) Create(_ context.Context, data *auth.SessionData) (string, error) {
+	token := "mock-session-token"
+	m.sessions[token] = data
+	m.lastToken = token
+	return token, nil
+}
+
+func (m *mockSessionStore) Get(_ context.Context, token string) (*auth.SessionData, error) {
+	d, ok := m.sessions[token]
+	if !ok {
+		return nil, auth.ErrSessionNotFound
+	}
+	return d, nil
+}
+
+func (m *mockSessionStore) Delete(_ context.Context, token string) error {
+	delete(m.sessions, token)
+	return nil
+}
+
+func (m *mockSessionStore) Refresh(_ context.Context, token string) error {
+	if _, ok := m.sessions[token]; !ok {
+		return auth.ErrSessionNotFound
+	}
 	return nil
 }
 
@@ -53,7 +89,7 @@ func newMockUserStore() *mockUserStore {
 	return &mockUserStore{users: make(map[string]store.User)}
 }
 
-func (m *mockUserStore) GetUserByFaceitID(ctx context.Context, faceitID string) (store.User, error) {
+func (m *mockUserStore) GetUserByFaceitID(_ context.Context, faceitID string) (store.User, error) {
 	u, ok := m.users[faceitID]
 	if !ok {
 		return store.User{}, sql.ErrNoRows
@@ -61,7 +97,7 @@ func (m *mockUserStore) GetUserByFaceitID(ctx context.Context, faceitID string) 
 	return u, nil
 }
 
-func (m *mockUserStore) CreateUser(ctx context.Context, arg store.CreateUserParams) (store.User, error) {
+func (m *mockUserStore) CreateUser(_ context.Context, arg store.CreateUserParams) (store.User, error) {
 	return store.User{
 		ID:       uuid.New(),
 		FaceitID: arg.FaceitID,
@@ -69,7 +105,7 @@ func (m *mockUserStore) CreateUser(ctx context.Context, arg store.CreateUserPara
 	}, nil
 }
 
-func (m *mockUserStore) UpdateUser(ctx context.Context, arg store.UpdateUserParams) (store.User, error) {
+func (m *mockUserStore) UpdateUser(_ context.Context, arg store.UpdateUserParams) (store.User, error) {
 	return store.User{ID: arg.ID, Nickname: arg.Nickname}, nil
 }
 
@@ -80,14 +116,14 @@ type mockTokenExchanger struct {
 	userErr   error
 }
 
-func (m *mockTokenExchanger) ExchangeCode(ctx context.Context, code, codeVerifier string) (*auth.TokenResponse, error) {
+func (m *mockTokenExchanger) ExchangeCode(_ context.Context, _, _ string) (*auth.TokenResponse, error) {
 	if m.tokenErr != nil {
 		return nil, m.tokenErr
 	}
 	return m.tokenResp, nil
 }
 
-func (m *mockTokenExchanger) GetUserInfo(ctx context.Context, accessToken string) (*auth.FaceitUserInfo, error) {
+func (m *mockTokenExchanger) GetUserInfo(_ context.Context, _ string) (*auth.FaceitUserInfo, error) {
 	if m.userErr != nil {
 		return nil, m.userErr
 	}
@@ -96,8 +132,9 @@ func (m *mockTokenExchanger) GetUserInfo(ctx context.Context, accessToken string
 
 // --- Helpers ---
 
-func newTestAuthHandler(exchanger *mockTokenExchanger) (*handler.AuthHandler, *mockStateStore) {
+func newTestAuthHandler(exchanger *mockTokenExchanger) (*handler.AuthHandler, *mockStateStore, *mockSessionStore) {
 	states := newMockStateStore()
+	sessions := newMockSessionStore()
 	users := newMockUserStore()
 	cfg := auth.FaceitOAuthConfig{
 		ClientID:     "test-client-id",
@@ -108,13 +145,13 @@ func newTestAuthHandler(exchanger *mockTokenExchanger) (*handler.AuthHandler, *m
 		UserInfoURL:  "https://api.faceit.com/auth/v1/resources/userinfo",
 	}
 	oauth := auth.NewOAuthService(cfg, states, users, exchanger)
-	return handler.NewAuthHandler(oauth, states, false), states
+	return handler.NewAuthHandler(oauth, sessions, false), states, sessions
 }
 
-// --- Tests ---
+// --- Login tests ---
 
 func TestHandleLogin_Redirects(t *testing.T) {
-	h, _ := newTestAuthHandler(&mockTokenExchanger{})
+	h, _, _ := newTestAuthHandler(&mockTokenExchanger{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/faceit", nil)
 	rec := httptest.NewRecorder()
@@ -127,7 +164,7 @@ func TestHandleLogin_Redirects(t *testing.T) {
 }
 
 func TestHandleLogin_LocationHasRequiredParams(t *testing.T) {
-	h, _ := newTestAuthHandler(&mockTokenExchanger{})
+	h, _, _ := newTestAuthHandler(&mockTokenExchanger{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/faceit", nil)
 	rec := httptest.NewRecorder()
@@ -142,8 +179,10 @@ func TestHandleLogin_LocationHasRequiredParams(t *testing.T) {
 	}
 }
 
+// --- Callback tests ---
+
 func TestHandleCallback_MissingCode(t *testing.T) {
-	h, _ := newTestAuthHandler(&mockTokenExchanger{})
+	h, _, _ := newTestAuthHandler(&mockTokenExchanger{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/faceit/callback?state=abc", nil)
 	rec := httptest.NewRecorder()
@@ -156,7 +195,7 @@ func TestHandleCallback_MissingCode(t *testing.T) {
 }
 
 func TestHandleCallback_MissingState(t *testing.T) {
-	h, _ := newTestAuthHandler(&mockTokenExchanger{})
+	h, _, _ := newTestAuthHandler(&mockTokenExchanger{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/faceit/callback?code=abc", nil)
 	rec := httptest.NewRecorder()
@@ -169,7 +208,7 @@ func TestHandleCallback_MissingState(t *testing.T) {
 }
 
 func TestHandleCallback_InvalidState(t *testing.T) {
-	h, _ := newTestAuthHandler(&mockTokenExchanger{})
+	h, _, _ := newTestAuthHandler(&mockTokenExchanger{})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/faceit/callback?code=abc&state=bad", nil)
 	rec := httptest.NewRecorder()
@@ -186,9 +225,8 @@ func TestHandleCallback_Success_SetsCookie(t *testing.T) {
 		tokenResp: &auth.TokenResponse{AccessToken: "tok", RefreshToken: "ref", ExpiresIn: 3600},
 		userInfo:  &auth.FaceitUserInfo{PlayerID: "faceit-123", Nickname: "player1"},
 	}
-	h, states := newTestAuthHandler(exchanger)
+	h, states, _ := newTestAuthHandler(exchanger)
 
-	// Pre-populate state
 	states.data["oauth_state:valid-state"] = []byte(`{"code_verifier":"test-verifier"}`)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/faceit/callback?code=test-code&state=valid-state", nil)
@@ -221,7 +259,7 @@ func TestHandleCallback_Success_RedirectsToDashboard(t *testing.T) {
 		tokenResp: &auth.TokenResponse{AccessToken: "tok", RefreshToken: "ref", ExpiresIn: 3600},
 		userInfo:  &auth.FaceitUserInfo{PlayerID: "faceit-123", Nickname: "player1"},
 	}
-	h, states := newTestAuthHandler(exchanger)
+	h, states, _ := newTestAuthHandler(exchanger)
 	states.data["oauth_state:valid-state"] = []byte(`{"code_verifier":"test-verifier"}`)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/faceit/callback?code=test-code&state=valid-state", nil)
@@ -242,7 +280,7 @@ func TestHandleCallback_Success_CreatesSession(t *testing.T) {
 		tokenResp: &auth.TokenResponse{AccessToken: "tok", RefreshToken: "ref", ExpiresIn: 3600},
 		userInfo:  &auth.FaceitUserInfo{PlayerID: "faceit-123", Nickname: "player1"},
 	}
-	h, states := newTestAuthHandler(exchanger)
+	h, states, sessions := newTestAuthHandler(exchanger)
 	states.data["oauth_state:valid-state"] = []byte(`{"code_verifier":"test-verifier"}`)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/faceit/callback?code=test-code&state=valid-state", nil)
@@ -250,7 +288,7 @@ func TestHandleCallback_Success_CreatesSession(t *testing.T) {
 
 	h.HandleCallback(rec, req)
 
-	// Session should be stored -- check that at least one session key exists
+	// Verify cookie is set
 	cookies := rec.Result().Cookies()
 	var token string
 	for _, c := range cookies {
@@ -263,23 +301,20 @@ func TestHandleCallback_Success_CreatesSession(t *testing.T) {
 		t.Fatal("no session token in cookie")
 	}
 
-	// Verify session was stored in state store
-	sessionData, err := states.Get(context.Background(), "session:"+token)
+	// Verify session was stored in session store
+	session, err := sessions.Get(context.Background(), token)
 	if err != nil {
 		t.Fatalf("session not found in store: %v", err)
 	}
-
-	var session map[string]interface{}
-	if err := json.Unmarshal(sessionData, &session); err != nil {
-		t.Fatalf("failed to unmarshal session: %v", err)
+	if session.FaceitID != "faceit-123" {
+		t.Errorf("expected faceit_id 'faceit-123', got %q", session.FaceitID)
 	}
-	if session["faceit_id"] != "faceit-123" {
-		t.Errorf("expected faceit_id 'faceit-123' in session, got %v", session["faceit_id"])
+	if session.Nickname != "player1" {
+		t.Errorf("expected nickname 'player1', got %q", session.Nickname)
 	}
 }
 
 func TestHandleCallback_FullFlow(t *testing.T) {
-	// Set up mock Faceit server
 	faceitServer := httptest.NewServer(http.NewServeMux())
 	mux := http.NewServeMux()
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
@@ -304,6 +339,7 @@ func TestHandleCallback_FullFlow(t *testing.T) {
 	defer faceitServer.Close()
 
 	states := newMockStateStore()
+	sessions := newMockSessionStore()
 	users := newMockUserStore()
 	cfg := auth.FaceitOAuthConfig{
 		ClientID:     "test-client-id",
@@ -315,7 +351,7 @@ func TestHandleCallback_FullFlow(t *testing.T) {
 	}
 	faceitClient := auth.NewFaceitClient(cfg)
 	oauth := auth.NewOAuthService(cfg, states, users, faceitClient)
-	h := handler.NewAuthHandler(oauth, states, false)
+	h := handler.NewAuthHandler(oauth, sessions, false)
 
 	// Step 1: Login redirect
 	loginReq := httptest.NewRequest(http.MethodGet, "/api/v1/auth/faceit", nil)
@@ -331,7 +367,6 @@ func TestHandleCallback_FullFlow(t *testing.T) {
 		t.Fatalf("login redirect missing required params: %s", location)
 	}
 
-	// Extract the state from the redirect URL
 	parts := strings.Split(location, "state=")
 	if len(parts) < 2 {
 		t.Fatalf("no state in redirect URL: %s", location)
@@ -350,7 +385,6 @@ func TestHandleCallback_FullFlow(t *testing.T) {
 		t.Errorf("expected redirect to /dashboard, got %q", loc)
 	}
 
-	// Verify cookie set
 	cookies := callbackRec.Result().Cookies()
 	found := false
 	for _, c := range cookies {
@@ -361,5 +395,149 @@ func TestHandleCallback_FullFlow(t *testing.T) {
 	}
 	if !found {
 		t.Error("expected session_token cookie after callback")
+	}
+
+	// Verify session was created in typed session store
+	if len(sessions.sessions) == 0 {
+		t.Error("expected session to be stored in session store")
+	}
+}
+
+// --- Logout tests ---
+
+func TestHandleLogout_Success(t *testing.T) {
+	h, _, sessions := newTestAuthHandler(&mockTokenExchanger{})
+
+	// Pre-populate a session
+	sessions.sessions["existing-token"] = &auth.SessionData{
+		UserID:   "user-1",
+		FaceitID: "faceit-1",
+		Nickname: "player1",
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
+	req.AddCookie(&http.Cookie{Name: "session_token", Value: "existing-token"})
+	rec := httptest.NewRecorder()
+
+	h.HandleLogout(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", rec.Code)
+	}
+
+	// Session should be deleted
+	if _, ok := sessions.sessions["existing-token"]; ok {
+		t.Error("expected session to be deleted")
+	}
+
+	// Cookie should be cleared
+	cookies := rec.Result().Cookies()
+	var clearCookie *http.Cookie
+	for _, c := range cookies {
+		if c.Name == "session_token" {
+			clearCookie = c
+			break
+		}
+	}
+	if clearCookie == nil {
+		t.Fatal("expected clearing cookie to be set")
+	}
+	if clearCookie.MaxAge != -1 {
+		t.Errorf("expected MaxAge -1, got %d", clearCookie.MaxAge)
+	}
+
+	var body map[string]string
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decoding response: %v", err)
+	}
+	if body["status"] != "ok" {
+		t.Errorf("expected status 'ok', got %q", body["status"])
+	}
+}
+
+func TestHandleLogout_NoCookie(t *testing.T) {
+	h, _, _ := newTestAuthHandler(&mockTokenExchanger{})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/logout", nil)
+	rec := httptest.NewRecorder()
+
+	h.HandleLogout(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", rec.Code)
+	}
+}
+
+// --- Me tests ---
+
+func TestHandleMe_ValidSession(t *testing.T) {
+	h, _, sessions := newTestAuthHandler(&mockTokenExchanger{})
+
+	sessions.sessions["valid-token"] = &auth.SessionData{
+		UserID:       "user-123",
+		FaceitID:     "faceit-456",
+		Nickname:     "player1",
+		AccessToken:  "secret-access",
+		RefreshToken: "secret-refresh",
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+	req.AddCookie(&http.Cookie{Name: "session_token", Value: "valid-token"})
+	rec := httptest.NewRecorder()
+
+	h.HandleMe(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", rec.Code)
+	}
+
+	var body map[string]string
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decoding response: %v", err)
+	}
+
+	if body["user_id"] != "user-123" {
+		t.Errorf("expected user_id 'user-123', got %q", body["user_id"])
+	}
+	if body["faceit_id"] != "faceit-456" {
+		t.Errorf("expected faceit_id 'faceit-456', got %q", body["faceit_id"])
+	}
+	if body["nickname"] != "player1" {
+		t.Errorf("expected nickname 'player1', got %q", body["nickname"])
+	}
+
+	// Tokens must NOT be leaked
+	if _, ok := body["access_token"]; ok {
+		t.Error("access_token should not be in /me response")
+	}
+	if _, ok := body["refresh_token"]; ok {
+		t.Error("refresh_token should not be in /me response")
+	}
+}
+
+func TestHandleMe_NoCookie(t *testing.T) {
+	h, _, _ := newTestAuthHandler(&mockTokenExchanger{})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+	rec := httptest.NewRecorder()
+
+	h.HandleMe(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected status 401, got %d", rec.Code)
+	}
+}
+
+func TestHandleMe_InvalidSession(t *testing.T) {
+	h, _, _ := newTestAuthHandler(&mockTokenExchanger{})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
+	req.AddCookie(&http.Cookie{Name: "session_token", Value: "bad-token"})
+	rec := httptest.NewRecorder()
+
+	h.HandleMe(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected status 401, got %d", rec.Code)
 	}
 }

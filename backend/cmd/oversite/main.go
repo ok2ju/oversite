@@ -77,10 +77,11 @@ func serveCmd() *cobra.Command {
 			}
 
 			stateStore := auth.NewRedisStateStore(redisClient)
+			sessionStore := auth.NewRedisSessionStore(redisClient)
 			faceitClient := auth.NewFaceitClient(oauthCfg)
 			oauthSvc := auth.NewOAuthService(oauthCfg, stateStore, nil, faceitClient)
 			secure := cfg.Environment == "production"
-			authHandler := handler.NewAuthHandler(oauthSvc, stateStore, secure)
+			authHandler := handler.NewAuthHandler(oauthSvc, sessionStore, secure)
 
 			// Health checks with real dependencies
 			health := handler.NewHealthHandler(

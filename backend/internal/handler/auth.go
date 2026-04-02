@@ -1,25 +1,23 @@
 package handler
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/ok2ju/oversite/backend/internal/auth"
 )
 
-// AuthHandler handles OAuth login and callback routes.
+// AuthHandler handles OAuth login, callback, logout, and session routes.
 type AuthHandler struct {
 	oauth    *auth.OAuthService
-	sessions auth.StateStore
+	sessions auth.SessionStore
 	secure   bool // whether to set Secure flag on cookies
 }
 
 // NewAuthHandler creates a new AuthHandler.
-func NewAuthHandler(oauth *auth.OAuthService, sessions auth.StateStore, secure bool) *AuthHandler {
+func NewAuthHandler(oauth *auth.OAuthService, sessions auth.SessionStore, secure bool) *AuthHandler {
 	return &AuthHandler{
 		oauth:    oauth,
 		sessions: sessions,
@@ -55,31 +53,19 @@ func (h *AuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate session token
-	tokenBytes := make([]byte, 32)
-	if _, err := rand.Read(tokenBytes); err != nil {
-		slog.Error("generating session token", "error", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	sessionToken := hex.EncodeToString(tokenBytes)
-
-	// Store session data
-	sessionData, _ := json.Marshal(map[string]interface{}{
-		"user_id":       user.ID.String(),
-		"faceit_id":     user.FaceitID,
-		"nickname":      user.Nickname,
-		"access_token":  tokens.AccessToken,
-		"refresh_token": tokens.RefreshToken,
+	sessionToken, err := h.sessions.Create(r.Context(), &auth.SessionData{
+		UserID:       user.ID.String(),
+		FaceitID:     user.FaceitID,
+		Nickname:     user.Nickname,
+		AccessToken:  tokens.AccessToken,
+		RefreshToken: tokens.RefreshToken,
 	})
-
-	if err := h.sessions.Create(r.Context(), "session:"+sessionToken, sessionData, 7*24*time.Hour); err != nil {
+	if err != nil {
 		slog.Error("creating session", "error", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
 
-	// Set session cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     "session_token",
 		Value:    sessionToken,
@@ -91,4 +77,53 @@ func (h *AuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	})
 
 	http.Redirect(w, r, "/dashboard", http.StatusFound)
+}
+
+// HandleLogout clears the session and cookie.
+func (h *AuthHandler) HandleLogout(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("session_token")
+	if err == nil {
+		_ = h.sessions.Delete(r.Context(), cookie.Value)
+	}
+
+	// Clear the cookie regardless
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   h.secure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// HandleMe returns the current user's public session info.
+func (h *AuthHandler) HandleMe(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("session_token")
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	session, err := h.sessions.Get(r.Context(), cookie.Value)
+	if err != nil {
+		if errors.Is(err, auth.ErrSessionNotFound) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		slog.Error("getting session", "error", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"user_id":   session.UserID,
+		"faceit_id": session.FaceitID,
+		"nickname":  session.Nickname,
+	})
 }
