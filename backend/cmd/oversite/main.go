@@ -89,7 +89,7 @@ func serveCmd() *cobra.Command {
 				stateStore,
 				&handler.MinIOChecker{Endpoint: cfg.MinioEndpoint, UseSSL: cfg.MinioUseSSL},
 			)
-			router := handler.NewRouter(health, authHandler)
+			router := handler.NewRouter(health, authHandler, sessionStore)
 
 			slog.Info("starting API server", "port", cfg.Port, "env", cfg.Environment)
 			return http.ListenAndServe(":"+cfg.Port, router)
