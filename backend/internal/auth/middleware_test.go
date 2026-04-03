@@ -80,186 +80,151 @@ func dummyHandler() (http.HandlerFunc, *bool, *string) {
 
 // --- Tests ---
 
-func TestRequireAuth_NoCookie_Returns401(t *testing.T) {
-	store := newMockSessionStore()
-	mw := auth.RequireAuth(store)
-
-	next, called, _ := dummyHandler()
-	handler := mw(next)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("expected status 401, got %d", rec.Code)
-	}
-	if *called {
-		t.Error("next handler should not have been called")
-	}
-
-	errMsg := decodeErrorResponse(t, rec)
-	if errMsg != "unauthorized" {
-		t.Errorf("expected error 'unauthorized', got %q", errMsg)
-	}
-
-	ct := rec.Header().Get("Content-Type")
-	if ct != "application/json" {
-		t.Errorf("expected Content-Type application/json, got %q", ct)
-	}
-}
-
-func TestRequireAuth_InvalidToken_Returns401(t *testing.T) {
-	store := newMockSessionStore()
-	// No sessions stored — any token is invalid
-	mw := auth.RequireAuth(store)
-
-	next, called, _ := dummyHandler()
-	handler := mw(next)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
-	req.AddCookie(&http.Cookie{Name: "session_token", Value: "bad-token"})
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("expected status 401, got %d", rec.Code)
-	}
-	if *called {
-		t.Error("next handler should not have been called")
-	}
-
-	errMsg := decodeErrorResponse(t, rec)
-	if errMsg != "unauthorized" {
-		t.Errorf("expected error 'unauthorized', got %q", errMsg)
-	}
-}
-
-func TestRequireAuth_StoreError_Returns401(t *testing.T) {
-	store := newMockSessionStore()
-	store.getErr = errors.New("redis connection failed")
-	mw := auth.RequireAuth(store)
-
-	next, called, _ := dummyHandler()
-	handler := mw(next)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
-	req.AddCookie(&http.Cookie{Name: "session_token", Value: "some-token"})
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("expected status 401, got %d", rec.Code)
-	}
-	if *called {
-		t.Error("next handler should not have been called")
-	}
-}
-
-func TestRequireAuth_ValidSession_CallsNext(t *testing.T) {
-	store := newMockSessionStore()
-	store.sessions["valid-token"] = &auth.SessionData{
+func TestRequireAuth(t *testing.T) {
+	validSession := &auth.SessionData{
 		UserID:   "user-123",
 		FaceitID: "faceit-456",
 		Nickname: "player1",
 	}
-	mw := auth.RequireAuth(store)
 
-	next, called, capturedUserID := dummyHandler()
-	handler := mw(next)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
-	req.AddCookie(&http.Cookie{Name: "session_token", Value: "valid-token"})
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", rec.Code)
+	tests := []struct {
+		name           string
+		cookie         *http.Cookie
+		sessions       map[string]*auth.SessionData
+		getErr         error
+		refreshErr     error
+		wantStatus     int
+		wantNextCalled bool
+		wantUserID     string
+		wantError      string
+		wantRefreshed  bool
+	}{
+		{
+			name:           "no cookie returns 401",
+			cookie:         nil,
+			wantStatus:     http.StatusUnauthorized,
+			wantNextCalled: false,
+			wantError:      "unauthorized",
+		},
+		{
+			name:           "invalid token returns 401",
+			cookie:         &http.Cookie{Name: "session_token", Value: "bad-token"},
+			sessions:       map[string]*auth.SessionData{},
+			wantStatus:     http.StatusUnauthorized,
+			wantNextCalled: false,
+			wantError:      "unauthorized",
+		},
+		{
+			name:           "store error returns 401",
+			cookie:         &http.Cookie{Name: "session_token", Value: "some-token"},
+			getErr:         errors.New("redis connection failed"),
+			wantStatus:     http.StatusUnauthorized,
+			wantNextCalled: false,
+		},
+		{
+			name:           "valid session calls next with userID in context",
+			cookie:         &http.Cookie{Name: "session_token", Value: "valid-token"},
+			sessions:       map[string]*auth.SessionData{"valid-token": validSession},
+			wantStatus:     http.StatusOK,
+			wantNextCalled: true,
+			wantUserID:     "user-123",
+			wantRefreshed:  true,
+		},
+		{
+			name:           "valid session refreshes TTL",
+			cookie:         &http.Cookie{Name: "session_token", Value: "valid-token"},
+			sessions:       map[string]*auth.SessionData{"valid-token": validSession},
+			wantStatus:     http.StatusOK,
+			wantNextCalled: true,
+			wantRefreshed:  true,
+		},
+		{
+			name:           "refresh error still calls next",
+			cookie:         &http.Cookie{Name: "session_token", Value: "valid-token"},
+			sessions:       map[string]*auth.SessionData{"valid-token": validSession},
+			refreshErr:     errors.New("refresh failed"),
+			wantStatus:     http.StatusOK,
+			wantNextCalled: true,
+			wantUserID:     "user-123",
+		},
 	}
-	if !*called {
-		t.Error("next handler should have been called")
-	}
-	if *capturedUserID != "user-123" {
-		t.Errorf("expected userID 'user-123' in context, got %q", *capturedUserID)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newMockSessionStore()
+			if tt.sessions != nil {
+				store.sessions = tt.sessions
+			}
+			store.getErr = tt.getErr
+			store.refreshErr = tt.refreshErr
+
+			next, called, capturedUserID := dummyHandler()
+			handler := auth.RequireAuth(store)(next)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
+			if tt.cookie != nil {
+				req.AddCookie(tt.cookie)
+			}
+			rec := httptest.NewRecorder()
+
+			handler.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
+			}
+			if *called != tt.wantNextCalled {
+				t.Errorf("next called = %v, want %v", *called, tt.wantNextCalled)
+			}
+			if tt.wantUserID != "" && *capturedUserID != tt.wantUserID {
+				t.Errorf("userID = %q, want %q", *capturedUserID, tt.wantUserID)
+			}
+			if tt.wantError != "" {
+				errMsg := decodeErrorResponse(t, rec)
+				if errMsg != tt.wantError {
+					t.Errorf("error = %q, want %q", errMsg, tt.wantError)
+				}
+				ct := rec.Header().Get("Content-Type")
+				if ct != "application/json" {
+					t.Errorf("Content-Type = %q, want application/json", ct)
+				}
+			}
+			if tt.wantRefreshed && len(store.refreshed) == 0 {
+				t.Error("expected Refresh to be called, but it was not")
+			}
+		})
 	}
 }
 
-func TestRequireAuth_ValidSession_RefreshCalled(t *testing.T) {
-	store := newMockSessionStore()
-	store.sessions["valid-token"] = &auth.SessionData{
-		UserID:   "user-123",
-		FaceitID: "faceit-456",
-		Nickname: "player1",
+func TestUserIDFromContext(t *testing.T) {
+	tests := []struct {
+		name    string
+		ctx     context.Context
+		wantUID string
+		wantOK  bool
+	}{
+		{
+			name:    "not set returns empty and false",
+			ctx:     context.Background(),
+			wantUID: "",
+			wantOK:  false,
+		},
+		{
+			name:    "set returns value and true",
+			ctx:     context.WithValue(context.Background(), auth.UserIDKey, "user-abc"),
+			wantUID: "user-abc",
+			wantOK:  true,
+		},
 	}
-	mw := auth.RequireAuth(store)
 
-	next, _, _ := dummyHandler()
-	handler := mw(next)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
-	req.AddCookie(&http.Cookie{Name: "session_token", Value: "valid-token"})
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
-
-	if len(store.refreshed) != 1 {
-		t.Fatalf("expected Refresh to be called once, called %d times", len(store.refreshed))
-	}
-	if store.refreshed[0] != "valid-token" {
-		t.Errorf("expected Refresh called with 'valid-token', got %q", store.refreshed[0])
-	}
-}
-
-func TestRequireAuth_RefreshError_StillCallsNext(t *testing.T) {
-	store := newMockSessionStore()
-	store.sessions["valid-token"] = &auth.SessionData{
-		UserID:   "user-123",
-		FaceitID: "faceit-456",
-		Nickname: "player1",
-	}
-	store.refreshErr = errors.New("refresh failed")
-	mw := auth.RequireAuth(store)
-
-	next, called, _ := dummyHandler()
-	handler := mw(next)
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
-	req.AddCookie(&http.Cookie{Name: "session_token", Value: "valid-token"})
-	rec := httptest.NewRecorder()
-
-	handler.ServeHTTP(rec, req)
-
-	// Refresh failure should not block the request
-	if rec.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", rec.Code)
-	}
-	if !*called {
-		t.Error("next handler should still be called even if refresh fails")
-	}
-}
-
-func TestUserIDFromContext_NotSet(t *testing.T) {
-	ctx := context.Background()
-	uid, ok := auth.UserIDFromContext(ctx)
-	if ok {
-		t.Error("expected ok to be false for empty context")
-	}
-	if uid != "" {
-		t.Errorf("expected empty userID, got %q", uid)
-	}
-}
-
-func TestUserIDFromContext_Set(t *testing.T) {
-	ctx := context.WithValue(context.Background(), auth.UserIDKey, "user-abc")
-	uid, ok := auth.UserIDFromContext(ctx)
-	if !ok {
-		t.Error("expected ok to be true")
-	}
-	if uid != "user-abc" {
-		t.Errorf("expected 'user-abc', got %q", uid)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			uid, ok := auth.UserIDFromContext(tt.ctx)
+			if ok != tt.wantOK {
+				t.Errorf("ok = %v, want %v", ok, tt.wantOK)
+			}
+			if uid != tt.wantUID {
+				t.Errorf("uid = %q, want %q", uid, tt.wantUID)
+			}
+		})
 	}
 }
