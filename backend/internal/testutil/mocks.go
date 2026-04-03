@@ -3,6 +3,7 @@ package testutil
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/ok2ju/oversite/backend/internal/auth"
 )
@@ -13,6 +14,7 @@ type S3Client interface {
 	GetObject(ctx context.Context, bucket, key string) (io.ReadCloser, error)
 	DeleteObject(ctx context.Context, bucket, key string) error
 	ObjectExists(ctx context.Context, bucket, key string) (bool, error)
+	PresignedGetURL(ctx context.Context, bucket, key string, expiry time.Duration) (string, error)
 }
 
 // SessionStore is an alias for auth.SessionStore for documentation.
@@ -51,6 +53,10 @@ func (s *StubS3Client) DeleteObject(ctx context.Context, bucket, key string) err
 
 func (s *StubS3Client) ObjectExists(ctx context.Context, bucket, key string) (bool, error) {
 	return false, nil
+}
+
+func (s *StubS3Client) PresignedGetURL(ctx context.Context, bucket, key string, expiry time.Duration) (string, error) {
+	return "https://stub-presigned-url.example.com/" + bucket + "/" + key, nil
 }
 
 // StubSessionStore is a no-op session store for unit tests.
