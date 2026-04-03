@@ -55,7 +55,7 @@ type TickSnapshot struct {
 type GameEvent struct {
 	Tick            int
 	RoundNumber     int
-	Type            string // "kill", "grenade_throw", "grenade_detonate", "bomb_plant", "bomb_defuse", "bomb_explode"
+	Type            string // "kill", "grenade_throw", "grenade_detonate", "smoke_start", "smoke_expired", "decoy_start", "bomb_plant", "bomb_defuse", "bomb_explode"
 	AttackerSteamID string
 	VictimSteamID   string
 	Weapon          string
@@ -67,9 +67,12 @@ type GameEvent struct {
 type Option func(*DemoParser)
 
 // WithTickInterval sets the tick sampling interval (default: 4).
+// Values <= 0 are ignored.
 func WithTickInterval(n int) Option {
 	return func(dp *DemoParser) {
-		dp.tickInterval = n
+		if n > 0 {
+			dp.tickInterval = n
+		}
 	}
 }
 
@@ -124,8 +127,8 @@ type parseState struct {
 // Parse reads a CS2 demo from r and returns all extracted data.
 func (dp *DemoParser) Parse(r io.Reader) (result *ParseResult, err error) {
 	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("parsing demo: panic: %v", r)
+		if rec := recover(); rec != nil {
+			err = fmt.Errorf("parsing demo: panic: %v", rec)
 		}
 	}()
 
@@ -238,6 +241,9 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 	})
 
 	// Score tracking for accuracy.
+	// ScoreUpdated fires after RoundEnd in demoinfocs event ordering.
+	// RoundEnd computes scores from WinnerState/LoserState (pre-update) + 1,
+	// then ScoreUpdated corrects state.ctScore/tScore for subsequent rounds.
 	p.RegisterEventHandler(func(e events.ScoreUpdated) {
 		if e.TeamState == nil {
 			return
@@ -255,6 +261,9 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 		gs := p.GameState()
 		tick := gs.IngameTick()
 
+		if tick <= 0 {
+			return
+		}
 		if dp.skipWarmup && gs.IsWarmupPeriod() {
 			return
 		}
@@ -405,6 +414,8 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 	})
 
 	// Bomb events.
+	// All bomb events use GameState().Bomb().Position() for the bomb's world-space
+	// coordinates (planted location), since the planter may have moved or died.
 	p.RegisterEventHandler(func(e events.BombPlanted) {
 		if dp.skipWarmup && p.GameState().IsWarmupPeriod() {
 			return
@@ -414,11 +425,15 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			playerID = strconv.FormatUint(e.Player.SteamID64, 10)
 		}
 
+		bombPos := p.GameState().Bomb().Position()
 		state.events = append(state.events, GameEvent{
 			Tick:            p.GameState().IngameTick(),
 			RoundNumber:     state.currentRound,
 			Type:            "bomb_plant",
 			AttackerSteamID: playerID,
+			X:               bombPos.X,
+			Y:               bombPos.Y,
+			Z:               bombPos.Z,
 			ExtraData: map[string]interface{}{
 				"site": bombsiteString(e.Site),
 			},
@@ -434,11 +449,15 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			playerID = strconv.FormatUint(e.Player.SteamID64, 10)
 		}
 
+		bombPos := p.GameState().Bomb().Position()
 		state.events = append(state.events, GameEvent{
 			Tick:            p.GameState().IngameTick(),
 			RoundNumber:     state.currentRound,
 			Type:            "bomb_defuse",
 			AttackerSteamID: playerID,
+			X:               bombPos.X,
+			Y:               bombPos.Y,
+			Z:               bombPos.Z,
 			ExtraData: map[string]interface{}{
 				"site": bombsiteString(e.Site),
 			},
@@ -450,10 +469,14 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			return
 		}
 
+		bombPos := p.GameState().Bomb().Position()
 		state.events = append(state.events, GameEvent{
 			Tick:        p.GameState().IngameTick(),
 			RoundNumber: state.currentRound,
 			Type:        "bomb_explode",
+			X:           bombPos.X,
+			Y:           bombPos.Y,
+			Z:           bombPos.Z,
 			ExtraData: map[string]interface{}{
 				"site": bombsiteString(e.Site),
 			},
@@ -463,10 +486,14 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 
 // shouldSampleTick returns true if tick should be sampled at the given interval.
 func shouldSampleTick(tick, interval int) bool {
+	if interval <= 0 {
+		return false
+	}
 	return tick%interval == 0
 }
 
-// isOvertime returns true if the round number is in overtime (MR12: >24 rounds).
+// isOvertime returns true if the round number is in overtime.
+// Assumes MR12 format (24 regulation rounds) as used in Faceit competitive CS2.
 func isOvertime(roundNum int) bool {
 	return roundNum > 24
 }

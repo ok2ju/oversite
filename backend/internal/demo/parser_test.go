@@ -26,6 +26,8 @@ func TestShouldSampleTick(t *testing.T) {
 		{"tick 7 interval 1", 7, 1, true},
 		{"tick 64 interval 64", 64, 64, true},
 		{"tick 63 interval 64", 63, 64, false},
+		{"interval 0 returns false", 4, 0, false},
+		{"negative interval returns false", 8, -1, false},
 	}
 
 	for _, tt := range tests {
@@ -122,6 +124,20 @@ func TestNewDemoParser_Defaults(t *testing.T) {
 	}
 	if dp.includeBots {
 		t.Error("default includeBots = true, want false")
+	}
+}
+
+func TestNewDemoParser_InvalidTickInterval(t *testing.T) {
+	t.Parallel()
+
+	dp := NewDemoParser(WithTickInterval(0))
+	if dp.tickInterval != 4 {
+		t.Errorf("WithTickInterval(0) should be ignored, got tickInterval = %d, want 4", dp.tickInterval)
+	}
+
+	dp = NewDemoParser(WithTickInterval(-5))
+	if dp.tickInterval != 4 {
+		t.Errorf("WithTickInterval(-5) should be ignored, got tickInterval = %d, want 4", dp.tickInterval)
 	}
 }
 
