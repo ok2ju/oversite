@@ -1,6 +1,6 @@
 -- name: CreateDemo :one
-INSERT INTO demos (user_id, faceit_match_id, map_name, file_path, file_size, status, match_date)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO demos (user_id, faceit_match_id, file_path, file_size, status, match_date)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: GetDemoByID :one
@@ -19,9 +19,10 @@ RETURNING *;
 -- name: UpdateDemoAfterParse :one
 UPDATE demos SET
     status = 'ready',
-    total_ticks = $2,
-    tick_rate = $3,
-    duration_secs = $4
+    map_name = $2,
+    total_ticks = $3,
+    tick_rate = $4,
+    duration_secs = $5
 WHERE id = $1
 RETURNING *;
 

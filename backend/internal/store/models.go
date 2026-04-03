@@ -16,7 +16,7 @@ type Demo struct {
 	ID            uuid.UUID
 	UserID        uuid.UUID
 	FaceitMatchID sql.NullString
-	MapName       string
+	MapName       sql.NullString
 	FilePath      string
 	FileSize      int64
 	Status        string

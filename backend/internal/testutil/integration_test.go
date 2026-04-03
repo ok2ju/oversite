@@ -294,7 +294,6 @@ func TestCRUD_Demos(t *testing.T) {
 	// Create demo
 	demo, err := q.CreateDemo(ctx, store.CreateDemoParams{
 		UserID:   user.ID,
-		MapName:  "de_dust2",
 		FilePath: "/demos/test.dem",
 		FileSize: 1024000,
 		Status:   "uploading",
@@ -302,8 +301,8 @@ func TestCRUD_Demos(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateDemo: %v", err)
 	}
-	if demo.MapName != "de_dust2" {
-		t.Errorf("expected map 'de_dust2', got %q", demo.MapName)
+	if demo.MapName.Valid {
+		t.Errorf("expected map_name to be NULL, got %q", demo.MapName.String)
 	}
 
 	// Read
@@ -361,7 +360,6 @@ func TestCRUD_RoundsAndGameEvents(t *testing.T) {
 
 	demo, err := q.CreateDemo(ctx, store.CreateDemoParams{
 		UserID:   user.ID,
-		MapName:  "de_inferno",
 		FilePath: "/demos/round-test.dem",
 		FileSize: 2048000,
 		Status:   "ready",
@@ -388,9 +386,9 @@ func TestCRUD_RoundsAndGameEvents(t *testing.T) {
 
 	// Create game event
 	evt, err := q.CreateGameEvent(ctx, store.CreateGameEventParams{
-		DemoID:    demo.ID,
-		Tick:      1500,
-		EventType: "kill",
+		DemoID:          demo.ID,
+		Tick:            1500,
+		EventType:       "kill",
 		AttackerSteamID: sql.NullString{String: "STEAM_0:1:12345", Valid: true},
 		VictimSteamID:   sql.NullString{String: "STEAM_0:1:67890", Valid: true},
 		Weapon:          sql.NullString{String: "ak47", Valid: true},
@@ -442,7 +440,6 @@ func TestBatchInsert_TickData(t *testing.T) {
 
 	demo, err := q.CreateDemo(ctx, store.CreateDemoParams{
 		UserID:   user.ID,
-		MapName:  "de_mirage",
 		FilePath: "/demos/tick-test.dem",
 		FileSize: 3000000,
 		Status:   "ready",

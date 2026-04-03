@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -19,6 +20,9 @@ import (
 	"github.com/ok2ju/oversite/backend/internal/auth"
 	"github.com/ok2ju/oversite/backend/internal/config"
 	"github.com/ok2ju/oversite/backend/internal/handler"
+	"github.com/ok2ju/oversite/backend/internal/storage"
+	"github.com/ok2ju/oversite/backend/internal/store"
+	"github.com/ok2ju/oversite/backend/internal/worker"
 )
 
 func main() {
@@ -83,13 +87,29 @@ func serveCmd() *cobra.Command {
 			secure := cfg.Environment == "production"
 			authHandler := handler.NewAuthHandler(oauthSvc, sessionStore, secure)
 
+			// MinIO object storage
+			minioClient, err := storage.NewMinIOClient(
+				cfg.MinioEndpoint, cfg.MinioAccessKey, cfg.MinioSecretKey, cfg.MinioUseSSL,
+			)
+			if err != nil {
+				return fmt.Errorf("creating minio client: %w", err)
+			}
+			if err := minioClient.EnsureBucket(context.Background(), cfg.MinioBucket); err != nil {
+				return fmt.Errorf("ensuring minio bucket: %w", err)
+			}
+
+			// Domain services
+			queries := store.New(db)
+			queue := worker.NewRedisQueue(redisClient)
+			demoHandler := handler.NewDemoHandler(queries, minioClient, queue, cfg.MinioBucket)
+
 			// Health checks with real dependencies
 			health := handler.NewHealthHandler(
 				&handler.DBChecker{DB: db},
 				stateStore,
 				&handler.MinIOChecker{Endpoint: cfg.MinioEndpoint, UseSSL: cfg.MinioUseSSL},
 			)
-			router := handler.NewRouter(health, authHandler, sessionStore)
+			router := handler.NewRouter(health, authHandler, demoHandler, sessionStore)
 
 			slog.Info("starting API server", "port", cfg.Port, "env", cfg.Environment)
 			return http.ListenAndServe(":"+cfg.Port, router)
