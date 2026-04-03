@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 
 	"github.com/ok2ju/oversite/backend/internal/auth"
@@ -25,6 +26,7 @@ type DemoStore interface {
 // ObjectStore is the subset of storage.MinIOClient needed by DemoHandler.
 type ObjectStore interface {
 	PutObject(ctx context.Context, bucket, key string, reader io.Reader, size int64) error
+	DeleteObject(ctx context.Context, bucket, key string) error
 }
 
 // JobEnqueuer is the subset of worker.RedisQueue needed by DemoHandler.
@@ -66,8 +68,9 @@ func (h *DemoHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Cap request body to prevent abuse.
-	r.Body = http.MaxBytesReader(w, r.Body, demo.MaxUploadSize)
+	// Cap request body to prevent abuse. Add 1 MiB headroom for multipart
+	// boundary markers and headers so a file exactly at MaxUploadSize is accepted.
+	r.Body = http.MaxBytesReader(w, r.Body, demo.MaxUploadSize+1<<20)
 
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		var maxBytesErr *http.MaxBytesError
@@ -118,7 +121,7 @@ func (h *DemoHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 
 	// Upload to object storage.
 	if err := h.s3.PutObject(r.Context(), h.bucket, key, reader, header.Size); err != nil {
-		slog.Error("uploading demo to S3", "error", err, "key", key)
+		slog.Error("uploading demo to S3", "error", err, "key", key, "request_id", chimw.GetReqID(r.Context()))
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to store file"})
 		return
 	}
@@ -131,7 +134,11 @@ func (h *DemoHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		Status:   "uploaded",
 	})
 	if err != nil {
-		slog.Error("creating demo record", "error", err, "key", key)
+		slog.Error("creating demo record", "error", err, "key", key, "request_id", chimw.GetReqID(r.Context()))
+		// Clean up the orphaned S3 object.
+		if delErr := h.s3.DeleteObject(r.Context(), h.bucket, key); delErr != nil {
+			slog.Error("cleaning up S3 object after DB failure", "error", delErr, "key", key, "request_id", chimw.GetReqID(r.Context()))
+		}
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create demo record"})
 		return
 	}
@@ -142,7 +149,7 @@ func (h *DemoHandler) HandleUpload(w http.ResponseWriter, r *http.Request) {
 		"file_path": key,
 		"user_id":   userID.String(),
 	}); err != nil {
-		slog.Warn("enqueueing parse job", "error", err, "demo_id", d.ID)
+		slog.Warn("enqueueing parse job", "error", err, "demo_id", d.ID, "request_id", chimw.GetReqID(r.Context()))
 	}
 
 	writeJSON(w, http.StatusAccepted, map[string]interface{}{

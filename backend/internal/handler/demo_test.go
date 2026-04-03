@@ -28,11 +28,18 @@ func (m *mockDemoStore) CreateDemo(ctx context.Context, arg store.CreateDemoPara
 }
 
 type mockObjectStore struct {
-	putErr error
+	putErr    error
+	deleteErr error
+	deleted   []string
 }
 
 func (m *mockObjectStore) PutObject(_ context.Context, _, _ string, _ io.Reader, _ int64) error {
 	return m.putErr
+}
+
+func (m *mockObjectStore) DeleteObject(_ context.Context, _, key string) error {
+	m.deleted = append(m.deleted, key)
+	return m.deleteErr
 }
 
 type mockJobEnqueuer struct {
