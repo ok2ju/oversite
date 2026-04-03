@@ -358,7 +358,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Integration tests: testcontainers MinIO upload, download, delete, presigned URL |
 | | - All S3 tests pass in CI |
 
-### P2-T06: Implement demo upload endpoint
+### P2-T06: Implement demo upload endpoint ✅
 
 | | |
 |---|---|
@@ -399,7 +399,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Graceful shutdown test: in-flight jobs complete before exit |
 | | - All queue tests pass in CI |
 
-### P2-T08: Implement demo parser core
+### P2-T08: Implement demo parser core ✅
 
 | | |
 |---|---|
