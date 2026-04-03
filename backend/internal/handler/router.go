@@ -4,12 +4,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/ok2ju/oversite/backend/internal/auth"
 	customMw "github.com/ok2ju/oversite/backend/internal/middleware"
 )
 
 // NewRouter creates and configures the main chi router with middleware
 // and route definitions.
-func NewRouter(health *HealthHandler, authH *AuthHandler) chi.Router {
+func NewRouter(health *HealthHandler, authH *AuthHandler, sessions auth.SessionStore) chi.Router {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -29,11 +30,18 @@ func NewRouter(health *HealthHandler, authH *AuthHandler) chi.Router {
 	r.Get("/readyz", health.Readyz)
 
 	r.Route("/api/v1", func(r chi.Router) {
+		// Public auth routes — no session required
 		r.Route("/auth", func(r chi.Router) {
 			r.Get("/faceit", authH.HandleLogin)
 			r.Get("/faceit/callback", authH.HandleCallback)
 			r.Post("/logout", authH.HandleLogout)
 			r.Get("/me", authH.HandleMe)
+		})
+
+		// Protected routes — require valid session
+		r.Group(func(r chi.Router) {
+			r.Use(auth.RequireAuth(sessions))
+			// Future protected resource routes go here.
 		})
 	})
 
