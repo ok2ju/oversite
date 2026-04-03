@@ -26,7 +26,7 @@ async function fetchCurrentUser(): Promise<User> {
     throw new Error("Unauthorized")
   }
   const json = await res.json()
-  return json.data
+  return json
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {

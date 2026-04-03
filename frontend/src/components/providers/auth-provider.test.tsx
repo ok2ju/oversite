@@ -139,11 +139,9 @@ describe("AuthProvider", () => {
     server.use(
       http.get("/api/v1/auth/me", () => {
         return HttpResponse.json({
-          data: {
-            user_id: "custom-id",
-            faceit_id: "faceit-123",
-            nickname: "ProPlayer",
-          },
+          user_id: "custom-id",
+          faceit_id: "faceit-123",
+          nickname: "ProPlayer",
         })
       }),
     )

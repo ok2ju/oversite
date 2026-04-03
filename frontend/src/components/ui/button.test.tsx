@@ -31,8 +31,8 @@ describe("MSW integration", () => {
     const res = await fetch("/api/v1/auth/me")
     const data = await res.json()
 
-    expect(data.data.nickname).toBe("TestPlayer")
-    expect(data.data.faceit_elo).toBe(2100)
+    expect(data.nickname).toBe("TestPlayer")
+    expect(data.faceit_id).toBe("test-faceit-id")
   })
 
   it("supports per-test handler overrides", async () => {
