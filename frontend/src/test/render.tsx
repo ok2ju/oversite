@@ -1,6 +1,7 @@
 import { render, type RenderOptions } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ThemeProvider } from "next-themes"
+import { AuthProvider } from "@/components/providers/auth-provider"
 
 function createTestQueryClient() {
   return new QueryClient({
@@ -13,19 +14,31 @@ function createTestQueryClient() {
   })
 }
 
-function AllProviders({ children }: { children: React.ReactNode }) {
-  const queryClient = createTestQueryClient()
-  return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-        {children}
-      </ThemeProvider>
-    </QueryClientProvider>
-  )
+interface ProvidersOptions {
+  withAuth?: boolean
 }
 
-export function renderWithProviders(ui: React.ReactElement, options?: Omit<RenderOptions, "wrapper">) {
-  return render(ui, { wrapper: AllProviders, ...options })
+function createAllProviders({ withAuth = false }: ProvidersOptions = {}) {
+  return function AllProviders({ children }: { children: React.ReactNode }) {
+    const queryClient = createTestQueryClient()
+    const content = withAuth ? <AuthProvider>{children}</AuthProvider> : children
+    return (
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+          {content}
+        </ThemeProvider>
+      </QueryClientProvider>
+    )
+  }
+}
+
+interface RenderWithProvidersOptions extends Omit<RenderOptions, "wrapper"> {
+  withAuth?: boolean
+}
+
+export function renderWithProviders(ui: React.ReactElement, options?: RenderWithProvidersOptions) {
+  const { withAuth, ...renderOptions } = options ?? {}
+  return render(ui, { wrapper: createAllProviders({ withAuth }), ...renderOptions })
 }
 
 export { render } from "@testing-library/react"
