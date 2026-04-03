@@ -303,7 +303,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Integration tests: testcontainers Redis verifies actual SET/GET/DEL/TTL |
 | | - All session tests pass in CI |
 
-### P2-T03: Create auth middleware
+### P2-T03: Create auth middleware ✅
 
 | | |
 |---|---|
@@ -321,7 +321,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Tests verify auth and health endpoint exclusions |
 | | - All middleware tests pass in CI |
 
-### P2-T04: Create AuthProvider + login page
+### P2-T04: Create AuthProvider + login page ✅
 
 | | |
 |---|---|
@@ -340,7 +340,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Login page test: renders button, verifies href |
 | | - All auth component tests pass in CI |
 
-### P2-T05: Set up MinIO buckets and S3 client
+### P2-T05: Set up MinIO buckets and S3 client ✅
 
 | | |
 |---|---|
@@ -378,7 +378,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Integration test: full upload flow (file → MinIO → DB record → Redis Streams job) |
 | | - All upload tests pass in CI |
 
-### P2-T07: Set up Redis Streams job queue
+### P2-T07: Set up Redis Streams job queue ✅
 
 | | |
 |---|---|
