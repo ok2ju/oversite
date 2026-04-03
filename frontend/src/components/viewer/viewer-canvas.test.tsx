@@ -85,6 +85,15 @@ describe("ViewerCanvas", () => {
     })
   })
 
+  it("syncs initial speed to ticker on mount", async () => {
+    useViewerStore.getState().setSpeed(2)
+    render(<ViewerCanvas />)
+
+    await vi.waitFor(() => {
+      expect(mockTicker.speed).toBe(2)
+    })
+  })
+
   it("updates ticker.speed when speed changes", async () => {
     render(<ViewerCanvas />)
 
@@ -113,9 +122,7 @@ describe("ViewerCanvas", () => {
     mockTickerStop.mockClear()
     useViewerStore.getState().togglePlay()
 
-    // Give any potential async handlers time to fire
-    await new Promise((r) => setTimeout(r, 50))
-
+    // Zustand subscribers fire synchronously — no async wait needed
     expect(mockTickerStart).not.toHaveBeenCalled()
   })
 
@@ -133,9 +140,16 @@ describe("ViewerCanvas", () => {
 
     // Resolve init after unmount — should not throw
     resolveInit!(mockApp)
-    await new Promise((r) => setTimeout(r, 50))
 
-    // destroy should still be called for cleanup
-    expect(mockDestroy).toHaveBeenCalled()
+    // Flush microtask queue for the .then() callback
+    await vi.waitFor(() => {
+      expect(mockDestroy).toHaveBeenCalled()
+    })
+
+    // Subscriptions should not be set up after late init
+    mockTickerStart.mockClear()
+    mockTickerStop.mockClear()
+    useViewerStore.getState().togglePlay()
+    expect(mockTickerStart).not.toHaveBeenCalled()
   })
 })

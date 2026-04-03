@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { createMockPixiApp, type MockPixiApp } from "@/test/mocks/pixi"
 
 let mockApp: MockPixiApp
@@ -23,6 +23,10 @@ describe("ViewerApp", () => {
     mockApp = createMockPixiApp()
     container = document.createElement("div")
     document.body.appendChild(container)
+  })
+
+  afterEach(() => {
+    container.remove()
   })
 
   describe("createViewerApp", () => {

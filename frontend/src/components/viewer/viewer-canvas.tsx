@@ -16,7 +16,8 @@ function setupViewerSubscriptions(app: ViewerApp): () => void {
         } else {
           app.ticker.stop()
         }
-      }
+      },
+      { fireImmediately: true }
     )
   )
 
@@ -25,7 +26,8 @@ function setupViewerSubscriptions(app: ViewerApp): () => void {
       (s) => s.speed,
       (speed) => {
         app.ticker.speed = speed
-      }
+      },
+      { fireImmediately: true }
     )
   )
 
@@ -50,12 +52,6 @@ export function ViewerCanvas() {
       }
 
       viewerApp = app
-
-      // Sync initial state: stop ticker since isPlaying defaults to false
-      if (!useViewerStore.getState().isPlaying) {
-        app.ticker.stop()
-      }
-
       unsubscribe = setupViewerSubscriptions(app)
     })
 
