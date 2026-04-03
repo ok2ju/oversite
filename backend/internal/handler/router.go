@@ -10,7 +10,7 @@ import (
 
 // NewRouter creates and configures the main chi router with middleware
 // and route definitions.
-func NewRouter(health *HealthHandler, authH *AuthHandler, sessions auth.SessionStore) chi.Router {
+func NewRouter(health *HealthHandler, authH *AuthHandler, demoH *DemoHandler, sessions auth.SessionStore) chi.Router {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -41,7 +41,7 @@ func NewRouter(health *HealthHandler, authH *AuthHandler, sessions auth.SessionS
 		// Protected routes — require valid session
 		r.Group(func(r chi.Router) {
 			r.Use(auth.RequireAuth(sessions))
-			// Future protected resource routes go here.
+			r.Post("/demos", demoH.HandleUpload)
 		})
 	})
 

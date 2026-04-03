@@ -24,15 +24,14 @@ func (q *Queries) CountDemosByUserID(ctx context.Context, userID uuid.UUID) (int
 }
 
 const createDemo = `-- name: CreateDemo :one
-INSERT INTO demos (user_id, faceit_match_id, map_name, file_path, file_size, status, match_date)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO demos (user_id, faceit_match_id, file_path, file_size, status, match_date)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING id, user_id, faceit_match_id, map_name, file_path, file_size, status, total_ticks, tick_rate, duration_secs, match_date, created_at
 `
 
 type CreateDemoParams struct {
 	UserID        uuid.UUID
 	FaceitMatchID sql.NullString
-	MapName       string
 	FilePath      string
 	FileSize      int64
 	Status        string
@@ -43,7 +42,6 @@ func (q *Queries) CreateDemo(ctx context.Context, arg CreateDemoParams) (Demo, e
 	row := q.db.QueryRowContext(ctx, createDemo,
 		arg.UserID,
 		arg.FaceitMatchID,
-		arg.MapName,
 		arg.FilePath,
 		arg.FileSize,
 		arg.Status,
@@ -152,15 +150,17 @@ func (q *Queries) ListDemosByUserID(ctx context.Context, arg ListDemosByUserIDPa
 const updateDemoAfterParse = `-- name: UpdateDemoAfterParse :one
 UPDATE demos SET
     status = 'ready',
-    total_ticks = $2,
-    tick_rate = $3,
-    duration_secs = $4
+    map_name = $2,
+    total_ticks = $3,
+    tick_rate = $4,
+    duration_secs = $5
 WHERE id = $1
 RETURNING id, user_id, faceit_match_id, map_name, file_path, file_size, status, total_ticks, tick_rate, duration_secs, match_date, created_at
 `
 
 type UpdateDemoAfterParseParams struct {
 	ID           uuid.UUID
+	MapName      sql.NullString
 	TotalTicks   sql.NullInt32
 	TickRate     sql.NullFloat64
 	DurationSecs sql.NullInt32
@@ -169,6 +169,7 @@ type UpdateDemoAfterParseParams struct {
 func (q *Queries) UpdateDemoAfterParse(ctx context.Context, arg UpdateDemoAfterParseParams) (Demo, error) {
 	row := q.db.QueryRowContext(ctx, updateDemoAfterParse,
 		arg.ID,
+		arg.MapName,
 		arg.TotalTicks,
 		arg.TickRate,
 		arg.DurationSecs,
