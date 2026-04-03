@@ -106,7 +106,7 @@ func (q *RedisQueue) GetPendingCount(ctx context.Context, stream, group string) 
 
 // ClaimStale uses XAUTOCLAIM to reclaim messages that have been idle longer
 // than the given threshold. Returns the claimed messages (data + IDs).
-func (q *RedisQueue) ClaimStale(ctx context.Context, stream, group, consumer string, threshold time.Duration) ([]redis.XMessage, error) {
+func (q *RedisQueue) ClaimStale(ctx context.Context, stream, group, consumer string, threshold time.Duration) ([]Message, error) {
 	msgs, _, err := q.client.XAutoClaim(ctx, &redis.XAutoClaimArgs{
 		Stream:   stream,
 		Group:    group,
@@ -118,31 +118,36 @@ func (q *RedisQueue) ClaimStale(ctx context.Context, stream, group, consumer str
 	if err != nil {
 		return nil, fmt.Errorf("xautoclaim %q/%q: %w", stream, group, err)
 	}
-	return msgs, nil
+
+	result := make([]Message, len(msgs))
+	for i, m := range msgs {
+		result[i] = Message{ID: m.ID, Values: m.Values}
+	}
+	return result, nil
 }
 
 // DeadLetter moves a failed message to a dead-letter stream ({stream}:dead)
-// by adding it there and acknowledging the original.
+// by adding it there and acknowledging the original atomically via a pipeline.
 func (q *RedisQueue) DeadLetter(ctx context.Context, stream, group, id string, data map[string]interface{}) error {
 	dlStream := stream + ":dead"
 
-	// Copy data to dead-letter stream with the original message ID.
-	dlData := make(map[string]interface{}, len(data)+1)
+	dlData := make(map[string]interface{}, len(data)+2)
 	for k, v := range data {
 		dlData[k] = v
 	}
 	dlData["_original_id"] = id
 	dlData["_original_stream"] = stream
 
-	if _, err := q.client.XAdd(ctx, &redis.XAddArgs{
-		Stream: dlStream,
-		Values: dlData,
-	}).Result(); err != nil {
-		return fmt.Errorf("xadd to dead-letter %q: %w", dlStream, err)
-	}
-
-	if err := q.Ack(ctx, stream, group, id); err != nil {
-		return fmt.Errorf("ack after dead-letter: %w", err)
+	_, err := q.client.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+		pipe.XAdd(ctx, &redis.XAddArgs{
+			Stream: dlStream,
+			Values: dlData,
+		})
+		pipe.XAck(ctx, stream, group, id)
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("dead-letter pipeline %q -> %q: %w", stream, dlStream, err)
 	}
 
 	slog.Warn("message dead-lettered",
@@ -151,6 +156,26 @@ func (q *RedisQueue) DeadLetter(ctx context.Context, stream, group, id string, d
 		"dead_letter_stream", dlStream,
 	)
 	return nil
+}
+
+// GetDeliveryCount returns the number of times a pending message has been
+// delivered, using XPENDING. This count is maintained natively by Redis and
+// increments on each XREADGROUP or XAUTOCLAIM delivery.
+func (q *RedisQueue) GetDeliveryCount(ctx context.Context, stream, group, id string) (int64, error) {
+	result, err := q.client.XPendingExt(ctx, &redis.XPendingExtArgs{
+		Stream: stream,
+		Group:  group,
+		Start:  id,
+		End:    id,
+		Count:  1,
+	}).Result()
+	if err != nil {
+		return 0, fmt.Errorf("xpending ext %q/%q/%s: %w", stream, group, id, err)
+	}
+	if len(result) == 0 {
+		return 0, nil
+	}
+	return result[0].RetryCount, nil
 }
 
 // isBusyGroupError returns true if the error is the Redis BUSYGROUP error

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -15,13 +15,29 @@ const DefaultMaxRetry = 3
 // DefaultClaimInterval is the default interval for checking and reclaiming stale messages.
 const DefaultClaimInterval = 10 * time.Second
 
+// Message represents a stream message with an ID and key-value data.
+type Message struct {
+	ID     string
+	Values map[string]interface{}
+}
+
 // JobHandler processes a single job message. Return an error to signal failure.
 type JobHandler func(ctx context.Context, data map[string]interface{}) error
+
+// Queue defines the interface for job queue operations needed by Worker.
+type Queue interface {
+	EnsureGroup(ctx context.Context, stream, group string) error
+	Dequeue(ctx context.Context, stream, group, consumer string) (map[string]interface{}, string, error)
+	Ack(ctx context.Context, stream, group, id string) error
+	DeadLetter(ctx context.Context, stream, group, id string, data map[string]interface{}) error
+	ClaimStale(ctx context.Context, stream, group, consumer string, threshold time.Duration) ([]Message, error)
+	GetDeliveryCount(ctx context.Context, stream, group, id string) (int64, error)
+}
 
 // Worker consumes messages from a Redis Stream, processes them with a handler,
 // and manages retries and dead-lettering.
 type Worker struct {
-	queue          *RedisQueue
+	queue          Queue
 	stream         string
 	group          string
 	consumer       string
@@ -32,10 +48,11 @@ type Worker struct {
 	stop           chan struct{}
 	done           chan struct{}
 	once           sync.Once
+	started        atomic.Bool
 }
 
 // NewWorker creates a worker that consumes from the given stream/group.
-func NewWorker(queue *RedisQueue, stream, group, consumer string, handler JobHandler) *Worker {
+func NewWorker(queue Queue, stream, group, consumer string, handler JobHandler) *Worker {
 	return &Worker{
 		queue:          queue,
 		stream:         stream,
@@ -71,7 +88,12 @@ func (w *Worker) WithClaimInterval(d time.Duration) *Worker {
 // Start launches the consume loop in a background goroutine. It ensures the
 // consumer group exists before consuming. Start must be called at most once.
 func (w *Worker) Start(ctx context.Context) error {
+	if w.started.Swap(true) {
+		return fmt.Errorf("worker already started")
+	}
+
 	if err := w.queue.EnsureGroup(ctx, w.stream, w.group); err != nil {
+		w.started.Store(false)
 		return fmt.Errorf("ensuring consumer group: %w", err)
 	}
 
@@ -89,7 +111,9 @@ func (w *Worker) Stop() {
 	w.once.Do(func() {
 		close(w.stop)
 	})
-	<-w.done
+	if w.started.Load() {
+		<-w.done
+	}
 	slog.Info("worker stopped",
 		"stream", w.stream,
 		"group", w.group,
@@ -146,25 +170,31 @@ func (w *Worker) run(ctx context.Context) {
 
 // processMessage invokes the handler and manages ack/retry/dead-letter.
 func (w *Worker) processMessage(ctx context.Context, data map[string]interface{}, id string) {
-	attempts := w.getAttempts(data)
-	attempts++
-	data["_attempts"] = strconv.Itoa(attempts)
+	deliveryCount, err := w.queue.GetDeliveryCount(ctx, w.stream, w.group, id)
+	if err != nil {
+		slog.Error("get delivery count failed",
+			"stream", w.stream,
+			"id", id,
+			"error", err,
+		)
+		deliveryCount = 1
+	}
 
 	slog.Debug("processing message",
 		"stream", w.stream,
 		"id", id,
-		"attempt", attempts,
+		"delivery_count", deliveryCount,
 	)
 
 	if err := w.handler(ctx, data); err != nil {
 		slog.Error("handler failed",
 			"stream", w.stream,
 			"id", id,
-			"attempt", attempts,
+			"delivery_count", deliveryCount,
 			"error", err,
 		)
 
-		if attempts >= w.maxRetry {
+		if deliveryCount >= int64(w.maxRetry) {
 			if dlErr := w.queue.DeadLetter(ctx, w.stream, w.group, id, data); dlErr != nil {
 				slog.Error("dead-letter failed",
 					"stream", w.stream,
@@ -206,28 +236,5 @@ func (w *Worker) reclaimStale(ctx context.Context) {
 		default:
 		}
 		w.processMessage(ctx, msg.Values, msg.ID)
-	}
-}
-
-// getAttempts extracts the delivery attempt count from message data.
-func (w *Worker) getAttempts(data map[string]interface{}) int {
-	v, ok := data["_attempts"]
-	if !ok {
-		return 0
-	}
-
-	switch val := v.(type) {
-	case string:
-		n, err := strconv.Atoi(val)
-		if err != nil {
-			return 0
-		}
-		return n
-	case int:
-		return val
-	case int64:
-		return int(val)
-	default:
-		return 0
 	}
 }
