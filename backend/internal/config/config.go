@@ -77,6 +77,47 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
+// WSConfig holds configuration for the WebSocket server.
+// Only requires DATABASE_URL and REDIS_URL (docker-compose ws service provides just these).
+type WSConfig struct {
+	WSPort      string
+	DatabaseURL string
+	RedisURL    string
+	Environment string
+	LogLevel    string
+}
+
+// LoadWS reads configuration for the WebSocket server from environment variables.
+// Required variables: DATABASE_URL, REDIS_URL.
+func LoadWS() (*WSConfig, error) {
+	cfg := &WSConfig{
+		WSPort:      getEnvOrDefault("WS_PORT", "8081"),
+		Environment: getEnvOrDefault("GO_ENV", "development"),
+		LogLevel:    getEnvOrDefault("LOG_LEVEL", "info"),
+	}
+
+	required := map[string]*string{
+		"DATABASE_URL": &cfg.DatabaseURL,
+		"REDIS_URL":    &cfg.RedisURL,
+	}
+
+	var missing []string
+	for key, ptr := range required {
+		val := os.Getenv(key)
+		if val == "" {
+			missing = append(missing, key)
+		}
+		*ptr = val
+	}
+
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		return nil, fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
+	}
+
+	return cfg, nil
+}
+
 func getEnvOrDefault(key, defaultVal string) string {
 	if val := os.Getenv(key); val != "" {
 		return val
