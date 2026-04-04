@@ -34,7 +34,8 @@ type Config struct {
 }
 
 // Load reads configuration from environment variables.
-// Required variables: DATABASE_URL, REDIS_URL, MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY.
+// Required variables: DATABASE_URL, REDIS_URL, MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY,
+// FACEIT_CLIENT_ID, FACEIT_CLIENT_SECRET, FACEIT_REDIRECT_URI, FACEIT_API_KEY.
 // Returns an error if any required variable is missing.
 func Load() (*Config, error) {
 	cfg := &Config{

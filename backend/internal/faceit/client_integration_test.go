@@ -52,151 +52,127 @@ func testClientWithRedis(t *testing.T, handler http.Handler, redisClient *redis.
 	return c
 }
 
-func TestCache_PlayerProfileHit(t *testing.T) {
-	redisClient := setupRedisClient(t)
-
-	var calls atomic.Int32
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls.Add(1)
-		_ = json.NewEncoder(w).Encode(Player{PlayerID: "player-1", Nickname: "cached"})
-	})
-
-	c := testClientWithRedis(t, handler, redisClient, ClientConfig{PlayerTTL: 5 * time.Second})
-	ctx := context.Background()
-
-	p1, err := c.GetPlayer(ctx, "player-1")
-	if err != nil {
-		t.Fatalf("first call: %v", err)
-	}
-	if p1.Nickname != "cached" {
-		t.Errorf("Nickname: got %q, want %q", p1.Nickname, "cached")
-	}
-
-	p2, err := c.GetPlayer(ctx, "player-1")
-	if err != nil {
-		t.Fatalf("second call: %v", err)
-	}
-	if p2.Nickname != "cached" {
-		t.Errorf("Nickname: got %q, want %q", p2.Nickname, "cached")
+func TestCache_PlayerProfile(t *testing.T) {
+	tests := []struct {
+		name      string
+		ttl       time.Duration
+		sleepTTL  time.Duration
+		wantCalls int32
+	}{
+		{
+			name:      "hit on second call",
+			ttl:       5 * time.Second,
+			wantCalls: 1,
+		},
+		{
+			name:      "miss on cold cache",
+			ttl:       5 * time.Second,
+			wantCalls: 1,
+		},
+		{
+			name:      "refetch after TTL expiry",
+			ttl:       100 * time.Millisecond,
+			sleepTTL:  200 * time.Millisecond,
+			wantCalls: 2,
+		},
 	}
 
-	if calls.Load() != 1 {
-		t.Errorf("expected 1 API call, got %d", calls.Load())
-	}
-}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			redisClient := setupRedisClient(t)
 
-func TestCache_PlayerProfileMiss(t *testing.T) {
-	redisClient := setupRedisClient(t)
+			var calls atomic.Int32
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				_ = json.NewEncoder(w).Encode(Player{PlayerID: "player-1", Nickname: "cached"})
+			})
 
-	var calls atomic.Int32
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls.Add(1)
-		_ = json.NewEncoder(w).Encode(Player{PlayerID: "player-1"})
-	})
+			c := testClientWithRedis(t, handler, redisClient, ClientConfig{PlayerTTL: tc.ttl})
+			ctx := context.Background()
 
-	c := testClientWithRedis(t, handler, redisClient, ClientConfig{PlayerTTL: 5 * time.Second})
-	ctx := context.Background()
+			p1, err := c.GetPlayer(ctx, "player-1")
+			if err != nil {
+				t.Fatalf("first call: %v", err)
+			}
+			if p1.Nickname != "cached" {
+				t.Errorf("Nickname: got %q, want %q", p1.Nickname, "cached")
+			}
 
-	_, err := c.GetPlayer(ctx, "player-1")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+			if tc.sleepTTL > 0 {
+				time.Sleep(tc.sleepTTL)
+			}
 
-	if calls.Load() != 1 {
-		t.Errorf("expected 1 API call on cold cache, got %d", calls.Load())
-	}
-}
+			_, err = c.GetPlayer(ctx, "player-1")
+			if err != nil {
+				t.Fatalf("second call: %v", err)
+			}
 
-func TestCache_PlayerProfileTTLExpiry(t *testing.T) {
-	redisClient := setupRedisClient(t)
-
-	var calls atomic.Int32
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls.Add(1)
-		_ = json.NewEncoder(w).Encode(Player{PlayerID: "player-1"})
-	})
-
-	c := testClientWithRedis(t, handler, redisClient, ClientConfig{PlayerTTL: 100 * time.Millisecond})
-	ctx := context.Background()
-
-	_, err := c.GetPlayer(ctx, "player-1")
-	if err != nil {
-		t.Fatalf("first call: %v", err)
-	}
-
-	time.Sleep(200 * time.Millisecond)
-
-	_, err = c.GetPlayer(ctx, "player-1")
-	if err != nil {
-		t.Fatalf("second call: %v", err)
-	}
-
-	if calls.Load() != 2 {
-		t.Errorf("expected 2 API calls after TTL expiry, got %d", calls.Load())
-	}
-}
-
-func TestCache_MatchHistoryHit(t *testing.T) {
-	redisClient := setupRedisClient(t)
-
-	var calls atomic.Int32
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls.Add(1)
-		_ = json.NewEncoder(w).Encode(MatchHistory{
-			Items: []MatchSummary{{MatchID: "m-1"}},
-			Start: 0,
-			End:   1,
+			if calls.Load() != tc.wantCalls {
+				t.Errorf("API calls: got %d, want %d", calls.Load(), tc.wantCalls)
+			}
 		})
-	})
-
-	c := testClientWithRedis(t, handler, redisClient, ClientConfig{HistoryTTL: 5 * time.Second})
-	ctx := context.Background()
-
-	_, err := c.GetPlayerHistory(ctx, "player-1", 0, 20)
-	if err != nil {
-		t.Fatalf("first call: %v", err)
-	}
-
-	_, err = c.GetPlayerHistory(ctx, "player-1", 0, 20)
-	if err != nil {
-		t.Fatalf("second call: %v", err)
-	}
-
-	if calls.Load() != 1 {
-		t.Errorf("expected 1 API call, got %d", calls.Load())
 	}
 }
 
-func TestCache_MatchHistoryTTLExpiry(t *testing.T) {
-	redisClient := setupRedisClient(t)
-
-	var calls atomic.Int32
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		calls.Add(1)
-		_ = json.NewEncoder(w).Encode(MatchHistory{Items: []MatchSummary{{MatchID: "m-1"}}})
-	})
-
-	c := testClientWithRedis(t, handler, redisClient, ClientConfig{HistoryTTL: 100 * time.Millisecond})
-	ctx := context.Background()
-
-	_, err := c.GetPlayerHistory(ctx, "player-1", 0, 20)
-	if err != nil {
-		t.Fatalf("first call: %v", err)
+func TestCache_MatchHistory(t *testing.T) {
+	tests := []struct {
+		name      string
+		ttl       time.Duration
+		sleepTTL  time.Duration
+		wantCalls int32
+	}{
+		{
+			name:      "hit on second call",
+			ttl:       5 * time.Second,
+			wantCalls: 1,
+		},
+		{
+			name:      "refetch after TTL expiry",
+			ttl:       100 * time.Millisecond,
+			sleepTTL:  200 * time.Millisecond,
+			wantCalls: 2,
+		},
 	}
 
-	time.Sleep(200 * time.Millisecond)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			redisClient := setupRedisClient(t)
 
-	_, err = c.GetPlayerHistory(ctx, "player-1", 0, 20)
-	if err != nil {
-		t.Fatalf("second call: %v", err)
-	}
+			var calls atomic.Int32
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				_ = json.NewEncoder(w).Encode(MatchHistory{
+					Items: []MatchSummary{{MatchID: "m-1"}},
+					Start: 0,
+					End:   1,
+				})
+			})
 
-	if calls.Load() != 2 {
-		t.Errorf("expected 2 API calls after TTL expiry, got %d", calls.Load())
+			c := testClientWithRedis(t, handler, redisClient, ClientConfig{HistoryTTL: tc.ttl})
+			ctx := context.Background()
+
+			_, err := c.GetPlayerHistory(ctx, "player-1", 0, 20)
+			if err != nil {
+				t.Fatalf("first call: %v", err)
+			}
+
+			if tc.sleepTTL > 0 {
+				time.Sleep(tc.sleepTTL)
+			}
+
+			_, err = c.GetPlayerHistory(ctx, "player-1", 0, 20)
+			if err != nil {
+				t.Fatalf("second call: %v", err)
+			}
+
+			if calls.Load() != tc.wantCalls {
+				t.Errorf("API calls: got %d, want %d", calls.Load(), tc.wantCalls)
+			}
+		})
 	}
 }
 
-func TestCache_MatchDetailsCached(t *testing.T) {
+func TestCache_MatchDetails(t *testing.T) {
 	redisClient := setupRedisClient(t)
 
 	var calls atomic.Int32

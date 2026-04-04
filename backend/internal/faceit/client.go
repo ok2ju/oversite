@@ -8,10 +8,15 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/redis/go-redis/v9"
 )
+
+// maxResponseBytes limits the size of HTTP response bodies read from the Faceit API.
+const maxResponseBytes = 5 * 1024 * 1024 // 5 MB
 
 // DefaultBaseURL is the base URL for the Faceit Data API v4.
 const DefaultBaseURL = "https://open.faceit.com/data/v4"
@@ -107,7 +112,7 @@ func (c *Client) GetPlayer(ctx context.Context, playerID string) (*Player, error
 	}
 
 	var result Player
-	if err := c.doRequest(ctx, "/players/"+playerID, &result); err != nil {
+	if err := c.doRequest(ctx, "/players/"+url.PathEscape(playerID), &result); err != nil {
 		return nil, err
 	}
 
@@ -124,7 +129,7 @@ func (c *Client) GetPlayerHistory(ctx context.Context, playerID string, offset, 
 		return &cached, nil
 	}
 
-	path := fmt.Sprintf("/players/%s/history?game=cs2&offset=%d&limit=%d", playerID, offset, limit)
+	path := fmt.Sprintf("/players/%s/history?game=cs2&offset=%d&limit=%d", url.PathEscape(playerID), offset, limit)
 	var result MatchHistory
 	if err := c.doRequest(ctx, path, &result); err != nil {
 		return nil, err
@@ -144,7 +149,7 @@ func (c *Client) GetMatchDetails(ctx context.Context, matchID string) (*MatchDet
 	}
 
 	var result MatchDetails
-	if err := c.doRequest(ctx, "/matches/"+matchID, &result); err != nil {
+	if err := c.doRequest(ctx, "/matches/"+url.PathEscape(matchID), &result); err != nil {
 		return nil, err
 	}
 
@@ -170,7 +175,7 @@ func (c *Client) doRequest(ctx context.Context, path string, result interface{})
 		}
 		defer resp.Body.Close() //nolint:errcheck // best-effort close on read path
 
-		body, err = io.ReadAll(resp.Body)
+		body, err = io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 		if err != nil {
 			return resp.StatusCode, fmt.Errorf("reading response: %w", err)
 		}
@@ -239,12 +244,12 @@ func (c *Client) cacheGet(ctx context.Context, key string, dest interface{}) (bo
 		return false, nil
 	}
 	if err != nil {
-		slog.Warn("faceit cache get error", "key", key, "error", err)
+		slog.Warn("faceit cache get error", "key", key, "error", err, "request_id", middleware.GetReqID(ctx))
 		return false, nil
 	}
 
 	if err := json.Unmarshal([]byte(val), dest); err != nil {
-		slog.Warn("faceit cache unmarshal error", "key", key, "error", err)
+		slog.Warn("faceit cache unmarshal error", "key", key, "error", err, "request_id", middleware.GetReqID(ctx))
 		return false, nil
 	}
 
@@ -259,12 +264,11 @@ func (c *Client) cacheSet(ctx context.Context, key string, val interface{}, ttl 
 
 	data, err := json.Marshal(val)
 	if err != nil {
-		slog.Warn("faceit cache marshal error", "key", key, "error", err)
+		slog.Warn("faceit cache marshal error", "key", key, "error", err, "request_id", middleware.GetReqID(ctx))
 		return
 	}
 
 	if err := c.redis.Set(ctx, key, data, ttl).Err(); err != nil {
-		slog.Warn("faceit cache set error", "key", key, "error", err)
+		slog.Warn("faceit cache set error", "key", key, "error", err, "request_id", middleware.GetReqID(ctx))
 	}
 }
-
