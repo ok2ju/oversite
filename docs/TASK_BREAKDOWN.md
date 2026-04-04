@@ -742,7 +742,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ## 5. Phase 4: Faceit & Heatmaps
 
-### P4-T01: Implement Faceit API client
+### P4-T01: Implement Faceit API client ✅
 
 | | |
 |---|---|
@@ -935,7 +935,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ## 6. Phase 5: Strategy Board & Lineups
 
-### P5-T01: Implement WebSocket server
+### P5-T01: Implement WebSocket server ✅
 
 | | |
 |---|---|
