@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { subscribeWithSelector } from "zustand/middleware"
 
 interface ViewerState {
   currentTick: number
@@ -25,13 +26,15 @@ const initialState = {
   demoId: null as string | null,
 }
 
-export const useViewerStore = create<ViewerState>((set) => ({
-  ...initialState,
-  setTick: (tick) => set({ currentTick: tick }),
-  setTotalTicks: (total) => set({ totalTicks: total }),
-  togglePlay: () => set((state) => ({ isPlaying: !state.isPlaying })),
-  setSpeed: (speed) => set({ speed }),
-  setRound: (round) => set({ currentRound: round }),
-  setDemoId: (id) => set({ demoId: id, currentTick: 0 }),
-  reset: () => set(initialState),
-}))
+export const useViewerStore = create<ViewerState>()(
+  subscribeWithSelector((set) => ({
+    ...initialState,
+    setTick: (tick) => set({ currentTick: tick }),
+    setTotalTicks: (total) => set({ totalTicks: total }),
+    togglePlay: () => set((state) => ({ isPlaying: !state.isPlaying })),
+    setSpeed: (speed) => set({ speed }),
+    setRound: (round) => set({ currentRound: round }),
+    setDemoId: (id) => set({ demoId: id, currentTick: 0 }),
+    reset: () => set(initialState),
+  }))
+)
