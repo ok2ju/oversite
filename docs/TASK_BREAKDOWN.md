@@ -507,7 +507,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ## 4. Phase 3: Core 2D Viewer
 
-### P3-T01: Set up PixiJS Application + canvas container
+### P3-T01: Set up PixiJS Application + canvas container ✅
 
 | | |
 |---|---|
