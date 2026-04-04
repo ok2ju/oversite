@@ -78,17 +78,16 @@ func Load() (*Config, error) {
 }
 
 // WSConfig holds configuration for the WebSocket server.
-// Only requires DATABASE_URL and REDIS_URL (docker-compose ws service provides just these).
+// Only requires REDIS_URL (the WS server is a stateless Yjs relay with no DB access).
 type WSConfig struct {
 	WSPort      string
-	DatabaseURL string
 	RedisURL    string
 	Environment string
 	LogLevel    string
 }
 
 // LoadWS reads configuration for the WebSocket server from environment variables.
-// Required variables: DATABASE_URL, REDIS_URL.
+// Required variables: REDIS_URL.
 func LoadWS() (*WSConfig, error) {
 	cfg := &WSConfig{
 		WSPort:      getEnvOrDefault("WS_PORT", "8081"),
@@ -97,8 +96,7 @@ func LoadWS() (*WSConfig, error) {
 	}
 
 	required := map[string]*string{
-		"DATABASE_URL": &cfg.DatabaseURL,
-		"REDIS_URL":    &cfg.RedisURL,
+		"REDIS_URL": &cfg.RedisURL,
 	}
 
 	var missing []string

@@ -85,12 +85,14 @@ func (h *Hub) Run() {
 		case client := <-h.unregister:
 			h.mu.Lock()
 			if room, ok := h.rooms[client.boardID]; ok {
-				room.remove(client)
-				if room.isEmpty() {
-					delete(h.rooms, client.boardID)
+				if room.clients[client] {
+					room.remove(client)
+					close(client.send)
+					if room.isEmpty() {
+						delete(h.rooms, client.boardID)
+					}
 				}
 			}
-			close(client.send)
 			h.mu.Unlock()
 
 		case msg := <-h.broadcast:

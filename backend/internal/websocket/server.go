@@ -62,7 +62,7 @@ func (s *Server) HandleUpgrade(w http.ResponseWriter, r *http.Request) {
 	session, err := s.sessions.Get(r.Context(), cookie.Value)
 	if err != nil {
 		if !errors.Is(err, auth.ErrSessionNotFound) {
-			slog.Error("getting session in ws upgrade", "error", err)
+			slog.Error("getting session in ws upgrade", "error", err, "request_id", middleware.GetReqID(r.Context()))
 		}
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
@@ -71,7 +71,7 @@ func (s *Server) HandleUpgrade(w http.ResponseWriter, r *http.Request) {
 	// Upgrade to WebSocket.
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		slog.Error("websocket upgrade failed", "error", err)
+		slog.Error("websocket upgrade failed", "error", err, "request_id", middleware.GetReqID(r.Context()))
 		return
 	}
 
