@@ -1,6 +1,6 @@
 //go:build integration
 
-package faceit
+package faceit_test
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"github.com/ok2ju/oversite/backend/internal/faceit"
 	"github.com/ok2ju/oversite/backend/internal/testutil"
 )
 
@@ -36,7 +37,7 @@ func setupRedisClient(t *testing.T) *redis.Client {
 	return client
 }
 
-func testClientWithRedis(t *testing.T, handler http.Handler, redisClient *redis.Client, cfg ClientConfig) *Client {
+func testClientWithRedis(t *testing.T, handler http.Handler, redisClient *redis.Client, cfg faceit.ClientConfig) *faceit.Client {
 	t.Helper()
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
@@ -45,11 +46,10 @@ func testClientWithRedis(t *testing.T, handler http.Handler, redisClient *redis.
 	if cfg.APIKey == "" {
 		cfg.APIKey = "test-api-key"
 	}
+	cfg.BaseDelay = 10 * time.Millisecond
+	cfg.MaxRetries = 3
 
-	c := NewClient(http.DefaultClient, redisClient, cfg)
-	c.baseDelay = 10 * time.Millisecond
-	c.maxRetries = 3
-	return c
+	return faceit.NewClient(http.DefaultClient, redisClient, cfg)
 }
 
 func TestCache_PlayerProfile(t *testing.T) {
@@ -84,10 +84,10 @@ func TestCache_PlayerProfile(t *testing.T) {
 			var calls atomic.Int32
 			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls.Add(1)
-				_ = json.NewEncoder(w).Encode(Player{PlayerID: "player-1", Nickname: "cached"})
+				_ = json.NewEncoder(w).Encode(faceit.Player{PlayerID: "player-1", Nickname: "cached"})
 			})
 
-			c := testClientWithRedis(t, handler, redisClient, ClientConfig{PlayerTTL: tc.ttl})
+			c := testClientWithRedis(t, handler, redisClient, faceit.ClientConfig{PlayerTTL: tc.ttl})
 			ctx := context.Background()
 
 			p1, err := c.GetPlayer(ctx, "player-1")
@@ -141,14 +141,14 @@ func TestCache_MatchHistory(t *testing.T) {
 			var calls atomic.Int32
 			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls.Add(1)
-				_ = json.NewEncoder(w).Encode(MatchHistory{
-					Items: []MatchSummary{{MatchID: "m-1"}},
+				_ = json.NewEncoder(w).Encode(faceit.MatchHistory{
+					Items: []faceit.MatchSummary{{MatchID: "m-1"}},
 					Start: 0,
 					End:   1,
 				})
 			})
 
-			c := testClientWithRedis(t, handler, redisClient, ClientConfig{HistoryTTL: tc.ttl})
+			c := testClientWithRedis(t, handler, redisClient, faceit.ClientConfig{HistoryTTL: tc.ttl})
 			ctx := context.Background()
 
 			_, err := c.GetPlayerHistory(ctx, "player-1", 0, 20)
@@ -178,10 +178,10 @@ func TestCache_MatchDetails(t *testing.T) {
 	var calls atomic.Int32
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
-		_ = json.NewEncoder(w).Encode(MatchDetails{MatchID: "match-abc", Status: "finished"})
+		_ = json.NewEncoder(w).Encode(faceit.MatchDetails{MatchID: "match-abc", Status: "finished"})
 	})
 
-	c := testClientWithRedis(t, handler, redisClient, ClientConfig{MatchTTL: 5 * time.Second})
+	c := testClientWithRedis(t, handler, redisClient, faceit.ClientConfig{MatchTTL: 5 * time.Second})
 	ctx := context.Background()
 
 	_, err := c.GetMatchDetails(ctx, "match-abc")
@@ -205,15 +205,15 @@ func TestCache_KeyFormat(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/players/p-1":
-			_ = json.NewEncoder(w).Encode(Player{PlayerID: "p-1"})
+			_ = json.NewEncoder(w).Encode(faceit.Player{PlayerID: "p-1"})
 		case r.URL.Path == "/players/p-1/history":
-			_ = json.NewEncoder(w).Encode(MatchHistory{Items: []MatchSummary{{MatchID: "m-1"}}})
+			_ = json.NewEncoder(w).Encode(faceit.MatchHistory{Items: []faceit.MatchSummary{{MatchID: "m-1"}}})
 		case r.URL.Path == "/matches/m-1":
-			_ = json.NewEncoder(w).Encode(MatchDetails{MatchID: "m-1"})
+			_ = json.NewEncoder(w).Encode(faceit.MatchDetails{MatchID: "m-1"})
 		}
 	})
 
-	c := testClientWithRedis(t, handler, redisClient, ClientConfig{
+	c := testClientWithRedis(t, handler, redisClient, faceit.ClientConfig{
 		PlayerTTL:  5 * time.Second,
 		HistoryTTL: 5 * time.Second,
 		MatchTTL:   5 * time.Second,

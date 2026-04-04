@@ -15,13 +15,12 @@ func testClient(t *testing.T, handler http.Handler) *Client {
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 
-	c := NewClient(http.DefaultClient, nil, ClientConfig{
-		APIKey:  "test-api-key",
-		BaseURL: srv.URL,
+	return NewClient(http.DefaultClient, nil, ClientConfig{
+		APIKey:     "test-api-key",
+		BaseURL:    srv.URL,
+		BaseDelay:  10 * time.Millisecond,
+		MaxRetries: 3,
 	})
-	c.baseDelay = 10 * time.Millisecond
-	c.maxRetries = 3
-	return c
 }
 
 func TestGetPlayer(t *testing.T) {

@@ -50,6 +50,9 @@ type ClientConfig struct {
 	PlayerTTL  time.Duration
 	HistoryTTL time.Duration
 	MatchTTL   time.Duration
+
+	BaseDelay  time.Duration
+	MaxRetries int
 }
 
 // Client implements FaceitAPI with HTTP calls, retry logic, and Redis caching.
@@ -89,6 +92,16 @@ func NewClient(httpClient *http.Client, redisClient *redis.Client, cfg ClientCon
 		matchTTL = DefaultMatchCacheTTL
 	}
 
+	baseDelay := cfg.BaseDelay
+	if baseDelay == 0 {
+		baseDelay = 1 * time.Second
+	}
+
+	maxRetries := cfg.MaxRetries
+	if maxRetries == 0 {
+		maxRetries = 3
+	}
+
 	return &Client{
 		httpClient: httpClient,
 		redis:      redisClient,
@@ -97,8 +110,8 @@ func NewClient(httpClient *http.Client, redisClient *redis.Client, cfg ClientCon
 		playerTTL:  playerTTL,
 		historyTTL: historyTTL,
 		matchTTL:   matchTTL,
-		baseDelay:  1 * time.Second,
-		maxRetries: 3,
+		baseDelay:  baseDelay,
+		maxRetries: maxRetries,
 	}
 }
 
