@@ -17,6 +17,7 @@ func setRequiredEnv(t *testing.T) {
 	t.Setenv("FACEIT_CLIENT_ID", "test-client-id")
 	t.Setenv("FACEIT_CLIENT_SECRET", "test-client-secret")
 	t.Setenv("FACEIT_REDIRECT_URI", "http://localhost:3000/api/v1/auth/faceit/callback")
+	t.Setenv("FACEIT_API_KEY", "test-api-key")
 }
 
 func TestLoadWithAllRequiredVars(t *testing.T) {
@@ -205,6 +206,46 @@ func TestLoadMissingMinioSecretKey(t *testing.T) {
 	}
 }
 
+func TestLoadFaceitAPIConfig(t *testing.T) {
+	setRequiredEnv(t)
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.FaceitAPIKey != "test-api-key" {
+		t.Errorf("expected FaceitAPIKey 'test-api-key', got %q", cfg.FaceitAPIKey)
+	}
+	if cfg.FaceitAPIBaseURL != "https://open.faceit.com/data/v4" {
+		t.Errorf("expected FaceitAPIBaseURL default, got %q", cfg.FaceitAPIBaseURL)
+	}
+}
+
+func TestLoadFaceitAPIBaseURLOverride(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("FACEIT_API_BASE_URL", "https://custom.faceit.com/v4")
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.FaceitAPIBaseURL != "https://custom.faceit.com/v4" {
+		t.Errorf("expected custom base URL, got %q", cfg.FaceitAPIBaseURL)
+	}
+}
+
+func TestLoadMissingFaceitAPIKey(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("FACEIT_API_KEY", "")
+
+	_, err := config.Load()
+	if err == nil {
+		t.Fatal("expected error for missing FACEIT_API_KEY, got nil")
+	}
+}
+
 func TestLoadMissingAllRequiredVars(t *testing.T) {
 	t.Setenv("DATABASE_URL", "")
 	t.Setenv("REDIS_URL", "")
@@ -214,6 +255,7 @@ func TestLoadMissingAllRequiredVars(t *testing.T) {
 	t.Setenv("FACEIT_CLIENT_ID", "")
 	t.Setenv("FACEIT_CLIENT_SECRET", "")
 	t.Setenv("FACEIT_REDIRECT_URI", "")
+	t.Setenv("FACEIT_API_KEY", "")
 
 	_, err := config.Load()
 	if err == nil {
