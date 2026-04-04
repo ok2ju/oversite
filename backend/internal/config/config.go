@@ -23,6 +23,8 @@ type Config struct {
 	FaceitClientID       string
 	FaceitClientSecret   string
 	FaceitRedirectURI    string
+	FaceitAPIKey         string
+	FaceitAPIBaseURL     string
 	Environment          string
 	LogLevel             string
 	WorkerMaxRetry       int
@@ -32,7 +34,8 @@ type Config struct {
 }
 
 // Load reads configuration from environment variables.
-// Required variables: DATABASE_URL, REDIS_URL, MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY.
+// Required variables: DATABASE_URL, REDIS_URL, MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY,
+// FACEIT_CLIENT_ID, FACEIT_CLIENT_SECRET, FACEIT_REDIRECT_URI, FACEIT_API_KEY.
 // Returns an error if any required variable is missing.
 func Load() (*Config, error) {
 	cfg := &Config{
@@ -46,6 +49,7 @@ func Load() (*Config, error) {
 		WorkerBlockTimeout:   getEnvOrDefaultDuration("WORKER_BLOCK_TIMEOUT", 2*time.Second),
 		WorkerStaleThreshold: getEnvOrDefaultDuration("WORKER_STALE_THRESHOLD", 30*time.Second),
 		WorkerClaimInterval:  getEnvOrDefaultDuration("WORKER_CLAIM_INTERVAL", 10*time.Second),
+		FaceitAPIBaseURL:     getEnvOrDefault("FACEIT_API_BASE_URL", "https://open.faceit.com/data/v4"),
 	}
 
 	// Required vars
@@ -58,6 +62,7 @@ func Load() (*Config, error) {
 		"FACEIT_CLIENT_ID":     &cfg.FaceitClientID,
 		"FACEIT_CLIENT_SECRET": &cfg.FaceitClientSecret,
 		"FACEIT_REDIRECT_URI":  &cfg.FaceitRedirectURI,
+		"FACEIT_API_KEY":       &cfg.FaceitAPIKey,
 	}
 
 	var missing []string

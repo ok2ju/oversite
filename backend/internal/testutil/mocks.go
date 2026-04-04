@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ok2ju/oversite/backend/internal/auth"
+	"github.com/ok2ju/oversite/backend/internal/faceit"
 )
 
 // S3Client defines the interface for object storage operations.
@@ -25,13 +26,6 @@ type JobQueue interface {
 	Enqueue(ctx context.Context, stream string, data map[string]interface{}) (string, error)
 	Dequeue(ctx context.Context, stream, group, consumer string) (map[string]interface{}, string, error)
 	Ack(ctx context.Context, stream, group, id string) error
-}
-
-// FaceitAPI defines the interface for the Faceit Data API client.
-type FaceitAPI interface {
-	GetPlayer(ctx context.Context, playerID string) (interface{}, error)
-	GetPlayerHistory(ctx context.Context, playerID string, offset, limit int) (interface{}, error)
-	GetMatchDetails(ctx context.Context, matchID string) (interface{}, error)
 }
 
 // --- Stub implementations for testing ---
@@ -95,16 +89,17 @@ func (s *StubJobQueue) Ack(ctx context.Context, stream, group, id string) error 
 }
 
 // StubFaceitAPI is a no-op Faceit API client for unit tests.
+// It implements faceit.FaceitAPI.
 type StubFaceitAPI struct{}
 
-func (s *StubFaceitAPI) GetPlayer(ctx context.Context, playerID string) (interface{}, error) {
+func (s *StubFaceitAPI) GetPlayer(ctx context.Context, playerID string) (*faceit.Player, error) {
 	return nil, nil
 }
 
-func (s *StubFaceitAPI) GetPlayerHistory(ctx context.Context, playerID string, offset, limit int) (interface{}, error) {
+func (s *StubFaceitAPI) GetPlayerHistory(ctx context.Context, playerID string, offset, limit int) (*faceit.MatchHistory, error) {
 	return nil, nil
 }
 
-func (s *StubFaceitAPI) GetMatchDetails(ctx context.Context, matchID string) (interface{}, error) {
+func (s *StubFaceitAPI) GetMatchDetails(ctx context.Context, matchID string) (*faceit.MatchDetails, error) {
 	return nil, nil
 }
