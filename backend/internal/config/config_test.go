@@ -262,3 +262,83 @@ func TestLoadMissingAllRequiredVars(t *testing.T) {
 		t.Fatal("expected error for missing all required vars, got nil")
 	}
 }
+
+// --- LoadWS tests ---
+
+func setWSRequiredEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("REDIS_URL", "redis://localhost:6379")
+}
+
+func TestLoadWSWithAllRequiredVars(t *testing.T) {
+	setWSRequiredEnv(t)
+
+	cfg, err := config.LoadWS()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.RedisURL != "redis://localhost:6379" {
+		t.Errorf("expected RedisURL 'redis://localhost:6379', got %q", cfg.RedisURL)
+	}
+}
+
+func TestLoadWSDefaults(t *testing.T) {
+	setWSRequiredEnv(t)
+
+	cfg, err := config.LoadWS()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.WSPort != "8081" {
+		t.Errorf("expected default WSPort '8081', got %q", cfg.WSPort)
+	}
+	if cfg.Environment != "development" {
+		t.Errorf("expected default Environment 'development', got %q", cfg.Environment)
+	}
+	if cfg.LogLevel != "info" {
+		t.Errorf("expected default LogLevel 'info', got %q", cfg.LogLevel)
+	}
+}
+
+func TestLoadWSOverrideDefaults(t *testing.T) {
+	setWSRequiredEnv(t)
+	t.Setenv("WS_PORT", "9091")
+	t.Setenv("GO_ENV", "production")
+	t.Setenv("LOG_LEVEL", "debug")
+
+	cfg, err := config.LoadWS()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.WSPort != "9091" {
+		t.Errorf("expected WSPort '9091', got %q", cfg.WSPort)
+	}
+	if cfg.Environment != "production" {
+		t.Errorf("expected Environment 'production', got %q", cfg.Environment)
+	}
+	if cfg.LogLevel != "debug" {
+		t.Errorf("expected LogLevel 'debug', got %q", cfg.LogLevel)
+	}
+}
+
+func TestLoadWSMissingRedisURL(t *testing.T) {
+	setWSRequiredEnv(t)
+	t.Setenv("REDIS_URL", "")
+
+	_, err := config.LoadWS()
+	if err == nil {
+		t.Fatal("expected error for missing REDIS_URL, got nil")
+	}
+}
+
+func TestLoadWSMissingAllRequiredVars(t *testing.T) {
+	t.Setenv("REDIS_URL", "")
+
+	_, err := config.LoadWS()
+	if err == nil {
+		t.Fatal("expected error for missing all required vars, got nil")
+	}
+}

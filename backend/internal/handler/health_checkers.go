@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 // DBChecker wraps *sql.DB to satisfy HealthChecker.
@@ -21,6 +23,15 @@ func (c *DBChecker) Ping(ctx context.Context) error {
 type MinIOChecker struct {
 	Endpoint string
 	UseSSL   bool
+}
+
+// RedisChecker wraps *redis.Client to satisfy HealthChecker.
+type RedisChecker struct {
+	Client *redis.Client
+}
+
+func (c *RedisChecker) Ping(ctx context.Context) error {
+	return c.Client.Ping(ctx).Err()
 }
 
 func (c *MinIOChecker) Ping(ctx context.Context) error {

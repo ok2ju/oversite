@@ -22,6 +22,7 @@ import (
 	"github.com/ok2ju/oversite/backend/internal/handler"
 	"github.com/ok2ju/oversite/backend/internal/storage"
 	"github.com/ok2ju/oversite/backend/internal/store"
+	ws "github.com/ok2ju/oversite/backend/internal/websocket"
 	"github.com/ok2ju/oversite/backend/internal/worker"
 )
 
@@ -122,8 +123,34 @@ func wsCmd() *cobra.Command {
 		Use:   "ws",
 		Short: "Start the WebSocket server",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			slog.Info("WebSocket server not implemented yet")
-			return nil
+			cfg, err := config.LoadWS()
+			if err != nil {
+				return fmt.Errorf("loading config: %w", err)
+			}
+
+			setupLogger(cfg.LogLevel)
+
+			// Redis
+			redisOpts, err := redis.ParseURL(cfg.RedisURL)
+			if err != nil {
+				return fmt.Errorf("parsing redis URL: %w", err)
+			}
+			redisClient := redis.NewClient(redisOpts)
+			defer func() { _ = redisClient.Close() }()
+
+			sessionStore := auth.NewRedisSessionStore(redisClient)
+
+			hub := ws.NewHub()
+			go hub.Run()
+
+			server := ws.NewServer(hub, sessionStore)
+
+			// Health checks — WS server only needs Redis.
+			health := handler.NewHealthHandler(nil, &handler.RedisChecker{Client: redisClient}, nil)
+			router := server.Router(health)
+
+			slog.Info("starting WebSocket server", "port", cfg.WSPort, "env", cfg.Environment)
+			return http.ListenAndServe(":"+cfg.WSPort, router)
 		},
 	}
 }
