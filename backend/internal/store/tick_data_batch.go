@@ -20,7 +20,6 @@ func CopyTickDataTx(ctx context.Context, tx *sql.Tx, rows []InsertTickDataParams
 	if err != nil {
 		return 0, fmt.Errorf("prepare copy: %w", err)
 	}
-	defer func() { _ = stmt.Close() }()
 
 	for _, r := range rows {
 		if _, err := stmt.ExecContext(ctx,
@@ -28,14 +27,17 @@ func CopyTickDataTx(ctx context.Context, tx *sql.Tx, rows []InsertTickDataParams
 			r.X, r.Y, r.Z, r.Yaw,
 			r.Health, r.Armor, r.IsAlive, r.Weapon,
 		); err != nil {
+			_ = stmt.Close()
 			return 0, fmt.Errorf("copy row: %w", err)
 		}
 	}
 
 	// Flush the COPY stream.
 	if _, err := stmt.ExecContext(ctx); err != nil {
+		_ = stmt.Close()
 		return 0, fmt.Errorf("flush copy: %w", err)
 	}
+	_ = stmt.Close()
 
 	return int64(len(rows)), nil
 }
