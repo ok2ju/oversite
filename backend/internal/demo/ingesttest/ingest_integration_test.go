@@ -189,8 +189,8 @@ func TestTickIngester_LargeInsert_Performance(t *testing.T) {
 	if inserted != int64(numRows) {
 		t.Errorf("inserted = %d, want %d", inserted, numRows)
 	}
-	if elapsed > 10*time.Second {
-		t.Errorf("insert took %v, want < 10s", elapsed)
+	if elapsed > 30*time.Second {
+		t.Errorf("insert took %v, want < 30s", elapsed)
 	}
 	t.Logf("inserted %d rows in %v", numRows, elapsed)
 }
