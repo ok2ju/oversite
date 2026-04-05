@@ -71,6 +71,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.MinioUseSSL != false {
 		t.Errorf("expected default MinioUseSSL false, got %v", cfg.MinioUseSSL)
 	}
+	if cfg.IngestBatchSize != 10000 {
+		t.Errorf("expected default IngestBatchSize 10000, got %d", cfg.IngestBatchSize)
+	}
 }
 
 func TestLoadOverrideDefaults(t *testing.T) {
@@ -81,6 +84,7 @@ func TestLoadOverrideDefaults(t *testing.T) {
 	t.Setenv("LOG_LEVEL", "debug")
 	t.Setenv("MINIO_BUCKET", "custom-bucket")
 	t.Setenv("MINIO_USE_SSL", "true")
+	t.Setenv("INGEST_BATCH_SIZE", "50000")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -104,6 +108,9 @@ func TestLoadOverrideDefaults(t *testing.T) {
 	}
 	if cfg.MinioUseSSL != true {
 		t.Errorf("expected MinioUseSSL true, got %v", cfg.MinioUseSSL)
+	}
+	if cfg.IngestBatchSize != 50000 {
+		t.Errorf("expected IngestBatchSize 50000, got %d", cfg.IngestBatchSize)
 	}
 }
 
