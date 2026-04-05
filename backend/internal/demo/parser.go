@@ -319,6 +319,28 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			weaponName = e.Weapon.String()
 		}
 
+		extra := map[string]interface{}{
+			"headshot":       e.IsHeadshot,
+			"penetrated":     e.PenetratedObjects,
+			"flash_assist":   e.AssistedFlash,
+			"through_smoke":  e.ThroughSmoke,
+			"no_scope":       e.NoScope,
+			"attacker_blind": e.AttackerBlind,
+			"wallbang":       e.IsWallBang(),
+		}
+
+		if e.Assister != nil && e.Assister.SteamID64 != 0 {
+			extra["assister_steam_id"] = strconv.FormatUint(e.Assister.SteamID64, 10)
+		}
+		if e.Killer != nil {
+			extra["attacker_name"] = e.Killer.Name
+			extra["attacker_team"] = teamSideString(e.Killer.Team)
+		}
+		if e.Victim != nil {
+			extra["victim_name"] = e.Victim.Name
+			extra["victim_team"] = teamSideString(e.Victim.Team)
+		}
+
 		state.events = append(state.events, GameEvent{
 			Tick:            p.GameState().IngameTick(),
 			RoundNumber:     state.currentRound,
@@ -329,15 +351,46 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			X:               x,
 			Y:               y,
 			Z:               z,
-			ExtraData: map[string]interface{}{
-				"headshot":      e.IsHeadshot,
-				"penetrated":    e.PenetratedObjects,
-				"flash_assist":  e.AssistedFlash,
-				"through_smoke": e.ThroughSmoke,
-				"no_scope":      e.NoScope,
-				"attacker_blind": e.AttackerBlind,
-				"wallbang":      e.IsWallBang(),
-			},
+			ExtraData:       extra,
+		})
+	})
+
+	// Player hurt events (for damage tracking).
+	p.RegisterEventHandler(func(e events.PlayerHurt) {
+		if dp.skipWarmup && p.GameState().IsWarmupPeriod() {
+			return
+		}
+
+		var attackerID, victimID string
+		extra := map[string]interface{}{
+			"health_damage": e.HealthDamage,
+			"armor_damage":  e.ArmorDamage,
+		}
+
+		if e.Attacker != nil {
+			attackerID = strconv.FormatUint(e.Attacker.SteamID64, 10)
+			extra["attacker_name"] = e.Attacker.Name
+			extra["attacker_team"] = teamSideString(e.Attacker.Team)
+		}
+		if e.Player != nil {
+			victimID = strconv.FormatUint(e.Player.SteamID64, 10)
+			extra["victim_name"] = e.Player.Name
+			extra["victim_team"] = teamSideString(e.Player.Team)
+		}
+
+		weaponName := ""
+		if e.Weapon != nil {
+			weaponName = e.Weapon.String()
+		}
+
+		state.events = append(state.events, GameEvent{
+			Tick:            p.GameState().IngameTick(),
+			RoundNumber:     state.currentRound,
+			Type:            "player_hurt",
+			AttackerSteamID: attackerID,
+			VictimSteamID:   victimID,
+			Weapon:          weaponName,
+			ExtraData:       extra,
 		})
 	})
 
