@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 
 	"github.com/ok2ju/oversite/backend/internal/store"
 )
@@ -18,16 +17,22 @@ const DefaultBatchSize = 10_000
 
 const defaultTickRate = 64.0
 
+// IngestDB abstracts the database connection for TickIngester,
+// enabling interface-based dependency injection for testing.
+type IngestDB interface {
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
+}
+
 // TickIngester converts parsed tick snapshots into TimescaleDB rows
 // using chunked PostgreSQL COPY within a single transaction.
 type TickIngester struct {
-	db        *sql.DB
+	db        IngestDB
 	batchSize int
 }
 
 // NewTickIngester creates a TickIngester. batchSize controls how many rows
 // are sent per COPY batch; values <= 0 use DefaultBatchSize.
-func NewTickIngester(db *sql.DB, batchSize int) *TickIngester {
+func NewTickIngester(db IngestDB, batchSize int) *TickIngester {
 	if batchSize <= 0 {
 		batchSize = DefaultBatchSize
 	}
@@ -38,10 +43,6 @@ func NewTickIngester(db *sql.DB, batchSize int) *TickIngester {
 // (idempotent re-ingestion), and bulk-inserts in batches within one transaction.
 // Returns the total number of rows inserted.
 func (ti *TickIngester) Ingest(ctx context.Context, demoID uuid.UUID, ticks []TickSnapshot, matchDate time.Time, tickRate float64) (int64, error) {
-	if len(ticks) == 0 {
-		return 0, nil
-	}
-
 	rows := convertTicks(ticks, demoID, matchDate, tickRate)
 	batches := chunkTickParams(rows, ti.batchSize)
 
@@ -59,13 +60,13 @@ func (ti *TickIngester) Ingest(ctx context.Context, demoID uuid.UUID, ticks []Ti
 	defer func() { _ = tx.Rollback() }()
 
 	// Delete existing tick data for idempotent re-ingestion.
-	if _, err := tx.ExecContext(ctx, "DELETE FROM tick_data WHERE demo_id = $1", demoID); err != nil {
+	if err := store.New(tx).DeleteTickDataByDemoID(ctx, demoID); err != nil {
 		return 0, fmt.Errorf("delete existing tick data: %w", err)
 	}
 
 	var total int64
 	for i, batch := range batches {
-		n, err := copyTickDataTx(ctx, tx, batch)
+		n, err := store.CopyTickDataTx(ctx, tx, batch)
 		if err != nil {
 			return 0, fmt.Errorf("copy batch %d/%d: %w", i+1, len(batches), err)
 		}
@@ -144,37 +145,4 @@ func convertTicks(ticks []TickSnapshot, demoID uuid.UUID, baseTime time.Time, ti
 		}
 	}
 	return rows
-}
-
-// copyTickDataTx performs a COPY insert within an existing transaction.
-func copyTickDataTx(ctx context.Context, tx *sql.Tx, rows []store.InsertTickDataParams) (int64, error) {
-	stmt, err := tx.PrepareContext(ctx, pq.CopyIn(
-		"tick_data",
-		"time", "demo_id", "tick", "steam_id",
-		"x", "y", "z", "yaw",
-		"health", "armor", "is_alive", "weapon",
-	))
-	if err != nil {
-		return 0, fmt.Errorf("prepare copy: %w", err)
-	}
-
-	for _, r := range rows {
-		if _, err := stmt.ExecContext(ctx,
-			r.Time, r.DemoID, r.Tick, r.SteamID,
-			r.X, r.Y, r.Z, r.Yaw,
-			r.Health, r.Armor, r.IsAlive, r.Weapon,
-		); err != nil {
-			_ = stmt.Close()
-			return 0, fmt.Errorf("copy row: %w", err)
-		}
-	}
-
-	// Flush the COPY stream.
-	if _, err := stmt.ExecContext(ctx); err != nil {
-		_ = stmt.Close()
-		return 0, fmt.Errorf("flush copy: %w", err)
-	}
-	_ = stmt.Close()
-
-	return int64(len(rows)), nil
 }

@@ -8,15 +8,9 @@ import (
 	"github.com/lib/pq"
 )
 
-// CopyTickData performs a bulk insert of tick data rows using PostgreSQL's COPY protocol.
-// This is orders of magnitude faster than individual INSERTs for large batches (1M+ rows).
-func CopyTickData(ctx context.Context, db *sql.DB, rows []InsertTickDataParams) (int64, error) {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return 0, fmt.Errorf("begin tx: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
+// CopyTickDataTx performs a bulk insert of tick data rows using PostgreSQL's COPY protocol
+// within an existing transaction. Caller is responsible for committing or rolling back the tx.
+func CopyTickDataTx(ctx context.Context, tx *sql.Tx, rows []InsertTickDataParams) (int64, error) {
 	stmt, err := tx.PrepareContext(ctx, pq.CopyIn(
 		"tick_data",
 		"time", "demo_id", "tick", "steam_id",
@@ -26,6 +20,7 @@ func CopyTickData(ctx context.Context, db *sql.DB, rows []InsertTickDataParams) 
 	if err != nil {
 		return 0, fmt.Errorf("prepare copy: %w", err)
 	}
+	defer func() { _ = stmt.Close() }()
 
 	for _, r := range rows {
 		if _, err := stmt.ExecContext(ctx,
@@ -33,21 +28,35 @@ func CopyTickData(ctx context.Context, db *sql.DB, rows []InsertTickDataParams) 
 			r.X, r.Y, r.Z, r.Yaw,
 			r.Health, r.Armor, r.IsAlive, r.Weapon,
 		); err != nil {
-			_ = stmt.Close()
 			return 0, fmt.Errorf("copy row: %w", err)
 		}
 	}
 
-	// Flush the COPY stream
+	// Flush the COPY stream.
 	if _, err := stmt.ExecContext(ctx); err != nil {
-		_ = stmt.Close()
 		return 0, fmt.Errorf("flush copy: %w", err)
 	}
-	_ = stmt.Close()
+
+	return int64(len(rows)), nil
+}
+
+// CopyTickData performs a bulk insert of tick data rows using PostgreSQL's COPY protocol.
+// This is orders of magnitude faster than individual INSERTs for large batches (1M+ rows).
+func CopyTickData(ctx context.Context, db *sql.DB, rows []InsertTickDataParams) (int64, error) {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	n, err := CopyTickDataTx(ctx, tx, rows)
+	if err != nil {
+		return 0, err
+	}
 
 	if err := tx.Commit(); err != nil {
 		return 0, fmt.Errorf("commit: %w", err)
 	}
 
-	return int64(len(rows)), nil
+	return n, nil
 }

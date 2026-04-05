@@ -1,6 +1,6 @@
 //go:build integration
 
-package demo
+package ingesttest
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/testcontainers/testcontainers-go"
 
+	"github.com/ok2ju/oversite/backend/internal/demo"
 	"github.com/ok2ju/oversite/backend/internal/store"
 	"github.com/ok2ju/oversite/backend/internal/testutil"
 )
@@ -70,7 +71,7 @@ func createTestDemo(t *testing.T) (uuid.UUID, func()) {
 		t.Fatalf("CreateUser: %v", err)
 	}
 
-	demo, err := q.CreateDemo(ctx, store.CreateDemoParams{
+	demoRow, err := q.CreateDemo(ctx, store.CreateDemoParams{
 		UserID:   user.ID,
 		FilePath: "/demos/ingest-test.dem",
 		FileSize: 1000000,
@@ -80,17 +81,17 @@ func createTestDemo(t *testing.T) (uuid.UUID, func()) {
 		t.Fatalf("CreateDemo: %v", err)
 	}
 
-	return demo.ID, func() {
-		q.DeleteTickDataByDemoID(ctx, demo.ID)
-		q.DeleteDemo(ctx, demo.ID)
+	return demoRow.ID, func() {
+		q.DeleteTickDataByDemoID(ctx, demoRow.ID)
+		q.DeleteDemo(ctx, demoRow.ID)
 		q.DeleteUser(ctx, user.ID)
 	}
 }
 
-func makeTicks(n int, players []string) []TickSnapshot {
-	ticks := make([]TickSnapshot, 0, n)
+func makeTicks(n int, players []string) []demo.TickSnapshot {
+	ticks := make([]demo.TickSnapshot, 0, n)
 	for i := 0; i < n; i++ {
-		ticks = append(ticks, TickSnapshot{
+		ticks = append(ticks, demo.TickSnapshot{
 			Tick:    (i / len(players)) * 4,
 			SteamID: players[i%len(players)],
 			X:       float64(100 + i%500),
@@ -130,7 +131,7 @@ func TestTickIngester_BatchInsert(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	ingester := NewTickIngester(testDB, 10_000)
+	ingester := demo.NewTickIngester(testDB, 10_000)
 	baseTime := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
 
 	// 100k rows: 10 players * 10000 sampled ticks
@@ -172,7 +173,7 @@ func TestTickIngester_LargeInsert_Performance(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	ingester := NewTickIngester(testDB, 50_000)
+	ingester := demo.NewTickIngester(testDB, 50_000)
 	baseTime := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
 
 	const numRows = 500_000
@@ -199,7 +200,7 @@ func TestTickIngester_Idempotency(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	ingester := NewTickIngester(testDB, 5_000)
+	ingester := demo.NewTickIngester(testDB, 5_000)
 	baseTime := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
 
 	// First ingest: 1000 rows
@@ -255,7 +256,7 @@ func TestTickIngester_IdempotencyIsolation(t *testing.T) {
 		q.DeleteUser(ctx, userB.ID)
 	}()
 
-	ingester := NewTickIngester(testDB, 5_000)
+	ingester := demo.NewTickIngester(testDB, 5_000)
 	baseTime := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
 
 	// Insert 500 rows into demo A
@@ -289,18 +290,39 @@ func TestTickIngester_EmptyTicks(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	ingester := NewTickIngester(testDB, 10_000)
+	ingester := demo.NewTickIngester(testDB, 10_000)
 	baseTime := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
 
+	// First: ingest with no prior data
 	inserted, err := ingester.Ingest(ctx, demoID, nil, baseTime, 64)
 	if err != nil {
-		t.Fatalf("Ingest: %v", err)
+		t.Fatalf("Ingest empty (no prior data): %v", err)
 	}
 	if inserted != 0 {
 		t.Errorf("inserted = %d, want 0", inserted)
 	}
 	if got := countTickRows(t, demoID); got != 0 {
 		t.Errorf("row count = %d, want 0", got)
+	}
+
+	// Second: ingest real data, then re-ingest with empty ticks — old data must be deleted
+	ticks := makeTicks(100, testPlayers)
+	if _, err := ingester.Ingest(ctx, demoID, ticks, baseTime, 64); err != nil {
+		t.Fatalf("Ingest 100 rows: %v", err)
+	}
+	if got := countTickRows(t, demoID); got != 100 {
+		t.Fatalf("after ingest: count = %d, want 100", got)
+	}
+
+	inserted, err = ingester.Ingest(ctx, demoID, nil, baseTime, 64)
+	if err != nil {
+		t.Fatalf("Ingest empty (with prior data): %v", err)
+	}
+	if inserted != 0 {
+		t.Errorf("inserted = %d, want 0", inserted)
+	}
+	if got := countTickRows(t, demoID); got != 0 {
+		t.Errorf("after empty re-ingest: count = %d, want 0 (old data should be deleted)", got)
 	}
 }
 
@@ -309,10 +331,10 @@ func TestTickIngester_SyntheticTimeValues(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	ingester := NewTickIngester(testDB, 10_000)
+	ingester := demo.NewTickIngester(testDB, 10_000)
 	baseTime := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
 
-	ticks := []TickSnapshot{
+	ticks := []demo.TickSnapshot{
 		{Tick: 0, SteamID: "player1", X: 1, Y: 2, Z: 3, Health: 100, IsAlive: true},
 		{Tick: 64, SteamID: "player1", X: 4, Y: 5, Z: 6, Health: 100, IsAlive: true},
 		{Tick: 128, SteamID: "player1", X: 7, Y: 8, Z: 9, Health: 100, IsAlive: true},
