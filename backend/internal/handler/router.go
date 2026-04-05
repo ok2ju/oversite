@@ -41,7 +41,10 @@ func NewRouter(health *HealthHandler, authH *AuthHandler, demoH *DemoHandler, se
 		// Protected routes — require valid session
 		r.Group(func(r chi.Router) {
 			r.Use(auth.RequireAuth(sessions))
+			r.Get("/demos", demoH.HandleList)
 			r.Post("/demos", demoH.HandleUpload)
+			r.Get("/demos/{id}", demoH.HandleGet)
+			r.Delete("/demos/{id}", demoH.HandleDelete)
 		})
 	})
 
