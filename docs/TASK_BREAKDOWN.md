@@ -483,7 +483,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Overtime round handling test |
 | | - All round tests pass in CI |
 
-### P2-T12: Build demo library UI
+### P2-T12: Build demo library UI ✅
 
 | | |
 |---|---|
@@ -526,7 +526,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Component test: mount, resize, and unmount lifecycle |
 | | - All PixiJS setup tests pass in CI |
 
-### P3-T02: Implement map layer
+### P3-T02: Implement map layer ✅
 
 | | |
 |---|---|
