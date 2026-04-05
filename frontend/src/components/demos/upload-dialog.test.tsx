@@ -1,4 +1,5 @@
-import { screen, waitFor } from "@testing-library/react"
+import { describe, it, expect } from "vitest"
+import { screen } from "@testing-library/react"
 import { renderWithProviders, userEvent } from "@/test/render"
 import { UploadDialog } from "@/components/demos/upload-dialog"
 

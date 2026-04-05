@@ -1,3 +1,4 @@
+import { vi, describe, it, expect } from "vitest"
 import { screen } from "@testing-library/react"
 import { renderWithProviders, userEvent } from "@/test/render"
 import { DemoCard, formatFileSize, formatDuration } from "@/components/demos/demo-card"
@@ -49,7 +50,7 @@ describe("DemoCard", () => {
 
   it("navigates when clicking a ready demo", async () => {
     const push = vi.fn()
-    vi.mocked(useRouter).mockReturnValue({ push } as ReturnType<
+    vi.mocked(useRouter).mockReturnValue({ push } as unknown as ReturnType<
       typeof useRouter
     >)
     const user = userEvent.setup()
@@ -64,7 +65,7 @@ describe("DemoCard", () => {
 
   it("does not navigate when clicking a non-ready demo", async () => {
     const push = vi.fn()
-    vi.mocked(useRouter).mockReturnValue({ push } as ReturnType<
+    vi.mocked(useRouter).mockReturnValue({ push } as unknown as ReturnType<
       typeof useRouter
     >)
     const user = userEvent.setup()

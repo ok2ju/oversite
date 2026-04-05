@@ -1,3 +1,4 @@
+import { vi, describe, it, expect } from "vitest"
 import { screen, within } from "@testing-library/react"
 import { renderWithProviders, userEvent } from "@/test/render"
 import { DemoList } from "@/components/demos/demo-list"
@@ -42,7 +43,7 @@ describe("DemoList", () => {
 
   it("navigates to /demos/{id} when clicking a ready demo", async () => {
     const push = vi.fn()
-    vi.mocked(useRouter).mockReturnValue({ push } as ReturnType<
+    vi.mocked(useRouter).mockReturnValue({ push } as unknown as ReturnType<
       typeof useRouter
     >)
     const user = userEvent.setup()
@@ -57,7 +58,7 @@ describe("DemoList", () => {
 
   it("does not navigate when clicking a non-ready demo", async () => {
     const push = vi.fn()
-    vi.mocked(useRouter).mockReturnValue({ push } as ReturnType<
+    vi.mocked(useRouter).mockReturnValue({ push } as unknown as ReturnType<
       typeof useRouter
     >)
     const user = userEvent.setup()

@@ -75,6 +75,7 @@ export function useUploadDemo() {
   })
 
   const reset = useCallback(() => {
+    xhrRef.current?.abort()
     setProgress(0)
     mutation.reset()
   }, [mutation])

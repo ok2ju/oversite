@@ -1,3 +1,4 @@
+import { vi, describe, it, expect } from "vitest"
 import { screen, waitFor } from "@testing-library/react"
 import { renderWithProviders, userEvent } from "@/test/render"
 import DemosPage from "@/app/(app)/demos/page"
