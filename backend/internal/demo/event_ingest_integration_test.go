@@ -1,63 +1,20 @@
 //go:build integration
 
-package demo
+package demo_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"fmt"
-	"os"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
-	_ "github.com/lib/pq"
-	"github.com/testcontainers/testcontainers-go"
 
+	"github.com/ok2ju/oversite/backend/internal/demo"
 	"github.com/ok2ju/oversite/backend/internal/store"
-	"github.com/ok2ju/oversite/backend/internal/testutil"
 )
 
-var (
-	pgContainer testcontainers.Container
-	pgConnURL   string
-	testDB      *sql.DB
-)
-
-func TestMain(m *testing.M) {
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
-
-	var err error
-	pgContainer, pgConnURL, err = testutil.PostgresContainer(ctx)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "starting postgres container: %v\n", err)
-		os.Exit(1)
-	}
-
-	if err := testutil.RunMigrations(pgConnURL); err != nil {
-		fmt.Fprintf(os.Stderr, "running migrations: %v\n", err)
-		pgContainer.Terminate(ctx)
-		os.Exit(1)
-	}
-
-	testDB, err = sql.Open("postgres", pgConnURL)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "opening db: %v\n", err)
-		pgContainer.Terminate(ctx)
-		os.Exit(1)
-	}
-
-	code := m.Run()
-
-	testDB.Close()
-	pgContainer.Terminate(context.Background())
-	os.Exit(code)
-}
-
-// createTestUserAndDemo creates a user and demo for FK dependencies, returning cleanup func.
-func createTestUserAndDemo(t *testing.T, q *store.Queries) (uuid.UUID, func()) {
+// createEventTestDemo creates a user and demo for FK dependencies, returning cleanup func.
+func createEventTestDemo(t *testing.T, q *store.Queries) (uuid.UUID, func()) {
 	t.Helper()
 	ctx := context.Background()
 
@@ -69,7 +26,7 @@ func createTestUserAndDemo(t *testing.T, q *store.Queries) (uuid.UUID, func()) {
 		t.Fatalf("CreateUser: %v", err)
 	}
 
-	demo, err := q.CreateDemo(ctx, store.CreateDemoParams{
+	d, err := q.CreateDemo(ctx, store.CreateDemoParams{
 		UserID:   user.ID,
 		FilePath: "/demos/ingest-test.dem",
 		FileSize: 1024000,
@@ -80,17 +37,17 @@ func createTestUserAndDemo(t *testing.T, q *store.Queries) (uuid.UUID, func()) {
 	}
 
 	cleanup := func() {
-		q.DeleteGameEventsByDemoID(ctx, demo.ID)
-		q.DeleteRoundsByDemoID(ctx, demo.ID)
-		q.DeleteDemo(ctx, demo.ID)
+		q.DeleteGameEventsByDemoID(ctx, d.ID)
+		q.DeleteRoundsByDemoID(ctx, d.ID)
+		q.DeleteDemo(ctx, d.ID)
 		q.DeleteUser(ctx, user.ID)
 	}
 
-	return demo.ID, cleanup
+	return d.ID, cleanup
 }
 
-// createTestRound creates a round linked to the demo.
-func createTestRound(t *testing.T, q *store.Queries, demoID uuid.UUID, roundNum int16) store.Round {
+// createEventTestRound creates a round linked to the demo.
+func createEventTestRound(t *testing.T, q *store.Queries, demoID uuid.UUID, roundNum int16) store.Round {
 	t.Helper()
 	round, err := q.CreateRound(context.Background(), store.CreateRoundParams{
 		DemoID:      demoID,
@@ -111,13 +68,13 @@ func createTestRound(t *testing.T, q *store.Queries, demoID uuid.UUID, roundNum 
 func TestIngestGameEvents_Integration_KillEvents(t *testing.T) {
 	ctx := context.Background()
 	q := store.New(testDB)
-	demoID, cleanup := createTestUserAndDemo(t, q)
+	demoID, cleanup := createEventTestDemo(t, q)
 	defer cleanup()
 
-	round := createTestRound(t, q, demoID, 1)
+	round := createEventTestRound(t, q, demoID, 1)
 	roundMap := map[int]uuid.UUID{1: round.ID}
 
-	events := []GameEvent{
+	events := []demo.GameEvent{
 		{
 			Tick: 1000, RoundNumber: 1, Type: "kill",
 			AttackerSteamID: "76561198012345678",
@@ -143,7 +100,7 @@ func TestIngestGameEvents_Integration_KillEvents(t *testing.T) {
 		},
 	}
 
-	count, err := IngestGameEvents(ctx, q, demoID, events, roundMap)
+	count, err := demo.IngestGameEvents(ctx, q, demoID, events, roundMap)
 	if err != nil {
 		t.Fatalf("IngestGameEvents: %v", err)
 	}
@@ -191,13 +148,13 @@ func TestIngestGameEvents_Integration_KillEvents(t *testing.T) {
 func TestIngestGameEvents_Integration_GrenadeEvents(t *testing.T) {
 	ctx := context.Background()
 	q := store.New(testDB)
-	demoID, cleanup := createTestUserAndDemo(t, q)
+	demoID, cleanup := createEventTestDemo(t, q)
 	defer cleanup()
 
-	round := createTestRound(t, q, demoID, 1)
+	round := createEventTestRound(t, q, demoID, 1)
 	roundMap := map[int]uuid.UUID{1: round.ID}
 
-	events := []GameEvent{
+	events := []demo.GameEvent{
 		{
 			Tick: 800, RoundNumber: 1, Type: "grenade_throw",
 			AttackerSteamID: "76561198012345678",
@@ -212,7 +169,7 @@ func TestIngestGameEvents_Integration_GrenadeEvents(t *testing.T) {
 		},
 	}
 
-	count, err := IngestGameEvents(ctx, q, demoID, events, roundMap)
+	count, err := demo.IngestGameEvents(ctx, q, demoID, events, roundMap)
 	if err != nil {
 		t.Fatalf("IngestGameEvents: %v", err)
 	}
@@ -243,13 +200,13 @@ func TestIngestGameEvents_Integration_GrenadeEvents(t *testing.T) {
 func TestIngestGameEvents_Integration_BombEvents(t *testing.T) {
 	ctx := context.Background()
 	q := store.New(testDB)
-	demoID, cleanup := createTestUserAndDemo(t, q)
+	demoID, cleanup := createEventTestDemo(t, q)
 	defer cleanup()
 
-	round := createTestRound(t, q, demoID, 1)
+	round := createEventTestRound(t, q, demoID, 1)
 	roundMap := map[int]uuid.UUID{1: round.ID}
 
-	events := []GameEvent{
+	events := []demo.GameEvent{
 		{
 			Tick: 1500, RoundNumber: 1, Type: "bomb_plant",
 			AttackerSteamID: "76561198012345678",
@@ -263,7 +220,7 @@ func TestIngestGameEvents_Integration_BombEvents(t *testing.T) {
 		},
 	}
 
-	count, err := IngestGameEvents(ctx, q, demoID, events, roundMap)
+	count, err := demo.IngestGameEvents(ctx, q, demoID, events, roundMap)
 	if err != nil {
 		t.Fatalf("IngestGameEvents: %v", err)
 	}
@@ -294,22 +251,22 @@ func TestIngestGameEvents_Integration_BombEvents(t *testing.T) {
 func TestIngestGameEvents_Integration_RoundLinkage(t *testing.T) {
 	ctx := context.Background()
 	q := store.New(testDB)
-	demoID, cleanup := createTestUserAndDemo(t, q)
+	demoID, cleanup := createEventTestDemo(t, q)
 	defer cleanup()
 
-	r1 := createTestRound(t, q, demoID, 1)
-	r2 := createTestRound(t, q, demoID, 2)
-	r3 := createTestRound(t, q, demoID, 3)
+	r1 := createEventTestRound(t, q, demoID, 1)
+	r2 := createEventTestRound(t, q, demoID, 2)
+	r3 := createEventTestRound(t, q, demoID, 3)
 	roundMap := map[int]uuid.UUID{1: r1.ID, 2: r2.ID, 3: r3.ID}
 
-	events := []GameEvent{
+	events := []demo.GameEvent{
 		{Tick: 500, RoundNumber: 1, Type: "kill", AttackerSteamID: "s1", VictimSteamID: "s2", Weapon: "ak47", X: 1, Y: 2, Z: 3},
 		{Tick: 600, RoundNumber: 1, Type: "kill", AttackerSteamID: "s2", VictimSteamID: "s1", Weapon: "m4a1", X: 4, Y: 5, Z: 6},
 		{Tick: 3500, RoundNumber: 2, Type: "kill", AttackerSteamID: "s1", VictimSteamID: "s2", Weapon: "deagle", X: 7, Y: 8, Z: 9},
 		{Tick: 7000, RoundNumber: 3, Type: "bomb_plant", AttackerSteamID: "s1", X: 10, Y: 11, Z: 12, ExtraData: map[string]interface{}{"site": "B"}},
 	}
 
-	count, err := IngestGameEvents(ctx, q, demoID, events, roundMap)
+	count, err := demo.IngestGameEvents(ctx, q, demoID, events, roundMap)
 	if err != nil {
 		t.Fatalf("IngestGameEvents: %v", err)
 	}
@@ -357,13 +314,13 @@ func TestIngestGameEvents_Integration_RoundLinkage(t *testing.T) {
 func TestIngestGameEvents_Integration_MixedEventTypes(t *testing.T) {
 	ctx := context.Background()
 	q := store.New(testDB)
-	demoID, cleanup := createTestUserAndDemo(t, q)
+	demoID, cleanup := createEventTestDemo(t, q)
 	defer cleanup()
 
-	round := createTestRound(t, q, demoID, 1)
+	round := createEventTestRound(t, q, demoID, 1)
 	roundMap := map[int]uuid.UUID{1: round.ID}
 
-	events := []GameEvent{
+	events := []demo.GameEvent{
 		{Tick: 100, RoundNumber: 1, Type: "grenade_throw", AttackerSteamID: "s1", Weapon: "flashbang", X: 1, Y: 2, Z: 3},
 		{Tick: 200, RoundNumber: 1, Type: "grenade_detonate", AttackerSteamID: "s1", Weapon: "flashbang", X: 4, Y: 5, Z: 6},
 		{Tick: 500, RoundNumber: 1, Type: "kill", AttackerSteamID: "s1", VictimSteamID: "s2", Weapon: "ak47", X: 7, Y: 8, Z: 9, ExtraData: map[string]interface{}{"headshot": true}},
@@ -371,7 +328,7 @@ func TestIngestGameEvents_Integration_MixedEventTypes(t *testing.T) {
 		{Tick: 1500, RoundNumber: 1, Type: "bomb_explode", X: 10, Y: 11, Z: 12, ExtraData: map[string]interface{}{"site": "B"}},
 	}
 
-	count, err := IngestGameEvents(ctx, q, demoID, events, roundMap)
+	count, err := demo.IngestGameEvents(ctx, q, demoID, events, roundMap)
 	if err != nil {
 		t.Fatalf("IngestGameEvents: %v", err)
 	}
@@ -399,16 +356,16 @@ func TestIngestGameEvents_Integration_MixedEventTypes(t *testing.T) {
 func TestIngestGameEvents_Integration_NullRoundID(t *testing.T) {
 	ctx := context.Background()
 	q := store.New(testDB)
-	demoID, cleanup := createTestUserAndDemo(t, q)
+	demoID, cleanup := createEventTestDemo(t, q)
 	defer cleanup()
 
 	// No rounds created, empty roundMap
-	events := []GameEvent{
+	events := []demo.GameEvent{
 		{Tick: 100, RoundNumber: 0, Type: "kill", AttackerSteamID: "s1", VictimSteamID: "s2", Weapon: "ak47", X: 1, Y: 2, Z: 3},
 		{Tick: 200, RoundNumber: 99, Type: "kill", AttackerSteamID: "s2", VictimSteamID: "s1", Weapon: "m4a1", X: 4, Y: 5, Z: 6},
 	}
 
-	count, err := IngestGameEvents(ctx, q, demoID, events, nil)
+	count, err := demo.IngestGameEvents(ctx, q, demoID, events, nil)
 	if err != nil {
 		t.Fatalf("IngestGameEvents: %v", err)
 	}
