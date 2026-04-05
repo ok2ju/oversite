@@ -60,6 +60,7 @@ type GameEvent struct {
 	VictimSteamID   string
 	Weapon          string
 	X, Y, Z         float64
+	HasPosition     bool
 	ExtraData       map[string]interface{}
 }
 
@@ -329,14 +330,15 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			X:               x,
 			Y:               y,
 			Z:               z,
+			HasPosition:     e.Victim != nil,
 			ExtraData: map[string]interface{}{
-				"headshot":      e.IsHeadshot,
-				"penetrated":    e.PenetratedObjects,
-				"flash_assist":  e.AssistedFlash,
-				"through_smoke": e.ThroughSmoke,
-				"no_scope":      e.NoScope,
+				"headshot":       e.IsHeadshot,
+				"penetrated":     e.PenetratedObjects,
+				"flash_assist":   e.AssistedFlash,
+				"through_smoke":  e.ThroughSmoke,
+				"no_scope":       e.NoScope,
 				"attacker_blind": e.AttackerBlind,
-				"wallbang":      e.IsWallBang(),
+				"wallbang":       e.IsWallBang(),
 			},
 		})
 	})
@@ -370,6 +372,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			X:               pos.X,
 			Y:               pos.Y,
 			Z:               pos.Z,
+			HasPosition:     true,
 		})
 	})
 
@@ -393,6 +396,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 				X:               e.Position.X,
 				Y:               e.Position.Y,
 				Z:               e.Position.Z,
+				HasPosition:     true,
 			})
 		}
 	}
@@ -434,6 +438,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			X:               bombPos.X,
 			Y:               bombPos.Y,
 			Z:               bombPos.Z,
+			HasPosition:     true,
 			ExtraData: map[string]interface{}{
 				"site": bombsiteString(e.Site),
 			},
@@ -458,6 +463,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			X:               bombPos.X,
 			Y:               bombPos.Y,
 			Z:               bombPos.Z,
+			HasPosition:     true,
 			ExtraData: map[string]interface{}{
 				"site": bombsiteString(e.Site),
 			},
@@ -477,6 +483,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			X:           bombPos.X,
 			Y:           bombPos.Y,
 			Z:           bombPos.Z,
+			HasPosition: true,
 			ExtraData: map[string]interface{}{
 				"site": bombsiteString(e.Site),
 			},
