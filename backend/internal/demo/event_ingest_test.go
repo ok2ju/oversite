@@ -51,7 +51,6 @@ func TestToCreateGameEventParams_KillEvent(t *testing.T) {
 		X:               -512.5,
 		Y:               1024.3,
 		Z:               64.0,
-		HasPosition:     true,
 		ExtraData: map[string]interface{}{
 			"headshot":       true,
 			"penetrated":     false,
@@ -153,7 +152,6 @@ func TestToCreateGameEventParams_GrenadeEvents(t *testing.T) {
 				X:               tt.x,
 				Y:               tt.y,
 				Z:               tt.z,
-				HasPosition:     true,
 			}
 
 			params, err := toCreateGameEventParams(demoID, evt, roundMap)
@@ -219,7 +217,6 @@ func TestToCreateGameEventParams_BombEvents(t *testing.T) {
 				X:               100.0,
 				Y:               200.0,
 				Z:               0.0,
-				HasPosition:     true,
 				ExtraData: map[string]interface{}{
 					"site": tt.site,
 				},
@@ -316,7 +313,6 @@ func TestToCreateGameEventParams_EmptyOptionalFields(t *testing.T) {
 		X:               10.0,
 		Y:               20.0,
 		Z:               30.0,
-		HasPosition:     true,
 	}
 
 	params, err := toCreateGameEventParams(demoID, evt, nil)
@@ -451,8 +447,7 @@ func TestIngestGameEvents_MockCreator(t *testing.T) {
 			VictimSteamID:   "76561198087654321",
 			Weapon:          "ak47",
 			X:               100.0, Y: 200.0, Z: 0.0,
-			HasPosition: true,
-			ExtraData:   map[string]interface{}{"headshot": true},
+			ExtraData: map[string]interface{}{"headshot": true},
 		},
 		{
 			Tick:            1500,
@@ -461,7 +456,6 @@ func TestIngestGameEvents_MockCreator(t *testing.T) {
 			AttackerSteamID: "76561198012345678",
 			Weapon:          "flashbang",
 			X:               150.0, Y: 250.0, Z: 10.0,
-			HasPosition: true,
 		},
 		{
 			Tick:            2500,
@@ -469,8 +463,7 @@ func TestIngestGameEvents_MockCreator(t *testing.T) {
 			Type:            "bomb_plant",
 			AttackerSteamID: "76561198087654321",
 			X:               300.0, Y: 400.0, Z: 0.0,
-			HasPosition: true,
-			ExtraData:   map[string]interface{}{"site": "A"},
+			ExtraData: map[string]interface{}{"site": "A"},
 		},
 	}
 
@@ -516,8 +509,8 @@ func TestIngestGameEvents_ErrorPropagation(t *testing.T) {
 	mock := &mockGameEventCreator{err: dbErr}
 
 	events := []GameEvent{
-		{Tick: 100, Type: "kill", X: 1, Y: 2, Z: 3, HasPosition: true},
-		{Tick: 200, Type: "kill", X: 4, Y: 5, Z: 6, HasPosition: true},
+		{Tick: 100, Type: "kill", X: 1, Y: 2, Z: 3},
+		{Tick: 200, Type: "kill", X: 4, Y: 5, Z: 6},
 	}
 
 	count, err := IngestGameEvents(context.Background(), mock, demoID, events, nil)

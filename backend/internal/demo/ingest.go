@@ -19,11 +19,13 @@ const DefaultBatchSize = 10_000
 
 const defaultTickRate = 64.0
 
-// IngestDB abstracts the database connection for TickIngester,
-// enabling interface-based dependency injection for testing.
+// IngestDB abstracts the database connection for TickIngester and IngestRounds.
+// *sql.DB satisfies this interface.
 type IngestDB interface {
 	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 }
+
+// --- Tick ingestion (T09) ---
 
 // TickIngester converts parsed tick snapshots into TimescaleDB rows
 // using chunked PostgreSQL COPY within a single transaction.
@@ -149,6 +151,8 @@ func convertTicks(ticks []TickSnapshot, demoID uuid.UUID, baseTime time.Time, ti
 	return rows
 }
 
+// --- Event ingestion (T10) ---
+
 // GameEventCreator inserts and deletes game event rows.
 // Satisfied by *store.Queries (or WithTx variant).
 type GameEventCreator interface {
@@ -189,6 +193,7 @@ func toCreateGameEventParams(demoID uuid.UUID, evt GameEvent, roundMap map[int]u
 	if err != nil {
 		return store.CreateGameEventParams{}, err
 	}
+	hasPos := evt.X != 0 || evt.Y != 0 || evt.Z != 0
 	return store.CreateGameEventParams{
 		DemoID:          demoID,
 		RoundID:         resolveRoundID(evt.RoundNumber, roundMap),
@@ -197,9 +202,9 @@ func toCreateGameEventParams(demoID uuid.UUID, evt GameEvent, roundMap map[int]u
 		AttackerSteamID: nullString(evt.AttackerSteamID),
 		VictimSteamID:   nullString(evt.VictimSteamID),
 		Weapon:          nullString(evt.Weapon),
-		X:               sql.NullFloat64{Float64: evt.X, Valid: evt.HasPosition},
-		Y:               sql.NullFloat64{Float64: evt.Y, Valid: evt.HasPosition},
-		Z:               sql.NullFloat64{Float64: evt.Z, Valid: evt.HasPosition},
+		X:               sql.NullFloat64{Float64: evt.X, Valid: hasPos},
+		Y:               sql.NullFloat64{Float64: evt.Y, Valid: hasPos},
+		Z:               sql.NullFloat64{Float64: evt.Z, Valid: hasPos},
 		ExtraData:       extraData,
 	}, nil
 }
@@ -232,4 +237,73 @@ func buildExtraData(extra map[string]interface{}) (pqtype.NullRawMessage, error)
 // nullString converts a string to sql.NullString. Empty strings become NULL.
 func nullString(s string) sql.NullString {
 	return sql.NullString{String: s, Valid: s != ""}
+}
+
+// --- Round ingestion (T11) ---
+
+// IngestRounds calculates per-player-per-round stats from a ParseResult and
+// inserts rounds + player_rounds into the database. The operation is idempotent:
+// existing rounds for the demo are deleted before insertion.
+func IngestRounds(ctx context.Context, db IngestDB, demoID uuid.UUID, result *ParseResult) error {
+	if len(result.Rounds) == 0 {
+		return nil
+	}
+
+	statsMap := CalculatePlayerRoundStats(result.Rounds, result.Events)
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	q := store.New(tx)
+
+	// Delete existing rounds (cascades to player_rounds via FK).
+	if err := q.DeleteRoundsByDemoID(ctx, demoID); err != nil {
+		return fmt.Errorf("delete existing rounds: %w", err)
+	}
+
+	for _, rd := range result.Rounds {
+		round, err := q.CreateRound(ctx, store.CreateRoundParams{
+			DemoID:      demoID,
+			RoundNumber: int16(rd.Number),
+			StartTick:   int32(rd.StartTick),
+			EndTick:     int32(rd.EndTick),
+			WinnerSide:  rd.WinnerSide,
+			WinReason:   rd.WinReason,
+			CtScore:     int16(rd.CTScore),
+			TScore:      int16(rd.TScore),
+			IsOvertime:  rd.IsOvertime,
+		})
+		if err != nil {
+			return fmt.Errorf("create round %d: %w", rd.Number, err)
+		}
+
+		playerStats := statsMap[rd.Number]
+		for _, ps := range playerStats {
+			_, err := q.CreatePlayerRound(ctx, store.CreatePlayerRoundParams{
+				RoundID:       round.ID,
+				SteamID:       ps.SteamID,
+				PlayerName:    ps.PlayerName,
+				TeamSide:      ps.TeamSide,
+				Kills:         int16(ps.Kills),
+				Deaths:        int16(ps.Deaths),
+				Assists:       int16(ps.Assists),
+				Damage:        int32(ps.Damage),
+				HeadshotKills: int16(ps.HeadshotKills),
+				FirstKill:     ps.FirstKill,
+				FirstDeath:    ps.FirstDeath,
+				ClutchKills:   int16(ps.ClutchKills),
+			})
+			if err != nil {
+				return fmt.Errorf("create player_round (round %d, steam %s): %w", rd.Number, ps.SteamID, err)
+			}
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	return nil
 }
