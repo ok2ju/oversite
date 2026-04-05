@@ -35,6 +35,9 @@ frontend/out/
 .DS_Store
 Thumbs.db
 
+# TLS certs (local dev)
+nginx/certs/
+
 # Docker volumes
 data/
 minio-data/

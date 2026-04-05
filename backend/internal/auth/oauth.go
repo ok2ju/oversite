@@ -169,6 +169,8 @@ func (s *OAuthService) AuthorizationURL(ctx context.Context) (string, error) {
 		"state":                 {state},
 		"code_challenge":        {pkce.Challenge},
 		"code_challenge_method": {"S256"},
+		"scope":                 {"openid profile email"},
+		"redirect_popup":        {"true"},
 	}
 
 	return s.config.AuthURL + "?" + params.Encode(), nil

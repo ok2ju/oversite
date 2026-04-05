@@ -216,7 +216,7 @@ func testOAuthConfig() auth.FaceitOAuthConfig {
 		ClientID:     "test-client-id",
 		ClientSecret: "test-client-secret",
 		RedirectURI:  "http://localhost:3000/callback",
-		AuthURL:      "https://cdn.faceit.com/widgets/sso/index.html",
+		AuthURL:      "https://accounts.faceit.com/accounts",
 		TokenURL:     "https://api.faceit.com/auth/v1/oauth/token",
 		UserInfoURL:  "https://api.faceit.com/auth/v1/resources/userinfo",
 	}
@@ -233,7 +233,7 @@ func TestAuthorizationURL_ContainsRequiredParams(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	for _, param := range []string{"response_type=code", "client_id=test-client-id", "redirect_uri=", "state=", "code_challenge=", "code_challenge_method=S256"} {
+	for _, param := range []string{"response_type=code", "client_id=test-client-id", "redirect_uri=", "state=", "code_challenge=", "code_challenge_method=S256", "scope=openid+profile+email", "redirect_popup=true"} {
 		if !strings.Contains(url, param) {
 			t.Errorf("URL missing %q: %s", param, url)
 		}
@@ -270,7 +270,7 @@ func TestAuthorizationURL_BaseURLCorrect(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !strings.HasPrefix(url, "https://cdn.faceit.com/widgets/sso/index.html?") {
+	if !strings.HasPrefix(url, "https://accounts.faceit.com/accounts?") {
 		t.Errorf("URL should start with auth base URL, got %q", url)
 	}
 }

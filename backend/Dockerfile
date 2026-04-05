@@ -22,4 +22,4 @@ COPY --from=builder /build/migrations ./migrations
 
 EXPOSE 8080 8081
 
-ENTRYPOINT ["./oversite"]
+CMD ["./oversite"]

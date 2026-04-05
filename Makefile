@@ -1,16 +1,16 @@
-.PHONY: up down dev logs migrate-up migrate-down migrate-create sqlc lint test test-unit test-integration test-e2e build clean hooks hooks-fallback help
+.PHONY: up down dev logs certs migrate-up migrate-down migrate-create sqlc lint test test-unit test-integration test-e2e build clean hooks hooks-fallback help
 
 # ========================
 # Docker
 # ========================
 
-up: ## Start all services in background
+up: certs ## Start all services in background
 	docker compose up -d
 
 down: ## Stop all services
 	docker compose down
 
-dev: ## Start with hot-reload (foreground)
+dev: certs ## Start with hot-reload (foreground)
 	docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 logs: ## Tail logs (use: make logs s=api)
@@ -21,6 +21,20 @@ ps: ## Show running services
 
 restart: ## Restart a service (use: make restart s=api)
 	docker compose restart $(s)
+
+# ========================
+# TLS Certs
+# ========================
+
+certs: ## Generate local TLS certs (requires mkcert)
+	@if [ ! -f nginx/certs/localhost.pem ]; then \
+		mkdir -p nginx/certs; \
+		mkcert -install 2>/dev/null || true; \
+		mkcert -cert-file nginx/certs/localhost.pem -key-file nginx/certs/localhost-key.pem localhost 127.0.0.1 ::1; \
+		echo "TLS certs generated in nginx/certs/"; \
+	else \
+		echo "TLS certs already exist, skipping."; \
+	fi
 
 # ========================
 # Database

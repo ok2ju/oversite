@@ -140,7 +140,7 @@ func newTestAuthHandler(exchanger *mockTokenExchanger) (*handler.AuthHandler, *m
 		ClientID:     "test-client-id",
 		ClientSecret: "test-client-secret",
 		RedirectURI:  "http://localhost:3000/callback",
-		AuthURL:      "https://cdn.faceit.com/widgets/sso/index.html",
+		AuthURL:      "https://accounts.faceit.com/accounts",
 		TokenURL:     "https://api.faceit.com/auth/v1/oauth/token",
 		UserInfoURL:  "https://api.faceit.com/auth/v1/resources/userinfo",
 	}
@@ -345,7 +345,7 @@ func TestHandleCallback_FullFlow(t *testing.T) {
 		ClientID:     "test-client-id",
 		ClientSecret: "test-client-secret",
 		RedirectURI:  "http://localhost:3000/callback",
-		AuthURL:      "https://cdn.faceit.com/widgets/sso/index.html",
+		AuthURL:      "https://accounts.faceit.com/accounts",
 		TokenURL:     faceitServer.URL + "/token",
 		UserInfoURL:  faceitServer.URL + "/userinfo",
 	}

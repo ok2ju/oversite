@@ -71,12 +71,15 @@ func serveCmd() *cobra.Command {
 			redisClient := redis.NewClient(redisOpts)
 			defer func() { _ = redisClient.Close() }()
 
+			// Domain services
+			queries := store.New(db)
+
 			// OAuth
 			oauthCfg := auth.FaceitOAuthConfig{
 				ClientID:     cfg.FaceitClientID,
 				ClientSecret: cfg.FaceitClientSecret,
 				RedirectURI:  cfg.FaceitRedirectURI,
-				AuthURL:      "https://cdn.faceit.com/widgets/sso/index.html",
+				AuthURL:      "https://accounts.faceit.com/accounts",
 				TokenURL:     "https://api.faceit.com/auth/v1/oauth/token",
 				UserInfoURL:  "https://api.faceit.com/auth/v1/resources/userinfo",
 			}
@@ -84,7 +87,7 @@ func serveCmd() *cobra.Command {
 			stateStore := auth.NewRedisStateStore(redisClient)
 			sessionStore := auth.NewRedisSessionStore(redisClient)
 			faceitClient := auth.NewFaceitClient(oauthCfg)
-			oauthSvc := auth.NewOAuthService(oauthCfg, stateStore, nil, faceitClient)
+			oauthSvc := auth.NewOAuthService(oauthCfg, stateStore, queries, faceitClient)
 			secure := cfg.Environment == "production"
 			authHandler := handler.NewAuthHandler(oauthSvc, sessionStore, secure)
 
@@ -99,8 +102,6 @@ func serveCmd() *cobra.Command {
 				return fmt.Errorf("ensuring minio bucket: %w", err)
 			}
 
-			// Domain services
-			queries := store.New(db)
 			queue := worker.NewRedisQueue(redisClient)
 			demoHandler := handler.NewDemoHandler(queries, minioClient, queue, cfg.MinioBucket)
 
