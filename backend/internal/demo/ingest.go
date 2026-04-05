@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -145,7 +147,8 @@ func convertTicks(ticks []TickSnapshot, demoID uuid.UUID, baseTime time.Time, ti
 		}
 	}
 	return rows
-// GameEventCreator inserts a single game event row.
+}
+
 // GameEventCreator inserts and deletes game event rows.
 // Satisfied by *store.Queries (or WithTx variant).
 type GameEventCreator interface {
