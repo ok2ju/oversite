@@ -31,6 +31,7 @@ type Config struct {
 	WorkerBlockTimeout   time.Duration
 	WorkerStaleThreshold time.Duration
 	WorkerClaimInterval  time.Duration
+	IngestBatchSize      int
 }
 
 // Load reads configuration from environment variables.
@@ -50,6 +51,7 @@ func Load() (*Config, error) {
 		WorkerStaleThreshold: getEnvOrDefaultDuration("WORKER_STALE_THRESHOLD", 30*time.Second),
 		WorkerClaimInterval:  getEnvOrDefaultDuration("WORKER_CLAIM_INTERVAL", 10*time.Second),
 		FaceitAPIBaseURL:     getEnvOrDefault("FACEIT_API_BASE_URL", "https://open.faceit.com/data/v4"),
+		IngestBatchSize:      getEnvOrDefaultInt("INGEST_BATCH_SIZE", 10000),
 	}
 
 	// Required vars
