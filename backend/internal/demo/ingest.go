@@ -3,11 +3,12 @@ package demo
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 
 	"github.com/ok2ju/oversite/backend/internal/store"
 )
@@ -145,4 +146,75 @@ func convertTicks(ticks []TickSnapshot, demoID uuid.UUID, baseTime time.Time, ti
 		}
 	}
 	return rows
+// GameEventCreator inserts a single game event row.
+// Satisfied by *store.Queries (or WithTx variant).
+type GameEventCreator interface {
+	CreateGameEvent(ctx context.Context, arg store.CreateGameEventParams) (store.GameEvent, error)
+}
+
+// IngestGameEvents maps parsed GameEvents to store params and inserts them.
+// It returns the number of successfully inserted events.
+// The caller manages the transaction (pass store.New(tx) as creator).
+func IngestGameEvents(
+	ctx context.Context,
+	creator GameEventCreator,
+	demoID uuid.UUID,
+	events []GameEvent,
+	roundMap map[int]uuid.UUID,
+) (int, error) {
+	for i, evt := range events {
+		params := toCreateGameEventParams(demoID, evt, roundMap)
+		if _, err := creator.CreateGameEvent(ctx, params); err != nil {
+			return 0, fmt.Errorf("inserting game event %d (tick %d, type %s): %w", i, evt.Tick, evt.Type, err)
+		}
+	}
+	return len(events), nil
+}
+
+// toCreateGameEventParams converts a parsed GameEvent to store.CreateGameEventParams.
+func toCreateGameEventParams(demoID uuid.UUID, evt GameEvent, roundMap map[int]uuid.UUID) store.CreateGameEventParams {
+	return store.CreateGameEventParams{
+		DemoID:          demoID,
+		RoundID:         resolveRoundID(evt.RoundNumber, roundMap),
+		Tick:            int32(evt.Tick),
+		EventType:       evt.Type,
+		AttackerSteamID: nullString(evt.AttackerSteamID),
+		VictimSteamID:   nullString(evt.VictimSteamID),
+		Weapon:          nullString(evt.Weapon),
+		X:               sql.NullFloat64{Float64: evt.X, Valid: true},
+		Y:               sql.NullFloat64{Float64: evt.Y, Valid: true},
+		Z:               sql.NullFloat64{Float64: evt.Z, Valid: true},
+		ExtraData:       buildExtraData(evt.ExtraData),
+	}
+}
+
+// resolveRoundID looks up the round DB ID from the roundMap.
+// Returns a null UUID if the round number is 0 or not found.
+func resolveRoundID(roundNumber int, roundMap map[int]uuid.UUID) uuid.NullUUID {
+	if roundNumber == 0 || roundMap == nil {
+		return uuid.NullUUID{}
+	}
+	id, ok := roundMap[roundNumber]
+	if !ok {
+		return uuid.NullUUID{}
+	}
+	return uuid.NullUUID{UUID: id, Valid: true}
+}
+
+// buildExtraData marshals a map to JSONB. Returns null for nil/empty maps.
+func buildExtraData(extra map[string]interface{}) pqtype.NullRawMessage {
+	if len(extra) == 0 {
+		return pqtype.NullRawMessage{}
+	}
+	data, err := json.Marshal(extra)
+	if err != nil {
+		slog.Warn("failed to marshal extra data", "error", err)
+		return pqtype.NullRawMessage{}
+	}
+	return pqtype.NullRawMessage{RawMessage: data, Valid: true}
+}
+
+// nullString converts a string to sql.NullString. Empty strings become NULL.
+func nullString(s string) sql.NullString {
+	return sql.NullString{String: s, Valid: s != ""}
 }
