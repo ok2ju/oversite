@@ -7,10 +7,13 @@ const mockTickerStart = vi.fn()
 const mockTickerStop = vi.fn()
 const mockTicker = { start: mockTickerStart, stop: mockTickerStop, speed: 1 }
 
+const mockAddLayer = vi.fn().mockReturnValue({ addChild: vi.fn(), removeChild: vi.fn() })
+
 const mockApp = {
   initialized: true,
   ticker: mockTicker,
   destroy: mockDestroy,
+  addLayer: mockAddLayer,
 }
 
 const mockCreateViewerApp = vi.fn().mockResolvedValue(mockApp)
@@ -19,6 +22,20 @@ vi.mock("@/lib/pixi/app", () => ({
   createViewerApp: (...args: unknown[]) => mockCreateViewerApp(...args),
 }))
 
+const mockSetMap = vi.fn().mockResolvedValue(undefined)
+const mockClear = vi.fn()
+const mockMapLayerDestroy = vi.fn()
+
+vi.mock("@/lib/pixi/layers/map-layer", () => {
+  return {
+    MapLayer: class MockMapLayer {
+      setMap = mockSetMap
+      clear = mockClear
+      destroy = mockMapLayerDestroy
+    },
+  }
+})
+
 import { ViewerCanvas } from "./viewer-canvas"
 
 describe("ViewerCanvas", () => {
@@ -26,7 +43,9 @@ describe("ViewerCanvas", () => {
     vi.clearAllMocks()
     mockTicker.speed = 1
     mockApp.initialized = true
+    mockAddLayer.mockReturnValue({ addChild: vi.fn(), removeChild: vi.fn() })
     mockCreateViewerApp.mockResolvedValue(mockApp)
+    mockSetMap.mockResolvedValue(undefined)
     useViewerStore.getState().reset()
   })
 

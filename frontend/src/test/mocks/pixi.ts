@@ -41,3 +41,36 @@ export function createMockPixiApp(): MockPixiApp {
     },
   }
 }
+
+export interface MockSprite {
+  texture: unknown
+  width: number
+  height: number
+  destroy: ReturnType<typeof vi.fn>
+}
+
+export function createMockSprite(options?: { texture?: unknown }): MockSprite {
+  return {
+    texture: options?.texture ?? null,
+    width: 0,
+    height: 0,
+    destroy: vi.fn(),
+  }
+}
+
+export interface MockTexture {
+  width: number
+  height: number
+}
+
+export function createMockTexture(width = 1024, height = 1024): MockTexture {
+  return { width, height }
+}
+
+export function createMockAssets() {
+  const mockTexture = createMockTexture()
+  return {
+    load: vi.fn().mockResolvedValue(mockTexture),
+    _mockTexture: mockTexture,
+  }
+}

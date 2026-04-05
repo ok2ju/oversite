@@ -8,12 +8,14 @@ interface ViewerState {
   speed: number
   currentRound: number
   demoId: string | null
+  mapName: string | null
   setTick: (tick: number) => void
   setTotalTicks: (total: number) => void
   togglePlay: () => void
   setSpeed: (speed: number) => void
   setRound: (round: number) => void
   setDemoId: (id: string | null) => void
+  setMapName: (name: string | null) => void
   reset: () => void
 }
 
@@ -24,6 +26,7 @@ const initialState = {
   speed: 1,
   currentRound: 1,
   demoId: null as string | null,
+  mapName: null as string | null,
 }
 
 export const useViewerStore = create<ViewerState>()(
@@ -34,7 +37,8 @@ export const useViewerStore = create<ViewerState>()(
     togglePlay: () => set((state) => ({ isPlaying: !state.isPlaying })),
     setSpeed: (speed) => set({ speed }),
     setRound: (round) => set({ currentRound: round }),
-    setDemoId: (id) => set({ demoId: id, currentTick: 0 }),
+    setDemoId: (id) => set({ demoId: id, currentTick: 0, mapName: null }),
+    setMapName: (name) => set({ mapName: name }),
     reset: () => set(initialState),
   }))
 )

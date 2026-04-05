@@ -14,6 +14,7 @@ describe("viewerStore", () => {
     expect(state.speed).toBe(1)
     expect(state.currentRound).toBe(1)
     expect(state.demoId).toBeNull()
+    expect(state.mapName).toBeNull()
   })
 
   it("setTick updates currentTick", () => {
@@ -33,11 +34,18 @@ describe("viewerStore", () => {
     expect(useViewerStore.getState().isPlaying).toBe(false)
   })
 
-  it("setDemoId updates demoId and resets tick", () => {
+  it("setMapName updates mapName", () => {
+    useViewerStore.getState().setMapName("de_dust2")
+    expect(useViewerStore.getState().mapName).toBe("de_dust2")
+  })
+
+  it("setDemoId updates demoId and resets tick and mapName", () => {
     useViewerStore.getState().setTick(500)
+    useViewerStore.getState().setMapName("de_dust2")
     useViewerStore.getState().setDemoId("demo-123")
     expect(useViewerStore.getState().demoId).toBe("demo-123")
     expect(useViewerStore.getState().currentTick).toBe(0)
+    expect(useViewerStore.getState().mapName).toBeNull()
   })
 
   it("setTotalTicks updates totalTicks", () => {
@@ -48,5 +56,11 @@ describe("viewerStore", () => {
   it("setRound updates currentRound", () => {
     useViewerStore.getState().setRound(5)
     expect(useViewerStore.getState().currentRound).toBe(5)
+  })
+
+  it("reset clears mapName", () => {
+    useViewerStore.getState().setMapName("de_mirage")
+    useViewerStore.getState().reset()
+    expect(useViewerStore.getState().mapName).toBeNull()
   })
 })
