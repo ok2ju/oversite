@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -147,12 +146,15 @@ func convertTicks(ticks []TickSnapshot, demoID uuid.UUID, baseTime time.Time, ti
 	}
 	return rows
 // GameEventCreator inserts a single game event row.
+// GameEventCreator inserts and deletes game event rows.
 // Satisfied by *store.Queries (or WithTx variant).
 type GameEventCreator interface {
 	CreateGameEvent(ctx context.Context, arg store.CreateGameEventParams) (store.GameEvent, error)
+	DeleteGameEventsByDemoID(ctx context.Context, demoID uuid.UUID) error
 }
 
-// IngestGameEvents maps parsed GameEvents to store params and inserts them.
+// IngestGameEvents deletes existing game events for the demo, then maps parsed
+// GameEvents to store params and inserts them. It is idempotent — safe to retry.
 // It returns the number of successfully inserted events.
 // The caller manages the transaction (pass store.New(tx) as creator).
 func IngestGameEvents(
@@ -162,17 +164,28 @@ func IngestGameEvents(
 	events []GameEvent,
 	roundMap map[int]uuid.UUID,
 ) (int, error) {
+	if err := creator.DeleteGameEventsByDemoID(ctx, demoID); err != nil {
+		return 0, fmt.Errorf("deleting existing game events for demo %s: %w", demoID, err)
+	}
+
 	for i, evt := range events {
-		params := toCreateGameEventParams(demoID, evt, roundMap)
+		params, err := toCreateGameEventParams(demoID, evt, roundMap)
+		if err != nil {
+			return i, fmt.Errorf("building params for event %d (tick %d, type %s): %w", i, evt.Tick, evt.Type, err)
+		}
 		if _, err := creator.CreateGameEvent(ctx, params); err != nil {
-			return 0, fmt.Errorf("inserting game event %d (tick %d, type %s): %w", i, evt.Tick, evt.Type, err)
+			return i, fmt.Errorf("inserting game event %d (tick %d, type %s): %w", i, evt.Tick, evt.Type, err)
 		}
 	}
 	return len(events), nil
 }
 
 // toCreateGameEventParams converts a parsed GameEvent to store.CreateGameEventParams.
-func toCreateGameEventParams(demoID uuid.UUID, evt GameEvent, roundMap map[int]uuid.UUID) store.CreateGameEventParams {
+func toCreateGameEventParams(demoID uuid.UUID, evt GameEvent, roundMap map[int]uuid.UUID) (store.CreateGameEventParams, error) {
+	extraData, err := buildExtraData(evt.ExtraData)
+	if err != nil {
+		return store.CreateGameEventParams{}, err
+	}
 	return store.CreateGameEventParams{
 		DemoID:          demoID,
 		RoundID:         resolveRoundID(evt.RoundNumber, roundMap),
@@ -181,11 +194,11 @@ func toCreateGameEventParams(demoID uuid.UUID, evt GameEvent, roundMap map[int]u
 		AttackerSteamID: nullString(evt.AttackerSteamID),
 		VictimSteamID:   nullString(evt.VictimSteamID),
 		Weapon:          nullString(evt.Weapon),
-		X:               sql.NullFloat64{Float64: evt.X, Valid: true},
-		Y:               sql.NullFloat64{Float64: evt.Y, Valid: true},
-		Z:               sql.NullFloat64{Float64: evt.Z, Valid: true},
-		ExtraData:       buildExtraData(evt.ExtraData),
-	}
+		X:               sql.NullFloat64{Float64: evt.X, Valid: evt.HasPosition},
+		Y:               sql.NullFloat64{Float64: evt.Y, Valid: evt.HasPosition},
+		Z:               sql.NullFloat64{Float64: evt.Z, Valid: evt.HasPosition},
+		ExtraData:       extraData,
+	}, nil
 }
 
 // resolveRoundID looks up the round DB ID from the roundMap.
@@ -202,16 +215,15 @@ func resolveRoundID(roundNumber int, roundMap map[int]uuid.UUID) uuid.NullUUID {
 }
 
 // buildExtraData marshals a map to JSONB. Returns null for nil/empty maps.
-func buildExtraData(extra map[string]interface{}) pqtype.NullRawMessage {
+func buildExtraData(extra map[string]interface{}) (pqtype.NullRawMessage, error) {
 	if len(extra) == 0 {
-		return pqtype.NullRawMessage{}
+		return pqtype.NullRawMessage{}, nil
 	}
 	data, err := json.Marshal(extra)
 	if err != nil {
-		slog.Warn("failed to marshal extra data", "error", err)
-		return pqtype.NullRawMessage{}
+		return pqtype.NullRawMessage{}, fmt.Errorf("marshalling extra data: %w", err)
 	}
-	return pqtype.NullRawMessage{RawMessage: data, Valid: true}
+	return pqtype.NullRawMessage{RawMessage: data, Valid: true}, nil
 }
 
 // nullString converts a string to sql.NullString. Empty strings become NULL.

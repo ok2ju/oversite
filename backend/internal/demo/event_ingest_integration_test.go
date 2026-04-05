@@ -124,6 +124,7 @@ func TestIngestGameEvents_Integration_KillEvents(t *testing.T) {
 			VictimSteamID:   "76561198087654321",
 			Weapon:          "ak47",
 			X:               -512.5, Y: 1024.3, Z: 64.0,
+			HasPosition: true,
 			ExtraData: map[string]interface{}{
 				"headshot":      true,
 				"penetrated":    false,
@@ -136,6 +137,7 @@ func TestIngestGameEvents_Integration_KillEvents(t *testing.T) {
 			VictimSteamID:   "76561198012345678",
 			Weapon:          "awp",
 			X:               200.0, Y: 300.0, Z: 0.0,
+			HasPosition: true,
 			ExtraData: map[string]interface{}{
 				"headshot": false,
 				"no_scope": true,
@@ -203,12 +205,14 @@ func TestIngestGameEvents_Integration_GrenadeEvents(t *testing.T) {
 			AttackerSteamID: "76561198012345678",
 			Weapon:          "flashbang",
 			X:               100.0, Y: 200.0, Z: 50.0,
+			HasPosition: true,
 		},
 		{
 			Tick: 900, RoundNumber: 1, Type: "grenade_detonate",
 			AttackerSteamID: "76561198012345678",
 			Weapon:          "flashbang",
 			X:               150.0, Y: 250.0, Z: 48.0,
+			HasPosition: true,
 		},
 	}
 
@@ -254,12 +258,14 @@ func TestIngestGameEvents_Integration_BombEvents(t *testing.T) {
 			Tick: 1500, RoundNumber: 1, Type: "bomb_plant",
 			AttackerSteamID: "76561198012345678",
 			X:               300.0, Y: 400.0, Z: 0.0,
-			ExtraData: map[string]interface{}{"site": "A"},
+			HasPosition: true,
+			ExtraData:   map[string]interface{}{"site": "A"},
 		},
 		{
 			Tick: 2500, RoundNumber: 1, Type: "bomb_explode",
 			X: 300.0, Y: 400.0, Z: 0.0,
-			ExtraData: map[string]interface{}{"site": "A"},
+			HasPosition: true,
+			ExtraData:   map[string]interface{}{"site": "A"},
 		},
 	}
 
@@ -303,10 +309,10 @@ func TestIngestGameEvents_Integration_RoundLinkage(t *testing.T) {
 	roundMap := map[int]uuid.UUID{1: r1.ID, 2: r2.ID, 3: r3.ID}
 
 	events := []GameEvent{
-		{Tick: 500, RoundNumber: 1, Type: "kill", AttackerSteamID: "s1", VictimSteamID: "s2", Weapon: "ak47", X: 1, Y: 2, Z: 3},
-		{Tick: 600, RoundNumber: 1, Type: "kill", AttackerSteamID: "s2", VictimSteamID: "s1", Weapon: "m4a1", X: 4, Y: 5, Z: 6},
-		{Tick: 3500, RoundNumber: 2, Type: "kill", AttackerSteamID: "s1", VictimSteamID: "s2", Weapon: "deagle", X: 7, Y: 8, Z: 9},
-		{Tick: 7000, RoundNumber: 3, Type: "bomb_plant", AttackerSteamID: "s1", X: 10, Y: 11, Z: 12, ExtraData: map[string]interface{}{"site": "B"}},
+		{Tick: 500, RoundNumber: 1, Type: "kill", AttackerSteamID: "s1", VictimSteamID: "s2", Weapon: "ak47", X: 1, Y: 2, Z: 3, HasPosition: true},
+		{Tick: 600, RoundNumber: 1, Type: "kill", AttackerSteamID: "s2", VictimSteamID: "s1", Weapon: "m4a1", X: 4, Y: 5, Z: 6, HasPosition: true},
+		{Tick: 3500, RoundNumber: 2, Type: "kill", AttackerSteamID: "s1", VictimSteamID: "s2", Weapon: "deagle", X: 7, Y: 8, Z: 9, HasPosition: true},
+		{Tick: 7000, RoundNumber: 3, Type: "bomb_plant", AttackerSteamID: "s1", X: 10, Y: 11, Z: 12, HasPosition: true, ExtraData: map[string]interface{}{"site": "B"}},
 	}
 
 	count, err := IngestGameEvents(ctx, q, demoID, events, roundMap)
@@ -364,11 +370,11 @@ func TestIngestGameEvents_Integration_MixedEventTypes(t *testing.T) {
 	roundMap := map[int]uuid.UUID{1: round.ID}
 
 	events := []GameEvent{
-		{Tick: 100, RoundNumber: 1, Type: "grenade_throw", AttackerSteamID: "s1", Weapon: "flashbang", X: 1, Y: 2, Z: 3},
-		{Tick: 200, RoundNumber: 1, Type: "grenade_detonate", AttackerSteamID: "s1", Weapon: "flashbang", X: 4, Y: 5, Z: 6},
-		{Tick: 500, RoundNumber: 1, Type: "kill", AttackerSteamID: "s1", VictimSteamID: "s2", Weapon: "ak47", X: 7, Y: 8, Z: 9, ExtraData: map[string]interface{}{"headshot": true}},
-		{Tick: 1000, RoundNumber: 1, Type: "bomb_plant", AttackerSteamID: "s1", X: 10, Y: 11, Z: 12, ExtraData: map[string]interface{}{"site": "B"}},
-		{Tick: 1500, RoundNumber: 1, Type: "bomb_explode", X: 10, Y: 11, Z: 12, ExtraData: map[string]interface{}{"site": "B"}},
+		{Tick: 100, RoundNumber: 1, Type: "grenade_throw", AttackerSteamID: "s1", Weapon: "flashbang", X: 1, Y: 2, Z: 3, HasPosition: true},
+		{Tick: 200, RoundNumber: 1, Type: "grenade_detonate", AttackerSteamID: "s1", Weapon: "flashbang", X: 4, Y: 5, Z: 6, HasPosition: true},
+		{Tick: 500, RoundNumber: 1, Type: "kill", AttackerSteamID: "s1", VictimSteamID: "s2", Weapon: "ak47", X: 7, Y: 8, Z: 9, HasPosition: true, ExtraData: map[string]interface{}{"headshot": true}},
+		{Tick: 1000, RoundNumber: 1, Type: "bomb_plant", AttackerSteamID: "s1", X: 10, Y: 11, Z: 12, HasPosition: true, ExtraData: map[string]interface{}{"site": "B"}},
+		{Tick: 1500, RoundNumber: 1, Type: "bomb_explode", X: 10, Y: 11, Z: 12, HasPosition: true, ExtraData: map[string]interface{}{"site": "B"}},
 	}
 
 	count, err := IngestGameEvents(ctx, q, demoID, events, roundMap)
@@ -404,8 +410,8 @@ func TestIngestGameEvents_Integration_NullRoundID(t *testing.T) {
 
 	// No rounds created, empty roundMap
 	events := []GameEvent{
-		{Tick: 100, RoundNumber: 0, Type: "kill", AttackerSteamID: "s1", VictimSteamID: "s2", Weapon: "ak47", X: 1, Y: 2, Z: 3},
-		{Tick: 200, RoundNumber: 99, Type: "kill", AttackerSteamID: "s2", VictimSteamID: "s1", Weapon: "m4a1", X: 4, Y: 5, Z: 6},
+		{Tick: 100, RoundNumber: 0, Type: "kill", AttackerSteamID: "s1", VictimSteamID: "s2", Weapon: "ak47", X: 1, Y: 2, Z: 3, HasPosition: true},
+		{Tick: 200, RoundNumber: 99, Type: "kill", AttackerSteamID: "s2", VictimSteamID: "s1", Weapon: "m4a1", X: 4, Y: 5, Z: 6, HasPosition: true},
 	}
 
 	count, err := IngestGameEvents(ctx, q, demoID, events, nil)

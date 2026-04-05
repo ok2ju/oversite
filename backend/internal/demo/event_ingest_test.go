@@ -2,21 +2,21 @@ package demo
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 
 	"github.com/ok2ju/oversite/backend/internal/store"
 )
 
 // mockGameEventCreator records calls to CreateGameEvent for verification.
 type mockGameEventCreator struct {
-	calls []store.CreateGameEventParams
-	err   error // if non-nil, returned on every call
+	calls     []store.CreateGameEventParams
+	err       error // if non-nil, returned on every CreateGameEvent call
+	deleteErr error // if non-nil, returned on DeleteGameEventsByDemoID
+	deleted   bool  // tracks whether delete was called
 }
 
 func (m *mockGameEventCreator) CreateGameEvent(_ context.Context, arg store.CreateGameEventParams) (store.GameEvent, error) {
@@ -25,6 +25,11 @@ func (m *mockGameEventCreator) CreateGameEvent(_ context.Context, arg store.Crea
 		return store.GameEvent{}, m.err
 	}
 	return store.GameEvent{ID: uuid.New()}, nil
+}
+
+func (m *mockGameEventCreator) DeleteGameEventsByDemoID(_ context.Context, _ uuid.UUID) error {
+	m.deleted = true
+	return m.deleteErr
 }
 
 // --- toCreateGameEventParams tests ---
@@ -46,6 +51,7 @@ func TestToCreateGameEventParams_KillEvent(t *testing.T) {
 		X:               -512.5,
 		Y:               1024.3,
 		Z:               64.0,
+		HasPosition:     true,
 		ExtraData: map[string]interface{}{
 			"headshot":       true,
 			"penetrated":     false,
@@ -57,7 +63,10 @@ func TestToCreateGameEventParams_KillEvent(t *testing.T) {
 		},
 	}
 
-	params := toCreateGameEventParams(demoID, evt, roundMap)
+	params, err := toCreateGameEventParams(demoID, evt, roundMap)
+	if err != nil {
+		t.Fatalf("toCreateGameEventParams: %v", err)
+	}
 
 	if params.DemoID != demoID {
 		t.Errorf("DemoID = %v, want %v", params.DemoID, demoID)
@@ -144,9 +153,13 @@ func TestToCreateGameEventParams_GrenadeEvents(t *testing.T) {
 				X:               tt.x,
 				Y:               tt.y,
 				Z:               tt.z,
+				HasPosition:     true,
 			}
 
-			params := toCreateGameEventParams(demoID, evt, roundMap)
+			params, err := toCreateGameEventParams(demoID, evt, roundMap)
+			if err != nil {
+				t.Fatalf("toCreateGameEventParams: %v", err)
+			}
 
 			if params.EventType != tt.eventType {
 				t.Errorf("EventType = %q, want %q", params.EventType, tt.eventType)
@@ -206,12 +219,16 @@ func TestToCreateGameEventParams_BombEvents(t *testing.T) {
 				X:               100.0,
 				Y:               200.0,
 				Z:               0.0,
+				HasPosition:     true,
 				ExtraData: map[string]interface{}{
 					"site": tt.site,
 				},
 			}
 
-			params := toCreateGameEventParams(demoID, evt, roundMap)
+			params, err := toCreateGameEventParams(demoID, evt, roundMap)
+			if err != nil {
+				t.Fatalf("toCreateGameEventParams: %v", err)
+			}
 
 			if params.EventType != tt.eventType {
 				t.Errorf("EventType = %q, want %q", params.EventType, tt.eventType)
@@ -270,7 +287,10 @@ func TestToCreateGameEventParams_RoundIDResolution(t *testing.T) {
 				Type:        "kill",
 			}
 
-			params := toCreateGameEventParams(demoID, evt, roundMap)
+			params, err := toCreateGameEventParams(demoID, evt, roundMap)
+			if err != nil {
+				t.Fatalf("toCreateGameEventParams: %v", err)
+			}
 
 			if params.RoundID.Valid != tt.wantValid {
 				t.Errorf("RoundID.Valid = %v, want %v", params.RoundID.Valid, tt.wantValid)
@@ -296,9 +316,13 @@ func TestToCreateGameEventParams_EmptyOptionalFields(t *testing.T) {
 		X:               10.0,
 		Y:               20.0,
 		Z:               30.0,
+		HasPosition:     true,
 	}
 
-	params := toCreateGameEventParams(demoID, evt, nil)
+	params, err := toCreateGameEventParams(demoID, evt, nil)
+	if err != nil {
+		t.Fatalf("toCreateGameEventParams: %v", err)
+	}
 
 	if params.AttackerSteamID.Valid {
 		t.Error("AttackerSteamID should be NULL for empty string")
@@ -356,7 +380,10 @@ func TestBuildExtraData(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := buildExtraData(tt.extra)
+			result, err := buildExtraData(tt.extra)
+			if err != nil {
+				t.Fatalf("buildExtraData: %v", err)
+			}
 
 			if result.Valid != tt.wantValid {
 				t.Errorf("Valid = %v, want %v", result.Valid, tt.wantValid)
@@ -424,7 +451,8 @@ func TestIngestGameEvents_MockCreator(t *testing.T) {
 			VictimSteamID:   "76561198087654321",
 			Weapon:          "ak47",
 			X:               100.0, Y: 200.0, Z: 0.0,
-			ExtraData: map[string]interface{}{"headshot": true},
+			HasPosition: true,
+			ExtraData:   map[string]interface{}{"headshot": true},
 		},
 		{
 			Tick:            1500,
@@ -433,6 +461,7 @@ func TestIngestGameEvents_MockCreator(t *testing.T) {
 			AttackerSteamID: "76561198012345678",
 			Weapon:          "flashbang",
 			X:               150.0, Y: 250.0, Z: 10.0,
+			HasPosition: true,
 		},
 		{
 			Tick:            2500,
@@ -440,7 +469,8 @@ func TestIngestGameEvents_MockCreator(t *testing.T) {
 			Type:            "bomb_plant",
 			AttackerSteamID: "76561198087654321",
 			X:               300.0, Y: 400.0, Z: 0.0,
-			ExtraData: map[string]interface{}{"site": "A"},
+			HasPosition: true,
+			ExtraData:   map[string]interface{}{"site": "A"},
 		},
 	}
 
@@ -486,8 +516,8 @@ func TestIngestGameEvents_ErrorPropagation(t *testing.T) {
 	mock := &mockGameEventCreator{err: dbErr}
 
 	events := []GameEvent{
-		{Tick: 100, Type: "kill", X: 1, Y: 2, Z: 3},
-		{Tick: 200, Type: "kill", X: 4, Y: 5, Z: 6},
+		{Tick: 100, Type: "kill", X: 1, Y: 2, Z: 3, HasPosition: true},
+		{Tick: 200, Type: "kill", X: 4, Y: 5, Z: 6, HasPosition: true},
 	}
 
 	count, err := IngestGameEvents(context.Background(), mock, demoID, events, nil)
@@ -521,7 +551,3 @@ func TestIngestGameEvents_EmptyEvents(t *testing.T) {
 		t.Errorf("mock received %d calls, want 0", len(mock.calls))
 	}
 }
-
-// Ensure unused imports don't cause issues
-var _ sql.NullString
-var _ pqtype.NullRawMessage
