@@ -424,7 +424,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Update mechanism: `go test -update` regenerates golden files |
 | | - All parser tests pass in CI |
 
-### P2-T09: Parse ticks → batch insert into TimescaleDB
+### P2-T09: Parse ticks → batch insert into TimescaleDB ✅
 
 | | |
 |---|---|
@@ -444,7 +444,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Idempotency test: re-ingest same demo without duplicates |
 | | - All ingest tests pass in CI |
 
-### P2-T10: Parse events → insert game_events
+### P2-T10: Parse events → insert game_events ✅
 
 | | |
 |---|---|
@@ -464,7 +464,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Events correctly linked to round_id |
 | | - All event tests pass in CI |
 
-### P2-T11: Parse rounds → insert rounds + player_rounds
+### P2-T11: Parse rounds → insert rounds + player_rounds ✅
 
 | | |
 |---|---|
