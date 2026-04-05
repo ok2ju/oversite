@@ -2,17 +2,17 @@ package demo
 
 // PlayerRoundStats holds per-player statistics for a single round.
 type PlayerRoundStats struct {
-	SteamID      string
-	PlayerName   string
-	TeamSide     string
-	Kills        int
-	Deaths       int
-	Assists      int
-	Damage       int
+	SteamID       string
+	PlayerName    string
+	TeamSide      string
+	Kills         int
+	Deaths        int
+	Assists       int
+	Damage        int
 	HeadshotKills int
-	ClutchKills  int
-	FirstKill    bool
-	FirstDeath   bool
+	ClutchKills   int
+	FirstKill     bool
+	FirstDeath    bool
 }
 
 // CalculatePlayerRoundStats computes per-player stats for each round from
@@ -38,17 +38,17 @@ func CalculatePlayerRoundStats(rounds []RoundData, events []GameEvent) map[int][
 
 // playerAccum accumulates stats for a single player within a round.
 type playerAccum struct {
-	steamID      string
-	playerName   string
-	teamSide     string
-	kills        int
-	deaths       int
-	assists      int
-	damage       int
+	steamID       string
+	playerName    string
+	teamSide      string
+	kills         int
+	deaths        int
+	assists       int
+	damage        int
 	headshotKills int
-	clutchKills  int
-	firstKill    bool
-	firstDeath   bool
+	clutchKills   int
+	firstKill     bool
+	firstDeath    bool
 }
 
 func calculateRound(events []GameEvent) []PlayerRoundStats {
@@ -72,43 +72,42 @@ func calculateRound(events []GameEvent) []PlayerRoundStats {
 		return p
 	}
 
-	// Separate kill events and hurt events.
+	// First pass: separate kill/hurt events, register all players via getPlayer.
 	var killEvents []GameEvent
 	for _, ev := range events {
 		switch ev.Type {
 		case "kill":
 			killEvents = append(killEvents, ev)
+			// Pre-register kill participants so they appear in the players map.
+			attackerName := getExtraDataString(ev.ExtraData, "attacker_name")
+			attackerTeam := getExtraDataString(ev.ExtraData, "attacker_team")
+			getPlayer(ev.AttackerSteamID, attackerName, attackerTeam)
+			victimName := getExtraDataString(ev.ExtraData, "victim_name")
+			victimTeam := getExtraDataString(ev.ExtraData, "victim_team")
+			getPlayer(ev.VictimSteamID, victimName, victimTeam)
 		case "player_hurt":
 			attackerName := getExtraDataString(ev.ExtraData, "attacker_name")
 			attackerTeam := getExtraDataString(ev.ExtraData, "attacker_team")
 			if p := getPlayer(ev.AttackerSteamID, attackerName, attackerTeam); p != nil {
 				p.damage += getExtraDataInt(ev.ExtraData, "health_damage")
 			}
-			// Register victim from hurt events too (for name/team).
 			victimName := getExtraDataString(ev.ExtraData, "victim_name")
 			victimTeam := getExtraDataString(ev.ExtraData, "victim_team")
 			getPlayer(ev.VictimSteamID, victimName, victimTeam)
 		}
 	}
 
-	// Track alive players per team for clutch detection.
-	// Build initial alive set from all players seen in kill events.
+	// Build initial alive set from ALL registered players (hurt + kill events).
+	// This prevents false clutch detection when teammates are alive but not in kill events.
 	teamAlive := make(map[string]map[string]bool) // team -> set of steamIDs
-	for _, ev := range killEvents {
-		attackerTeam := getExtraDataString(ev.ExtraData, "attacker_team")
-		victimTeam := getExtraDataString(ev.ExtraData, "victim_team")
-		if ev.AttackerSteamID != "" && attackerTeam != "" {
-			if teamAlive[attackerTeam] == nil {
-				teamAlive[attackerTeam] = make(map[string]bool)
-			}
-			teamAlive[attackerTeam][ev.AttackerSteamID] = true
+	for steamID, p := range players {
+		if p.teamSide == "" {
+			continue
 		}
-		if ev.VictimSteamID != "" && victimTeam != "" {
-			if teamAlive[victimTeam] == nil {
-				teamAlive[victimTeam] = make(map[string]bool)
-			}
-			teamAlive[victimTeam][ev.VictimSteamID] = true
+		if teamAlive[p.teamSide] == nil {
+			teamAlive[p.teamSide] = make(map[string]bool)
 		}
+		teamAlive[p.teamSide][steamID] = true
 	}
 
 	// Process kill events in order (already ordered by tick from parser).
@@ -148,8 +147,12 @@ func calculateRound(events []GameEvent) []PlayerRoundStats {
 		// Credit assist.
 		assisterID := getExtraDataString(ev.ExtraData, "assister_steam_id")
 		if assisterID != "" {
-			// Assister inherits team from attacker (same team).
-			assister := getPlayer(assisterID, "", attackerTeam)
+			assisterName := getExtraDataString(ev.ExtraData, "assister_name")
+			assisterTeam := getExtraDataString(ev.ExtraData, "assister_team")
+			if assisterTeam == "" {
+				assisterTeam = attackerTeam
+			}
+			assister := getPlayer(assisterID, assisterName, assisterTeam)
 			if assister != nil {
 				assister.assists++
 			}

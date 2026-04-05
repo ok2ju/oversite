@@ -1,0 +1,26 @@
+Test Scenario: Flash assist only (no other events for assister)
+
+Kill event with:
+- Attacker: 1001 (Alice, CT)
+- Victim: 2001 (Bob, T)
+- Assister: 1003 (steam ID only, no name in event)
+
+Code flow in stats.go calculateRound():
+1. Process kill event at line 116
+2. getPlayer(1001, "Alice", "CT") → creates player 1001 with name="Alice", team="CT"
+3. getPlayer(2001, "Bob", "T") → creates player 2001 with name="Bob", team="T"
+4. At line 152: getPlayer(1003, "", "CT")
+   - Player 1003 not yet in map
+   - Line 63: Creates new entry: steamID=1003, playerName="" (EMPTY)
+   - Line 70: Sets teamSide="CT"
+   - Returns pointer to this player
+5. Increments assists: assister.assists++
+
+Result in player map:
+- Player 1003: steamID="1003", playerName="", teamSide="CT", assists=1
+
+When converted to PlayerRoundStats and inserted:
+- player_name="" (empty string, NOT NULL but semantically wrong)
+
+This satisfies NOT NULL constraint (empty string is not NULL),
+but is clearly wrong data - the player has no name recorded.

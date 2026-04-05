@@ -55,7 +55,7 @@ type TickSnapshot struct {
 type GameEvent struct {
 	Tick            int
 	RoundNumber     int
-	Type            string // "kill", "grenade_throw", "grenade_detonate", "smoke_start", "smoke_expired", "decoy_start", "bomb_plant", "bomb_defuse", "bomb_explode"
+	Type            string // "kill", "player_hurt", "grenade_throw", "grenade_detonate", "smoke_start", "smoke_expired", "decoy_start", "bomb_plant", "bomb_defuse", "bomb_explode"
 	AttackerSteamID string
 	VictimSteamID   string
 	Weapon          string
@@ -331,6 +331,8 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 
 		if e.Assister != nil && e.Assister.SteamID64 != 0 {
 			extra["assister_steam_id"] = strconv.FormatUint(e.Assister.SteamID64, 10)
+			extra["assister_name"] = e.Assister.Name
+			extra["assister_team"] = teamSideString(e.Assister.Team)
 		}
 		if e.Killer != nil {
 			extra["attacker_name"] = e.Killer.Name

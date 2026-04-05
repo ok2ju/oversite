@@ -9,10 +9,16 @@ import (
 	"github.com/ok2ju/oversite/backend/internal/store"
 )
 
+// IngestDB abstracts the database operations needed by IngestRounds.
+// *sql.DB satisfies this interface.
+type IngestDB interface {
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
+}
+
 // IngestRounds calculates per-player-per-round stats from a ParseResult and
 // inserts rounds + player_rounds into the database. The operation is idempotent:
 // existing rounds for the demo are deleted before insertion.
-func IngestRounds(ctx context.Context, db *sql.DB, demoID uuid.UUID, result *ParseResult) error {
+func IngestRounds(ctx context.Context, db IngestDB, demoID uuid.UUID, result *ParseResult) error {
 	if len(result.Rounds) == 0 {
 		return nil
 	}
@@ -42,6 +48,7 @@ func IngestRounds(ctx context.Context, db *sql.DB, demoID uuid.UUID, result *Par
 			WinReason:   rd.WinReason,
 			CtScore:     int16(rd.CTScore),
 			TScore:      int16(rd.TScore),
+			IsOvertime:  rd.IsOvertime,
 		})
 		if err != nil {
 			return fmt.Errorf("create round %d: %w", rd.Number, err)
