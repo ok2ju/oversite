@@ -11,6 +11,7 @@ export class MapLayer {
   private sprite: Sprite | null = null
   private _mapName: string | null = null
   private _calibration: MapCalibration | null = null
+  private _loadId = 0
 
   constructor(container: Container) {
     this.container = container
@@ -31,9 +32,12 @@ export class MapLayer {
 
     this.clear()
 
+    const loadId = ++this._loadId
     const calibration = getMapCalibration(mapName)!
     const imagePath = getRadarImagePath(mapName)
     const texture: Texture = await Assets.load(imagePath)
+
+    if (loadId !== this._loadId) return
 
     const sprite = new Sprite({ texture })
     sprite.width = calibration.width
@@ -46,6 +50,7 @@ export class MapLayer {
   }
 
   clear(): void {
+    this._loadId++
     if (this.sprite) {
       this.container.removeChild(this.sprite)
       this.sprite.destroy()

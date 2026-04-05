@@ -127,6 +127,62 @@ describe("MapLayer", () => {
     })
   })
 
+  describe("setMap race conditions", () => {
+    it("discards stale load when setMap is called again before first resolves", async () => {
+      let resolveFirst!: (value: unknown) => void
+      let resolveSecond!: (value: unknown) => void
+      const firstTexture = { width: 1024, height: 1024 }
+      const secondTexture = { width: 1024, height: 1024 }
+
+      mockAssets.load
+        .mockReturnValueOnce(new Promise((r) => { resolveFirst = r }))
+        .mockReturnValueOnce(new Promise((r) => { resolveSecond = r }))
+
+      const first = layer.setMap("de_dust2")
+      const second = layer.setMap("de_mirage")
+
+      resolveFirst(firstTexture)
+      await first
+
+      // First load should be discarded — no sprite added
+      expect(container.addChild).not.toHaveBeenCalled()
+
+      resolveSecond(secondTexture)
+      await second
+
+      expect(container.addChild).toHaveBeenCalledTimes(1)
+      expect(layer.mapName).toBe("de_mirage")
+    })
+
+    it("discards stale load when clear is called during in-flight setMap", async () => {
+      let resolveLoad!: (value: unknown) => void
+      mockAssets.load.mockReturnValueOnce(new Promise((r) => { resolveLoad = r }))
+
+      const promise = layer.setMap("de_dust2")
+      layer.clear()
+
+      resolveLoad({ width: 1024, height: 1024 })
+      await promise
+
+      expect(container.addChild).not.toHaveBeenCalled()
+      expect(layer.mapName).toBeNull()
+    })
+
+    it("discards stale load when destroy is called during in-flight setMap", async () => {
+      let resolveLoad!: (value: unknown) => void
+      mockAssets.load.mockReturnValueOnce(new Promise((r) => { resolveLoad = r }))
+
+      const promise = layer.setMap("de_dust2")
+      layer.destroy()
+
+      resolveLoad({ width: 1024, height: 1024 })
+      await promise
+
+      expect(container.addChild).not.toHaveBeenCalled()
+      expect(layer.mapName).toBeNull()
+    })
+  })
+
   describe("clear", () => {
     it("removes and destroys sprite", async () => {
       await layer.setMap("de_dust2")

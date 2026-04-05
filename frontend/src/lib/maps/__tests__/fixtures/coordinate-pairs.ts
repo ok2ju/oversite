@@ -37,7 +37,7 @@ export const MAP_TEST_COORDINATES: Record<CS2MapName, CoordinatePair[]> = {
     { label: "T Spawn", world: { x: -940, y: -1625 }, expectedPixel: { x: 359, y: 644 } },
     { label: "CT Spawn", world: { x: -300, y: 2220 }, expectedPixel: { x: 450, y: 95 } },
     { label: "A Site", world: { x: -453, y: 887 }, expectedPixel: { x: 429, y: 286 } },
-    { label: "B Site", world: { x: -453, y: 887 }, expectedPixel: { x: 429, y: 286 } },
+    { label: "B Site", world: { x: -750, y: -347 }, expectedPixel: { x: 386, y: 462 } },
     { label: "Outside", world: { x: 900, y: -150 }, expectedPixel: { x: 622, y: 434 } },
   ],
   de_ancient: [
