@@ -1,6 +1,8 @@
 package websocket
 
 import (
+	"context"
+	"log/slog"
 	"sync"
 )
 
@@ -55,16 +57,29 @@ type Hub struct {
 	register   chan *Client
 	unregister chan *Client
 	broadcast  chan *Message
+	relay      *YjsRelay
 	mu         sync.RWMutex
 }
 
-// NewHub creates a new Hub.
+// NewHub creates a new Hub without Yjs relay support.
 func NewHub() *Hub {
 	return &Hub{
 		rooms:      make(map[string]*Room),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		broadcast:  make(chan *Message),
+	}
+}
+
+// NewHubWithRelay creates a new Hub with Yjs relay integration for state
+// persistence and message type routing.
+func NewHubWithRelay(relay *YjsRelay) *Hub {
+	return &Hub{
+		rooms:      make(map[string]*Room),
+		register:   make(chan *Client),
+		unregister: make(chan *Client),
+		broadcast:  make(chan *Message),
+		relay:      relay,
 	}
 }
 
@@ -75,12 +90,32 @@ func (h *Hub) Run() {
 		case client := <-h.register:
 			h.mu.Lock()
 			room, ok := h.rooms[client.boardID]
+			isFirstClient := !ok
 			if !ok {
 				room = newRoom()
 				h.rooms[client.boardID] = room
 			}
 			room.add(client)
 			h.mu.Unlock()
+
+			if h.relay != nil {
+				var msgs [][]byte
+				if isFirstClient {
+					loaded, err := h.relay.OnFirstClientJoin(context.Background(), client.boardID)
+					if err != nil {
+						slog.Error("relay OnFirstClientJoin failed", "board_id", client.boardID, "error", err)
+					}
+					msgs = loaded
+				} else {
+					msgs = h.relay.OnClientJoin(client.boardID)
+				}
+				for _, m := range msgs {
+					select {
+					case client.send <- m:
+					default:
+					}
+				}
+			}
 
 		case client := <-h.unregister:
 			h.mu.Lock()
@@ -89,6 +124,9 @@ func (h *Hub) Run() {
 					room.remove(client)
 					close(client.send)
 					if room.isEmpty() {
+						if h.relay != nil {
+							h.relay.OnLastClientLeave(context.Background(), client.boardID)
+						}
 						delete(h.rooms, client.boardID)
 					}
 				}
@@ -96,11 +134,17 @@ func (h *Hub) Run() {
 			h.mu.Unlock()
 
 		case msg := <-h.broadcast:
-			h.mu.RLock()
-			if room, ok := h.rooms[msg.boardID]; ok {
-				room.broadcastExcept(msg.sender, msg.data)
+			shouldRelay := true
+			if h.relay != nil {
+				shouldRelay = h.relay.HandleMessage(msg.boardID, msg.data)
 			}
-			h.mu.RUnlock()
+			if shouldRelay {
+				h.mu.RLock()
+				if room, ok := h.rooms[msg.boardID]; ok {
+					room.broadcastExcept(msg.sender, msg.data)
+				}
+				h.mu.RUnlock()
+			}
 		}
 	}
 }

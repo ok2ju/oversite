@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -131,6 +132,13 @@ func wsCmd() *cobra.Command {
 
 			setupLogger(cfg.LogLevel)
 
+			// Database
+			db, err := sql.Open("postgres", cfg.DatabaseURL)
+			if err != nil {
+				return fmt.Errorf("opening database: %w", err)
+			}
+			defer func() { _ = db.Close() }()
+
 			// Redis
 			redisOpts, err := redis.ParseURL(cfg.RedisURL)
 			if err != nil {
@@ -141,13 +149,18 @@ func wsCmd() *cobra.Command {
 
 			sessionStore := auth.NewRedisSessionStore(redisClient)
 
-			hub := ws.NewHub()
+			// Yjs relay with DB-backed state persistence.
+			queries := store.New(db)
+			stateStore := ws.NewPgStateStore(queries)
+			relay := ws.NewYjsRelay(stateStore, 30*time.Second)
+
+			hub := ws.NewHubWithRelay(relay)
 			go hub.Run()
 
 			server := ws.NewServer(hub, sessionStore)
 
-			// Health checks — WS server only needs Redis.
-			health := handler.NewHealthHandler(nil, &handler.RedisChecker{Client: redisClient}, nil)
+			// Health checks — WS server needs Redis and DB.
+			health := handler.NewHealthHandler(&handler.DBChecker{DB: db}, &handler.RedisChecker{Client: redisClient}, nil)
 			router := server.Router(health)
 
 			slog.Info("starting WebSocket server", "port", cfg.WSPort, "env", cfg.Environment)

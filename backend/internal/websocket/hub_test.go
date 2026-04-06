@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"bytes"
 	"testing"
 	"time"
 )
@@ -247,6 +248,123 @@ func TestHub_Broadcast_BinaryMessage(t *testing.T) {
 				t.Errorf("byte[%d] = %d, want %d", i, msg[i], data[i])
 				break
 			}
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("receiver timed out")
+	}
+}
+
+// --- Hub + Relay integration tests ---
+
+func TestHub_WithRelay_FirstClientReceivesState(t *testing.T) {
+	ms := newMockStateStore()
+	original := [][]byte{
+		{yjsMsgSync, 0x01, 0x02},
+		{yjsMsgSync, 0x03, 0x04},
+	}
+	ms.state["board-1"] = EncodeUpdates(original)
+
+	relay := NewYjsRelay(ms, time.Hour)
+	hub := NewHubWithRelay(relay)
+	go hub.Run()
+
+	client := newTestClient(hub, "board-1")
+	hub.register <- client
+	waitForHub(t, func() bool { return hub.ClientsInRoom("board-1") == 1 })
+
+	// Client should receive 2 state messages.
+	for i := 0; i < 2; i++ {
+		select {
+		case msg := <-client.send:
+			if !bytes.Equal(msg, original[i]) {
+				t.Errorf("message[%d] mismatch: got %v, want %v", i, msg, original[i])
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timed out waiting for message %d", i)
+		}
+	}
+
+	// Clean up relay room.
+	hub.unregister <- client
+	waitForHub(t, func() bool { return hub.RoomCount() == 0 })
+}
+
+func TestHub_WithRelay_UnknownTypeDropped(t *testing.T) {
+	ms := newMockStateStore()
+	relay := NewYjsRelay(ms, time.Hour)
+	hub := NewHubWithRelay(relay)
+	go hub.Run()
+
+	sender := newTestClient(hub, "board-1")
+	receiver := newTestClient(hub, "board-1")
+	hub.register <- sender
+	hub.register <- receiver
+	waitForHub(t, func() bool { return hub.ClientsInRoom("board-1") == 2 })
+
+	// Unknown type (2) should be dropped by relay.
+	hub.broadcast <- &Message{sender: sender, boardID: "board-1", data: []byte{0x02, 0xAA}}
+
+	select {
+	case msg := <-receiver.send:
+		t.Errorf("receiver should not get unknown type, got %v", msg)
+	case <-time.After(100 * time.Millisecond):
+		// Expected — message dropped.
+	}
+
+	// Clean up.
+	hub.unregister <- sender
+	hub.unregister <- receiver
+	waitForHub(t, func() bool { return hub.RoomCount() == 0 })
+}
+
+func TestHub_WithRelay_SyncRelayed(t *testing.T) {
+	ms := newMockStateStore()
+	relay := NewYjsRelay(ms, time.Hour)
+	hub := NewHubWithRelay(relay)
+	go hub.Run()
+
+	sender := newTestClient(hub, "board-1")
+	receiver := newTestClient(hub, "board-1")
+	hub.register <- sender
+	hub.register <- receiver
+	waitForHub(t, func() bool { return hub.ClientsInRoom("board-1") == 2 })
+
+	data := []byte{yjsMsgSync, 0x01, 0x02}
+	hub.broadcast <- &Message{sender: sender, boardID: "board-1", data: data}
+
+	select {
+	case msg := <-receiver.send:
+		if !bytes.Equal(msg, data) {
+			t.Errorf("got %v, want %v", msg, data)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("receiver timed out")
+	}
+
+	// Clean up.
+	hub.unregister <- sender
+	hub.unregister <- receiver
+	waitForHub(t, func() bool { return hub.RoomCount() == 0 })
+}
+
+func TestHub_WithoutRelay_BackwardCompat(t *testing.T) {
+	hub := NewHub()
+	go hub.Run()
+
+	sender := newTestClient(hub, "board-1")
+	receiver := newTestClient(hub, "board-1")
+	hub.register <- sender
+	hub.register <- receiver
+	waitForHub(t, func() bool { return hub.ClientsInRoom("board-1") == 2 })
+
+	// Any message type should pass through without relay filtering.
+	data := []byte{0x02, 0xAA, 0xBB}
+	hub.broadcast <- &Message{sender: sender, boardID: "board-1", data: data}
+
+	select {
+	case msg := <-receiver.send:
+		if !bytes.Equal(msg, data) {
+			t.Errorf("got %v, want %v", msg, data)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("receiver timed out")
