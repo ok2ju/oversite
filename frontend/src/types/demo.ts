@@ -18,3 +18,20 @@ export interface DemoListResponse {
 export interface DemoResponse {
   data: Demo
 }
+
+export interface TickData {
+  tick: number
+  steam_id: string
+  x: number
+  y: number
+  z: number
+  yaw: number
+  health: number
+  armor: number
+  is_alive: boolean
+  weapon: string | null
+}
+
+export interface TickDataResponse {
+  data: TickData[]
+}
