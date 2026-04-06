@@ -40,8 +40,6 @@ func (m *mockRosterStore) GetPlayerRoundsByRoundID(ctx context.Context, roundID 
 
 // --- Helpers ---
 
-var testRoundID = uuid.MustParse("880e8400-e29b-41d4-a716-446655440000")
-
 func ownerRosterDemoGetter() *mockRosterDemoGetter {
 	return &mockRosterDemoGetter{
 		getDemoByIDFn: func(_ context.Context, _ uuid.UUID) (store.Demo, error) {
@@ -65,18 +63,18 @@ func sampleRound() store.Round {
 func samplePlayerRounds() []store.PlayerRound {
 	return []store.PlayerRound{
 		{
-			ID:       uuid.New(),
-			RoundID:  testRoundID,
-			SteamID:  "76561198000000001",
+			ID:         uuid.New(),
+			RoundID:    testRoundID,
+			SteamID:    "76561198000000001",
 			PlayerName: "player1",
-			TeamSide: "CT",
+			TeamSide:   "CT",
 		},
 		{
-			ID:       uuid.New(),
-			RoundID:  testRoundID,
-			SteamID:  "76561198000000002",
+			ID:         uuid.New(),
+			RoundID:    testRoundID,
+			SteamID:    "76561198000000002",
 			PlayerName: "player2",
-			TeamSide: "T",
+			TeamSide:   "T",
 		},
 	}
 }
