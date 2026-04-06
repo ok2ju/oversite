@@ -113,9 +113,15 @@ func (s *SyncService) Sync(ctx context.Context, userID uuid.UUID, faceitID strin
 	close(detailsCh)
 
 	details := make([]*MatchDetails, len(newMatches))
+	failed := make(map[int]bool)
 	for r := range detailsCh {
 		if r.err != nil {
-			return 0, fmt.Errorf("fetching match details for %s: %w", newMatches[r.index].MatchID, r.err)
+			slog.Warn("fetching match details failed, skipping match",
+				"match_id", newMatches[r.index].MatchID,
+				"error", r.err,
+			)
+			failed[r.index] = true
+			continue
 		}
 		details[r.index] = r.details
 	}
@@ -130,9 +136,18 @@ func (s *SyncService) Sync(ctx context.Context, userID uuid.UUID, faceitID strin
 		currentElo = game.FaceitElo
 	}
 
-	// 7. Build and upsert each match
-	inserted := 0
+	// 7. Filter to processable matches (have details and player in teams)
+	type processableMatch struct {
+		summary MatchSummary
+		details *MatchDetails
+		faction string
+		player  TeamPlayer
+	}
+	var processable []processableMatch
 	for i, m := range newMatches {
+		if failed[i] {
+			continue
+		}
 		faction, tp, found := findPlayerInTeams(m.Teams, faceitID)
 		if !found {
 			slog.Warn("player not found in match teams, skipping",
@@ -141,39 +156,44 @@ func (s *SyncService) Sync(ctx context.Context, userID uuid.UUID, faceitID strin
 			)
 			continue
 		}
+		processable = append(processable, processableMatch{
+			summary: m,
+			details: details[i],
+			faction: faction,
+			player:  tp,
+		})
+	}
 
-		result := determineResult(m.Results, faction)
-		scoreTeam, scoreOpponent := extractScores(m.Results, faction)
+	// 8. Build and upsert each match with correct ELO chain
+	inserted := 0
+	for i, pm := range processable {
+		result := determineResult(pm.summary.Results, pm.faction)
+		scoreTeam, scoreOpponent := extractScores(pm.summary.Results, pm.faction)
 
 		// ELO chain: elo_before = player's ELO in this match
-		eloBefore := int32(tp.FaceitElo)
+		eloBefore := int32(pm.player.FaceitElo)
 
-		// elo_after = player's ELO in next match, or current ELO for the last match
+		// elo_after = elo_before of the next processable match, or current ELO for the last
 		var eloAfter int32
-		if i < len(newMatches)-1 {
-			_, nextTP, nextFound := findPlayerInTeams(newMatches[i+1].Teams, faceitID)
-			if nextFound {
-				eloAfter = int32(nextTP.FaceitElo)
-			} else {
-				eloAfter = int32(currentElo)
-			}
+		if i < len(processable)-1 {
+			eloAfter = int32(processable[i+1].player.FaceitElo)
 		} else {
 			eloAfter = int32(currentElo)
 		}
 
 		mapName := "unknown"
-		if details[i] != nil {
-			mapName = details[i].MapName()
+		if pm.details != nil {
+			mapName = pm.details.MapName()
 		}
 
 		var demoURL sql.NullString
-		if details[i] != nil && len(details[i].DemoURL) > 0 && details[i].DemoURL[0] != "" {
-			demoURL = sql.NullString{String: details[i].DemoURL[0], Valid: true}
+		if pm.details != nil && len(pm.details.DemoURL) > 0 && pm.details.DemoURL[0] != "" {
+			demoURL = sql.NullString{String: pm.details.DemoURL[0], Valid: true}
 		}
 
 		_, err := s.store.UpsertFaceitMatch(ctx, store.UpsertFaceitMatchParams{
 			UserID:        userID,
-			FaceitMatchID: m.MatchID,
+			FaceitMatchID: pm.summary.MatchID,
 			MapName:       mapName,
 			ScoreTeam:     int16(scoreTeam),
 			ScoreOpponent: int16(scoreOpponent),
@@ -181,11 +201,11 @@ func (s *SyncService) Sync(ctx context.Context, userID uuid.UUID, faceitID strin
 			EloBefore:     sql.NullInt32{Int32: eloBefore, Valid: true},
 			EloAfter:      sql.NullInt32{Int32: eloAfter, Valid: true},
 			DemoUrl:       demoURL,
-			PlayedAt:      time.Unix(m.StartedAt, 0),
+			PlayedAt:      time.Unix(pm.summary.StartedAt, 0),
 		})
 		// ON CONFLICT DO NOTHING returns sql.ErrNoRows — treat as success
 		if err != nil && err != sql.ErrNoRows {
-			return inserted, fmt.Errorf("upserting match %s: %w", m.MatchID, err)
+			return inserted, fmt.Errorf("upserting match %s: %w", pm.summary.MatchID, err)
 		}
 		inserted++
 	}

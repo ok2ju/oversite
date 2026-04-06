@@ -108,6 +108,7 @@ func serveCmd() *cobra.Command {
 
 			demoHandler := handler.NewDemoHandler(queries, minioClient, queue, cfg.MinioBucket)
 			faceitHandler := handler.NewFaceitHandler(queue)
+			tickHandler := handler.NewTickHandler(queries, queries)
 
 			// Health checks with real dependencies
 			health := handler.NewHealthHandler(
@@ -115,7 +116,7 @@ func serveCmd() *cobra.Command {
 				stateStore,
 				&handler.MinIOChecker{Endpoint: cfg.MinioEndpoint, UseSSL: cfg.MinioUseSSL},
 			)
-			router := handler.NewRouter(health, authHandler, demoHandler, faceitHandler, sessionStore)
+			router := handler.NewRouter(health, authHandler, demoHandler, faceitHandler, tickHandler, sessionStore)
 
 			slog.Info("starting API server", "port", cfg.Port, "env", cfg.Environment)
 			return http.ListenAndServe(":"+cfg.Port, router)
@@ -135,6 +136,13 @@ func wsCmd() *cobra.Command {
 
 			setupLogger(cfg.LogLevel)
 
+			// Database
+			db, err := sql.Open("postgres", cfg.DatabaseURL)
+			if err != nil {
+				return fmt.Errorf("opening database: %w", err)
+			}
+			defer func() { _ = db.Close() }()
+
 			// Redis
 			redisOpts, err := redis.ParseURL(cfg.RedisURL)
 			if err != nil {
@@ -145,13 +153,18 @@ func wsCmd() *cobra.Command {
 
 			sessionStore := auth.NewRedisSessionStore(redisClient)
 
-			hub := ws.NewHub()
+			// Yjs relay with DB-backed state persistence.
+			queries := store.New(db)
+			stateStore := ws.NewPgStateStore(queries)
+			relay := ws.NewYjsRelay(stateStore, cfg.YjsAutoSaveInterval)
+
+			hub := ws.NewHubWithRelay(relay)
 			go hub.Run()
 
 			server := ws.NewServer(hub, sessionStore)
 
-			// Health checks — WS server only needs Redis.
-			health := handler.NewHealthHandler(nil, &handler.RedisChecker{Client: redisClient}, nil)
+			// Health checks — WS server needs Redis and DB.
+			health := handler.NewHealthHandler(&handler.DBChecker{DB: db}, &handler.RedisChecker{Client: redisClient}, nil)
 			router := server.Router(health)
 
 			slog.Info("starting WebSocket server", "port", cfg.WSPort, "env", cfg.Environment)

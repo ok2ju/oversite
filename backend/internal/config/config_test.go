@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/ok2ju/oversite/backend/internal/config"
 )
@@ -274,6 +275,7 @@ func TestLoadMissingAllRequiredVars(t *testing.T) {
 
 func setWSRequiredEnv(t *testing.T) {
 	t.Helper()
+	t.Setenv("DATABASE_URL", "postgres://localhost:5432/oversite")
 	t.Setenv("REDIS_URL", "redis://localhost:6379")
 }
 
@@ -285,6 +287,9 @@ func TestLoadWSWithAllRequiredVars(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	if cfg.DatabaseURL != "postgres://localhost:5432/oversite" {
+		t.Errorf("expected DatabaseURL 'postgres://localhost:5432/oversite', got %q", cfg.DatabaseURL)
+	}
 	if cfg.RedisURL != "redis://localhost:6379" {
 		t.Errorf("expected RedisURL 'redis://localhost:6379', got %q", cfg.RedisURL)
 	}
@@ -307,6 +312,9 @@ func TestLoadWSDefaults(t *testing.T) {
 	if cfg.LogLevel != "info" {
 		t.Errorf("expected default LogLevel 'info', got %q", cfg.LogLevel)
 	}
+	if cfg.YjsAutoSaveInterval != 30*time.Second {
+		t.Errorf("expected default YjsAutoSaveInterval 30s, got %v", cfg.YjsAutoSaveInterval)
+	}
 }
 
 func TestLoadWSOverrideDefaults(t *testing.T) {
@@ -314,6 +322,7 @@ func TestLoadWSOverrideDefaults(t *testing.T) {
 	t.Setenv("WS_PORT", "9091")
 	t.Setenv("GO_ENV", "production")
 	t.Setenv("LOG_LEVEL", "debug")
+	t.Setenv("YJS_AUTO_SAVE_INTERVAL", "1m")
 
 	cfg, err := config.LoadWS()
 	if err != nil {
@@ -329,6 +338,19 @@ func TestLoadWSOverrideDefaults(t *testing.T) {
 	if cfg.LogLevel != "debug" {
 		t.Errorf("expected LogLevel 'debug', got %q", cfg.LogLevel)
 	}
+	if cfg.YjsAutoSaveInterval != time.Minute {
+		t.Errorf("expected YjsAutoSaveInterval 1m, got %v", cfg.YjsAutoSaveInterval)
+	}
+}
+
+func TestLoadWSMissingDatabaseURL(t *testing.T) {
+	setWSRequiredEnv(t)
+	t.Setenv("DATABASE_URL", "")
+
+	_, err := config.LoadWS()
+	if err == nil {
+		t.Fatal("expected error for missing DATABASE_URL, got nil")
+	}
 }
 
 func TestLoadWSMissingRedisURL(t *testing.T) {
@@ -342,6 +364,7 @@ func TestLoadWSMissingRedisURL(t *testing.T) {
 }
 
 func TestLoadWSMissingAllRequiredVars(t *testing.T) {
+	t.Setenv("DATABASE_URL", "")
 	t.Setenv("REDIS_URL", "")
 
 	_, err := config.LoadWS()

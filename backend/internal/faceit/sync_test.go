@@ -58,6 +58,23 @@ func historyKey(offset, limit int) string {
 	return fmt.Sprintf("%d:%d", offset, limit)
 }
 
+// mockFaceitAPIPartialFail wraps mockFaceitAPI but fails GetMatchDetails for specific match IDs.
+type mockFaceitAPIPartialFail struct {
+	*mockFaceitAPI
+	failMatchIDs map[string]bool
+	details      map[string]*faceit.MatchDetails
+}
+
+func (m *mockFaceitAPIPartialFail) GetMatchDetails(_ context.Context, matchID string) (*faceit.MatchDetails, error) {
+	if m.failMatchIDs[matchID] {
+		return nil, errors.New("api timeout")
+	}
+	if d, ok := m.details[matchID]; ok {
+		return d, nil
+	}
+	return &faceit.MatchDetails{MatchID: matchID}, nil
+}
+
 type mockSyncStore struct {
 	existingIDs []string
 	existingErr error
@@ -393,7 +410,53 @@ func TestSync_SingleNewMatch_EloFromGetPlayer(t *testing.T) {
 	}
 }
 
-func TestSync_APIErrorFromGetMatchDetails(t *testing.T) {
+func TestSync_APIErrorFromGetMatchDetails_PartialSuccess(t *testing.T) {
+	// 2 matches: match-2 details fail, match-1 should still be inserted
+	api := &mockFaceitAPI{
+		player: &faceit.Player{
+			PlayerID: testFaceitID,
+			Games:    map[string]faceit.Game{"cs2": {FaceitElo: 2050}},
+		},
+		history: map[string]*faceit.MatchHistory{
+			"0:20": {Items: []faceit.MatchSummary{
+				makeMatch("match-2", 1002, 2020, "faction1"),
+				makeMatch("match-1", 1001, 2000, "faction1"),
+			}},
+		},
+		details: map[string]*faceit.MatchDetails{
+			"match-1": makeDetails("match-1", "de_dust2", ""),
+		},
+	}
+	// Override GetMatchDetails to fail only for match-2
+	origGetDetails := api.details
+	api.details = nil // clear so we use custom logic below
+
+	customAPI := &mockFaceitAPIPartialFail{
+		mockFaceitAPI: api,
+		failMatchIDs:  map[string]bool{"match-2": true},
+		details:       origGetDetails,
+	}
+
+	mockStore := &mockSyncStore{}
+
+	svc := faceit.NewSyncService(customAPI, mockStore)
+	count, err := svc.Sync(context.Background(), testUserID, testFaceitID)
+	if err != nil {
+		t.Fatalf("expected no error for partial failure, got: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("inserted = %d, want 1 (match-2 skipped)", count)
+	}
+	if len(mockStore.upserted) != 1 {
+		t.Fatalf("upserted count = %d, want 1", len(mockStore.upserted))
+	}
+	if mockStore.upserted[0].FaceitMatchID != "match-1" {
+		t.Errorf("upserted match = %s, want match-1", mockStore.upserted[0].FaceitMatchID)
+	}
+}
+
+func TestSync_AllDetailsFail(t *testing.T) {
+	// All match details fail — should return 0 inserted, no error
 	api := &mockFaceitAPI{
 		player: &faceit.Player{
 			PlayerID: testFaceitID,
@@ -409,9 +472,12 @@ func TestSync_APIErrorFromGetMatchDetails(t *testing.T) {
 	mockStore := &mockSyncStore{}
 
 	svc := faceit.NewSyncService(api, mockStore)
-	_, err := svc.Sync(context.Background(), testUserID, testFaceitID)
-	if err == nil {
-		t.Fatal("expected error, got nil")
+	count, err := svc.Sync(context.Background(), testUserID, testFaceitID)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("inserted = %d, want 0", count)
 	}
 }
 
@@ -460,6 +526,71 @@ func TestSync_EloChain(t *testing.T) {
 		{"match-1", 2000, 2020},
 		{"match-2", 2020, 2040},
 		{"match-3", 2040, 2060},
+	}
+
+	for i, exp := range expectations {
+		m := mockStore.upserted[i]
+		if m.FaceitMatchID != exp.matchID {
+			t.Errorf("[%d] match = %s, want %s", i, m.FaceitMatchID, exp.matchID)
+		}
+		if m.EloBefore.Int32 != exp.eloBefore {
+			t.Errorf("[%d] elo_before = %d, want %d", i, m.EloBefore.Int32, exp.eloBefore)
+		}
+		if m.EloAfter.Int32 != exp.eloAfter {
+			t.Errorf("[%d] elo_after = %d, want %d", i, m.EloAfter.Int32, exp.eloAfter)
+		}
+	}
+}
+
+func TestSync_EloChain_IncrementalSync(t *testing.T) {
+	// 4 matches from API, 2 already exist (match-1, match-3).
+	// New matches are match-2 (elo=2020) and match-4 (elo=2060).
+	// These are NOT chronologically adjacent in the full history,
+	// but ELO chain should still work correctly within the new set.
+	api := &mockFaceitAPI{
+		player: &faceit.Player{
+			PlayerID: testFaceitID,
+			Games:    map[string]faceit.Game{"cs2": {FaceitElo: 2080}},
+		},
+		history: map[string]*faceit.MatchHistory{
+			"0:20": {Items: []faceit.MatchSummary{
+				makeMatch("match-4", 1004, 2060, "faction1"), // newest
+				makeMatch("match-3", 1003, 2040, "faction1"), // exists
+				makeMatch("match-2", 1002, 2020, "faction1"), // new
+				makeMatch("match-1", 1001, 2000, "faction1"), // exists
+			}},
+		},
+		details: map[string]*faceit.MatchDetails{
+			"match-2": makeDetails("match-2", "de_mirage", ""),
+			"match-4": makeDetails("match-4", "de_inferno", ""),
+		},
+	}
+	mockStore := &mockSyncStore{
+		existingIDs: []string{"match-1", "match-3"},
+	}
+
+	svc := faceit.NewSyncService(api, mockStore)
+	count, err := svc.Sync(context.Background(), testUserID, testFaceitID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("inserted = %d, want 2", count)
+	}
+	if len(mockStore.upserted) != 2 {
+		t.Fatalf("upserted count = %d, want 2", len(mockStore.upserted))
+	}
+
+	// After reversal + filtering: match-2 (idx 0), match-4 (idx 1)
+	// match-2: elo_before=2020, elo_after=2060 (match-4's elo, the next processable)
+	// match-4: elo_before=2060, elo_after=2080 (current from GetPlayer)
+	expectations := []struct {
+		matchID   string
+		eloBefore int32
+		eloAfter  int32
+	}{
+		{"match-2", 2020, 2060},
+		{"match-4", 2060, 2080},
 	}
 
 	for i, exp := range expectations {

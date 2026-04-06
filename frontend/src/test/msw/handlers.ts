@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw"
-import type { Demo } from "@/types/demo"
+import type { Demo, TickData } from "@/types/demo"
 
 export const mockDemos: Demo[] = [
   {
@@ -97,5 +97,38 @@ export const handlers = [
       return HttpResponse.json({ error: "demo not found" }, { status: 404 })
     }
     return new HttpResponse(null, { status: 204 })
+  }),
+
+  http.get("/api/v1/demos/:id/ticks", ({ request, params }) => {
+    const url = new URL(request.url)
+    const startTick = Number(url.searchParams.get("start_tick") ?? "0")
+    const endTick = Number(url.searchParams.get("end_tick") ?? "0")
+    const demo = mockDemos.find((d) => d.id === params.id)
+    if (!demo) {
+      return HttpResponse.json({ error: "demo not found" }, { status: 404 })
+    }
+    const data: TickData[] = []
+    const allSteamIds = ["76561198000000001", "76561198000000002"]
+    const steamIdsParam = url.searchParams.get("steam_ids")
+    const steamIds = steamIdsParam
+      ? steamIdsParam.split(",").map((s) => s.trim())
+      : allSteamIds
+    for (let t = startTick; t <= Math.min(endTick, startTick + 9); t++) {
+      for (const sid of steamIds) {
+        data.push({
+          tick: t,
+          steam_id: sid,
+          x: t * 1.0,
+          y: t * 2.0,
+          z: 0,
+          yaw: 90,
+          health: 100,
+          armor: 100,
+          is_alive: true,
+          weapon: "ak47",
+        })
+      }
+    }
+    return HttpResponse.json({ data })
   }),
 ]

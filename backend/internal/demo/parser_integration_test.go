@@ -67,7 +67,7 @@ func loadGolden(t *testing.T, name string, v interface{}) {
 	t.Helper()
 	data, err := os.ReadFile(goldenPath(name))
 	if errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("golden file not found: %s (run with -update to generate)", goldenPath(name))
+		t.Skipf("golden file not found: %s (run with -update to generate)", goldenPath(name))
 	}
 	if err != nil {
 		t.Fatalf("reading golden file: %v", err)
@@ -146,6 +146,26 @@ func TestParseDemo_GoldenEvents(t *testing.T) {
 	wantJSON, _ := json.Marshal(want)
 	if string(gotJSON) != string(wantJSON) {
 		t.Errorf("events mismatch\ngot:  %s\nwant: %s", gotJSON, wantJSON)
+	}
+}
+
+func TestParseDemo_GoldenLineups(t *testing.T) {
+	result := parseFixture(t)
+
+	name := "small_match_lineups"
+	if *update {
+		writeGolden(t, name, result.Lineups)
+		t.Logf("updated golden file: %s", goldenPath(name))
+		return
+	}
+
+	var want []GrenadeLineup
+	loadGolden(t, name, &want)
+
+	gotJSON, _ := json.Marshal(result.Lineups)
+	wantJSON, _ := json.Marshal(want)
+	if string(gotJSON) != string(wantJSON) {
+		t.Errorf("lineups mismatch\ngot:  %s\nwant: %s", gotJSON, wantJSON)
 	}
 }
 

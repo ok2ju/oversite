@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	chimw "github.com/go-chi/chi/v5/middleware"
+
 	"github.com/ok2ju/oversite/backend/internal/auth"
 	"github.com/ok2ju/oversite/backend/internal/worker"
 )
@@ -86,7 +88,7 @@ func (h *AuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 			"user_id":   user.ID.String(),
 			"faceit_id": user.FaceitID,
 		}); err != nil {
-			slog.Warn("enqueueing faceit sync on login", "error", err, "user_id", user.ID)
+			slog.Warn("enqueueing faceit sync on login", "error", err, "user_id", user.ID, "request_id", chimw.GetReqID(r.Context()))
 		}
 	}
 
