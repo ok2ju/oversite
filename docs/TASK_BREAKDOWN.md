@@ -545,7 +545,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Screenshot test: radar image renders at correct scale |
 | | - All map layer tests pass in CI |
 
-### P3-T03: Implement tick data fetching
+### P3-T03: Implement tick data fetching ✅
 
 | | |
 |---|---|
@@ -761,7 +761,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Integration tests: Redis caching (hit/miss/TTL expiry) |
 | | - All Faceit client tests pass in CI |
 
-### P4-T02: Implement Faceit sync worker job
+### P4-T02: Implement Faceit sync worker job ✅
 
 | | |
 |---|---|
@@ -956,7 +956,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Auth test: 401 returned for invalid session on upgrade |
 | | - All WebSocket tests pass in CI |
 
-### P5-T02: Implement Yjs relay protocol in Go
+### P5-T02: Implement Yjs relay protocol in Go ✅
 
 | | |
 |---|---|
@@ -977,7 +977,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Binary passthrough test: messages relayed without modification |
 | | - All Yjs relay tests pass in CI |
 
-### P5-T03: Set up Yjs client
+### P5-T03: Set up Yjs client ✅
 
 | | |
 |---|---|
@@ -1153,7 +1153,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Unit tests: PNG blob creation, filename generation, full-view capture |
 | | - All export tests pass in CI |
 
-### P5-T12: Add grenade extraction to demo parser
+### P5-T12: Add grenade extraction to demo parser ✅
 
 | | |
 |---|---|
