@@ -7,6 +7,7 @@ import { PlayerLayer } from "@/lib/pixi/layers/player-layer"
 import { TickBuffer } from "@/lib/pixi/tick-buffer"
 import { fetchRoster } from "@/hooks/use-roster"
 import { useViewerStore } from "@/stores/viewer"
+import { shallow } from "zustand/shallow"
 
 function setupViewerSubscriptions(app: ViewerApp): () => void {
   const unsubs: (() => void)[] = []
@@ -107,7 +108,7 @@ export function ViewerCanvas() {
           if (data === null) return
           playerLayer.update(data, mapLayer.calibration, selected)
         },
-        { fireImmediately: false }
+        { fireImmediately: false, equalityFn: shallow }
       )
 
       roundUnsub = useViewerStore.subscribe(
@@ -128,7 +129,7 @@ export function ViewerCanvas() {
               }
             })
         },
-        { fireImmediately: true }
+        { fireImmediately: true, equalityFn: shallow }
       )
     })
 

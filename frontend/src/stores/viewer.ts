@@ -39,7 +39,7 @@ export const useViewerStore = create<ViewerState>()(
     setTotalTicks: (total) => set({ totalTicks: total }),
     togglePlay: () => set((state) => ({ isPlaying: !state.isPlaying })),
     setSpeed: (speed) => set({ speed }),
-    setRound: (round) => set({ currentRound: round }),
+    setRound: (round) => set({ currentRound: round, selectedPlayerSteamId: null }),
     setDemoId: (id) => set({ demoId: id, currentTick: 0, mapName: null, selectedPlayerSteamId: null }),
     setMapName: (name) => set({ mapName: name }),
     setSelectedPlayer: (steamId) => set({ selectedPlayerSteamId: steamId }),
