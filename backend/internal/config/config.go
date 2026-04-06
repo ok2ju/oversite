@@ -85,25 +85,29 @@ func Load() (*Config, error) {
 }
 
 // WSConfig holds configuration for the WebSocket server.
-// Only requires REDIS_URL (the WS server is a stateless Yjs relay with no DB access).
+// Requires DATABASE_URL and REDIS_URL (for Yjs state persistence).
 type WSConfig struct {
-	WSPort      string
-	RedisURL    string
-	Environment string
-	LogLevel    string
+	WSPort              string
+	DatabaseURL         string
+	RedisURL            string
+	Environment         string
+	LogLevel            string
+	YjsAutoSaveInterval time.Duration
 }
 
 // LoadWS reads configuration for the WebSocket server from environment variables.
-// Required variables: REDIS_URL.
+// Required variables: DATABASE_URL, REDIS_URL.
 func LoadWS() (*WSConfig, error) {
 	cfg := &WSConfig{
-		WSPort:      getEnvOrDefault("WS_PORT", "8081"),
-		Environment: getEnvOrDefault("GO_ENV", "development"),
-		LogLevel:    getEnvOrDefault("LOG_LEVEL", "info"),
+		WSPort:              getEnvOrDefault("WS_PORT", "8081"),
+		Environment:         getEnvOrDefault("GO_ENV", "development"),
+		LogLevel:            getEnvOrDefault("LOG_LEVEL", "info"),
+		YjsAutoSaveInterval: getEnvOrDefaultDuration("YJS_AUTO_SAVE_INTERVAL", 30*time.Second),
 	}
 
 	required := map[string]*string{
-		"REDIS_URL": &cfg.RedisURL,
+		"DATABASE_URL": &cfg.DatabaseURL,
+		"REDIS_URL":    &cfg.RedisURL,
 	}
 
 	var missing []string

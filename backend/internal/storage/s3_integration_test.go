@@ -41,9 +41,17 @@ func setupMinIO(t *testing.T) *MinIOClient {
 		t.Fatalf("creating minio client: %v", err)
 	}
 
-	// Create the test bucket.
-	if err := client.EnsureBucket(ctx, testBucket); err != nil {
-		t.Fatalf("creating test bucket: %v", err)
+	// Retry bucket creation — the MinIO health endpoint can report ready
+	// before the S3 API is fully initialized.
+	var bucketErr error
+	for range 10 {
+		if bucketErr = client.EnsureBucket(ctx, testBucket); bucketErr == nil {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if bucketErr != nil {
+		t.Fatalf("creating test bucket after retries: %v", bucketErr)
 	}
 
 	return client
