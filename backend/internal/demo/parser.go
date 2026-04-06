@@ -527,6 +527,11 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			playerID = strconv.FormatUint(e.Player.SteamID64, 10)
 		}
 
+		hasKit := false
+		if e.Player != nil {
+			hasKit = e.Player.HasDefuseKit()
+		}
+
 		bombPos := p.GameState().Bomb().Position()
 		state.events = append(state.events, GameEvent{
 			Tick:            p.GameState().IngameTick(),
@@ -537,7 +542,8 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			Y:               bombPos.Y,
 			Z:               bombPos.Z,
 			ExtraData: map[string]interface{}{
-				"site": bombsiteString(e.Site),
+				"site":    bombsiteString(e.Site),
+				"has_kit": hasKit,
 			},
 		})
 	})

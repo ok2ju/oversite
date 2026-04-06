@@ -175,7 +175,7 @@ function computeState(effect: ScheduledEffect, tickOffset: number): EffectState 
     case "flash":
       return computeFlashState(tickOffset)
     case "bomb_plant":
-      return computeBombPlantState(tickOffset)
+      return computeBombPlantState(tickOffset, effect.durationTicks)
     case "bomb_defuse":
       return computeBombDefuseState(tickOffset, effect.hasKit ?? false)
   }

@@ -162,22 +162,28 @@ describe("computeKillState", () => {
 })
 
 describe("computeBombPlantState", () => {
+  const duration = BOMB_DEFUSE_TICKS
+
   it("is inactive before tick 0", () => {
-    expect(computeBombPlantState(-1).active).toBe(false)
+    expect(computeBombPlantState(-1, duration).active).toBe(false)
   })
 
   it("is active at tick 0", () => {
-    expect(computeBombPlantState(0).active).toBe(true)
+    expect(computeBombPlantState(0, duration).active).toBe(true)
   })
 
   it("oscillates alpha based on BOMB_FLASH_INTERVAL_TICKS", () => {
-    const stateOn = computeBombPlantState(0)
-    const stateOff = computeBombPlantState(Math.floor(BOMB_FLASH_INTERVAL_TICKS * 0.75))
+    const stateOn = computeBombPlantState(0, duration)
+    const stateOff = computeBombPlantState(Math.floor(BOMB_FLASH_INTERVAL_TICKS * 0.75), duration)
     expect(stateOn.alpha).not.toEqual(stateOff.alpha)
   })
 
   it("returns BOMB_ICON_RADIUS", () => {
-    expect(computeBombPlantState(0).radius).toBe(BOMB_ICON_RADIUS)
+    expect(computeBombPlantState(0, duration).radius).toBe(BOMB_ICON_RADIUS)
+  })
+
+  it("is inactive at durationTicks", () => {
+    expect(computeBombPlantState(duration, duration).active).toBe(false)
   })
 })
 

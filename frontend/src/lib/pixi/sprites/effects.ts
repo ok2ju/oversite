@@ -108,8 +108,8 @@ export function computeKillState(tickOffset: number): EffectState {
   }
 }
 
-export function computeBombPlantState(tickOffset: number): EffectState {
-  if (tickOffset < 0) return INACTIVE
+export function computeBombPlantState(tickOffset: number, durationTicks: number): EffectState {
+  if (tickOffset < 0 || tickOffset >= durationTicks) return INACTIVE
 
   const phase = tickOffset % BOMB_FLASH_INTERVAL_TICKS
   const alpha = phase < BOMB_FLASH_INTERVAL_TICKS / 2 ? 1.0 : 0.3
