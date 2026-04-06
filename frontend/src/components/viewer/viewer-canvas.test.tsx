@@ -29,12 +29,43 @@ const mockMapLayerDestroy = vi.fn()
 vi.mock("@/lib/pixi/layers/map-layer", () => {
   return {
     MapLayer: class MockMapLayer {
+      calibration = null
       setMap = mockSetMap
       clear = mockClear
       destroy = mockMapLayerDestroy
     },
   }
 })
+
+const mockSetRoster = vi.fn()
+const mockOnPlayerClick = vi.fn()
+const mockPlayerLayerDestroy = vi.fn()
+
+vi.mock("@/lib/pixi/layers/player-layer", () => {
+  return {
+    PlayerLayer: class MockPlayerLayer {
+      setRoster = mockSetRoster
+      onPlayerClick = mockOnPlayerClick
+      update = vi.fn()
+      destroy = mockPlayerLayerDestroy
+    },
+  }
+})
+
+vi.mock("@/hooks/use-roster", () => ({
+  fetchRoster: vi.fn().mockResolvedValue([]),
+}))
+
+const mockTickBufferDispose = vi.fn()
+const mockGetTickData = vi.fn().mockReturnValue([])
+
+vi.mock("@/lib/pixi/tick-buffer", () => ({
+  TickBuffer: class MockTickBuffer {
+    getTickData = mockGetTickData
+    dispose = mockTickBufferDispose
+    seek = vi.fn()
+  },
+}))
 
 import { ViewerCanvas } from "./viewer-canvas"
 
@@ -46,6 +77,9 @@ describe("ViewerCanvas", () => {
     mockAddLayer.mockReturnValue({ addChild: vi.fn(), removeChild: vi.fn() })
     mockCreateViewerApp.mockResolvedValue(mockApp)
     mockSetMap.mockResolvedValue(undefined)
+    mockOnPlayerClick.mockReset()
+    mockPlayerLayerDestroy.mockReset()
+    mockTickBufferDispose.mockReset()
     useViewerStore.getState().reset()
   })
 
@@ -143,6 +177,39 @@ describe("ViewerCanvas", () => {
 
     // Zustand subscribers fire synchronously — no async wait needed
     expect(mockTickerStart).not.toHaveBeenCalled()
+  })
+
+  it("creates player layer after map layer", async () => {
+    render(<ViewerCanvas />)
+
+    await vi.waitFor(() => {
+      expect(mockCreateViewerApp).toHaveBeenCalled()
+    })
+
+    // addLayer should be called twice: "map" then "players"
+    expect(mockAddLayer).toHaveBeenCalledWith("map")
+    expect(mockAddLayer).toHaveBeenCalledWith("players")
+    const calls = mockAddLayer.mock.calls.map((c) => c[0])
+    expect(calls.indexOf("map")).toBeLessThan(calls.indexOf("players"))
+  })
+
+  it("destroys player layer on unmount", async () => {
+    const { unmount } = render(<ViewerCanvas />)
+
+    await vi.waitFor(() => {
+      expect(mockCreateViewerApp).toHaveBeenCalled()
+    })
+
+    unmount()
+    expect(mockPlayerLayerDestroy).toHaveBeenCalled()
+  })
+
+  it("registers click handler on player layer", async () => {
+    render(<ViewerCanvas />)
+
+    await vi.waitFor(() => {
+      expect(mockOnPlayerClick).toHaveBeenCalledWith(expect.any(Function))
+    })
   })
 
   it("handles async init completing after cleanup (StrictMode guard)", async () => {

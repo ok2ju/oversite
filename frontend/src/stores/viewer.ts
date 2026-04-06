@@ -9,6 +9,7 @@ interface ViewerState {
   currentRound: number
   demoId: string | null
   mapName: string | null
+  selectedPlayerSteamId: string | null
   setTick: (tick: number) => void
   setTotalTicks: (total: number) => void
   togglePlay: () => void
@@ -16,6 +17,7 @@ interface ViewerState {
   setRound: (round: number) => void
   setDemoId: (id: string | null) => void
   setMapName: (name: string | null) => void
+  setSelectedPlayer: (steamId: string | null) => void
   reset: () => void
 }
 
@@ -27,6 +29,7 @@ const initialState = {
   currentRound: 1,
   demoId: null as string | null,
   mapName: null as string | null,
+  selectedPlayerSteamId: null as string | null,
 }
 
 export const useViewerStore = create<ViewerState>()(
@@ -36,9 +39,10 @@ export const useViewerStore = create<ViewerState>()(
     setTotalTicks: (total) => set({ totalTicks: total }),
     togglePlay: () => set((state) => ({ isPlaying: !state.isPlaying })),
     setSpeed: (speed) => set({ speed }),
-    setRound: (round) => set({ currentRound: round }),
-    setDemoId: (id) => set({ demoId: id, currentTick: 0, mapName: null }),
+    setRound: (round) => set({ currentRound: round, selectedPlayerSteamId: null }),
+    setDemoId: (id) => set({ demoId: id, currentTick: 0, mapName: null, selectedPlayerSteamId: null }),
     setMapName: (name) => set({ mapName: name }),
+    setSelectedPlayer: (steamId) => set({ selectedPlayerSteamId: steamId }),
     reset: () => set(initialState),
   }))
 )

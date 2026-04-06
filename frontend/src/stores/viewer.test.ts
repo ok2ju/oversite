@@ -63,4 +63,31 @@ describe("viewerStore", () => {
     useViewerStore.getState().reset()
     expect(useViewerStore.getState().mapName).toBeNull()
   })
+
+  it("has null selectedPlayerSteamId initially", () => {
+    expect(useViewerStore.getState().selectedPlayerSteamId).toBeNull()
+  })
+
+  it("setSelectedPlayer updates selectedPlayerSteamId", () => {
+    useViewerStore.getState().setSelectedPlayer("76561198000000001")
+    expect(useViewerStore.getState().selectedPlayerSteamId).toBe("76561198000000001")
+  })
+
+  it("setSelectedPlayer(null) clears selectedPlayerSteamId", () => {
+    useViewerStore.getState().setSelectedPlayer("76561198000000001")
+    useViewerStore.getState().setSelectedPlayer(null)
+    expect(useViewerStore.getState().selectedPlayerSteamId).toBeNull()
+  })
+
+  it("setDemoId resets selectedPlayerSteamId", () => {
+    useViewerStore.getState().setSelectedPlayer("76561198000000001")
+    useViewerStore.getState().setDemoId("demo-456")
+    expect(useViewerStore.getState().selectedPlayerSteamId).toBeNull()
+  })
+
+  it("reset clears selectedPlayerSteamId", () => {
+    useViewerStore.getState().setSelectedPlayer("76561198000000001")
+    useViewerStore.getState().reset()
+    expect(useViewerStore.getState().selectedPlayerSteamId).toBeNull()
+  })
 })
