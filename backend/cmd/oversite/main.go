@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -19,6 +21,7 @@ import (
 
 	"github.com/ok2ju/oversite/backend/internal/auth"
 	"github.com/ok2ju/oversite/backend/internal/config"
+	"github.com/ok2ju/oversite/backend/internal/faceit"
 	"github.com/ok2ju/oversite/backend/internal/handler"
 	"github.com/ok2ju/oversite/backend/internal/storage"
 	"github.com/ok2ju/oversite/backend/internal/store"
@@ -89,7 +92,8 @@ func serveCmd() *cobra.Command {
 			faceitClient := auth.NewFaceitClient(oauthCfg)
 			oauthSvc := auth.NewOAuthService(oauthCfg, stateStore, queries, faceitClient)
 			secure := cfg.Environment == "production"
-			authHandler := handler.NewAuthHandler(oauthSvc, sessionStore, secure)
+			queue := worker.NewRedisQueue(redisClient)
+			authHandler := handler.NewAuthHandler(oauthSvc, sessionStore, secure, queue)
 
 			// MinIO object storage
 			minioClient, err := storage.NewMinIOClient(
@@ -102,8 +106,8 @@ func serveCmd() *cobra.Command {
 				return fmt.Errorf("ensuring minio bucket: %w", err)
 			}
 
-			queue := worker.NewRedisQueue(redisClient)
 			demoHandler := handler.NewDemoHandler(queries, minioClient, queue, cfg.MinioBucket)
+			faceitHandler := handler.NewFaceitHandler(queue)
 			tickHandler := handler.NewTickHandler(queries, queries)
 
 			// Health checks with real dependencies
@@ -112,7 +116,7 @@ func serveCmd() *cobra.Command {
 				stateStore,
 				&handler.MinIOChecker{Endpoint: cfg.MinioEndpoint, UseSSL: cfg.MinioUseSSL},
 			)
-			router := handler.NewRouter(health, authHandler, demoHandler, tickHandler, sessionStore)
+			router := handler.NewRouter(health, authHandler, demoHandler, faceitHandler, tickHandler, sessionStore)
 
 			slog.Info("starting API server", "port", cfg.Port, "env", cfg.Environment)
 			return http.ListenAndServe(":"+cfg.Port, router)
@@ -174,7 +178,62 @@ func workerCmd() *cobra.Command {
 		Use:   "worker",
 		Short: "Start the background worker",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			slog.Info("Worker not implemented yet")
+			cfg, err := config.LoadWorker()
+			if err != nil {
+				return fmt.Errorf("loading worker config: %w", err)
+			}
+
+			setupLogger(cfg.LogLevel)
+
+			// Database
+			db, err := sql.Open("postgres", cfg.DatabaseURL)
+			if err != nil {
+				return fmt.Errorf("opening database: %w", err)
+			}
+			defer func() { _ = db.Close() }()
+
+			// Redis
+			redisOpts, err := redis.ParseURL(cfg.RedisURL)
+			if err != nil {
+				return fmt.Errorf("parsing redis URL: %w", err)
+			}
+			redisClient := redis.NewClient(redisOpts)
+			defer func() { _ = redisClient.Close() }()
+
+			// Faceit API client
+			faceitAPI := faceit.NewClient(&http.Client{}, redisClient, faceit.ClientConfig{
+				APIKey:  cfg.FaceitAPIKey,
+				BaseURL: cfg.FaceitAPIBaseURL,
+			})
+
+			// Services
+			queries := store.New(db)
+			syncSvc := faceit.NewSyncService(faceitAPI, queries)
+
+			// Worker
+			queue := worker.NewRedisQueueWithTimeout(redisClient, cfg.WorkerBlockTimeout)
+			faceitHandler := worker.NewFaceitSyncHandler(syncSvc)
+			w := worker.NewWorker(queue, worker.FaceitSyncStream, "workers", "worker-1", faceitHandler).
+				WithMaxRetry(cfg.WorkerMaxRetry).
+				WithStaleThreshold(cfg.WorkerStaleThreshold).
+				WithClaimInterval(cfg.WorkerClaimInterval)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			if err := w.Start(ctx); err != nil {
+				return fmt.Errorf("starting worker: %w", err)
+			}
+
+			slog.Info("worker running", "stream", worker.FaceitSyncStream, "env", cfg.Environment)
+
+			// Wait for shutdown signal
+			sigCh := make(chan os.Signal, 1)
+			signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+			<-sigCh
+
+			slog.Info("shutdown signal received, stopping worker...")
+			w.Stop()
 			return nil
 		},
 	}

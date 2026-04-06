@@ -22,5 +22,14 @@ FROM faceit_matches
 WHERE user_id = $1 AND played_at >= $2
 ORDER BY played_at ASC;
 
+-- name: GetExistingFaceitMatchIDs :many
+SELECT faceit_match_id FROM faceit_matches WHERE user_id = $1;
+
+-- name: UpsertFaceitMatch :one
+INSERT INTO faceit_matches (user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+ON CONFLICT (user_id, faceit_match_id) DO NOTHING
+RETURNING *;
+
 -- name: DeleteFaceitMatchesByUserID :exec
 DELETE FROM faceit_matches WHERE user_id = $1;

@@ -64,18 +64,22 @@ func decodeErrorResponse(t *testing.T, rec *httptest.ResponseRecorder) string {
 }
 
 // dummyHandler is a next handler that records whether it was called
-// and captures the userID from context.
-func dummyHandler() (http.HandlerFunc, *bool, *string) {
+// and captures the userID and faceitID from context.
+func dummyHandler() (http.HandlerFunc, *bool, *string, *string) {
 	called := false
 	var capturedUserID string
+	var capturedFaceitID string
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		if uid, ok := auth.UserIDFromContext(r.Context()); ok {
 			capturedUserID = uid
 		}
+		if fid, ok := auth.FaceitIDFromContext(r.Context()); ok {
+			capturedFaceitID = fid
+		}
 		w.WriteHeader(http.StatusOK)
 	})
-	return h, &called, &capturedUserID
+	return h, &called, &capturedUserID, &capturedFaceitID
 }
 
 // --- Tests ---
@@ -96,6 +100,7 @@ func TestRequireAuth(t *testing.T) {
 		wantStatus     int
 		wantNextCalled bool
 		wantUserID     string
+		wantFaceitID   string
 		wantError      string
 		wantRefreshed  bool
 	}{
@@ -122,12 +127,13 @@ func TestRequireAuth(t *testing.T) {
 			wantNextCalled: false,
 		},
 		{
-			name:           "valid session calls next with userID in context",
+			name:           "valid session calls next with userID and faceitID in context",
 			cookie:         &http.Cookie{Name: "session_token", Value: "valid-token"},
 			sessions:       map[string]*auth.SessionData{"valid-token": validSession},
 			wantStatus:     http.StatusOK,
 			wantNextCalled: true,
 			wantUserID:     "user-123",
+			wantFaceitID:   "faceit-456",
 			wantRefreshed:  true,
 		},
 		{
@@ -146,6 +152,7 @@ func TestRequireAuth(t *testing.T) {
 			wantStatus:     http.StatusOK,
 			wantNextCalled: true,
 			wantUserID:     "user-123",
+			wantFaceitID:   "faceit-456",
 		},
 	}
 
@@ -158,7 +165,7 @@ func TestRequireAuth(t *testing.T) {
 			store.getErr = tt.getErr
 			store.refreshErr = tt.refreshErr
 
-			next, called, capturedUserID := dummyHandler()
+			next, called, capturedUserID, capturedFaceitID := dummyHandler()
 			handler := auth.RequireAuth(store)(next)
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/protected", nil)
@@ -177,6 +184,9 @@ func TestRequireAuth(t *testing.T) {
 			}
 			if tt.wantUserID != "" && *capturedUserID != tt.wantUserID {
 				t.Errorf("userID = %q, want %q", *capturedUserID, tt.wantUserID)
+			}
+			if tt.wantFaceitID != "" && *capturedFaceitID != tt.wantFaceitID {
+				t.Errorf("faceitID = %q, want %q", *capturedFaceitID, tt.wantFaceitID)
 			}
 			if tt.wantError != "" {
 				errMsg := decodeErrorResponse(t, rec)
@@ -224,6 +234,40 @@ func TestUserIDFromContext(t *testing.T) {
 			}
 			if uid != tt.wantUID {
 				t.Errorf("uid = %q, want %q", uid, tt.wantUID)
+			}
+		})
+	}
+}
+
+func TestFaceitIDFromContext(t *testing.T) {
+	tests := []struct {
+		name    string
+		ctx     context.Context
+		wantFID string
+		wantOK  bool
+	}{
+		{
+			name:    "not set returns empty and false",
+			ctx:     context.Background(),
+			wantFID: "",
+			wantOK:  false,
+		},
+		{
+			name:    "set returns value and true",
+			ctx:     context.WithValue(context.Background(), auth.FaceitIDKey, "faceit-abc"),
+			wantFID: "faceit-abc",
+			wantOK:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fid, ok := auth.FaceitIDFromContext(tt.ctx)
+			if ok != tt.wantOK {
+				t.Errorf("ok = %v, want %v", ok, tt.wantOK)
+			}
+			if fid != tt.wantFID {
+				t.Errorf("fid = %q, want %q", fid, tt.wantFID)
 			}
 		})
 	}

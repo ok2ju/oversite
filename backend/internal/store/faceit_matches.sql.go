@@ -133,6 +133,33 @@ func (q *Queries) GetEloHistory(ctx context.Context, arg GetEloHistoryParams) ([
 	return items, nil
 }
 
+const getExistingFaceitMatchIDs = `-- name: GetExistingFaceitMatchIDs :many
+SELECT faceit_match_id FROM faceit_matches WHERE user_id = $1
+`
+
+func (q *Queries) GetExistingFaceitMatchIDs(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, getExistingFaceitMatchIDs, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var faceit_match_id string
+		if err := rows.Scan(&faceit_match_id); err != nil {
+			return nil, err
+		}
+		items = append(items, faceit_match_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getFaceitMatchByID = `-- name: GetFaceitMatchByID :one
 SELECT id, user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at, created_at FROM faceit_matches WHERE id = $1
 `
@@ -226,6 +253,69 @@ type LinkFaceitMatchToDemoParams struct {
 
 func (q *Queries) LinkFaceitMatchToDemo(ctx context.Context, arg LinkFaceitMatchToDemoParams) (FaceitMatch, error) {
 	row := q.db.QueryRowContext(ctx, linkFaceitMatchToDemo, arg.ID, arg.DemoID)
+	var i FaceitMatch
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.FaceitMatchID,
+		&i.MapName,
+		&i.ScoreTeam,
+		&i.ScoreOpponent,
+		&i.Result,
+		&i.EloBefore,
+		&i.EloAfter,
+		&i.Kills,
+		&i.Deaths,
+		&i.Assists,
+		&i.DemoUrl,
+		&i.DemoID,
+		&i.PlayedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const upsertFaceitMatch = `-- name: UpsertFaceitMatch :one
+INSERT INTO faceit_matches (user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+ON CONFLICT (user_id, faceit_match_id) DO NOTHING
+RETURNING id, user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at, created_at
+`
+
+type UpsertFaceitMatchParams struct {
+	UserID        uuid.UUID
+	FaceitMatchID string
+	MapName       string
+	ScoreTeam     int16
+	ScoreOpponent int16
+	Result        string
+	EloBefore     sql.NullInt32
+	EloAfter      sql.NullInt32
+	Kills         sql.NullInt16
+	Deaths        sql.NullInt16
+	Assists       sql.NullInt16
+	DemoUrl       sql.NullString
+	DemoID        uuid.NullUUID
+	PlayedAt      time.Time
+}
+
+func (q *Queries) UpsertFaceitMatch(ctx context.Context, arg UpsertFaceitMatchParams) (FaceitMatch, error) {
+	row := q.db.QueryRowContext(ctx, upsertFaceitMatch,
+		arg.UserID,
+		arg.FaceitMatchID,
+		arg.MapName,
+		arg.ScoreTeam,
+		arg.ScoreOpponent,
+		arg.Result,
+		arg.EloBefore,
+		arg.EloAfter,
+		arg.Kills,
+		arg.Deaths,
+		arg.Assists,
+		arg.DemoUrl,
+		arg.DemoID,
+		arg.PlayedAt,
+	)
 	var i FaceitMatch
 	err := row.Scan(
 		&i.ID,

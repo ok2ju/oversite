@@ -145,7 +145,7 @@ func newTestAuthHandler(exchanger *mockTokenExchanger) (*handler.AuthHandler, *m
 		UserInfoURL:  "https://api.faceit.com/auth/v1/resources/userinfo",
 	}
 	oauth := auth.NewOAuthService(cfg, states, users, exchanger)
-	return handler.NewAuthHandler(oauth, sessions, false), states, sessions
+	return handler.NewAuthHandler(oauth, sessions, false, nil), states, sessions
 }
 
 // --- Login tests ---
@@ -351,7 +351,7 @@ func TestHandleCallback_FullFlow(t *testing.T) {
 	}
 	faceitClient := auth.NewFaceitClient(cfg)
 	oauth := auth.NewOAuthService(cfg, states, users, faceitClient)
-	h := handler.NewAuthHandler(oauth, sessions, false)
+	h := handler.NewAuthHandler(oauth, sessions, false, nil)
 
 	// Step 1: Login redirect
 	loginReq := httptest.NewRequest(http.MethodGet, "/api/v1/auth/faceit", nil)
@@ -400,6 +400,95 @@ func TestHandleCallback_FullFlow(t *testing.T) {
 	// Verify session was created in typed session store
 	if len(sessions.sessions) == 0 {
 		t.Error("expected session to be stored in session store")
+	}
+}
+
+// --- Callback + Enqueue tests ---
+
+type mockJobQueue struct {
+	lastStream string
+	lastData   map[string]interface{}
+	err        error
+}
+
+func (m *mockJobQueue) Enqueue(_ context.Context, stream string, data map[string]interface{}) (string, error) {
+	m.lastStream = stream
+	m.lastData = data
+	return "msg-1", m.err
+}
+
+func TestHandleCallback_EnqueuesSyncJob(t *testing.T) {
+	exchanger := &mockTokenExchanger{
+		tokenResp: &auth.TokenResponse{AccessToken: "tok", RefreshToken: "ref", ExpiresIn: 3600},
+		userInfo:  &auth.FaceitUserInfo{PlayerID: "faceit-123", Nickname: "player1"},
+	}
+	states := newMockStateStore()
+	sessions := newMockSessionStore()
+	users := newMockUserStore()
+	q := &mockJobQueue{}
+	cfg := auth.FaceitOAuthConfig{
+		ClientID:     "test-client-id",
+		ClientSecret: "test-client-secret",
+		RedirectURI:  "http://localhost:3000/callback",
+		AuthURL:      "https://accounts.faceit.com/accounts",
+		TokenURL:     "https://api.faceit.com/auth/v1/oauth/token",
+		UserInfoURL:  "https://api.faceit.com/auth/v1/resources/userinfo",
+	}
+	oauth := auth.NewOAuthService(cfg, states, users, exchanger)
+	h := handler.NewAuthHandler(oauth, sessions, false, q)
+
+	states.data["oauth_state:valid-state"] = []byte(`{"code_verifier":"test-verifier"}`)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/faceit/callback?code=test-code&state=valid-state", nil)
+	rec := httptest.NewRecorder()
+
+	h.HandleCallback(rec, req)
+
+	if rec.Code != http.StatusFound {
+		t.Fatalf("expected 302, got %d", rec.Code)
+	}
+
+	if q.lastStream != "faceit_sync" {
+		t.Errorf("enqueued to stream %q, want faceit_sync", q.lastStream)
+	}
+	if q.lastData["faceit_id"] != "faceit-123" {
+		t.Errorf("faceit_id = %v, want faceit-123", q.lastData["faceit_id"])
+	}
+	if _, ok := q.lastData["user_id"]; !ok {
+		t.Error("expected user_id in job data")
+	}
+}
+
+func TestHandleCallback_QueueError_NonFatal(t *testing.T) {
+	exchanger := &mockTokenExchanger{
+		tokenResp: &auth.TokenResponse{AccessToken: "tok", RefreshToken: "ref", ExpiresIn: 3600},
+		userInfo:  &auth.FaceitUserInfo{PlayerID: "faceit-123", Nickname: "player1"},
+	}
+	states := newMockStateStore()
+	sessions := newMockSessionStore()
+	users := newMockUserStore()
+	q := &mockJobQueue{err: errors.New("redis down")}
+	cfg := auth.FaceitOAuthConfig{
+		ClientID:     "test-client-id",
+		ClientSecret: "test-client-secret",
+		RedirectURI:  "http://localhost:3000/callback",
+		AuthURL:      "https://accounts.faceit.com/accounts",
+		TokenURL:     "https://api.faceit.com/auth/v1/oauth/token",
+		UserInfoURL:  "https://api.faceit.com/auth/v1/resources/userinfo",
+	}
+	oauth := auth.NewOAuthService(cfg, states, users, exchanger)
+	h := handler.NewAuthHandler(oauth, sessions, false, q)
+
+	states.data["oauth_state:valid-state"] = []byte(`{"code_verifier":"test-verifier"}`)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/faceit/callback?code=test-code&state=valid-state", nil)
+	rec := httptest.NewRecorder()
+
+	h.HandleCallback(rec, req)
+
+	// Should still redirect despite queue error
+	if rec.Code != http.StatusFound {
+		t.Errorf("expected 302, got %d — queue error should be non-fatal", rec.Code)
 	}
 }
 

@@ -59,6 +59,17 @@ type MatchResults struct {
 	Score  map[string]int `json:"score"`
 }
 
+// Voting holds the map/server voting results for a match.
+type Voting struct {
+	Map    VotingCategory `json:"map"`
+	Server VotingCategory `json:"server"`
+}
+
+// VotingCategory holds the picked items for a voting category (map, server, etc.).
+type VotingCategory struct {
+	Pick []string `json:"pick"`
+}
+
 // MatchDetails is the full match detail from GET /matches/{match_id}.
 type MatchDetails struct {
 	MatchID    string          `json:"match_id"`
@@ -67,8 +78,17 @@ type MatchDetails struct {
 	Status     string          `json:"status"`
 	Teams      map[string]Team `json:"teams"`
 	Results    MatchResults    `json:"results"`
+	Voting     Voting          `json:"voting"`
 	DemoURL    []string        `json:"demo_url"`
 	StartedAt  int64           `json:"started_at"`
 	FinishedAt int64           `json:"finished_at"`
 	FaceitURL  string          `json:"faceit_url"`
+}
+
+// MapName returns the map name from voting data, or "unknown" if unavailable.
+func (d *MatchDetails) MapName() string {
+	if len(d.Voting.Map.Pick) > 0 && d.Voting.Map.Pick[0] != "" {
+		return d.Voting.Map.Pick[0]
+	}
+	return "unknown"
 }

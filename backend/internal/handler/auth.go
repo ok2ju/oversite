@@ -6,21 +6,27 @@ import (
 	"log/slog"
 	"net/http"
 
+	chimw "github.com/go-chi/chi/v5/middleware"
+
 	"github.com/ok2ju/oversite/backend/internal/auth"
+	"github.com/ok2ju/oversite/backend/internal/worker"
 )
 
 // AuthHandler handles OAuth login, callback, logout, and session routes.
 type AuthHandler struct {
 	oauth    *auth.OAuthService
 	sessions auth.SessionStore
+	queue    JobEnqueuer
 	secure   bool // whether to set Secure flag on cookies
 }
 
-// NewAuthHandler creates a new AuthHandler.
-func NewAuthHandler(oauth *auth.OAuthService, sessions auth.SessionStore, secure bool) *AuthHandler {
+// NewAuthHandler creates a new AuthHandler. Pass nil for queue to disable
+// automatic sync-on-login.
+func NewAuthHandler(oauth *auth.OAuthService, sessions auth.SessionStore, secure bool, queue JobEnqueuer) *AuthHandler {
 	return &AuthHandler{
 		oauth:    oauth,
 		sessions: sessions,
+		queue:    queue,
 		secure:   secure,
 	}
 }
@@ -75,6 +81,16 @@ func (h *AuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   7 * 24 * 60 * 60, // 7 days
 	})
+
+	// Enqueue Faceit sync job on login — non-fatal on failure.
+	if h.queue != nil {
+		if _, err := h.queue.Enqueue(r.Context(), worker.FaceitSyncStream, map[string]interface{}{
+			"user_id":   user.ID.String(),
+			"faceit_id": user.FaceitID,
+		}); err != nil {
+			slog.Warn("enqueueing faceit sync on login", "error", err, "user_id", user.ID, "request_id", chimw.GetReqID(r.Context()))
+		}
+	}
 
 	http.Redirect(w, r, "/dashboard", http.StatusFound)
 }

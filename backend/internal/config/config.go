@@ -127,6 +127,56 @@ func LoadWS() (*WSConfig, error) {
 	return cfg, nil
 }
 
+// WorkerConfig holds configuration for the background worker process.
+type WorkerConfig struct {
+	DatabaseURL          string
+	RedisURL             string
+	FaceitAPIKey         string
+	FaceitAPIBaseURL     string
+	Environment          string
+	LogLevel             string
+	WorkerMaxRetry       int
+	WorkerBlockTimeout   time.Duration
+	WorkerStaleThreshold time.Duration
+	WorkerClaimInterval  time.Duration
+}
+
+// LoadWorker reads configuration for the worker process from environment variables.
+// Required variables: DATABASE_URL, REDIS_URL, FACEIT_API_KEY.
+func LoadWorker() (*WorkerConfig, error) {
+	cfg := &WorkerConfig{
+		FaceitAPIBaseURL:     getEnvOrDefault("FACEIT_API_BASE_URL", "https://open.faceit.com/data/v4"),
+		Environment:          getEnvOrDefault("GO_ENV", "development"),
+		LogLevel:             getEnvOrDefault("LOG_LEVEL", "info"),
+		WorkerMaxRetry:       getEnvOrDefaultInt("WORKER_MAX_RETRY", 3),
+		WorkerBlockTimeout:   getEnvOrDefaultDuration("WORKER_BLOCK_TIMEOUT", 2*time.Second),
+		WorkerStaleThreshold: getEnvOrDefaultDuration("WORKER_STALE_THRESHOLD", 30*time.Second),
+		WorkerClaimInterval:  getEnvOrDefaultDuration("WORKER_CLAIM_INTERVAL", 10*time.Second),
+	}
+
+	required := map[string]*string{
+		"DATABASE_URL":  &cfg.DatabaseURL,
+		"REDIS_URL":     &cfg.RedisURL,
+		"FACEIT_API_KEY": &cfg.FaceitAPIKey,
+	}
+
+	var missing []string
+	for key, ptr := range required {
+		val := os.Getenv(key)
+		if val == "" {
+			missing = append(missing, key)
+		}
+		*ptr = val
+	}
+
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		return nil, fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
+	}
+
+	return cfg, nil
+}
+
 func getEnvOrDefault(key, defaultVal string) string {
 	if val := os.Getenv(key); val != "" {
 		return val
