@@ -35,3 +35,34 @@ export interface TickData {
 export interface TickDataResponse {
   data: TickData[]
 }
+
+export type GameEventType =
+  | "kill"
+  | "player_hurt"
+  | "grenade_throw"
+  | "grenade_detonate"
+  | "smoke_start"
+  | "smoke_expired"
+  | "decoy_start"
+  | "bomb_plant"
+  | "bomb_defuse"
+  | "bomb_explode"
+
+export interface GameEvent {
+  id: string
+  demo_id: string
+  round_id: string | null
+  tick: number
+  event_type: GameEventType
+  attacker_steam_id: string | null
+  victim_steam_id: string | null
+  weapon: string | null
+  x: number | null
+  y: number | null
+  z: number | null
+  extra_data: Record<string, unknown> | null
+}
+
+export interface GameEventsResponse {
+  data: GameEvent[]
+}
