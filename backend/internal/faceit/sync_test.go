@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,6 +23,7 @@ type mockFaceitAPI struct {
 	historyErr   error
 	details      map[string]*faceit.MatchDetails
 	detailsErr   error
+	mu           sync.Mutex
 	detailsCalls []string
 }
 
@@ -44,7 +46,9 @@ func (m *mockFaceitAPI) GetPlayerHistory(_ context.Context, _ string, offset, li
 }
 
 func (m *mockFaceitAPI) GetMatchDetails(_ context.Context, matchID string) (*faceit.MatchDetails, error) {
+	m.mu.Lock()
 	m.detailsCalls = append(m.detailsCalls, matchID)
+	m.mu.Unlock()
 	if m.detailsErr != nil {
 		return nil, m.detailsErr
 	}
