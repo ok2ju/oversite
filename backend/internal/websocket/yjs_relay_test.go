@@ -409,7 +409,12 @@ func TestAutoSave_TriggersOnInterval(t *testing.T) {
 	ms := newMockStateStore()
 	relay := NewYjsRelay(ms, 50*time.Millisecond)
 
-	room := &RelayRoom{boardID: "board-1", done: make(chan struct{})}
+	room := &RelayRoom{
+		boardID:    "board-1",
+		done:       make(chan struct{}),
+		stopped:    make(chan struct{}),
+		saveTicker: time.NewTicker(50 * time.Millisecond),
+	}
 	room.updates = [][]byte{{yjsMsgSync, 0x01}}
 	relay.mu.Lock()
 	relay.rooms["board-1"] = room
@@ -435,7 +440,12 @@ func TestAutoSave_PreservesUpdatesAfterSave(t *testing.T) {
 	ms := newMockStateStore()
 	relay := NewYjsRelay(ms, 50*time.Millisecond)
 
-	room := &RelayRoom{boardID: "board-1", done: make(chan struct{})}
+	room := &RelayRoom{
+		boardID:    "board-1",
+		done:       make(chan struct{}),
+		stopped:    make(chan struct{}),
+		saveTicker: time.NewTicker(50 * time.Millisecond),
+	}
 	room.updates = [][]byte{{yjsMsgSync, 0x01}}
 	relay.mu.Lock()
 	relay.rooms["board-1"] = room

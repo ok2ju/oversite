@@ -169,8 +169,10 @@ func (r *YjsRelay) OnFirstClientJoin(ctx context.Context, boardID string) ([][]b
 	}
 
 	room := &RelayRoom{
-		boardID: boardID,
-		done:    make(chan struct{}),
+		boardID:    boardID,
+		done:       make(chan struct{}),
+		stopped:    make(chan struct{}),
+		saveTicker: time.NewTicker(r.saveInterval),
 	}
 	if messages != nil {
 		room.updates = make([][]byte, len(messages))
@@ -301,9 +303,8 @@ func (r *YjsRelay) saveRoom(ctx context.Context, room *RelayRoom, final bool) {
 }
 
 // startAutoSave launches a goroutine that periodically persists room state.
+// The room's saveTicker and stopped channel must be initialized before calling.
 func (r *YjsRelay) startAutoSave(room *RelayRoom) {
-	room.saveTicker = time.NewTicker(r.saveInterval)
-	room.stopped = make(chan struct{})
 	go func() {
 		defer close(room.stopped)
 		for {
