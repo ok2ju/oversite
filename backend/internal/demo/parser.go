@@ -13,10 +13,11 @@ import (
 
 // ParseResult is the complete output of parsing a demo file.
 type ParseResult struct {
-	Header MatchHeader
-	Rounds []RoundData
-	Ticks  []TickSnapshot
-	Events []GameEvent
+	Header  MatchHeader
+	Rounds  []RoundData
+	Ticks   []TickSnapshot
+	Events  []GameEvent
+	Lineups []GrenadeLineup
 }
 
 // MatchHeader contains match-level metadata.
@@ -159,6 +160,8 @@ func (dp *DemoParser) Parse(r io.Reader) (result *ParseResult, err error) {
 		durationSecs = int(float64(totalTicks) / tickRate)
 	}
 
+	lineups := ExtractGrenadeLineups(state.mapName, state.events)
+
 	return &ParseResult{
 		Header: MatchHeader{
 			MapName:      state.mapName,
@@ -166,9 +169,10 @@ func (dp *DemoParser) Parse(r io.Reader) (result *ParseResult, err error) {
 			TotalTicks:   totalTicks,
 			DurationSecs: durationSecs,
 		},
-		Rounds: state.rounds,
-		Ticks:  state.ticks,
-		Events: state.events,
+		Rounds:  state.rounds,
+		Ticks:   state.ticks,
+		Events:  state.events,
+		Lineups: lineups,
 	}, nil
 }
 
@@ -416,6 +420,15 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			grenadeType = e.Projectile.WeaponInstance.String()
 		}
 
+		extra := map[string]interface{}{}
+		if e.Projectile.Entity != nil {
+			extra["entity_id"] = e.Projectile.Entity.ID()
+		}
+		if e.Projectile.Thrower != nil {
+			extra["throw_yaw"] = float64(e.Projectile.Thrower.ViewDirectionX())
+			extra["throw_pitch"] = float64(e.Projectile.Thrower.ViewDirectionY())
+		}
+
 		state.events = append(state.events, GameEvent{
 			Tick:            p.GameState().IngameTick(),
 			RoundNumber:     state.currentRound,
@@ -425,6 +438,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			X:               pos.X,
 			Y:               pos.Y,
 			Z:               pos.Z,
+			ExtraData:       extra,
 		})
 	})
 
@@ -439,6 +453,10 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 				throwerID = strconv.FormatUint(e.Thrower.SteamID64, 10)
 			}
 
+			extra := map[string]interface{}{
+				"entity_id": e.GrenadeEntityID,
+			}
+
 			state.events = append(state.events, GameEvent{
 				Tick:            p.GameState().IngameTick(),
 				RoundNumber:     state.currentRound,
@@ -448,6 +466,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 				X:               e.Position.X,
 				Y:               e.Position.Y,
 				Z:               e.Position.Z,
+				ExtraData:       extra,
 			})
 		}
 	}

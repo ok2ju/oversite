@@ -149,6 +149,26 @@ func TestParseDemo_GoldenEvents(t *testing.T) {
 	}
 }
 
+func TestParseDemo_GoldenLineups(t *testing.T) {
+	result := parseFixture(t)
+
+	name := "small_match_lineups"
+	if *update {
+		writeGolden(t, name, result.Lineups)
+		t.Logf("updated golden file: %s", goldenPath(name))
+		return
+	}
+
+	var want []GrenadeLineup
+	loadGolden(t, name, &want)
+
+	gotJSON, _ := json.Marshal(result.Lineups)
+	wantJSON, _ := json.Marshal(want)
+	if string(gotJSON) != string(wantJSON) {
+		t.Errorf("lineups mismatch\ngot:  %s\nwant: %s", gotJSON, wantJSON)
+	}
+}
+
 func TestParseDemo_BasicAssertions(t *testing.T) {
 	result := parseFixture(t)
 
