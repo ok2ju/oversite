@@ -13,10 +13,19 @@ type contextKey string
 // UserIDKey is the context key for the authenticated user's ID.
 const UserIDKey contextKey = "userID"
 
+// FaceitIDKey is the context key for the authenticated user's Faceit ID.
+const FaceitIDKey contextKey = "faceitID"
+
 // UserIDFromContext extracts the authenticated user's ID from the request context.
 func UserIDFromContext(ctx context.Context) (string, bool) {
 	uid, ok := ctx.Value(UserIDKey).(string)
 	return uid, ok
+}
+
+// FaceitIDFromContext extracts the authenticated user's Faceit ID from the request context.
+func FaceitIDFromContext(ctx context.Context) (string, bool) {
+	fid, ok := ctx.Value(FaceitIDKey).(string)
+	return fid, ok
 }
 
 // RequireAuth returns a chi-compatible middleware that validates the session_token
@@ -47,6 +56,7 @@ func RequireAuth(sessions SessionStore) func(http.Handler) http.Handler {
 			}
 
 			ctx := context.WithValue(r.Context(), UserIDKey, session.UserID)
+			ctx = context.WithValue(ctx, FaceitIDKey, session.FaceitID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
