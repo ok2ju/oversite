@@ -41,7 +41,6 @@ vi.mock("@/lib/pixi/layers/map-layer", () => {
       setMap = mockSetMap
       clear = mockClear
       destroy = mockMapLayerDestroy
-      calibration = null
     },
   }
 })
