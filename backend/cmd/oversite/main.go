@@ -104,6 +104,7 @@ func serveCmd() *cobra.Command {
 
 			queue := worker.NewRedisQueue(redisClient)
 			demoHandler := handler.NewDemoHandler(queries, minioClient, queue, cfg.MinioBucket)
+			tickHandler := handler.NewTickHandler(queries, queries)
 
 			// Health checks with real dependencies
 			health := handler.NewHealthHandler(
@@ -111,7 +112,7 @@ func serveCmd() *cobra.Command {
 				stateStore,
 				&handler.MinIOChecker{Endpoint: cfg.MinioEndpoint, UseSSL: cfg.MinioUseSSL},
 			)
-			router := handler.NewRouter(health, authHandler, demoHandler, sessionStore)
+			router := handler.NewRouter(health, authHandler, demoHandler, tickHandler, sessionStore)
 
 			slog.Info("starting API server", "port", cfg.Port, "env", cfg.Environment)
 			return http.ListenAndServe(":"+cfg.Port, router)
