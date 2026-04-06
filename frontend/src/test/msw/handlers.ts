@@ -108,7 +108,11 @@ export const handlers = [
       return HttpResponse.json({ error: "demo not found" }, { status: 404 })
     }
     const data: TickData[] = []
-    const steamIds = ["76561198000000001", "76561198000000002"]
+    const allSteamIds = ["76561198000000001", "76561198000000002"]
+    const steamIdsParam = url.searchParams.get("steam_ids")
+    const steamIds = steamIdsParam
+      ? steamIdsParam.split(",").map((s) => s.trim())
+      : allSteamIds
     for (let t = startTick; t <= Math.min(endTick, startTick + 9); t++) {
       for (const sid of steamIds) {
         data.push({

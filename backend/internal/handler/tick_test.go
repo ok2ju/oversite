@@ -2,7 +2,6 @@ package handler_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -146,6 +145,25 @@ func TestHandleGetTicks(t *testing.T) {
 			},
 		},
 		{
+			name: "steam_ids with whitespace are trimmed",
+			setup: func() (*handler.TickHandler, *http.Request) {
+				ts := &mockTickStore{
+					getTickDataByRangeAndPlayersFn: func(_ context.Context, arg store.GetTickDataByRangeAndPlayersParams) ([]store.TickDatum, error) {
+						if len(arg.Column4) != 2 || arg.Column4[0] != "76561198000000001" || arg.Column4[1] != "76561198000000002" {
+							t.Errorf("expected trimmed steam_ids, got %v", arg.Column4)
+						}
+						return sampleTickData()[:1], nil
+					},
+				}
+				h := handler.NewTickHandler(ownerDemoGetter(), ts)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/demos/"+testDemoID.String()+"/ticks?start_tick=0&end_tick=640&steam_ids=76561198000000001,+76561198000000002", nil)
+				req = withUserID(req, testUserID.String())
+				req = withChiURLParam(req, "id", testDemoID.String())
+				return h, req
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
 			name: "missing start_tick returns 400",
 			setup: func() (*handler.TickHandler, *http.Request) {
 				h := handler.NewTickHandler(ownerDemoGetter(), &mockTickStore{})
@@ -168,15 +186,31 @@ func TestHandleGetTicks(t *testing.T) {
 			wantStatus: http.StatusBadRequest,
 		},
 		{
-			name: "range exceeds 6400 returns 400",
+			name: "range exactly at limit returns 400",
 			setup: func() (*handler.TickHandler, *http.Request) {
 				h := handler.NewTickHandler(ownerDemoGetter(), &mockTickStore{})
-				req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/demos/%s/ticks?start_tick=0&end_tick=6401", testDemoID), nil)
+				req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/demos/%s/ticks?start_tick=0&end_tick=6400", testDemoID), nil)
 				req = withUserID(req, testUserID.String())
 				req = withChiURLParam(req, "id", testDemoID.String())
 				return h, req
 			},
 			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name: "range just under limit returns 200",
+			setup: func() (*handler.TickHandler, *http.Request) {
+				ts := &mockTickStore{
+					getTickDataByRangeFn: func(_ context.Context, _ store.GetTickDataByRangeParams) ([]store.TickDatum, error) {
+						return nil, nil
+					},
+				}
+				h := handler.NewTickHandler(ownerDemoGetter(), ts)
+				req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/demos/%s/ticks?start_tick=0&end_tick=6399", testDemoID), nil)
+				req = withUserID(req, testUserID.String())
+				req = withChiURLParam(req, "id", testDemoID.String())
+				return h, req
+			},
+			wantStatus: http.StatusOK,
 		},
 		{
 			name: "start > end returns 400",
@@ -227,7 +261,7 @@ func TestHandleGetTicks(t *testing.T) {
 			setup: func() (*handler.TickHandler, *http.Request) {
 				dg := &mockDemoGetter{
 					getDemoByIDFn: func(_ context.Context, _ uuid.UUID) (store.Demo, error) {
-						return store.Demo{}, sql.ErrNoRows
+						return store.Demo{}, store.ErrNotFound
 					},
 				}
 				h := handler.NewTickHandler(dg, &mockTickStore{})

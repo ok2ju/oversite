@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -125,7 +124,7 @@ func (h *TickHandler) HandleGetTicks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if endTick-startTick > MaxTickRange {
+	if endTick-startTick >= MaxTickRange {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "tick range exceeds maximum of 6400"})
 		return
 	}
@@ -133,7 +132,7 @@ func (h *TickHandler) HandleGetTicks(w http.ResponseWriter, r *http.Request) {
 	// Ownership check.
 	d, err := h.demos.GetDemoByID(r.Context(), demoID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, store.ErrNotFound) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "demo not found"})
 			return
 		}
@@ -152,7 +151,13 @@ func (h *TickHandler) HandleGetTicks(w http.ResponseWriter, r *http.Request) {
 
 	steamIDsStr := r.URL.Query().Get("steam_ids")
 	if steamIDsStr != "" {
-		steamIDs := strings.Split(steamIDsStr, ",")
+		parts := strings.Split(steamIDsStr, ",")
+		steamIDs := make([]string, 0, len(parts))
+		for _, s := range parts {
+			if trimmed := strings.TrimSpace(s); trimmed != "" {
+				steamIDs = append(steamIDs, trimmed)
+			}
+		}
 		rows, err = h.ticks.GetTickDataByRangeAndPlayers(r.Context(), store.GetTickDataByRangeAndPlayersParams{
 			DemoID:  demoID,
 			Tick:    int32(startTick),

@@ -23,6 +23,8 @@ interface ChunkState {
   lastAccessed: number
 }
 
+// Uses raw fetch instead of TanStack Query because TickBuffer manages its own
+// imperative LRU chunk cache with abort-on-seek — outside React's lifecycle.
 const defaultFetchFn: FetchTicksFn = async (demoId, startTick, endTick, signal) => {
   const params = new URLSearchParams({
     start_tick: String(startTick),
