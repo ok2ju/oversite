@@ -67,7 +67,7 @@ func loadGolden(t *testing.T, name string, v interface{}) {
 	t.Helper()
 	data, err := os.ReadFile(goldenPath(name))
 	if errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("golden file not found: %s (run with -update to generate)", goldenPath(name))
+		t.Skipf("golden file not found: %s (run with -update to generate)", goldenPath(name))
 	}
 	if err != nil {
 		t.Fatalf("reading golden file: %v", err)

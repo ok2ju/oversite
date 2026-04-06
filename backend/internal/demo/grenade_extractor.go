@@ -104,7 +104,7 @@ func ExtractGrenadeLineups(mapName string, events []GameEvent) []GrenadeLineup {
 		pending[key] = queue[1:]
 
 		displayName := grenadeDisplayName(thr.weapon)
-		title := generateTitle(mapName, displayName, thr.x, thr.y, ev.X, ev.Y)
+		title := generateTitle(mapName, displayName, thr.x, thr.y, thr.z, ev.X, ev.Y, ev.Z)
 
 		lineups = append(lineups, GrenadeLineup{
 			Tick:        thr.tick,
@@ -128,9 +128,9 @@ func ExtractGrenadeLineups(mapName string, events []GameEvent) []GrenadeLineup {
 }
 
 // generateTitle creates a human-readable title like "Smoke T Spawn → A Site".
-func generateTitle(mapName, grenadeDisplay string, throwX, throwY, landX, landY float64) string {
-	from := resolveCallout(mapName, throwX, throwY)
-	to := resolveCallout(mapName, landX, landY)
+func generateTitle(mapName, grenadeDisplay string, throwX, throwY, throwZ, landX, landY, landZ float64) string {
+	from := resolveCallout(mapName, throwX, throwY, throwZ)
+	to := resolveCallout(mapName, landX, landY, landZ)
 	return fmt.Sprintf("%s %s → %s", grenadeDisplay, from, to)
 }
 

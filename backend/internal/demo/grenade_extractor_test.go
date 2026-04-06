@@ -284,35 +284,35 @@ func TestGenerateTitle(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		mapName        string
-		grenadeDisplay string
-		throwX, throwY float64
-		landX, landY   float64
-		want           string
+		name                   string
+		mapName                string
+		grenadeDisplay         string
+		throwX, throwY, throwZ float64
+		landX, landY, landZ    float64
+		want                   string
 	}{
 		{
 			name:           "known callouts",
 			mapName:        "de_dust2",
 			grenadeDisplay: "Smoke",
-			throwX:         -300, throwY: -600,
-			landX: 1000, landY: 2000,
+			throwX:         -300, throwY: -600, throwZ: 0,
+			landX: 1000, landY: 2000, landZ: 0,
 			want: "Smoke T Spawn → A Site",
 		},
 		{
 			name:           "unknown throw position",
 			mapName:        "de_dust2",
 			grenadeDisplay: "Flash",
-			throwX:         9999, throwY: 9999,
-			landX: 1000, landY: 2000,
+			throwX:         9999, throwY: 9999, throwZ: 0,
+			landX: 1000, landY: 2000, landZ: 0,
 			want: "Flash (9999, 9999) → A Site",
 		},
 		{
 			name:           "unknown map",
 			mapName:        "de_unknown",
 			grenadeDisplay: "HE",
-			throwX:         100, throwY: 200,
-			landX: 300, landY: 400,
+			throwX:         100, throwY: 200, throwZ: 0,
+			landX: 300, landY: 400, landZ: 0,
 			want: "HE (100, 200) → (300, 400)",
 		},
 	}
@@ -320,7 +320,7 @@ func TestGenerateTitle(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := generateTitle(tt.mapName, tt.grenadeDisplay, tt.throwX, tt.throwY, tt.landX, tt.landY)
+			got := generateTitle(tt.mapName, tt.grenadeDisplay, tt.throwX, tt.throwY, tt.throwZ, tt.landX, tt.landY, tt.landZ)
 			if got != tt.want {
 				t.Errorf("generateTitle() = %q, want %q", got, tt.want)
 			}

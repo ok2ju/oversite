@@ -3,10 +3,13 @@ package demo
 import "fmt"
 
 // calloutRegion defines a named rectangular area on a CS2 map in world-space coordinates.
+// MinZ/MaxZ are optional: when MinZ < MaxZ, the Z coordinate is checked too.
+// This disambiguates vertically stacked regions (e.g. Nuke A/B sites).
 type calloutRegion struct {
-	Name         string
-	MinX, MaxX   float64
-	MinY, MaxY   float64
+	Name       string
+	MinX, MaxX float64
+	MinY, MaxY float64
+	MinZ, MaxZ float64
 }
 
 // mapCallouts maps CS2 map names to their callout regions.
@@ -65,8 +68,8 @@ var mapCallouts = map[string][]calloutRegion{
 	"de_nuke": {
 		{Name: "T Spawn", MinX: -800, MaxX: 0, MinY: -1400, MaxY: -600},
 		{Name: "CT Spawn", MinX: -200, MaxX: 600, MinY: 600, MaxY: 1200},
-		{Name: "A Site", MinX: -600, MaxX: 400, MinY: -200, MaxY: 600},
-		{Name: "B Site", MinX: -600, MaxX: 400, MinY: -200, MaxY: 600},
+		{Name: "A Site", MinX: -600, MaxX: 400, MinY: -200, MaxY: 600, MinZ: -550, MaxZ: 0},
+		{Name: "B Site", MinX: -600, MaxX: 400, MinY: -200, MaxY: 600, MinZ: -900, MaxZ: -550},
 		{Name: "Outside", MinX: 400, MaxX: 1600, MinY: -1200, MaxY: 200},
 		{Name: "Ramp", MinX: -800, MaxX: 0, MinY: -600, MaxY: 200},
 		{Name: "Lobby", MinX: -400, MaxX: 400, MinY: -800, MaxY: -200},
@@ -134,13 +137,16 @@ var mapCallouts = map[string][]calloutRegion{
 
 // resolveCallout returns the named callout for a position on a given map.
 // If no matching region is found, returns a coordinate string "(x, y)".
-func resolveCallout(mapName string, x, y float64) string {
+func resolveCallout(mapName string, x, y, z float64) string {
 	regions, ok := mapCallouts[mapName]
 	if !ok {
 		return fmt.Sprintf("(%.0f, %.0f)", x, y)
 	}
 	for _, r := range regions {
 		if x >= r.MinX && x <= r.MaxX && y >= r.MinY && y <= r.MaxY {
+			if r.MinZ < r.MaxZ && (z < r.MinZ || z > r.MaxZ) {
+				continue
+			}
 			return r.Name
 		}
 	}
