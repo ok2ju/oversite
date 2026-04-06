@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw"
-import type { Demo, TickData } from "@/types/demo"
+import type { Demo, GameEvent, TickData } from "@/types/demo"
 
 export const mockDemos: Demo[] = [
   {
@@ -97,6 +97,114 @@ export const handlers = [
       return HttpResponse.json({ error: "demo not found" }, { status: 404 })
     }
     return new HttpResponse(null, { status: 204 })
+  }),
+
+  http.get("/api/v1/demos/:id/events", ({ params }) => {
+    const demo = mockDemos.find((d) => d.id === params.id)
+    if (!demo) {
+      return HttpResponse.json({ error: "demo not found" }, { status: 404 })
+    }
+    const events: GameEvent[] = [
+      {
+        id: "evt-kill-1",
+        demo_id: String(params.id),
+        round_id: null,
+        tick: 1024,
+        event_type: "kill",
+        attacker_steam_id: "76561198000000001",
+        victim_steam_id: "76561198000000002",
+        weapon: "AK-47",
+        x: -500,
+        y: 1000,
+        z: 100,
+        extra_data: { attacker_x: -600, attacker_y: 800, headshot: true },
+      },
+      {
+        id: "evt-smoke-start-1",
+        demo_id: String(params.id),
+        round_id: null,
+        tick: 2048,
+        event_type: "smoke_start",
+        attacker_steam_id: "76561198000000001",
+        victim_steam_id: null,
+        weapon: "Smoke Grenade",
+        x: 200,
+        y: 300,
+        z: 0,
+        extra_data: { entity_id: "smoke-entity-1" },
+      },
+      {
+        id: "evt-smoke-expired-1",
+        demo_id: String(params.id),
+        round_id: null,
+        tick: 3200,
+        event_type: "smoke_expired",
+        attacker_steam_id: null,
+        victim_steam_id: null,
+        weapon: null,
+        x: 200,
+        y: 300,
+        z: 0,
+        extra_data: { entity_id: "smoke-entity-1" },
+      },
+      {
+        id: "evt-he-1",
+        demo_id: String(params.id),
+        round_id: null,
+        tick: 4096,
+        event_type: "grenade_detonate",
+        attacker_steam_id: "76561198000000001",
+        victim_steam_id: null,
+        weapon: "HE Grenade",
+        x: 0,
+        y: 500,
+        z: 0,
+        extra_data: null,
+      },
+      {
+        id: "evt-flash-1",
+        demo_id: String(params.id),
+        round_id: null,
+        tick: 5000,
+        event_type: "grenade_detonate",
+        attacker_steam_id: "76561198000000001",
+        victim_steam_id: null,
+        weapon: "Flashbang",
+        x: -300,
+        y: 200,
+        z: 0,
+        extra_data: null,
+      },
+      {
+        id: "evt-bomb-plant-1",
+        demo_id: String(params.id),
+        round_id: null,
+        tick: 6000,
+        event_type: "bomb_plant",
+        attacker_steam_id: "76561198000000003",
+        victim_steam_id: null,
+        weapon: null,
+        x: 100,
+        y: -200,
+        z: 0,
+        extra_data: null,
+      },
+      {
+        id: "evt-bomb-defuse-1",
+        demo_id: String(params.id),
+        round_id: null,
+        tick: 6500,
+        event_type: "bomb_defuse",
+        attacker_steam_id: "76561198000000004",
+        victim_steam_id: null,
+        weapon: null,
+        x: 100,
+        y: -200,
+        z: 0,
+        extra_data: { has_kit: true },
+      },
+    ]
+    return HttpResponse.json({ data: events })
   }),
 
   http.get("/api/v1/demos/:id/ticks", ({ request, params }) => {

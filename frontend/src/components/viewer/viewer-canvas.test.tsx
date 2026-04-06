@@ -5,7 +5,15 @@ import { useViewerStore } from "@/stores/viewer"
 const mockDestroy = vi.fn()
 const mockTickerStart = vi.fn()
 const mockTickerStop = vi.fn()
-const mockTicker = { start: mockTickerStart, stop: mockTickerStop, speed: 1 }
+const mockTickerAdd = vi.fn()
+const mockTickerRemove = vi.fn()
+const mockTicker = {
+  start: mockTickerStart,
+  stop: mockTickerStop,
+  add: mockTickerAdd,
+  remove: mockTickerRemove,
+  speed: 1,
+}
 
 const mockAddLayer = vi.fn().mockReturnValue({ addChild: vi.fn(), removeChild: vi.fn() })
 
@@ -52,6 +60,20 @@ vi.mock("@/lib/pixi/layers/player-layer", () => {
   }
 })
 
+const mockEventLayerSetEvents = vi.fn()
+const mockEventLayerUpdate = vi.fn()
+const mockEventLayerDestroy = vi.fn()
+
+vi.mock("@/lib/pixi/layers/event-layer", () => {
+  return {
+    EventLayer: class MockEventLayer {
+      setEvents = mockEventLayerSetEvents
+      update = mockEventLayerUpdate
+      destroy = mockEventLayerDestroy
+    },
+  }
+})
+
 vi.mock("@/hooks/use-roster", () => ({
   fetchRoster: vi.fn().mockResolvedValue([]),
 }))
@@ -65,6 +87,10 @@ vi.mock("@/lib/pixi/tick-buffer", () => ({
     dispose = mockTickBufferDispose
     seek = vi.fn()
   },
+}))
+
+vi.mock("@/hooks/use-game-events", () => ({
+  useGameEvents: vi.fn().mockReturnValue({ data: undefined }),
 }))
 
 import { ViewerCanvas } from "./viewer-canvas"
@@ -81,6 +107,8 @@ describe("ViewerCanvas", () => {
     mockPlayerLayerDestroy.mockReset()
     mockTickBufferDispose.mockReset()
     useViewerStore.getState().reset()
+    // Re-set return values cleared by clearAllMocks
+    mockSetMap.mockResolvedValue(undefined)
   })
 
   afterEach(() => {

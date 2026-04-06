@@ -4,9 +4,11 @@ import { useEffect, useRef } from "react"
 import { createViewerApp, type ViewerApp } from "@/lib/pixi/app"
 import { MapLayer } from "@/lib/pixi/layers/map-layer"
 import { PlayerLayer } from "@/lib/pixi/layers/player-layer"
+import { EventLayer } from "@/lib/pixi/layers/event-layer"
 import { TickBuffer } from "@/lib/pixi/tick-buffer"
 import { fetchRoster } from "@/hooks/use-roster"
 import { useViewerStore } from "@/stores/viewer"
+import { useGameEvents } from "@/hooks/use-game-events"
 import { shallow } from "zustand/shallow"
 
 function setupViewerSubscriptions(app: ViewerApp): () => void {
@@ -41,6 +43,17 @@ function setupViewerSubscriptions(app: ViewerApp): () => void {
 
 export function ViewerCanvas() {
   const containerRef = useRef<HTMLDivElement>(null)
+  const eventLayerRef = useRef<EventLayer | null>(null)
+
+  const demoId = useViewerStore((s) => s.demoId)
+  const { data: gameEventsData } = useGameEvents(demoId)
+
+  // Feed event data into the EventLayer whenever the query result changes.
+  useEffect(() => {
+    if (gameEventsData && eventLayerRef.current) {
+      eventLayerRef.current.setEvents(gameEventsData.data)
+    }
+  }, [gameEventsData])
 
   useEffect(() => {
     const container = containerRef.current
@@ -51,12 +64,14 @@ export function ViewerCanvas() {
     let mapLayer: MapLayer | null = null
     let playerLayer: PlayerLayer | null = null
     let tickBuffer: TickBuffer | null = null
+    let eventLayer: EventLayer | null = null
     let unsubscribe: (() => void) | null = null
     let mapUnsub: (() => void) | null = null
     let tickUnsub: (() => void) | null = null
     let roundUnsub: (() => void) | null = null
     let demoUnsub: (() => void) | null = null
     let rosterAbortController: AbortController | null = null
+    let tickerFn: (() => void) | null = null
 
     createViewerApp({ container }).then((app) => {
       if (destroyed) {
@@ -76,6 +91,10 @@ export function ViewerCanvas() {
         const { selectedPlayerSteamId, setSelectedPlayer } = useViewerStore.getState()
         setSelectedPlayer(selectedPlayerSteamId === steamId ? null : steamId)
       })
+
+      const eventContainer = app.addLayer("events")
+      eventLayer = new EventLayer(eventContainer)
+      eventLayerRef.current = eventLayer
 
       unsubscribe = setupViewerSubscriptions(app)
 
@@ -131,6 +150,15 @@ export function ViewerCanvas() {
         },
         { fireImmediately: true, equalityFn: shallow }
       )
+
+      tickerFn = () => {
+        const calibration = mapLayer?.calibration
+        if (eventLayer && calibration) {
+          const { currentTick } = useViewerStore.getState()
+          eventLayer.update(currentTick, calibration)
+        }
+      }
+      app.ticker.add(tickerFn)
     })
 
     return () => {
@@ -139,10 +167,15 @@ export function ViewerCanvas() {
       roundUnsub?.()
       tickUnsub?.()
       demoUnsub?.()
+      if (tickerFn && viewerApp) {
+        viewerApp.ticker.remove(tickerFn)
+      }
       mapUnsub?.()
       unsubscribe?.()
       tickBuffer?.dispose()
       playerLayer?.destroy()
+      eventLayer?.destroy()
+      eventLayerRef.current = null
       mapLayer?.destroy()
       viewerApp?.destroy()
     }

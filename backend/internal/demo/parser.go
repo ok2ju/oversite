@@ -341,6 +341,10 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 		if e.Killer != nil {
 			extra["attacker_name"] = e.Killer.Name
 			extra["attacker_team"] = teamSideString(e.Killer.Team)
+			killerPos := e.Killer.Position()
+			extra["attacker_x"] = killerPos.X
+			extra["attacker_y"] = killerPos.Y
+			extra["attacker_z"] = killerPos.Z
 		}
 		if e.Victim != nil {
 			extra["victim_name"] = e.Victim.Name
@@ -523,6 +527,11 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			playerID = strconv.FormatUint(e.Player.SteamID64, 10)
 		}
 
+		hasKit := false
+		if e.Player != nil {
+			hasKit = e.Player.HasDefuseKit()
+		}
+
 		bombPos := p.GameState().Bomb().Position()
 		state.events = append(state.events, GameEvent{
 			Tick:            p.GameState().IngameTick(),
@@ -533,7 +542,8 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			Y:               bombPos.Y,
 			Z:               bombPos.Z,
 			ExtraData: map[string]interface{}{
-				"site": bombsiteString(e.Site),
+				"site":    bombsiteString(e.Site),
+				"has_kit": hasKit,
 			},
 		})
 	})
