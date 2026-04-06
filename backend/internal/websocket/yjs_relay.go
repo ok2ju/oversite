@@ -130,6 +130,7 @@ type RelayRoom struct {
 	mu         sync.Mutex
 	saveTicker *time.Ticker
 	done       chan struct{}
+	stopped    chan struct{} // closed when auto-save goroutine exits
 }
 
 // YjsRelay manages Yjs message routing and state persistence across rooms.
@@ -177,6 +178,12 @@ func (r *YjsRelay) OnFirstClientJoin(ctx context.Context, boardID string) ([][]b
 	}
 
 	r.mu.Lock()
+	if old, exists := r.rooms[boardID]; exists {
+		close(old.done)
+		if old.saveTicker != nil {
+			old.saveTicker.Stop()
+		}
+	}
 	r.rooms[boardID] = room
 	r.mu.Unlock()
 
@@ -244,8 +251,8 @@ func (r *YjsRelay) HandleMessage(boardID string, data []byte) (shouldRelay bool)
 	}
 }
 
-// OnLastClientLeave stops the auto-save ticker, persists state to the DB,
-// and removes the room.
+// OnLastClientLeave stops the auto-save ticker, waits for it to exit,
+// persists state to the DB, and removes the room.
 func (r *YjsRelay) OnLastClientLeave(ctx context.Context, boardID string) {
 	r.mu.Lock()
 	room, ok := r.rooms[boardID]
@@ -256,50 +263,56 @@ func (r *YjsRelay) OnLastClientLeave(ctx context.Context, boardID string) {
 	delete(r.rooms, boardID)
 	r.mu.Unlock()
 
-	// Stop auto-save goroutine.
+	// Stop auto-save goroutine and wait for it to fully exit
+	// before the final save, preventing concurrent saveRoom calls.
 	close(room.done)
 	if room.saveTicker != nil {
 		room.saveTicker.Stop()
 	}
+	if room.stopped != nil {
+		<-room.stopped
+	}
 
-	r.saveRoom(ctx, room)
+	r.saveRoom(ctx, room, true)
 }
 
-// saveRoom encodes accumulated updates and persists them to the DB.
+// saveRoom encodes the full accumulated updates and persists them to the DB.
+// When final is true (last client leaving), the in-memory updates are released.
+// When final is false (periodic auto-save), updates are kept in memory so the
+// DB always receives the complete state on each write.
 // It is a no-op when the updates slice is empty.
-func (r *YjsRelay) saveRoom(ctx context.Context, room *RelayRoom) {
+func (r *YjsRelay) saveRoom(ctx context.Context, room *RelayRoom, final bool) {
 	room.mu.Lock()
 	if len(room.updates) == 0 {
 		room.mu.Unlock()
 		return
 	}
 	encoded := EncodeUpdates(room.updates)
-	room.updates = room.updates[:0]
+	if final {
+		room.updates = nil
+	}
 	room.mu.Unlock()
 
 	if err := r.store.SaveYjsState(ctx, room.boardID, encoded); err != nil {
+		// No request_id available: saveRoom runs in a background goroutine
+		// outside any HTTP request context.
 		slog.Error("failed to save yjs state", "board_id", room.boardID, "error", err)
-		// Re-add updates on failure so they aren't lost.
-		decoded, decErr := DecodeUpdates(encoded)
-		if decErr == nil {
-			room.mu.Lock()
-			room.updates = append(decoded, room.updates...)
-			room.mu.Unlock()
-		}
 	}
 }
 
 // startAutoSave launches a goroutine that periodically persists room state.
 func (r *YjsRelay) startAutoSave(room *RelayRoom) {
 	room.saveTicker = time.NewTicker(r.saveInterval)
+	room.stopped = make(chan struct{})
 	go func() {
+		defer close(room.stopped)
 		for {
 			select {
 			case <-room.done:
 				return
 			case <-room.saveTicker.C:
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				r.saveRoom(ctx, room)
+				r.saveRoom(ctx, room, false)
 				cancel()
 			}
 		}

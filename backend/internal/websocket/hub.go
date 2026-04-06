@@ -99,39 +99,54 @@ func (h *Hub) Run() {
 			h.mu.Unlock()
 
 			if h.relay != nil {
-				var msgs [][]byte
 				if isFirstClient {
-					loaded, err := h.relay.OnFirstClientJoin(context.Background(), client.boardID)
-					if err != nil {
-						slog.Error("relay OnFirstClientJoin failed", "board_id", client.boardID, "error", err)
-					}
-					msgs = loaded
+					go func() {
+						loaded, err := h.relay.OnFirstClientJoin(context.Background(), client.boardID)
+						if err != nil {
+							slog.Error("relay OnFirstClientJoin failed",
+								"board_id", client.boardID,
+								"user_id", client.userID,
+								"error", err)
+							return
+						}
+						for _, m := range loaded {
+							select {
+							case client.send <- m:
+							default:
+								// Client send buffer full — drop message to avoid blocking.
+							}
+						}
+					}()
 				} else {
-					msgs = h.relay.OnClientJoin(client.boardID)
-				}
-				for _, m := range msgs {
-					select {
-					case client.send <- m:
-					default:
+					msgs := h.relay.OnClientJoin(client.boardID)
+					for _, m := range msgs {
+						select {
+						case client.send <- m:
+						default:
+							// Client send buffer full — drop message to avoid blocking.
+						}
 					}
 				}
 			}
 
 		case client := <-h.unregister:
+			var lastClientLeft bool
 			h.mu.Lock()
 			if room, ok := h.rooms[client.boardID]; ok {
 				if room.clients[client] {
 					room.remove(client)
 					close(client.send)
 					if room.isEmpty() {
-						if h.relay != nil {
-							h.relay.OnLastClientLeave(context.Background(), client.boardID)
-						}
+						lastClientLeft = h.relay != nil
 						delete(h.rooms, client.boardID)
 					}
 				}
 			}
 			h.mu.Unlock()
+
+			if lastClientLeft {
+				go h.relay.OnLastClientLeave(context.Background(), client.boardID)
+			}
 
 		case msg := <-h.broadcast:
 			shouldRelay := true

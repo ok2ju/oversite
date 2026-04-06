@@ -2,6 +2,7 @@ package config_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/ok2ju/oversite/backend/internal/config"
 )
@@ -311,6 +312,9 @@ func TestLoadWSDefaults(t *testing.T) {
 	if cfg.LogLevel != "info" {
 		t.Errorf("expected default LogLevel 'info', got %q", cfg.LogLevel)
 	}
+	if cfg.YjsAutoSaveInterval != 30*time.Second {
+		t.Errorf("expected default YjsAutoSaveInterval 30s, got %v", cfg.YjsAutoSaveInterval)
+	}
 }
 
 func TestLoadWSOverrideDefaults(t *testing.T) {
@@ -318,6 +322,7 @@ func TestLoadWSOverrideDefaults(t *testing.T) {
 	t.Setenv("WS_PORT", "9091")
 	t.Setenv("GO_ENV", "production")
 	t.Setenv("LOG_LEVEL", "debug")
+	t.Setenv("YJS_AUTO_SAVE_INTERVAL", "1m")
 
 	cfg, err := config.LoadWS()
 	if err != nil {
@@ -332,6 +337,9 @@ func TestLoadWSOverrideDefaults(t *testing.T) {
 	}
 	if cfg.LogLevel != "debug" {
 		t.Errorf("expected LogLevel 'debug', got %q", cfg.LogLevel)
+	}
+	if cfg.YjsAutoSaveInterval != time.Minute {
+		t.Errorf("expected YjsAutoSaveInterval 1m, got %v", cfg.YjsAutoSaveInterval)
 	}
 }
 

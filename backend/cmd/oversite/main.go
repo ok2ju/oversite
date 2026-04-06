@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -152,7 +151,7 @@ func wsCmd() *cobra.Command {
 			// Yjs relay with DB-backed state persistence.
 			queries := store.New(db)
 			stateStore := ws.NewPgStateStore(queries)
-			relay := ws.NewYjsRelay(stateStore, 30*time.Second)
+			relay := ws.NewYjsRelay(stateStore, cfg.YjsAutoSaveInterval)
 
 			hub := ws.NewHubWithRelay(relay)
 			go hub.Run()

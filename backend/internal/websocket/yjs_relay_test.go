@@ -431,7 +431,7 @@ func TestAutoSave_TriggersOnInterval(t *testing.T) {
 	room.saveTicker.Stop()
 }
 
-func TestAutoSave_ClearsUpdatesAfterSave(t *testing.T) {
+func TestAutoSave_PreservesUpdatesAfterSave(t *testing.T) {
 	ms := newMockStateStore()
 	relay := NewYjsRelay(ms, 50*time.Millisecond)
 
@@ -457,12 +457,100 @@ func TestAutoSave_ClearsUpdatesAfterSave(t *testing.T) {
 	updLen := len(room.updates)
 	room.mu.Unlock()
 
-	if updLen != 0 {
-		t.Errorf("expected 0 updates after save, got %d", updLen)
+	if updLen == 0 {
+		t.Error("expected updates to be preserved after auto-save, got 0")
 	}
 
 	close(room.done)
 	room.saveTicker.Stop()
+}
+
+// --- saveRoom error path tests ---
+
+func TestSaveRoom_ErrorKeepsUpdatesForRetry(t *testing.T) {
+	ms := newMockStateStore()
+	ms.saveErr = fmt.Errorf("db write failed")
+
+	relay := NewYjsRelay(ms, time.Hour)
+	room := &RelayRoom{
+		boardID: "board-1",
+		updates: [][]byte{
+			{yjsMsgSync, 0x01},
+			{yjsMsgSync, 0x02},
+		},
+		done: make(chan struct{}),
+	}
+	relay.mu.Lock()
+	relay.rooms["board-1"] = room
+	relay.mu.Unlock()
+
+	// Auto-save (final=false) should keep updates on error for retry.
+	relay.saveRoom(context.Background(), room, false)
+
+	room.mu.Lock()
+	updLen := len(room.updates)
+	room.mu.Unlock()
+
+	if updLen != 2 {
+		t.Errorf("expected 2 updates preserved after failed auto-save, got %d", updLen)
+	}
+
+	if ms.getSaveCnt() != 0 {
+		t.Errorf("expected 0 successful saves (all should fail), got %d", ms.getSaveCnt())
+	}
+}
+
+func TestSaveRoom_FinalSaveClearsUpdates(t *testing.T) {
+	ms := newMockStateStore()
+
+	relay := NewYjsRelay(ms, time.Hour)
+	room := &RelayRoom{
+		boardID: "board-1",
+		updates: [][]byte{
+			{yjsMsgSync, 0x01},
+		},
+		done: make(chan struct{}),
+	}
+
+	// Final save (final=true) should clear updates even on success.
+	relay.saveRoom(context.Background(), room, true)
+
+	room.mu.Lock()
+	updLen := len(room.updates)
+	room.mu.Unlock()
+
+	if updLen != 0 {
+		t.Errorf("expected 0 updates after final save, got %d", updLen)
+	}
+
+	if ms.getSaveCnt() != 1 {
+		t.Errorf("expected 1 save, got %d", ms.getSaveCnt())
+	}
+}
+
+func TestSaveRoom_FinalSaveErrorClearsUpdates(t *testing.T) {
+	ms := newMockStateStore()
+	ms.saveErr = fmt.Errorf("db write failed")
+
+	relay := NewYjsRelay(ms, time.Hour)
+	room := &RelayRoom{
+		boardID: "board-1",
+		updates: [][]byte{
+			{yjsMsgSync, 0x01},
+		},
+		done: make(chan struct{}),
+	}
+
+	// Final save clears updates even on error — room is being torn down.
+	relay.saveRoom(context.Background(), room, true)
+
+	room.mu.Lock()
+	updLen := len(room.updates)
+	room.mu.Unlock()
+
+	if updLen != 0 {
+		t.Errorf("expected 0 updates after final save (even on error), got %d", updLen)
+	}
 }
 
 // --- Binary passthrough test ---
