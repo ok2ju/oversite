@@ -35,6 +35,9 @@ export function createStratProvider(options: StratProviderOptions): StratProvide
     provider,
     doc,
     awareness: provider.awareness,
-    destroy: () => provider.destroy(),
+    destroy: () => {
+      provider.awareness.destroy()
+      provider.destroy()
+    },
   }
 }

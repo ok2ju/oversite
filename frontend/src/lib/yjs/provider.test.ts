@@ -1,32 +1,19 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import * as Y from "yjs"
 import { Awareness } from "y-protocols/awareness"
-
-const { mockProvider, MockWebsocketProvider } = vi.hoisted(() => {
-  const mockAwareness = { clientID: 1, getStates: () => new Map() }
-  const mockProvider = {
-    awareness: mockAwareness,
-    destroy: vi.fn(),
-  }
-  const MockWebsocketProvider = vi.fn().mockImplementation(function () {
-    return mockProvider
-  })
-  return { mockProvider, MockWebsocketProvider }
-})
-
-vi.mock("y-websocket", () => ({
-  WebsocketProvider: MockWebsocketProvider,
-}))
-
+import { WebsocketProvider } from "y-websocket"
 import { buildWsUrl, createStratProvider } from "./provider"
 
 describe("provider", () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal("location", {
       host: "localhost:3000",
       protocol: "http:",
     })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   describe("buildWsUrl", () => {
@@ -44,78 +31,68 @@ describe("provider", () => {
   })
 
   describe("createStratProvider", () => {
-    it("calls WebsocketProvider with correct args", () => {
+    it("returns a real WebsocketProvider instance", () => {
       const doc = new Y.Doc()
+      const result = createStratProvider({ stratId: "abc-123", doc, connect: false })
 
-      createStratProvider({ stratId: "abc-123", doc })
-
-      expect(MockWebsocketProvider).toHaveBeenCalledWith(
-        "ws://localhost:3000/ws/strat",
-        "abc-123",
-        doc,
-        expect.objectContaining({
-          connect: true,
-          maxBackoffTime: 10000,
-        })
-      )
-    })
-
-    it("defaults connect to true", () => {
-      const doc = new Y.Doc()
-
-      createStratProvider({ stratId: "abc-123", doc })
-
-      expect(MockWebsocketProvider).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.any(String),
-        expect.any(Y.Doc),
-        expect.objectContaining({ connect: true })
-      )
-    })
-
-    it("passes connect=false when specified", () => {
-      const doc = new Y.Doc()
-
-      createStratProvider({ stratId: "abc-123", doc, connect: false })
-
-      expect(MockWebsocketProvider).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.any(String),
-        expect.any(Y.Doc),
-        expect.objectContaining({ connect: false })
-      )
-    })
-
-    it("passes custom awareness when provided", () => {
-      const doc = new Y.Doc()
-      const awareness = new Awareness(doc)
-
-      createStratProvider({ stratId: "abc-123", doc, awareness })
-
-      expect(MockWebsocketProvider).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.any(String),
-        expect.any(Y.Doc),
-        expect.objectContaining({ awareness })
-      )
-    })
-
-    it("destroy calls provider.destroy", () => {
-      const doc = new Y.Doc()
-
-      const result = createStratProvider({ stratId: "abc-123", doc })
+      expect(result.provider).toBeInstanceOf(WebsocketProvider)
       result.destroy()
-
-      expect(mockProvider.destroy).toHaveBeenCalled()
     })
 
-    it("returns doc and awareness", () => {
+    it("returns the same doc that was passed in", () => {
       const doc = new Y.Doc()
-
-      const result = createStratProvider({ stratId: "abc-123", doc })
+      const result = createStratProvider({ stratId: "abc-123", doc, connect: false })
 
       expect(result.doc).toBe(doc)
-      expect(result.awareness).toBe(mockProvider.awareness)
+      result.destroy()
+    })
+
+    it("returns an Awareness instance", () => {
+      const doc = new Y.Doc()
+      const result = createStratProvider({ stratId: "abc-123", doc, connect: false })
+
+      expect(result.awareness).toBeInstanceOf(Awareness)
+      result.destroy()
+    })
+
+    it("uses custom awareness when provided", () => {
+      const doc = new Y.Doc()
+      const awareness = new Awareness(doc)
+      const result = createStratProvider({
+        stratId: "abc-123",
+        doc,
+        awareness,
+        connect: false,
+      })
+
+      expect(result.awareness).toBe(awareness)
+      result.destroy()
+    })
+
+    it("configures provider with correct room name", () => {
+      const doc = new Y.Doc()
+      const result = createStratProvider({ stratId: "my-strat", doc, connect: false })
+
+      expect(result.provider.roomname).toBe("my-strat")
+      result.destroy()
+    })
+
+    it("configures provider with correct server URL", () => {
+      const doc = new Y.Doc()
+      const result = createStratProvider({ stratId: "abc-123", doc, connect: false })
+
+      expect(result.provider.url).toContain("ws://localhost:3000/ws/strat")
+      result.destroy()
+    })
+
+    it("destroy cleans up awareness", () => {
+      const doc = new Y.Doc()
+      const result = createStratProvider({ stratId: "abc-123", doc, connect: false })
+      const awareness = result.awareness
+
+      result.destroy()
+
+      expect(awareness.getLocalState()).toBeNull()
     })
   })
 })

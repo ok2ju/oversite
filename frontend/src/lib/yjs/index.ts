@@ -4,6 +4,7 @@ export {
   getDrawingElements,
   createDrawingElement,
   removeDrawingElement,
+  getStrokeData,
   type DrawingElement,
   type DrawingElementType,
   type BoardSettings,

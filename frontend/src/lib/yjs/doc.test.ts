@@ -6,12 +6,19 @@ import {
   getDrawingElements,
   createDrawingElement,
   removeDrawingElement,
+  getStrokeData,
   type DrawingElement,
 } from "./doc"
 
 function wireDocs(doc1: Y.Doc, doc2: Y.Doc) {
   doc1.on("update", (update: Uint8Array) => Y.applyUpdate(doc2, update))
   doc2.on("update", (update: Uint8Array) => Y.applyUpdate(doc1, update))
+}
+
+function connectDocs(doc1: Y.Doc, doc2: Y.Doc) {
+  Y.applyUpdate(doc2, Y.encodeStateAsUpdate(doc1))
+  Y.applyUpdate(doc1, Y.encodeStateAsUpdate(doc2))
+  wireDocs(doc1, doc2)
 }
 
 const baseProps: Omit<DrawingElement, "id" | "created_at"> = {
@@ -29,11 +36,11 @@ const baseProps: Omit<DrawingElement, "id" | "created_at"> = {
 
 describe("doc", () => {
   describe("createStratDoc", () => {
-    it("returns a Y.Doc with gc enabled", () => {
+    it("returns a Y.Doc with gc disabled", () => {
       const doc = createStratDoc()
 
       expect(doc).toBeInstanceOf(Y.Doc)
-      expect(doc.gc).toBe(true)
+      expect(doc.gc).toBe(false)
     })
   })
 
@@ -79,21 +86,48 @@ describe("doc", () => {
       expect(synced.get("created_by")).toBe("user-1")
     })
 
-    it("merges concurrent edits from both docs", () => {
+    it("stores stroke_data as Y.Array", () => {
+      const doc = createStratDoc()
+      const elements = getDrawingElements(doc)
+      createDrawingElement(elements, baseProps, doc)
+
+      const el = elements.get(0)
+      const strokeData = el.get("stroke_data")
+      expect(strokeData).toBeInstanceOf(Y.Array)
+      expect(getStrokeData(el)).toEqual([1, 2, 3])
+    })
+
+    it("merges concurrent stroke_data appends via Y.Array", () => {
+      const doc1 = createStratDoc()
+      const doc2 = createStratDoc()
+      wireDocs(doc1, doc2)
+
+      const elements1 = getDrawingElements(doc1)
+      createDrawingElement(elements1, { ...baseProps, stroke_data: [1, 2] }, doc1)
+
+      const el1 = elements1.get(0)
+      const el2 = getDrawingElements(doc2).get(0)
+      const strokes1 = el1.get("stroke_data") as Y.Array<number>
+      const strokes2 = el2.get("stroke_data") as Y.Array<number>
+
+      strokes1.push([3, 4])
+      strokes2.push([5, 6])
+
+      expect(strokes1.length).toBe(6)
+      expect(strokes2.length).toBe(6)
+    })
+
+    it("merges concurrent offline edits on reconnect", () => {
       const doc1 = createStratDoc()
       const doc2 = createStratDoc()
 
-      // Add elements before wiring (simulates concurrent offline edits)
       const elements1 = getDrawingElements(doc1)
       createDrawingElement(elements1, { ...baseProps, x: 1 }, doc1)
 
       const elements2 = getDrawingElements(doc2)
       createDrawingElement(elements2, { ...baseProps, x: 2 }, doc2)
 
-      // Now sync
-      wireDocs(doc1, doc2)
-      Y.applyUpdate(doc2, Y.encodeStateAsUpdate(doc1))
-      Y.applyUpdate(doc1, Y.encodeStateAsUpdate(doc2))
+      connectDocs(doc1, doc2)
 
       expect(elements1.length).toBe(2)
       expect(elements2.length).toBe(2)
@@ -118,19 +152,52 @@ describe("doc", () => {
   })
 
   describe("removeDrawingElement", () => {
-    it("removes element and syncs removal to second doc", () => {
+    it("removes element by id and syncs removal to second doc", () => {
       const doc1 = createStratDoc()
       const doc2 = createStratDoc()
       wireDocs(doc1, doc2)
 
       const elements1 = getDrawingElements(doc1)
-      createDrawingElement(elements1, baseProps, doc1)
+      const id = createDrawingElement(elements1, baseProps, doc1)
       expect(getDrawingElements(doc2).length).toBe(1)
 
-      removeDrawingElement(elements1, 0, doc1)
+      const removed = removeDrawingElement(elements1, id, doc1)
 
+      expect(removed).toBe(true)
       expect(elements1.length).toBe(0)
       expect(getDrawingElements(doc2).length).toBe(0)
+    })
+
+    it("returns false for non-existent id", () => {
+      const doc = createStratDoc()
+      const elements = getDrawingElements(doc)
+      createDrawingElement(elements, baseProps, doc)
+
+      const removed = removeDrawingElement(elements, "non-existent", doc)
+
+      expect(removed).toBe(false)
+      expect(elements.length).toBe(1)
+    })
+
+    it("removes correct element when multiple exist", () => {
+      const doc = createStratDoc()
+      const elements = getDrawingElements(doc)
+      const id1 = createDrawingElement(elements, { ...baseProps, x: 1 }, doc)
+      const id2 = createDrawingElement(elements, { ...baseProps, x: 2 }, doc)
+      const id3 = createDrawingElement(elements, { ...baseProps, x: 3 }, doc)
+
+      removeDrawingElement(elements, id2, doc)
+
+      expect(elements.length).toBe(2)
+      expect(elements.get(0).get("id")).toBe(id1)
+      expect(elements.get(1).get("id")).toBe(id3)
+    })
+  })
+
+  describe("getStrokeData", () => {
+    it("returns empty array for element without stroke_data Y.Array", () => {
+      const element = new Y.Map<unknown>()
+      expect(getStrokeData(element)).toEqual([])
     })
   })
 })

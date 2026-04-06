@@ -40,7 +40,7 @@ export interface BoardSettings {
 }
 
 export function createStratDoc(): Y.Doc {
-  return new Y.Doc({ gc: true })
+  return new Y.Doc({ gc: false })
 }
 
 export function getBoardSettings(doc: Y.Doc): Y.Map<unknown> {
@@ -61,10 +61,13 @@ export function createDrawingElement(
 
   doc.transact(() => {
     const element = new Y.Map<unknown>()
-    const entries = { ...props, id, created_at }
-    for (const [key, value] of Object.entries(entries)) {
+    const { stroke_data, ...rest } = { ...props, id, created_at }
+    for (const [key, value] of Object.entries(rest)) {
       element.set(key, value)
     }
+    const strokeArray = new Y.Array<number>()
+    strokeArray.push(stroke_data)
+    element.set("stroke_data", strokeArray)
     elements.push([element])
   })
 
@@ -73,10 +76,26 @@ export function createDrawingElement(
 
 export function removeDrawingElement(
   elements: Y.Array<Y.Map<unknown>>,
-  index: number,
+  id: string,
   doc: Y.Doc
-): void {
+): boolean {
+  let found = false
   doc.transact(() => {
-    elements.delete(index, 1)
+    for (let i = 0; i < elements.length; i++) {
+      if (elements.get(i).get("id") === id) {
+        elements.delete(i, 1)
+        found = true
+        return
+      }
+    }
   })
+  return found
+}
+
+export function getStrokeData(element: Y.Map<unknown>): number[] {
+  const arr = element.get("stroke_data")
+  if (arr instanceof Y.Array) {
+    return arr.toArray() as number[]
+  }
+  return []
 }
