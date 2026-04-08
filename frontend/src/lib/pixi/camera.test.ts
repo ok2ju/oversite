@@ -216,7 +216,7 @@ describe("camera pure functions", () => {
 
 describe("Camera class", () => {
   let canvas: HTMLCanvasElement
-  let onViewportChange: ReturnType<typeof vi.fn>
+  let onViewportChange: ReturnType<typeof vi.fn<(v: Viewport) => void>>
 
   beforeEach(() => {
     canvas = document.createElement("canvas")
@@ -228,7 +228,7 @@ describe("Camera class", () => {
       width: 1024,
       height: 1024,
     })
-    onViewportChange = vi.fn()
+    onViewportChange = vi.fn<(v: Viewport) => void>()
   })
 
   function createCamera(options?: CameraOptions) {
