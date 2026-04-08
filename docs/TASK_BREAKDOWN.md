@@ -565,7 +565,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Hook test with MSW: fetches data, caches, handles errors |
 | | - All tick data tests pass in CI |
 
-### P3-T04: Implement player layer
+### P3-T04: Implement player layer ✅
 
 | | |
 |---|---|
@@ -585,7 +585,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Screenshot test: 10 players rendered with correct positions and colors |
 | | - All player layer tests pass in CI |
 
-### P3-T05: Implement event layer
+### P3-T05: Implement event layer ✅
 
 | | |
 |---|---|
