@@ -16,7 +16,6 @@ const mockTicker = {
 }
 
 const mockAddLayer = vi.fn().mockReturnValue({ addChild: vi.fn(), removeChild: vi.fn() })
-const mockStageAddChild = vi.fn()
 const mockCanvas = document.createElement("canvas")
 
 const mockApp = {
@@ -24,7 +23,7 @@ const mockApp = {
   ticker: mockTicker,
   destroy: mockDestroy,
   addLayer: mockAddLayer,
-  stage: { addChild: mockStageAddChild },
+  stage: { addChild: vi.fn() },
   canvas: mockCanvas,
 }
 
@@ -37,11 +36,14 @@ vi.mock("@/lib/pixi/app", () => ({
 const mockSetMap = vi.fn().mockResolvedValue(undefined)
 const mockClear = vi.fn()
 const mockMapLayerDestroy = vi.fn()
+let mockMapLayerCalibration: unknown = null
 
 vi.mock("@/lib/pixi/layers/map-layer", () => {
   return {
     MapLayer: class MockMapLayer {
-      calibration = null
+      get calibration() {
+        return mockMapLayerCalibration
+      }
       setMap = mockSetMap
       clear = mockClear
       destroy = mockMapLayerDestroy
@@ -95,6 +97,8 @@ vi.mock("@/lib/pixi/tick-buffer", () => ({
 
 const mockCameraDestroy = vi.fn()
 const mockCameraSetScreenSize = vi.fn()
+const mockCameraSetMapSize = vi.fn()
+const mockCameraResetView = vi.fn()
 const mockCameraContainer = { addChild: vi.fn(), removeChild: vi.fn(), position: { set: vi.fn() }, scale: { set: vi.fn() }, label: "camera-viewport" }
 
 vi.mock("@/lib/pixi/camera", async (importOriginal) => {
@@ -104,8 +108,8 @@ vi.mock("@/lib/pixi/camera", async (importOriginal) => {
     Camera: class MockCamera {
       container = mockCameraContainer
       setScreenSize = mockCameraSetScreenSize
-      setMapSize = vi.fn()
-      resetView = vi.fn()
+      setMapSize = mockCameraSetMapSize
+      resetView = mockCameraResetView
       destroy = mockCameraDestroy
     },
   }
@@ -131,6 +135,7 @@ describe("ViewerCanvas", () => {
     mockTickBufferDispose.mockReset()
     mockCameraDestroy.mockReset()
     mockCameraSetScreenSize.mockReset()
+    mockMapLayerCalibration = null
     useViewerStore.getState().reset()
     // Re-set return values cleared by clearAllMocks
     mockSetMap.mockResolvedValue(undefined)
@@ -252,6 +257,63 @@ describe("ViewerCanvas", () => {
 
     unmount()
     expect(mockCameraDestroy).toHaveBeenCalled()
+  })
+
+  it("resets camera view on demo change", async () => {
+    render(<ViewerCanvas />)
+
+    await vi.waitFor(() => {
+      expect(mockCreateViewerApp).toHaveBeenCalled()
+    })
+
+    mockCameraResetView.mockClear()
+    useViewerStore.getState().setDemoId("demo-123")
+
+    await vi.waitFor(() => {
+      expect(mockCameraResetView).toHaveBeenCalled()
+    })
+  })
+
+  it("resets camera view when resetViewport is triggered", async () => {
+    render(<ViewerCanvas />)
+
+    await vi.waitFor(() => {
+      expect(mockCreateViewerApp).toHaveBeenCalled()
+    })
+
+    mockCameraResetView.mockClear()
+    useViewerStore.getState().resetViewport()
+
+    expect(mockCameraResetView).toHaveBeenCalled()
+  })
+
+  it("calls setMapSize after map loads", async () => {
+    const mockCalibration = { originX: -2476, originY: 3239, scale: 4.4, width: 1024, height: 1024 }
+
+    // Make setMap set calibration via the module-level getter when it resolves
+    mockSetMap.mockImplementation(() => {
+      mockMapLayerCalibration = mockCalibration
+      return Promise.resolve()
+    })
+
+    render(<ViewerCanvas />)
+
+    await vi.waitFor(() => {
+      expect(mockCreateViewerApp).toHaveBeenCalled()
+    })
+
+    mockCameraSetMapSize.mockClear()
+    useViewerStore.getState().setMapName("de_dust2")
+
+    await vi.waitFor(() => {
+      expect(mockSetMap).toHaveBeenCalledWith("de_dust2")
+    })
+
+    await vi.waitFor(() => {
+      expect(mockCameraSetMapSize).toHaveBeenCalledWith(1024, 1024)
+    })
+
+    mockMapLayerCalibration = null
   })
 
   it("handles async init completing after cleanup (StrictMode guard)", async () => {

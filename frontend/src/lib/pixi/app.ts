@@ -7,7 +7,7 @@ export interface ViewerAppOptions {
 
 export class ViewerApp {
   private app: Application
-  private layers = new Map<string, Container>()
+  private layers = new Map<string, { container: Container; parent: Container }>()
   private _initialized = false
 
   constructor(app: Application) {
@@ -50,21 +50,21 @@ export class ViewerApp {
 
     const container = new Container()
     container.label = name
-    this.layers.set(name, container)
     const target = parent ?? this.app.stage
     target.addChild(container)
+    this.layers.set(name, { container, parent: target })
     return container
   }
 
   getLayer(name: string): Container | undefined {
-    return this.layers.get(name)
+    return this.layers.get(name)?.container
   }
 
   removeLayer(name: string): void {
-    const layer = this.layers.get(name)
-    if (!layer) return
+    const entry = this.layers.get(name)
+    if (!entry) return
 
-    this.app.stage.removeChild(layer)
+    entry.parent.removeChild(entry.container)
     this.layers.delete(name)
   }
 

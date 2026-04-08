@@ -4,7 +4,7 @@ import Image from "next/image"
 import { Maximize2 } from "lucide-react"
 import { useViewerStore } from "@/stores/viewer"
 import { computeViewportRect } from "@/lib/pixi/camera"
-import { isCS2Map, getRadarImagePath } from "@/lib/maps/calibration"
+import { isCS2Map, getMapCalibration, getRadarImagePath } from "@/lib/maps/calibration"
 
 const MINIMAP_SIZE = 150
 
@@ -17,7 +17,8 @@ export function MiniMap() {
 
   if (!mapName || !isCS2Map(mapName)) return null
 
-  const mapSize = 1024
+  const calibration = getMapCalibration(mapName)!
+  const mapSize = calibration.width
   const rect = computeViewportRect(viewport, screenWidth, screenHeight)
 
   // Map viewport rect to minimap pixel space, clamped to 0-100%

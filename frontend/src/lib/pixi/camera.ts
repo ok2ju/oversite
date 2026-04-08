@@ -1,5 +1,4 @@
 import { Container } from "pixi.js"
-import { useViewerStore } from "@/stores/viewer"
 
 // --- Types ---
 
@@ -104,6 +103,10 @@ export function screenToWorld(
 const DRAG_THRESHOLD = 3
 const ZOOM_SENSITIVITY = 0.001
 
+export interface CameraOptions {
+  onViewportChange?: (viewport: Viewport) => void
+}
+
 export class Camera {
   readonly container: Container
   private canvas: HTMLCanvasElement
@@ -118,17 +121,18 @@ export class Camera {
   private dragStartViewportX = 0
   private dragStartViewportY = 0
   private hasDragged = false
-  private unsubResetViewport: (() => void) | null = null
+  private onViewportChangeCb?: (viewport: Viewport) => void
 
   private boundOnWheel: (e: WheelEvent) => void
   private boundOnPointerDown: (e: PointerEvent) => void
   private boundOnPointerMove: (e: PointerEvent) => void
   private boundOnPointerUp: (e: PointerEvent) => void
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, options?: CameraOptions) {
     this.canvas = canvas
     this.container = new Container()
     this.container.label = "camera-viewport"
+    this.onViewportChangeCb = options?.onViewportChange
 
     this.boundOnWheel = this.onWheel.bind(this)
     this.boundOnPointerDown = this.onPointerDown.bind(this)
@@ -139,14 +143,7 @@ export class Camera {
     this.canvas.addEventListener("pointerdown", this.boundOnPointerDown)
     this.canvas.addEventListener("pointermove", this.boundOnPointerMove)
     this.canvas.addEventListener("pointerup", this.boundOnPointerUp)
-    this.canvas.addEventListener("pointerleave", this.boundOnPointerUp)
-
-    this.unsubResetViewport = useViewerStore.subscribe(
-      (s) => s.resetViewportCounter,
-      () => {
-        this.resetView()
-      }
-    )
+    this.canvas.addEventListener("pointercancel", this.boundOnPointerUp)
   }
 
   setScreenSize(width: number, height: number): void {
@@ -171,13 +168,15 @@ export class Camera {
     this.canvas.removeEventListener("pointerdown", this.boundOnPointerDown)
     this.canvas.removeEventListener("pointermove", this.boundOnPointerMove)
     this.canvas.removeEventListener("pointerup", this.boundOnPointerUp)
-    this.canvas.removeEventListener("pointerleave", this.boundOnPointerUp)
-    this.unsubResetViewport?.()
+    this.canvas.removeEventListener("pointercancel", this.boundOnPointerUp)
   }
 
   private onWheel(e: WheelEvent): void {
     e.preventDefault()
-    const zoomFactor = 1 - e.deltaY * ZOOM_SENSITIVITY
+    let deltaY = e.deltaY
+    if (e.deltaMode === 1) deltaY *= 33
+    else if (e.deltaMode === 2) deltaY *= 800
+    const zoomFactor = 1 - deltaY * ZOOM_SENSITIVITY
     const newZoom = this.viewport.zoom * zoomFactor
 
     const rect = this.canvas.getBoundingClientRect()
@@ -233,13 +232,14 @@ export class Camera {
     this.applyAndPublish()
   }
 
-  private onPointerUp(): void {
+  private onPointerUp(e: PointerEvent): void {
     this.isDragging = false
+    this.canvas.releasePointerCapture(e.pointerId)
   }
 
   private applyAndPublish(): void {
     this.container.position.set(this.viewport.x, this.viewport.y)
     this.container.scale.set(this.viewport.zoom)
-    useViewerStore.getState().setViewport({ ...this.viewport })
+    this.onViewportChangeCb?.({ ...this.viewport })
   }
 }

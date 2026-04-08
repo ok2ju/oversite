@@ -63,6 +63,7 @@ export function ViewerCanvas() {
     let tickUnsub: (() => void) | null = null
     let roundUnsub: (() => void) | null = null
     let demoUnsub: (() => void) | null = null
+    let resetUnsub: (() => void) | null = null
     let rosterAbortController: AbortController | null = null
     let tickerFn: (() => void) | null = null
     let engine: PlaybackEngine | null = null
@@ -78,7 +79,9 @@ export function ViewerCanvas() {
       viewerApp = app
 
       // Create camera and add its container to stage
-      camera = new Camera(app.canvas)
+      camera = new Camera(app.canvas, {
+        onViewportChange: (v) => useViewerStore.getState().setViewport(v),
+      })
       app.stage.addChild(camera.container)
 
       // Set initial screen size
@@ -146,11 +149,25 @@ export function ViewerCanvas() {
         }
       )
 
+      resetUnsub = useViewerStore.subscribe(
+        (s) => s.resetViewportCounter,
+        () => {
+          camera?.resetView()
+        }
+      )
+
       mapUnsub = useViewerStore.subscribe(
         (s) => s.mapName,
         (mapName) => {
           if (mapName) {
-            mapLayer?.setMap(mapName).catch(console.error)
+            mapLayer
+              ?.setMap(mapName)
+              .then(() => {
+                if (mapLayer?.calibration) {
+                  camera?.setMapSize(mapLayer.calibration.width, mapLayer.calibration.height)
+                }
+              })
+              .catch(console.error)
           } else {
             mapLayer?.clear()
           }
@@ -166,6 +183,7 @@ export function ViewerCanvas() {
           // Reset engine state so fractionalTick doesn't carry over from previous demo
           engine?.seek(0)
           engineSetTick = 0
+          camera?.resetView()
         },
         { fireImmediately: true }
       )
@@ -221,6 +239,7 @@ export function ViewerCanvas() {
       tickUnsub?.()
       demoUnsub?.()
       seekUnsub?.()
+      resetUnsub?.()
       if (tickerFn && viewerApp) {
         viewerApp.ticker.remove(tickerFn)
       }

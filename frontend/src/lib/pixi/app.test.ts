@@ -108,6 +108,16 @@ describe("ViewerApp", () => {
       expect(mockApp.stage.removeChild).not.toHaveBeenCalled()
     })
 
+    it("removeLayer removes from custom parent when one was provided", () => {
+      const parent = { addChild: vi.fn(), removeChild: vi.fn() }
+      const layer = app.addLayer("overlay", parent as unknown as import("pixi.js").Container)
+      app.removeLayer("overlay")
+
+      expect(parent.removeChild).toHaveBeenCalledWith(layer)
+      expect(mockApp.stage.removeChild).not.toHaveBeenCalledWith(layer)
+      expect(app.getLayer("overlay")).toBeUndefined()
+    })
+
     it("addLayer with parent adds to parent instead of stage", () => {
       const parent = { addChild: vi.fn() }
       const layer = app.addLayer("overlay", parent as unknown as import("pixi.js").Container)

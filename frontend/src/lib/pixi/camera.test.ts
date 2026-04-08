@@ -1,4 +1,15 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi, beforeEach } from "vitest"
+
+vi.mock("pixi.js", () => ({
+  Container: vi.fn().mockImplementation(function () {
+    return {
+      label: "",
+      position: { set: vi.fn() },
+      scale: { set: vi.fn() },
+    }
+  }),
+}))
+
 import {
   clampZoom,
   zoomToPoint,
@@ -8,7 +19,9 @@ import {
   MIN_ZOOM,
   MAX_ZOOM,
   DEFAULT_VIEWPORT,
+  Camera,
   type Viewport,
+  type CameraOptions,
 } from "./camera"
 
 describe("camera pure functions", () => {
@@ -197,6 +210,267 @@ describe("camera pure functions", () => {
 
     it("DEFAULT_VIEWPORT is identity", () => {
       expect(DEFAULT_VIEWPORT).toEqual({ x: 0, y: 0, zoom: 1 })
+    })
+  })
+})
+
+describe("Camera class", () => {
+  let canvas: HTMLCanvasElement
+  let onViewportChange: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    canvas = document.createElement("canvas")
+    canvas.setPointerCapture = vi.fn()
+    canvas.releasePointerCapture = vi.fn()
+    canvas.getBoundingClientRect = vi.fn().mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 1024,
+      height: 1024,
+    })
+    onViewportChange = vi.fn()
+  })
+
+  function createCamera(options?: CameraOptions) {
+    return new Camera(canvas, options)
+  }
+
+  describe("constructor", () => {
+    it("registers event listeners on canvas", () => {
+      const addSpy = vi.spyOn(canvas, "addEventListener")
+      const cam = createCamera()
+
+      expect(addSpy).toHaveBeenCalledWith("wheel", expect.any(Function), { passive: false })
+      expect(addSpy).toHaveBeenCalledWith("pointerdown", expect.any(Function))
+      expect(addSpy).toHaveBeenCalledWith("pointermove", expect.any(Function))
+      expect(addSpy).toHaveBeenCalledWith("pointerup", expect.any(Function))
+      expect(addSpy).toHaveBeenCalledWith("pointercancel", expect.any(Function))
+      cam.destroy()
+    })
+
+    it("creates a container with label", () => {
+      const cam = createCamera()
+      expect(cam.container.label).toBe("camera-viewport")
+      cam.destroy()
+    })
+  })
+
+  describe("destroy", () => {
+    it("removes all event listeners", () => {
+      const removeSpy = vi.spyOn(canvas, "removeEventListener")
+      const cam = createCamera()
+      cam.destroy()
+
+      expect(removeSpy).toHaveBeenCalledWith("wheel", expect.any(Function))
+      expect(removeSpy).toHaveBeenCalledWith("pointerdown", expect.any(Function))
+      expect(removeSpy).toHaveBeenCalledWith("pointermove", expect.any(Function))
+      expect(removeSpy).toHaveBeenCalledWith("pointerup", expect.any(Function))
+      expect(removeSpy).toHaveBeenCalledWith("pointercancel", expect.any(Function))
+    })
+  })
+
+  describe("setScreenSize", () => {
+    it("calls onViewportChange callback", () => {
+      const cam = createCamera({ onViewportChange })
+      cam.setScreenSize(800, 600)
+
+      expect(onViewportChange).toHaveBeenCalled()
+      cam.destroy()
+    })
+  })
+
+  describe("setMapSize", () => {
+    it("calls onViewportChange callback", () => {
+      const cam = createCamera({ onViewportChange })
+      cam.setMapSize(2048, 2048)
+
+      expect(onViewportChange).toHaveBeenCalled()
+      cam.destroy()
+    })
+  })
+
+  describe("resetView", () => {
+    it("resets viewport to default and publishes", () => {
+      const cam = createCamera({ onViewportChange })
+      cam.setScreenSize(800, 600)
+      onViewportChange.mockClear()
+
+      cam.resetView()
+
+      expect(onViewportChange).toHaveBeenCalledWith(DEFAULT_VIEWPORT)
+      expect(cam.container.position.set).toHaveBeenCalledWith(0, 0)
+      expect(cam.container.scale.set).toHaveBeenCalledWith(1)
+      cam.destroy()
+    })
+  })
+
+  describe("wheel zoom", () => {
+    it("zooms in on scroll up (negative deltaY)", () => {
+      const cam = createCamera({ onViewportChange })
+      cam.setScreenSize(1024, 1024)
+      cam.setMapSize(1024, 1024)
+      onViewportChange.mockClear()
+
+      canvas.dispatchEvent(
+        new WheelEvent("wheel", {
+          deltaY: -100,
+          deltaMode: 0,
+          clientX: 512,
+          clientY: 512,
+          cancelable: true,
+        })
+      )
+
+      expect(onViewportChange).toHaveBeenCalled()
+      const viewport = onViewportChange.mock.calls[0][0]
+      expect(viewport.zoom).toBeGreaterThan(1)
+      cam.destroy()
+    })
+
+    it("normalizes deltaMode 1 (line mode) for significant zoom", () => {
+      const cam = createCamera({ onViewportChange })
+      cam.setScreenSize(1024, 1024)
+      cam.setMapSize(1024, 1024)
+      onViewportChange.mockClear()
+
+      // Line mode: deltaY=3 lines * 33 = 99 pixels equivalent
+      canvas.dispatchEvent(
+        new WheelEvent("wheel", {
+          deltaY: -3,
+          deltaMode: 1,
+          clientX: 512,
+          clientY: 512,
+          cancelable: true,
+        })
+      )
+
+      expect(onViewportChange).toHaveBeenCalled()
+      const viewport = onViewportChange.mock.calls[0][0]
+      // Without normalization this would be ~1.003, with normalization ~1.1
+      expect(viewport.zoom).toBeGreaterThan(1.05)
+      cam.destroy()
+    })
+
+    it("normalizes deltaMode 2 (page mode)", () => {
+      const cam = createCamera({ onViewportChange })
+      cam.setScreenSize(1024, 1024)
+      cam.setMapSize(1024, 1024)
+      onViewportChange.mockClear()
+
+      canvas.dispatchEvent(
+        new WheelEvent("wheel", {
+          deltaY: -1,
+          deltaMode: 2,
+          clientX: 512,
+          clientY: 512,
+          cancelable: true,
+        })
+      )
+
+      expect(onViewportChange).toHaveBeenCalled()
+      const viewport = onViewportChange.mock.calls[0][0]
+      expect(viewport.zoom).toBeGreaterThan(1.5)
+      cam.destroy()
+    })
+  })
+
+  describe("pointer drag", () => {
+    it("pans on left-click drag past threshold", () => {
+      const cam = createCamera({ onViewportChange })
+      cam.setScreenSize(1024, 1024)
+      cam.setMapSize(2048, 2048)
+      onViewportChange.mockClear()
+
+      canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 100, clientY: 100, pointerId: 1 }))
+      canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 110, clientY: 115, pointerId: 1 }))
+
+      expect(onViewportChange).toHaveBeenCalled()
+      cam.destroy()
+    })
+
+    it("ignores non-left-click", () => {
+      const cam = createCamera({ onViewportChange })
+      cam.setScreenSize(1024, 1024)
+      onViewportChange.mockClear()
+
+      canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 2, clientX: 100, clientY: 100, pointerId: 1 }))
+      canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 150, clientY: 150, pointerId: 1 }))
+
+      expect(onViewportChange).not.toHaveBeenCalled()
+      cam.destroy()
+    })
+
+    it("does not pan below drag threshold", () => {
+      const cam = createCamera({ onViewportChange })
+      cam.setScreenSize(1024, 1024)
+      onViewportChange.mockClear()
+
+      canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 100, clientY: 100, pointerId: 1 }))
+      canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 101, clientY: 100, pointerId: 1 }))
+
+      expect(onViewportChange).not.toHaveBeenCalled()
+      cam.destroy()
+    })
+
+    it("calls setPointerCapture on pointerdown", () => {
+      const cam = createCamera()
+      canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 100, clientY: 100, pointerId: 42 }))
+
+      expect(canvas.setPointerCapture).toHaveBeenCalledWith(42)
+      cam.destroy()
+    })
+
+    it("calls releasePointerCapture on pointerup", () => {
+      const cam = createCamera()
+      canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 100, clientY: 100, pointerId: 42 }))
+      canvas.dispatchEvent(new PointerEvent("pointerup", { pointerId: 42 }))
+
+      expect(canvas.releasePointerCapture).toHaveBeenCalledWith(42)
+      cam.destroy()
+    })
+
+    it("calls releasePointerCapture on pointercancel", () => {
+      const cam = createCamera()
+      canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 100, clientY: 100, pointerId: 7 }))
+      canvas.dispatchEvent(new PointerEvent("pointercancel", { pointerId: 7 }))
+
+      expect(canvas.releasePointerCapture).toHaveBeenCalledWith(7)
+      cam.destroy()
+    })
+
+    it("stops dragging after pointerup", () => {
+      const cam = createCamera({ onViewportChange })
+      cam.setScreenSize(1024, 1024)
+
+      canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 100, clientY: 100, pointerId: 1 }))
+      canvas.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1 }))
+
+      onViewportChange.mockClear()
+      canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 200, clientY: 200, pointerId: 1 }))
+
+      expect(onViewportChange).not.toHaveBeenCalled()
+      cam.destroy()
+    })
+  })
+
+  describe("onViewportChange callback", () => {
+    it("is not required (no error without it)", () => {
+      const cam = createCamera()
+      cam.setScreenSize(800, 600)
+      cam.resetView()
+      cam.destroy()
+    })
+
+    it("receives viewport copy (not internal reference)", () => {
+      const cam = createCamera({ onViewportChange })
+      cam.setScreenSize(1024, 1024)
+
+      const first = onViewportChange.mock.calls[0][0]
+      cam.resetView()
+      const second = onViewportChange.mock.calls[1][0]
+
+      expect(first).not.toBe(second)
+      cam.destroy()
     })
   })
 })
