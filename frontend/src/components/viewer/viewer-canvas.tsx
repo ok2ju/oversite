@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react"
 import { createViewerApp, type ViewerApp } from "@/lib/pixi/app"
+import { PlaybackEngine } from "@/lib/pixi/playback-engine"
 import { MapLayer } from "@/lib/pixi/layers/map-layer"
 import { PlayerLayer } from "@/lib/pixi/layers/player-layer"
 import { EventLayer } from "@/lib/pixi/layers/event-layer"
@@ -23,16 +24,6 @@ function setupViewerSubscriptions(app: ViewerApp): () => void {
         } else {
           app.ticker.stop()
         }
-      },
-      { fireImmediately: true }
-    )
-  )
-
-  unsubs.push(
-    useViewerStore.subscribe(
-      (s) => s.speed,
-      (speed) => {
-        app.ticker.speed = speed
       },
       { fireImmediately: true }
     )
@@ -72,6 +63,8 @@ export function ViewerCanvas() {
     let demoUnsub: (() => void) | null = null
     let rosterAbortController: AbortController | null = null
     let tickerFn: (() => void) | null = null
+    let engine: PlaybackEngine | null = null
+    let seekUnsub: (() => void) | null = null
 
     createViewerApp({ container }).then((app) => {
       if (destroyed) {
@@ -98,6 +91,38 @@ export function ViewerCanvas() {
 
       unsubscribe = setupViewerSubscriptions(app)
 
+      // Track ticks written by the engine to avoid seek feedback loops
+      let engineSetTick = -1
+
+      engine = new PlaybackEngine({
+        tickRate: 64,
+        getState: () => {
+          const s = useViewerStore.getState()
+          return {
+            currentTick: s.currentTick,
+            totalTicks: s.totalTicks,
+            isPlaying: s.isPlaying,
+            speed: s.speed,
+          }
+        },
+        setTick: (tick) => {
+          engineSetTick = tick
+          useViewerStore.getState().setTick(tick)
+        },
+        pause: () => useViewerStore.getState().pause(),
+      })
+
+      // Sync external seek changes (timeline UI) to the engine
+      seekUnsub = useViewerStore.subscribe(
+        (s) => s.currentTick,
+        (currentTick) => {
+          if (engine && currentTick !== engineSetTick) {
+            engine.seek(currentTick)
+            tickBuffer?.seek(currentTick)
+          }
+        }
+      )
+
       mapUnsub = useViewerStore.subscribe(
         (s) => s.mapName,
         (mapName) => {
@@ -115,6 +140,9 @@ export function ViewerCanvas() {
         (demoId) => {
           tickBuffer?.dispose()
           tickBuffer = demoId ? new TickBuffer(demoId) : null
+          // Reset engine state so fractionalTick doesn't carry over from previous demo
+          engine?.seek(0)
+          engineSetTick = 0
         },
         { fireImmediately: true }
       )
@@ -152,6 +180,7 @@ export function ViewerCanvas() {
       )
 
       tickerFn = () => {
+        engine?.update(app.ticker.deltaMS)
         const calibration = mapLayer?.calibration
         if (eventLayer && calibration) {
           const { currentTick } = useViewerStore.getState()
@@ -167,9 +196,11 @@ export function ViewerCanvas() {
       roundUnsub?.()
       tickUnsub?.()
       demoUnsub?.()
+      seekUnsub?.()
       if (tickerFn && viewerApp) {
         viewerApp.ticker.remove(tickerFn)
       }
+      engine?.dispose()
       mapUnsub?.()
       unsubscribe?.()
       tickBuffer?.dispose()

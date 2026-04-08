@@ -17,6 +17,7 @@ interface ViewerState {
   setRound: (round: number) => void
   setDemoId: (id: string | null) => void
   setMapName: (name: string | null) => void
+  pause: () => void
   setSelectedPlayer: (steamId: string | null) => void
   reset: () => void
 }
@@ -38,6 +39,7 @@ export const useViewerStore = create<ViewerState>()(
     setTick: (tick) => set({ currentTick: tick }),
     setTotalTicks: (total) => set({ totalTicks: total }),
     togglePlay: () => set((state) => ({ isPlaying: !state.isPlaying })),
+    pause: () => set({ isPlaying: false }),
     setSpeed: (speed) => set({ speed }),
     setRound: (round) => set({ currentRound: round, selectedPlayerSteamId: null }),
     setDemoId: (id) => set({ demoId: id, currentTick: 0, mapName: null, selectedPlayerSteamId: null }),
