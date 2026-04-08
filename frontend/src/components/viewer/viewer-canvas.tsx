@@ -118,6 +118,7 @@ export function ViewerCanvas() {
         (currentTick) => {
           if (engine && currentTick !== engineSetTick) {
             engine.seek(currentTick)
+            tickBuffer?.seek(currentTick)
           }
         }
       )
@@ -139,6 +140,9 @@ export function ViewerCanvas() {
         (demoId) => {
           tickBuffer?.dispose()
           tickBuffer = demoId ? new TickBuffer(demoId) : null
+          // Reset engine state so fractionalTick doesn't carry over from previous demo
+          engine?.seek(0)
+          engineSetTick = 0
         },
         { fireImmediately: true }
       )

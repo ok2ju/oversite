@@ -107,7 +107,7 @@ describe("PlaybackEngine", () => {
       })
       // 62.5ms at 64tr = 4 ticks/frame. 17 frames = 68 ticks, but clamped to 64.
       for (let i = 0; i < 17; i++) engine.update(62.5)
-      expect(setTick).toHaveBeenCalledWith(64)
+      expect(setTick).toHaveBeenCalledWith(63)
       expect(pause).toHaveBeenCalled()
     })
 
@@ -120,20 +120,22 @@ describe("PlaybackEngine", () => {
       setTick.mockClear()
       pause.mockClear()
 
-      // 62.5ms = 4 ticks, from 60 would go to 64 (totalTicks)
+      // 62.5ms = 4 ticks, from 60 would go to 64 (totalTicks), clamped to 63
       engine.update(62.5)
-      expect(setTick).toHaveBeenCalledWith(64)
+      expect(setTick).toHaveBeenCalledWith(63)
       expect(pause).toHaveBeenCalled()
     })
 
-    it("does not advance when already at totalTicks", () => {
+    it("does not advance when already at totalTicks - 1", () => {
       const { engine, setTick } = createEngine({
-        state: { currentTick: 128000, totalTicks: 128000 },
+        state: { currentTick: 127999, totalTicks: 128000 },
       })
-      engine.seek(128000)
+      engine.seek(127999)
       setTick.mockClear()
       engine.update(16.67)
-      expect(setTick).not.toHaveBeenCalled()
+      // fractionalTick advances from 127999 by ~1.07 ticks, hitting >= totalTicks
+      // Engine clamps to totalTicks - 1 = 127999, same as current, so setTick fires once
+      expect(setTick).toHaveBeenCalledWith(127999)
     })
   })
 
@@ -187,12 +189,12 @@ describe("PlaybackEngine", () => {
       expect(setTick).toHaveBeenCalledWith(0)
     })
 
-    it("clamps to totalTicks", () => {
+    it("clamps to totalTicks - 1", () => {
       const { engine, setTick } = createEngine({
         state: { totalTicks: 128000 },
       })
       engine.seek(200000)
-      expect(setTick).toHaveBeenCalledWith(128000)
+      expect(setTick).toHaveBeenCalledWith(127999)
     })
 
     it("continues smoothly from new position after seek", () => {
@@ -297,19 +299,6 @@ describe("PlaybackEngine", () => {
 
       engine.update(100) // would go to 5004.4, but should snap to 5000
       expect(setTick).toHaveBeenCalledWith(5000)
-    })
-  })
-
-  describe("tick interval", () => {
-    it("defaults to 4", () => {
-      const { engine } = createEngine()
-      expect(engine.tickInterval).toBe(4)
-    })
-
-    it("is configurable via setTickInterval", () => {
-      const { engine } = createEngine()
-      engine.setTickInterval(8)
-      expect(engine.tickInterval).toBe(8)
     })
   })
 

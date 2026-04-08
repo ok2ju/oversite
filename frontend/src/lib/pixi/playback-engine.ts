@@ -33,7 +33,6 @@ export class PlaybackEngine {
   private fractionalTick = 0
   private roundBoundaries: RoundBoundary[] = []
   private autoPauseEnabled = false
-  private _tickInterval = 4
 
   constructor({ tickRate, getState, setTick, pause }: PlaybackEngineOptions) {
     this.tickRate = tickRate
@@ -55,8 +54,8 @@ export class PlaybackEngine {
 
     // Check end of demo
     if (this.fractionalTick >= totalTicks) {
-      this.fractionalTick = totalTicks
-      this.setTick(totalTicks)
+      this.fractionalTick = totalTicks - 1
+      this.setTick(totalTicks - 1)
       this.pauseFn()
       return
     }
@@ -81,7 +80,7 @@ export class PlaybackEngine {
 
   seek(tick: number): void {
     const { totalTicks } = this.getState()
-    const clamped = Math.max(0, Math.min(tick, totalTicks))
+    const clamped = Math.max(0, Math.min(tick, totalTicks - 1))
     this.fractionalTick = clamped
     this.setTick(Math.floor(clamped))
   }
@@ -96,14 +95,6 @@ export class PlaybackEngine {
 
   get interpolationFactor(): number {
     return this.fractionalTick - Math.floor(this.fractionalTick)
-  }
-
-  get tickInterval(): number {
-    return this._tickInterval
-  }
-
-  setTickInterval(n: number): void {
-    this._tickInterval = n
   }
 
   dispose(): void {
