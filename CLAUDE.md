@@ -170,7 +170,8 @@ Before writing or modifying any test file, you **must**:
 
 ### Hooks (auto-run on edits)
 - **PostToolUse (format)**: Auto-runs `eslint --fix` on TS/TSX, `gofmt`+`goimports` on Go files
-- **PostToolUse (test)**: Auto-runs the affected test when a test file (`*.test.ts(x)` or `*_test.go`) is edited — provides immediate pass/fail feedback with `-race` for Go
+- **PostToolUse (test)**: Auto-runs affected tests on any source or test file edit — uses `vitest --related` for TS/TSX source files, direct run for test files, package-scoped `go test -race` for Go files
+- **PostToolUse (typecheck)**: Auto-runs `tsc --noEmit` on TS/TSX file edits to catch type errors (ESLint alone misses these)
 - **PreToolUse**: Blocks edits to lock files (`pnpm-lock.yaml`, `go.sum`) and sqlc-generated `*.sql.go` files
 
 ### Subagents (`.claude/agents/`)
