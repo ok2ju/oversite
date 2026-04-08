@@ -78,11 +78,11 @@ hooks-fallback: ## Install pre-commit hooks (no extra tools)
 test: test-unit test-integration test-e2e ## Run all tests
 
 test-unit: ## Run Go + TS unit tests
-	cd backend && go test ./...
+	cd backend && go test -race ./...
 	cd frontend && pnpm test
 
 test-integration: ## Run Go integration tests (requires Docker)
-	cd backend && go test -tags integration -count=1 ./...
+	cd backend && go test -race -tags integration -count=1 ./...
 
 test-e2e: ## Run Playwright E2E tests
 	cd e2e && npx playwright test

@@ -20,6 +20,16 @@
             "command": "bash .claude/hooks/post-edit-format.sh"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/post-edit-run-tests.sh",
+            "timeout": 30000
+          }
+        ]
       }
     ]
   },

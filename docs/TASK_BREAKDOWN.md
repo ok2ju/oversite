@@ -605,7 +605,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Screenshot test: concurrent effects (smoke + kill + flash) render correctly |
 | | - All event layer tests pass in CI |
 
-### P3-T06: Implement playback engine
+### P3-T06: Implement playback engine ✅
 
 | | |
 |---|---|
@@ -663,7 +663,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Component tests: renders all rounds, click seeks, current round highlighted, win reason shown |
 | | - All round selector tests pass in CI |
 
-### P3-T09: Implement zoom and pan
+### P3-T09: Implement zoom and pan ✅
 
 | | |
 |---|---|

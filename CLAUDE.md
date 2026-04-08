@@ -81,7 +81,7 @@ make sqlc                # Regenerate Go code from SQL
 
 # Backend (in backend/)
 go build ./cmd/oversite  # Build binary
-go test ./...            # Run unit tests
+go test -race ./...      # Run unit tests (with race detector)
 go tool golangci-lint run  # Lint
 
 # Frontend (in frontend/)
@@ -155,10 +155,22 @@ Each CS2 map has calibration data (`origin_x`, `origin_y`, `scale`) mapping game
 - `/ws/strat/:stratId` -- Yjs strategy board collaboration
 - `/healthz`, `/readyz` -- Health checks
 
+## Test-Writing Discipline
+
+Before writing or modifying any test file, you **must**:
+
+1. **Read an existing test** in the same directory/package to match patterns exactly (imports, wrappers, mock style)
+2. **Use the project's test utilities** — never reinvent wrappers:
+   - **Frontend**: Always use `renderWithProviders()` from `src/test/render.tsx` (provides QueryClientProvider, ThemeProvider, AuthProvider). Never create a raw `QueryClientProvider` wrapper in a test file.
+   - **Frontend mocks**: Use MSW handlers from `src/test/msw/handlers.ts` for API mocking. Use PixiJS mock factories from `src/test/mocks/pixi.ts`. Use `vi.mock()` with hoisting only for Next.js navigation (`next/navigation`, `next/router`).
+   - **Go mocks**: Use stub implementations from `internal/testutil/mocks.go` (`StubS3Client`, `StubSessionStore`, `StubJobQueue`, `StubFaceitAPI`). Never create ad-hoc mock structs that duplicate these.
+3. **Run the test immediately** after writing it — do not move to the next file until the test passes (the PostToolUse hook does this automatically)
+
 ## Claude Code Automations
 
 ### Hooks (auto-run on edits)
-- **PostToolUse**: Auto-runs `eslint --fix` on TS/TSX, `gofmt`+`goimports` on Go files
+- **PostToolUse (format)**: Auto-runs `eslint --fix` on TS/TSX, `gofmt`+`goimports` on Go files
+- **PostToolUse (test)**: Auto-runs the affected test when a test file (`*.test.ts(x)` or `*_test.go`) is edited — provides immediate pass/fail feedback with `-race` for Go
 - **PreToolUse**: Blocks edits to lock files (`pnpm-lock.yaml`, `go.sum`) and sqlc-generated `*.sql.go` files
 
 ### Subagents (`.claude/agents/`)

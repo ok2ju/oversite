@@ -23,3 +23,5 @@ if [[ "$FILE" == */backend/*.go ]]; then
   goimports -w "$FILE" 2>/dev/null || true
   exit 0
 fi
+
+exit 0

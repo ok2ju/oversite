@@ -12,8 +12,8 @@
 
 TDD (Red-Green-Refactor). All conventions below apply.
 
-- **Unit tests**: Table-driven tests. Run: `go test ./...`
-- **Integration tests**: Use `testcontainers` for real DB. Build tag: `//go:build integration`. Run: `go test -tags integration ./...`
+- **Unit tests**: Table-driven tests. Run: `go test -race ./...` (always use `-race`)
+- **Integration tests**: Use `testcontainers` for real DB. Build tag: `//go:build integration`. Run: `go test -race -tags integration ./...`
 - **Golden file tests**: For parser output. Use `-update` flag to regenerate.
 - **Mocking**: Interface-based DI. Mock interfaces: `Store`, `S3Client`, `SessionStore`, `JobQueue`, `FaceitAPI`.
 
