@@ -85,6 +85,19 @@ describe("viewerStore", () => {
     expect(useViewerStore.getState().selectedPlayerSteamId).toBeNull()
   })
 
+  it("pause sets isPlaying to false", () => {
+    useViewerStore.getState().togglePlay()
+    expect(useViewerStore.getState().isPlaying).toBe(true)
+    useViewerStore.getState().pause()
+    expect(useViewerStore.getState().isPlaying).toBe(false)
+  })
+
+  it("pause is idempotent when already paused", () => {
+    expect(useViewerStore.getState().isPlaying).toBe(false)
+    useViewerStore.getState().pause()
+    expect(useViewerStore.getState().isPlaying).toBe(false)
+  })
+
   it("reset clears selectedPlayerSteamId", () => {
     useViewerStore.getState().setSelectedPlayer("76561198000000001")
     useViewerStore.getState().reset()

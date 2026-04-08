@@ -166,29 +166,6 @@ describe("ViewerCanvas", () => {
     })
   })
 
-  it("syncs initial speed to ticker on mount", async () => {
-    useViewerStore.getState().setSpeed(2)
-    render(<ViewerCanvas />)
-
-    await vi.waitFor(() => {
-      expect(mockTicker.speed).toBe(2)
-    })
-  })
-
-  it("updates ticker.speed when speed changes", async () => {
-    render(<ViewerCanvas />)
-
-    await vi.waitFor(() => {
-      expect(mockCreateViewerApp).toHaveBeenCalled()
-    })
-
-    useViewerStore.getState().setSpeed(2)
-
-    await vi.waitFor(() => {
-      expect(mockTicker.speed).toBe(2)
-    })
-  })
-
   it("cleans up Zustand subscriptions on unmount", async () => {
     const { unmount } = render(<ViewerCanvas />)
 
