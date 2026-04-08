@@ -103,4 +103,53 @@ describe("viewerStore", () => {
     useViewerStore.getState().reset()
     expect(useViewerStore.getState().selectedPlayerSteamId).toBeNull()
   })
+
+  describe("viewport state", () => {
+    it("has default viewport initially", () => {
+      const state = useViewerStore.getState()
+      expect(state.viewport).toEqual({ x: 0, y: 0, zoom: 1 })
+      expect(state.screenWidth).toBe(0)
+      expect(state.screenHeight).toBe(0)
+      expect(state.resetViewportCounter).toBe(0)
+    })
+
+    it("setViewport updates viewport", () => {
+      useViewerStore.getState().setViewport({ x: -100, y: -50, zoom: 2 })
+      expect(useViewerStore.getState().viewport).toEqual({ x: -100, y: -50, zoom: 2 })
+    })
+
+    it("setScreenSize updates screenWidth and screenHeight", () => {
+      useViewerStore.getState().setScreenSize(800, 600)
+      expect(useViewerStore.getState().screenWidth).toBe(800)
+      expect(useViewerStore.getState().screenHeight).toBe(600)
+    })
+
+    it("resetViewport resets viewport to default and increments counter", () => {
+      useViewerStore.getState().setViewport({ x: -200, y: -100, zoom: 3 })
+      useViewerStore.getState().resetViewport()
+      expect(useViewerStore.getState().viewport).toEqual({ x: 0, y: 0, zoom: 1 })
+      expect(useViewerStore.getState().resetViewportCounter).toBe(1)
+    })
+
+    it("resetViewport increments counter each call", () => {
+      useViewerStore.getState().resetViewport()
+      useViewerStore.getState().resetViewport()
+      expect(useViewerStore.getState().resetViewportCounter).toBe(2)
+    })
+
+    it("setDemoId resets viewport", () => {
+      useViewerStore.getState().setViewport({ x: -200, y: -100, zoom: 3 })
+      useViewerStore.getState().setDemoId("demo-789")
+      expect(useViewerStore.getState().viewport).toEqual({ x: 0, y: 0, zoom: 1 })
+    })
+
+    it("reset resets viewport state", () => {
+      useViewerStore.getState().setViewport({ x: -200, y: -100, zoom: 3 })
+      useViewerStore.getState().setScreenSize(800, 600)
+      useViewerStore.getState().reset()
+      expect(useViewerStore.getState().viewport).toEqual({ x: 0, y: 0, zoom: 1 })
+      expect(useViewerStore.getState().screenWidth).toBe(0)
+      expect(useViewerStore.getState().screenHeight).toBe(0)
+    })
+  })
 })

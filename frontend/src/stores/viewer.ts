@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { subscribeWithSelector } from "zustand/middleware"
+import { DEFAULT_VIEWPORT, type Viewport } from "@/lib/pixi/camera"
 
 interface ViewerState {
   currentTick: number
@@ -10,6 +11,10 @@ interface ViewerState {
   demoId: string | null
   mapName: string | null
   selectedPlayerSteamId: string | null
+  viewport: Viewport
+  screenWidth: number
+  screenHeight: number
+  resetViewportCounter: number
   setTick: (tick: number) => void
   setTotalTicks: (total: number) => void
   togglePlay: () => void
@@ -19,6 +24,9 @@ interface ViewerState {
   setMapName: (name: string | null) => void
   pause: () => void
   setSelectedPlayer: (steamId: string | null) => void
+  setViewport: (v: Viewport) => void
+  setScreenSize: (w: number, h: number) => void
+  resetViewport: () => void
   reset: () => void
 }
 
@@ -31,6 +39,10 @@ const initialState = {
   demoId: null as string | null,
   mapName: null as string | null,
   selectedPlayerSteamId: null as string | null,
+  viewport: { ...DEFAULT_VIEWPORT },
+  screenWidth: 0,
+  screenHeight: 0,
+  resetViewportCounter: 0,
 }
 
 export const useViewerStore = create<ViewerState>()(
@@ -42,9 +54,16 @@ export const useViewerStore = create<ViewerState>()(
     pause: () => set({ isPlaying: false }),
     setSpeed: (speed) => set({ speed }),
     setRound: (round) => set({ currentRound: round, selectedPlayerSteamId: null }),
-    setDemoId: (id) => set({ demoId: id, currentTick: 0, mapName: null, selectedPlayerSteamId: null }),
+    setDemoId: (id) => set({ demoId: id, currentTick: 0, mapName: null, selectedPlayerSteamId: null, viewport: { ...DEFAULT_VIEWPORT } }),
     setMapName: (name) => set({ mapName: name }),
     setSelectedPlayer: (steamId) => set({ selectedPlayerSteamId: steamId }),
+    setViewport: (v) => set({ viewport: v }),
+    setScreenSize: (w, h) => set({ screenWidth: w, screenHeight: h }),
+    resetViewport: () =>
+      set((state) => ({
+        viewport: { ...DEFAULT_VIEWPORT },
+        resetViewportCounter: state.resetViewportCounter + 1,
+      })),
     reset: () => set(initialState),
   }))
 )
