@@ -108,25 +108,6 @@ make hooks               # Install lefthook pre-commit hooks
 make hooks-fallback      # Fallback: git core.hooksPath, no extra tools
 ```
 
-## Coding Conventions
-
-### Go
-
-- **Router**: chi. Group routes by resource. Middleware applied per-group.
-- **SQL**: sqlc generates all DB access code. Write SQL in `queries/*.sql`, run `make sqlc`.
-- **Errors**: Return sentinel errors from services (`ErrNotFound`, `ErrForbidden`). Handlers map to HTTP status codes.
-- **Logging**: `slog` (stdlib). Structured JSON. Include request ID.
-- **Config**: Environment variables. Loaded via `internal/config` into a typed struct.
-- **Testing**: TDD (Red-Green-Refactor). Table-driven tests. Use `testcontainers` for integration tests with real DB. Golden file tests for parser output (`-update` flag to regenerate). Integration tests use `//go:build integration` tag. Interface-based DI for service mocking (`Store`, `S3Client`, `SessionStore`, `JobQueue`, `FaceitAPI`). Run unit: `go test ./...`, integration: `go test -tags integration ./...`.
-
-### TypeScript / React
-
-- **State**: Zustand stores per domain (`viewerStore`, `stratStore`, `uiStore`, `faceitStore`). Use selector hooks to minimize re-renders.
-- **Data fetching**: TanStack Query for all API calls. No raw `fetch` in components.
-- **Components**: shadcn/ui for standard UI. Custom components in `components/viewer/`, `components/strat/`.
-- **Styling**: Tailwind CSS utility classes. No CSS modules or styled-components.
-- **Testing**: TDD (Red-Green-Refactor). Vitest with React Testing Library for components/hooks. MSW (Mock Service Worker) for API mocking. Pure unit tests for Zustand stores. PixiJS logic unit-tested (transforms, interpolation, state); visual output screenshot-tested with Playwright. TanStack Query hooks tested via `renderHook()` + MSW. Yjs tested with in-memory `Y.Doc` pairs.
-
 ## Key Architectural Patterns
 
 ### PixiJS Outside React
