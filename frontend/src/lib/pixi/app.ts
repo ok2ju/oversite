@@ -43,7 +43,7 @@ export class ViewerApp {
     return this._initialized
   }
 
-  addLayer(name: string): Container {
+  addLayer(name: string, parent?: Container): Container {
     if (this.layers.has(name)) {
       throw new Error(`Layer "${name}" already exists`)
     }
@@ -51,7 +51,8 @@ export class ViewerApp {
     const container = new Container()
     container.label = name
     this.layers.set(name, container)
-    this.app.stage.addChild(container)
+    const target = parent ?? this.app.stage
+    target.addChild(container)
     return container
   }
 

@@ -107,6 +107,20 @@ describe("ViewerApp", () => {
 
       expect(mockApp.stage.removeChild).not.toHaveBeenCalled()
     })
+
+    it("addLayer with parent adds to parent instead of stage", () => {
+      const parent = { addChild: vi.fn() }
+      const layer = app.addLayer("overlay", parent as unknown as import("pixi.js").Container)
+
+      expect(parent.addChild).toHaveBeenCalledWith(layer)
+      expect(mockApp.stage.addChild).not.toHaveBeenCalledWith(layer)
+    })
+
+    it("addLayer without parent adds to stage (backward compat)", () => {
+      const layer = app.addLayer("map")
+
+      expect(mockApp.stage.addChild).toHaveBeenCalledWith(layer)
+    })
   })
 
   describe("destroy", () => {

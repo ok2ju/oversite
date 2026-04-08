@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react"
 import { createViewerApp, type ViewerApp } from "@/lib/pixi/app"
 import { PlaybackEngine } from "@/lib/pixi/playback-engine"
+import { Camera } from "@/lib/pixi/camera"
 import { MapLayer } from "@/lib/pixi/layers/map-layer"
 import { PlayerLayer } from "@/lib/pixi/layers/player-layer"
 import { EventLayer } from "@/lib/pixi/layers/event-layer"
@@ -52,6 +53,7 @@ export function ViewerCanvas() {
 
     let destroyed = false
     let viewerApp: ViewerApp | null = null
+    let camera: Camera | null = null
     let mapLayer: MapLayer | null = null
     let playerLayer: PlayerLayer | null = null
     let tickBuffer: TickBuffer | null = null
@@ -65,6 +67,7 @@ export function ViewerCanvas() {
     let tickerFn: (() => void) | null = null
     let engine: PlaybackEngine | null = null
     let seekUnsub: (() => void) | null = null
+    let resizeObserver: ResizeObserver | null = null
 
     createViewerApp({ container }).then((app) => {
       if (destroyed) {
@@ -74,10 +77,30 @@ export function ViewerCanvas() {
 
       viewerApp = app
 
-      const mapContainer = app.addLayer("map")
+      // Create camera and add its container to stage
+      camera = new Camera(app.canvas)
+      app.stage.addChild(camera.container)
+
+      // Set initial screen size
+      const { width, height } = container.getBoundingClientRect()
+      camera.setScreenSize(width, height)
+      useViewerStore.getState().setScreenSize(width, height)
+
+      // Observe container resize
+      resizeObserver = new ResizeObserver((entries) => {
+        const entry = entries[0]
+        if (!entry || !camera) return
+        const { width: w, height: h } = entry.contentRect
+        camera.setScreenSize(w, h)
+        useViewerStore.getState().setScreenSize(w, h)
+      })
+      resizeObserver.observe(container)
+
+      // All layers are children of camera.container
+      const mapContainer = app.addLayer("map", camera.container)
       mapLayer = new MapLayer(mapContainer)
 
-      const playerContainer = app.addLayer("players")
+      const playerContainer = app.addLayer("players", camera.container)
       playerLayer = new PlayerLayer(playerContainer)
 
       playerLayer.onPlayerClick((steamId) => {
@@ -85,7 +108,7 @@ export function ViewerCanvas() {
         setSelectedPlayer(selectedPlayerSteamId === steamId ? null : steamId)
       })
 
-      const eventContainer = app.addLayer("events")
+      const eventContainer = app.addLayer("events", camera.container)
       eventLayer = new EventLayer(eventContainer)
       eventLayerRef.current = eventLayer
 
@@ -192,6 +215,7 @@ export function ViewerCanvas() {
 
     return () => {
       destroyed = true
+      resizeObserver?.disconnect()
       rosterAbortController?.abort()
       roundUnsub?.()
       tickUnsub?.()
@@ -208,6 +232,7 @@ export function ViewerCanvas() {
       eventLayer?.destroy()
       eventLayerRef.current = null
       mapLayer?.destroy()
+      camera?.destroy()
       viewerApp?.destroy()
     }
   }, [])

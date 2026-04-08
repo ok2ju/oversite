@@ -16,12 +16,16 @@ const mockTicker = {
 }
 
 const mockAddLayer = vi.fn().mockReturnValue({ addChild: vi.fn(), removeChild: vi.fn() })
+const mockStageAddChild = vi.fn()
+const mockCanvas = document.createElement("canvas")
 
 const mockApp = {
   initialized: true,
   ticker: mockTicker,
   destroy: mockDestroy,
   addLayer: mockAddLayer,
+  stage: { addChild: mockStageAddChild },
+  canvas: mockCanvas,
 }
 
 const mockCreateViewerApp = vi.fn().mockResolvedValue(mockApp)
@@ -89,6 +93,24 @@ vi.mock("@/lib/pixi/tick-buffer", () => ({
   },
 }))
 
+const mockCameraDestroy = vi.fn()
+const mockCameraSetScreenSize = vi.fn()
+const mockCameraContainer = { addChild: vi.fn(), removeChild: vi.fn(), position: { set: vi.fn() }, scale: { set: vi.fn() }, label: "camera-viewport" }
+
+vi.mock("@/lib/pixi/camera", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/pixi/camera")>()
+  return {
+    ...actual,
+    Camera: class MockCamera {
+      container = mockCameraContainer
+      setScreenSize = mockCameraSetScreenSize
+      setMapSize = vi.fn()
+      resetView = vi.fn()
+      destroy = mockCameraDestroy
+    },
+  }
+})
+
 vi.mock("@/hooks/use-game-events", () => ({
   useGameEvents: vi.fn().mockReturnValue({ data: undefined }),
 }))
@@ -100,12 +122,15 @@ describe("ViewerCanvas", () => {
     vi.clearAllMocks()
     mockTicker.speed = 1
     mockApp.initialized = true
+    mockApp.stage = { addChild: vi.fn() }
     mockAddLayer.mockReturnValue({ addChild: vi.fn(), removeChild: vi.fn() })
     mockCreateViewerApp.mockResolvedValue(mockApp)
     mockSetMap.mockResolvedValue(undefined)
     mockOnPlayerClick.mockReset()
     mockPlayerLayerDestroy.mockReset()
     mockTickBufferDispose.mockReset()
+    mockCameraDestroy.mockReset()
+    mockCameraSetScreenSize.mockReset()
     useViewerStore.getState().reset()
     // Re-set return values cleared by clearAllMocks
     mockSetMap.mockResolvedValue(undefined)
@@ -184,17 +209,18 @@ describe("ViewerCanvas", () => {
     expect(mockTickerStart).not.toHaveBeenCalled()
   })
 
-  it("creates player layer after map layer", async () => {
+  it("creates layers as children of camera container", async () => {
     render(<ViewerCanvas />)
 
     await vi.waitFor(() => {
       expect(mockCreateViewerApp).toHaveBeenCalled()
     })
 
-    // addLayer should be called twice: "map" then "players"
-    expect(mockAddLayer).toHaveBeenCalledWith("map")
-    expect(mockAddLayer).toHaveBeenCalledWith("players")
-    const calls = mockAddLayer.mock.calls.map((c) => c[0])
+    // addLayer should be called with camera container as parent
+    expect(mockAddLayer).toHaveBeenCalledWith("map", mockCameraContainer)
+    expect(mockAddLayer).toHaveBeenCalledWith("players", mockCameraContainer)
+    expect(mockAddLayer).toHaveBeenCalledWith("events", mockCameraContainer)
+    const calls = mockAddLayer.mock.calls.map((c: unknown[]) => c[0])
     expect(calls.indexOf("map")).toBeLessThan(calls.indexOf("players"))
   })
 
@@ -215,6 +241,17 @@ describe("ViewerCanvas", () => {
     await vi.waitFor(() => {
       expect(mockOnPlayerClick).toHaveBeenCalledWith(expect.any(Function))
     })
+  })
+
+  it("destroys camera on unmount", async () => {
+    const { unmount } = render(<ViewerCanvas />)
+
+    await vi.waitFor(() => {
+      expect(mockCreateViewerApp).toHaveBeenCalled()
+    })
+
+    unmount()
+    expect(mockCameraDestroy).toHaveBeenCalled()
   })
 
   it("handles async init completing after cleanup (StrictMode guard)", async () => {
