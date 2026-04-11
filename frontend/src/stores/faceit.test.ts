@@ -14,12 +14,13 @@ describe("faceitStore", () => {
 
   it("setProfile updates profile", () => {
     const profile = {
-      id: "user-1",
       nickname: "TestPlayer",
-      avatarUrl: "https://example.com/avatar.png",
+      avatar_url: "https://example.com/avatar.png",
       elo: 2100,
       level: 9,
       country: "US",
+      matches_played: 142,
+      current_streak: { type: "win" as const, count: 3 },
     }
     useFaceitStore.getState().setProfile(profile)
     expect(useFaceitStore.getState().profile).toEqual(profile)
@@ -32,12 +33,13 @@ describe("faceitStore", () => {
 
   it("clearProfile sets profile to null", () => {
     useFaceitStore.getState().setProfile({
-      id: "user-1",
       nickname: "Test",
-      avatarUrl: null,
+      avatar_url: null,
       elo: 1000,
       level: 5,
       country: "US",
+      matches_played: 50,
+      current_streak: { type: "none" as const, count: 0 },
     })
     useFaceitStore.getState().clearProfile()
     expect(useFaceitStore.getState().profile).toBeNull()

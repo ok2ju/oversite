@@ -107,7 +107,7 @@ func serveCmd() *cobra.Command {
 			}
 
 			demoHandler := handler.NewDemoHandler(queries, minioClient, queue, cfg.MinioBucket)
-			faceitHandler := handler.NewFaceitHandler(queue)
+			faceitHandler := handler.NewFaceitHandler(queue, queries)
 			tickHandler := handler.NewTickHandler(queries, queries)
 			rosterHandler := handler.NewRosterHandler(queries, queries)
 			eventHandler := handler.NewEventHandler(queries, queries)

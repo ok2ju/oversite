@@ -1,13 +1,7 @@
 import { create } from "zustand"
+import type { FaceitProfile } from "@/types/faceit"
 
-interface FaceitProfile {
-  id: string
-  nickname: string
-  avatarUrl: string | null
-  elo: number
-  level: number
-  country: string
-}
+export type { FaceitProfile } from "@/types/faceit"
 
 interface FaceitState {
   profile: FaceitProfile | null

@@ -13,6 +13,17 @@ import (
 	"github.com/google/uuid"
 )
 
+const countFaceitMatchesByUserID = `-- name: CountFaceitMatchesByUserID :one
+SELECT COUNT(*) FROM faceit_matches WHERE user_id = $1
+`
+
+func (q *Queries) CountFaceitMatchesByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countFaceitMatchesByUserID, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createFaceitMatch = `-- name: CreateFaceitMatch :one
 INSERT INTO faceit_matches (user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
@@ -82,6 +93,36 @@ DELETE FROM faceit_matches WHERE user_id = $1
 func (q *Queries) DeleteFaceitMatchesByUserID(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteFaceitMatchesByUserID, userID)
 	return err
+}
+
+const getCurrentStreak = `-- name: GetCurrentStreak :many
+SELECT result FROM faceit_matches
+WHERE user_id = $1
+ORDER BY played_at DESC
+LIMIT 30
+`
+
+func (q *Queries) GetCurrentStreak(ctx context.Context, userID uuid.UUID) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, getCurrentStreak, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var result string
+		if err := rows.Scan(&result); err != nil {
+			return nil, err
+		}
+		items = append(items, result)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getEloHistory = `-- name: GetEloHistory :many
