@@ -37,8 +37,10 @@ type roundResponse struct {
 	StartTick   int32  `json:"start_tick"`
 	EndTick     int32  `json:"end_tick"`
 	WinnerSide  string `json:"winner_side"`
+	WinReason   string `json:"win_reason"`
 	CtScore     int16  `json:"ct_score"`
 	TScore      int16  `json:"t_score"`
+	IsOvertime  bool   `json:"is_overtime"`
 }
 
 func roundToResponse(r store.Round) roundResponse {
@@ -48,8 +50,10 @@ func roundToResponse(r store.Round) roundResponse {
 		StartTick:   r.StartTick,
 		EndTick:     r.EndTick,
 		WinnerSide:  r.WinnerSide,
+		WinReason:   r.WinReason,
 		CtScore:     r.CtScore,
 		TScore:      r.TScore,
+		IsOvertime:  r.IsOvertime,
 	}
 }
 

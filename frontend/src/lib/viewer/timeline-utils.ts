@@ -33,16 +33,19 @@ interface RoundBoundaryInput {
 /**
  * Compute the percentage position for each round boundary marker.
  * Uses startTick as the marker position.
+ * Filters out boundaries at tick 0 (round 1) since they overlap the track origin.
  */
 export function roundBoundaryPositions(
   boundaries: RoundBoundaryInput[],
   totalTicks: number,
 ): Array<{ roundNumber: number; percent: number }> {
   if (totalTicks <= 0) return []
-  return boundaries.map((b) => ({
-    roundNumber: b.roundNumber,
-    percent: (b.startTick / totalTicks) * 100,
-  }))
+  return boundaries
+    .filter((b) => b.startTick > 0)
+    .map((b) => ({
+      roundNumber: b.roundNumber,
+      percent: (b.startTick / totalTicks) * 100,
+    }))
 }
 
 /**

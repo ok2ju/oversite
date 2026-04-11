@@ -109,6 +109,12 @@ func TestHandleGetRounds(t *testing.T) {
 				if first["winner_side"] != "CT" {
 					t.Errorf("expected winner_side=CT, got %v", first["winner_side"])
 				}
+				if first["win_reason"] != "TargetBombed" {
+					t.Errorf("expected win_reason=TargetBombed, got %v", first["win_reason"])
+				}
+				if first["is_overtime"] != false {
+					t.Errorf("expected is_overtime=false, got %v", first["is_overtime"])
+				}
 				second := data[1].(map[string]interface{})
 				if second["round_number"] != float64(2) {
 					t.Errorf("expected round_number=2, got %v", second["round_number"])

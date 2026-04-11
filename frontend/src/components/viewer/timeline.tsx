@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import {
   tickToPercent,
   percentToTick,
@@ -29,31 +29,33 @@ export function Timeline({
 }: TimelineProps) {
   const trackRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
+  const seekRef = useRef<(clientX: number) => void>(null)
 
   const percent = tickToPercent(currentTick, totalTicks)
   const markers = roundBoundaryPositions(roundBoundaries, totalTicks)
 
-  const seekFromClientX = useCallback(
-    (clientX: number) => {
+  // Keep a ref to the latest seek function so document-level listeners
+  // never hold a stale closure over totalTicks or onSeek.
+  useEffect(() => {
+    seekRef.current = (clientX: number) => {
       const track = trackRef.current
       if (!track) return
       const rect = track.getBoundingClientRect()
       const pct = clientXToPercent(clientX, rect)
       const tick = percentToTick(pct, totalTicks)
       onSeek(tick)
-    },
-    [totalTicks, onSeek],
-  )
+    }
+  }, [totalTicks, onSeek])
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       draggingRef.current = true
       onScrubStart?.()
-      seekFromClientX(e.clientX)
+      seekRef.current?.(e.clientX)
 
       const handleMouseMove = (ev: MouseEvent) => {
         if (draggingRef.current) {
-          seekFromClientX(ev.clientX)
+          seekRef.current?.(ev.clientX)
         }
       }
 
@@ -66,18 +68,19 @@ export function Timeline({
       document.addEventListener("mousemove", handleMouseMove)
       document.addEventListener("mouseup", handleMouseUp)
     },
-    [seekFromClientX, onScrubStart],
+    [onScrubStart],
   )
 
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
       draggingRef.current = true
       onScrubStart?.()
-      seekFromClientX(e.touches[0].clientX)
+      seekRef.current?.(e.touches[0].clientX)
 
       const handleTouchMove = (ev: TouchEvent) => {
+        ev.preventDefault()
         if (draggingRef.current) {
-          seekFromClientX(ev.touches[0].clientX)
+          seekRef.current?.(ev.touches[0].clientX)
         }
       }
 
@@ -87,10 +90,12 @@ export function Timeline({
         document.removeEventListener("touchend", handleTouchEnd)
       }
 
-      document.addEventListener("touchmove", handleTouchMove)
+      document.addEventListener("touchmove", handleTouchMove, {
+        passive: false,
+      })
       document.addEventListener("touchend", handleTouchEnd)
     },
-    [seekFromClientX, onScrubStart],
+    [onScrubStart],
   )
 
   return (

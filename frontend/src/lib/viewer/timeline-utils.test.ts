@@ -114,6 +114,15 @@ describe("roundBoundaryPositions", () => {
     ])
   })
 
+  it("filters out boundaries at startTick 0", () => {
+    const boundaries = [
+      { roundNumber: 1, startTick: 0, endTick: 3200 },
+      { roundNumber: 2, startTick: 3200, endTick: 6400 },
+    ]
+    const result = roundBoundaryPositions(boundaries, 128000)
+    expect(result).toEqual([{ roundNumber: 2, percent: 2.5 }])
+  })
+
   it("returns empty array when totalTicks is 0", () => {
     const boundaries = [{ roundNumber: 2, startTick: 100, endTick: 200 }]
     expect(roundBoundaryPositions(boundaries, 0)).toEqual([])

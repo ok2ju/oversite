@@ -220,8 +220,10 @@ export const handlers = [
         start_tick: 0,
         end_tick: 3200,
         winner_side: "CT",
+        win_reason: "TargetBombed",
         ct_score: 1,
         t_score: 0,
+        is_overtime: false,
       },
       {
         id: "round-2",
@@ -229,8 +231,10 @@ export const handlers = [
         start_tick: 3200,
         end_tick: 6400,
         winner_side: "T",
+        win_reason: "BombDefused",
         ct_score: 1,
         t_score: 1,
+        is_overtime: false,
       },
       {
         id: "round-3",
@@ -238,8 +242,10 @@ export const handlers = [
         start_tick: 6400,
         end_tick: 9600,
         winner_side: "CT",
+        win_reason: "TargetBombed",
         ct_score: 2,
         t_score: 1,
+        is_overtime: false,
       },
     ]
     return HttpResponse.json({ data: rounds })
