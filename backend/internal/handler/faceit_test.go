@@ -286,6 +286,18 @@ func TestFaceitHandleGetMatches(t *testing.T) {
 			wantStatus: http.StatusOK,
 		},
 		{
+			name:   "invalid result filter returns 400",
+			userID: faceitTestUserID.String(),
+			query:  "result=INVALID",
+			countFn: func(_ context.Context, _ store.CountFaceitMatchesFilteredParams) (int64, error) {
+				return 0, nil
+			},
+			listFn: func(_ context.Context, _ store.GetFaceitMatchesFilteredParams) ([]store.FaceitMatch, error) {
+				return nil, nil
+			},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
 			name:   "empty result returns empty data array",
 			userID: faceitTestUserID.String(),
 			countFn: func(_ context.Context, _ store.CountFaceitMatchesFilteredParams) (int64, error) {

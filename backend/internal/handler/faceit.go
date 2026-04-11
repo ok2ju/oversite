@@ -261,6 +261,10 @@ func (h *FaceitHandler) HandleGetMatches(w http.ResponseWriter, r *http.Request)
 		mapFilter = sql.NullString{String: v, Valid: true}
 	}
 	if v := r.URL.Query().Get("result"); v != "" {
+		if v != "W" && v != "L" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid result filter: must be W or L"})
+			return
+		}
 		resultFilter = sql.NullString{String: v, Valid: true}
 	}
 
