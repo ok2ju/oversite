@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -107,7 +108,8 @@ func serveCmd() *cobra.Command {
 			}
 
 			demoHandler := handler.NewDemoHandler(queries, minioClient, queue, cfg.MinioBucket)
-			faceitHandler := handler.NewFaceitHandler(queue, queries)
+			demoImporter := faceit.NewDemoImporter(queries, minioClient, queue, &http.Client{Timeout: 5 * time.Minute}, cfg.MinioBucket)
+			faceitHandler := handler.NewFaceitHandler(queue, queries, demoImporter)
 			tickHandler := handler.NewTickHandler(queries, queries)
 			rosterHandler := handler.NewRosterHandler(queries, queries)
 			eventHandler := handler.NewEventHandler(queries, queries)
@@ -210,12 +212,27 @@ func workerCmd() *cobra.Command {
 				BaseURL: cfg.FaceitAPIBaseURL,
 			})
 
+			// MinIO object storage
+			minioClient, err := storage.NewMinIOClient(
+				cfg.MinioEndpoint, cfg.MinioAccessKey, cfg.MinioSecretKey, cfg.MinioUseSSL,
+			)
+			if err != nil {
+				return fmt.Errorf("creating minio client: %w", err)
+			}
+			if err := minioClient.EnsureBucket(context.Background(), cfg.MinioBucket); err != nil {
+				return fmt.Errorf("ensuring minio bucket: %w", err)
+			}
+
 			// Services
 			queries := store.New(db)
+			queue := worker.NewRedisQueueWithTimeout(redisClient, cfg.WorkerBlockTimeout)
 			syncSvc := faceit.NewSyncService(faceitAPI, queries)
+			if cfg.FaceitAutoImport {
+				demoImporter := faceit.NewDemoImporter(queries, minioClient, queue, &http.Client{Timeout: 5 * time.Minute}, cfg.MinioBucket)
+				syncSvc = syncSvc.WithAutoImport(demoImporter)
+			}
 
 			// Worker
-			queue := worker.NewRedisQueueWithTimeout(redisClient, cfg.WorkerBlockTimeout)
 			faceitHandler := worker.NewFaceitSyncHandler(syncSvc)
 			w := worker.NewWorker(queue, worker.FaceitSyncStream, "workers", "worker-1", faceitHandler).
 				WithMaxRetry(cfg.WorkerMaxRetry).

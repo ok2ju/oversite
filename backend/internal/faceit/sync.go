@@ -21,13 +21,20 @@ type SyncStore interface {
 
 // SyncService syncs a user's Faceit match history into the local database.
 type SyncService struct {
-	api   FaceitAPI
-	store SyncStore
+	api      FaceitAPI
+	store    SyncStore
+	importer *DemoImporter
 }
 
 // NewSyncService creates a new SyncService.
 func NewSyncService(api FaceitAPI, store SyncStore) *SyncService {
 	return &SyncService{api: api, store: store}
+}
+
+// WithAutoImport enables automatic demo downloading during sync.
+func (s *SyncService) WithAutoImport(importer *DemoImporter) *SyncService {
+	s.importer = importer
+	return s
 }
 
 // maxPages is the maximum number of history pages to fetch.
@@ -191,7 +198,7 @@ func (s *SyncService) Sync(ctx context.Context, userID uuid.UUID, faceitID strin
 			demoURL = sql.NullString{String: pm.details.DemoURL[0], Valid: true}
 		}
 
-		_, err := s.store.UpsertFaceitMatch(ctx, store.UpsertFaceitMatchParams{
+		match, err := s.store.UpsertFaceitMatch(ctx, store.UpsertFaceitMatchParams{
 			UserID:        userID,
 			FaceitMatchID: pm.summary.MatchID,
 			MapName:       mapName,
@@ -203,11 +210,25 @@ func (s *SyncService) Sync(ctx context.Context, userID uuid.UUID, faceitID strin
 			DemoUrl:       demoURL,
 			PlayedAt:      time.Unix(pm.summary.StartedAt, 0),
 		})
-		// ON CONFLICT DO NOTHING returns sql.ErrNoRows — treat as success
-		if err != nil && err != sql.ErrNoRows {
+		if err == sql.ErrNoRows {
+			// ON CONFLICT DO NOTHING — already existed, skip import
+			inserted++
+			continue
+		}
+		if err != nil {
 			return inserted, fmt.Errorf("upserting match %s: %w", pm.summary.MatchID, err)
 		}
 		inserted++
+
+		// Auto-import demo if enabled and demo URL present
+		if s.importer != nil && demoURL.Valid {
+			if _, importErr := s.importer.Import(ctx, userID, match.ID, match.FaceitMatchID, demoURL.String, time.Unix(pm.summary.StartedAt, 0)); importErr != nil {
+				slog.Warn("auto-import failed, continuing sync",
+					"match_id", pm.summary.MatchID,
+					"error", importErr,
+				)
+			}
+		}
 	}
 
 	return inserted, nil

@@ -131,8 +131,14 @@ func LoadWS() (*WSConfig, error) {
 type WorkerConfig struct {
 	DatabaseURL          string
 	RedisURL             string
+	MinioEndpoint        string
+	MinioAccessKey       string
+	MinioSecretKey       string
+	MinioUseSSL          bool
+	MinioBucket          string
 	FaceitAPIKey         string
 	FaceitAPIBaseURL     string
+	FaceitAutoImport     bool
 	Environment          string
 	LogLevel             string
 	WorkerMaxRetry       int
@@ -142,10 +148,13 @@ type WorkerConfig struct {
 }
 
 // LoadWorker reads configuration for the worker process from environment variables.
-// Required variables: DATABASE_URL, REDIS_URL, FACEIT_API_KEY.
+// Required variables: DATABASE_URL, REDIS_URL, MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, FACEIT_API_KEY.
 func LoadWorker() (*WorkerConfig, error) {
 	cfg := &WorkerConfig{
+		MinioBucket:          getEnvOrDefault("MINIO_BUCKET", "oversite-demos"),
+		MinioUseSSL:          getEnvOrDefault("MINIO_USE_SSL", "false") == "true",
 		FaceitAPIBaseURL:     getEnvOrDefault("FACEIT_API_BASE_URL", "https://open.faceit.com/data/v4"),
+		FaceitAutoImport:     getEnvOrDefault("FACEIT_AUTO_IMPORT", "false") == "true",
 		Environment:          getEnvOrDefault("GO_ENV", "development"),
 		LogLevel:             getEnvOrDefault("LOG_LEVEL", "info"),
 		WorkerMaxRetry:       getEnvOrDefaultInt("WORKER_MAX_RETRY", 3),
@@ -155,9 +164,12 @@ func LoadWorker() (*WorkerConfig, error) {
 	}
 
 	required := map[string]*string{
-		"DATABASE_URL":  &cfg.DatabaseURL,
-		"REDIS_URL":     &cfg.RedisURL,
-		"FACEIT_API_KEY": &cfg.FaceitAPIKey,
+		"DATABASE_URL":     &cfg.DatabaseURL,
+		"REDIS_URL":        &cfg.RedisURL,
+		"MINIO_ENDPOINT":   &cfg.MinioEndpoint,
+		"MINIO_ACCESS_KEY": &cfg.MinioAccessKey,
+		"MINIO_SECRET_KEY": &cfg.MinioSecretKey,
+		"FACEIT_API_KEY":   &cfg.FaceitAPIKey,
 	}
 
 	var missing []string

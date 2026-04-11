@@ -49,6 +49,7 @@ func NewRouter(health *HealthHandler, authH *AuthHandler, demoH *DemoHandler, fa
 			r.Post("/faceit/sync", faceitH.HandleSync)
 			r.Get("/faceit/profile", faceitH.HandleGetProfile)
 			r.Get("/faceit/elo-history", faceitH.HandleGetEloHistory)
+			r.Post("/faceit/matches/{id}/import", faceitH.HandleImportMatch)
 			r.Get("/demos/{id}/ticks", tickH.HandleGetTicks)
 			r.Get("/demos/{id}/rounds/{roundNumber}/players", rosterH.HandleGetPlayers)
 			r.Get("/demos/{id}/events", eventH.HandleGetEvents)

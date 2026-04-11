@@ -9,10 +9,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 
 	"github.com/ok2ju/oversite/backend/internal/auth"
+	"github.com/ok2ju/oversite/backend/internal/faceit"
 	"github.com/ok2ju/oversite/backend/internal/store"
 	"github.com/ok2ju/oversite/backend/internal/worker"
 )
@@ -27,15 +29,21 @@ type FaceitStore interface {
 	GetFaceitMatchesFiltered(ctx context.Context, arg store.GetFaceitMatchesFilteredParams) ([]store.FaceitMatch, error)
 }
 
+// FaceitDemoImporter is the subset of faceit.DemoImporter needed by FaceitHandler.
+type FaceitDemoImporter interface {
+	ImportByMatchID(ctx context.Context, userID, matchID uuid.UUID) (*faceit.ImportResult, error)
+}
+
 // FaceitHandler handles Faceit-related HTTP endpoints.
 type FaceitHandler struct {
-	queue JobEnqueuer
-	store FaceitStore
+	queue    JobEnqueuer
+	store    FaceitStore
+	importer FaceitDemoImporter
 }
 
 // NewFaceitHandler creates a new FaceitHandler.
-func NewFaceitHandler(queue JobEnqueuer, store FaceitStore) *FaceitHandler {
-	return &FaceitHandler{queue: queue, store: store}
+func NewFaceitHandler(queue JobEnqueuer, store FaceitStore, importer FaceitDemoImporter) *FaceitHandler {
+	return &FaceitHandler{queue: queue, store: store, importer: importer}
 }
 
 // HandleSync enqueues a Faceit match history sync job for the authenticated user.
@@ -371,4 +379,51 @@ func faceitMatchToJSON(m store.FaceitMatch) faceitMatchResponse {
 		resp.DemoID = &s
 	}
 	return resp
+}
+
+// HandleImportMatch imports a demo for a specific Faceit match.
+// Returns 202 Accepted with demo_id and file_size on success.
+func (h *FaceitHandler) HandleImportMatch(w http.ResponseWriter, r *http.Request) {
+	userIDStr, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid user id"})
+		return
+	}
+
+	matchID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid match id"})
+		return
+	}
+
+	result, err := h.importer.ImportByMatchID(r.Context(), userID, matchID)
+	if err != nil {
+		switch {
+		case errors.Is(err, faceit.ErrMatchNotFound), errors.Is(err, faceit.ErrMatchForbidden):
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "match not found"})
+		case errors.Is(err, faceit.ErrNoDemoURL):
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "match has no demo URL"})
+		case errors.Is(err, faceit.ErrDemoAlreadyLinked):
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "demo already imported"})
+		case errors.Is(err, faceit.ErrDownloadFailed):
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "demo download failed"})
+		default:
+			slog.Error("importing faceit demo", "error", err, "match_id", matchID, "request_id", chimw.GetReqID(r.Context()))
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "import failed"})
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusAccepted, map[string]interface{}{
+		"data": map[string]interface{}{
+			"demo_id":   result.DemoID.String(),
+			"file_size": result.FileSize,
+		},
+	})
 }
