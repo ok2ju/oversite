@@ -2,8 +2,10 @@ package faceit_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -84,6 +86,8 @@ type mockSyncStore struct {
 	existingErr error
 	upserted    []store.UpsertFaceitMatchParams
 	upsertErr   error
+	updatedUser *store.UpdateUserParams
+	updateErr   error
 }
 
 func (m *mockSyncStore) GetExistingFaceitMatchIDs(_ context.Context, _ uuid.UUID) ([]string, error) {
@@ -111,6 +115,14 @@ func (m *mockSyncStore) UpsertFaceitMatch(_ context.Context, arg store.UpsertFac
 		PlayedAt:      arg.PlayedAt,
 		CreatedAt:     time.Now(),
 	}, nil
+}
+
+func (m *mockSyncStore) UpdateUser(_ context.Context, arg store.UpdateUserParams) (store.User, error) {
+	if m.updateErr != nil {
+		return store.User{}, m.updateErr
+	}
+	m.updatedUser = &arg
+	return store.User{ID: arg.ID, Nickname: arg.Nickname}, nil
 }
 
 // --- Helpers ---
@@ -684,4 +696,81 @@ type mockAutoImporter struct {
 func (m *mockAutoImporter) EnqueueImport(_ context.Context, _, _ uuid.UUID, _, _ string, _ time.Time) error {
 	m.calls++
 	return m.err
+}
+
+func TestSync_UpdatesUserProfile(t *testing.T) {
+	api := &mockFaceitAPI{
+		player: &faceit.Player{
+			PlayerID: testFaceitID,
+			Nickname: "player1",
+			Avatar:   "https://cdn.faceit.com/avatar.png",
+			Country:  "SE",
+			Games:    map[string]faceit.Game{"cs2": {FaceitElo: 2100, SkillLevel: 10}},
+		},
+		history: map[string]*faceit.MatchHistory{
+			"0:20": {Items: []faceit.MatchSummary{
+				makeMatch("match-1", 1001, 2000, "faction1"),
+			}},
+		},
+		details: map[string]*faceit.MatchDetails{
+			"match-1": makeDetails("match-1", "de_dust2", ""),
+		},
+	}
+	mockStore := &mockSyncStore{}
+
+	svc := faceit.NewSyncService(api, mockStore)
+	_, err := svc.Sync(context.Background(), testUserID, testFaceitID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if mockStore.updatedUser == nil {
+		t.Fatal("expected UpdateUser to be called")
+	}
+	up := mockStore.updatedUser
+	if up.ID != testUserID {
+		t.Errorf("user ID = %s, want %s", up.ID, testUserID)
+	}
+	if up.Nickname != "player1" {
+		t.Errorf("nickname = %q, want %q", up.Nickname, "player1")
+	}
+	if up.AvatarUrl.String != "https://cdn.faceit.com/avatar.png" || !up.AvatarUrl.Valid {
+		t.Errorf("avatar = {%q, %v}, want {%q, true}", up.AvatarUrl.String, up.AvatarUrl.Valid, "https://cdn.faceit.com/avatar.png")
+	}
+	if up.Country.String != "SE" || !up.Country.Valid {
+		t.Errorf("country = {%q, %v}, want {%q, true}", up.Country.String, up.Country.Valid, "SE")
+	}
+	if up.FaceitElo != (sql.NullInt32{Int32: 2100, Valid: true}) {
+		t.Errorf("FaceitElo = {%d, %v}, want {2100, true}", up.FaceitElo.Int32, up.FaceitElo.Valid)
+	}
+	if up.FaceitLevel != (sql.NullInt16{Int16: 10, Valid: true}) {
+		t.Errorf("FaceitLevel = {%d, %v}, want {10, true}", up.FaceitLevel.Int16, up.FaceitLevel.Valid)
+	}
+}
+
+func TestSync_UpdateUserError_ReturnsError(t *testing.T) {
+	api := &mockFaceitAPI{
+		player: &faceit.Player{
+			PlayerID: testFaceitID,
+			Games:    map[string]faceit.Game{"cs2": {FaceitElo: 2100, SkillLevel: 10}},
+		},
+		history: map[string]*faceit.MatchHistory{
+			"0:20": {Items: []faceit.MatchSummary{
+				makeMatch("match-1", 1001, 2000, "faction1"),
+			}},
+		},
+		details: map[string]*faceit.MatchDetails{
+			"match-1": makeDetails("match-1", "de_dust2", ""),
+		},
+	}
+	mockStore := &mockSyncStore{updateErr: errors.New("db connection lost")}
+
+	svc := faceit.NewSyncService(api, mockStore)
+	_, err := svc.Sync(context.Background(), testUserID, testFaceitID)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "updating user profile") {
+		t.Errorf("expected error containing 'updating user profile', got: %v", err)
+	}
 }

@@ -228,9 +228,11 @@ func (s *OAuthService) upsertUser(ctx context.Context, info *FaceitUserInfo) (st
 	}
 
 	return s.users.UpdateUser(ctx, store.UpdateUserParams{
-		ID:        existing.ID,
-		Nickname:  info.Nickname,
-		AvatarUrl: sql.NullString{String: info.Avatar, Valid: info.Avatar != ""},
-		Country:   sql.NullString{String: info.Country, Valid: info.Country != ""},
+		ID:          existing.ID,
+		Nickname:    info.Nickname,
+		AvatarUrl:   sql.NullString{String: info.Avatar, Valid: info.Avatar != ""},
+		FaceitElo:   existing.FaceitElo,
+		FaceitLevel: existing.FaceitLevel,
+		Country:     sql.NullString{String: info.Country, Valid: info.Country != ""},
 	})
 }

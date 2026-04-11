@@ -370,6 +370,40 @@ func TestHandleCallback_ExistingUser_Updated(t *testing.T) {
 	}
 }
 
+func TestHandleCallback_ExistingUser_PreservesEloAndLevel(t *testing.T) {
+	states := newSpyStateStore()
+	states.data["oauth_state:valid-state"] = []byte(`{"code_verifier":"test-verifier"}`)
+	existingID := uuid.New()
+	users := newSpyUserStore()
+	users.users["faceit-123"] = store.User{
+		ID:          existingID,
+		FaceitID:    "faceit-123",
+		Nickname:    "old-name",
+		FaceitElo:   sql.NullInt32{Int32: 2100, Valid: true},
+		FaceitLevel: sql.NullInt16{Int16: 10, Valid: true},
+	}
+	exchanger := &spyTokenExchanger{
+		tokenResp: &auth.TokenResponse{AccessToken: "tok", RefreshToken: "ref", ExpiresIn: 3600},
+		userInfo:  &auth.FaceitUserInfo{PlayerID: "faceit-123", Nickname: "new-name", Avatar: "https://example.com/avatar.png", Country: "US"},
+	}
+	svc := auth.NewOAuthService(testOAuthConfig(), states, users, exchanger)
+
+	_, _, err := svc.HandleCallback(context.Background(), "some-code", "valid-state")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if users.updatedWith == nil {
+		t.Fatal("expected UpdateUser to be called")
+	}
+	if users.updatedWith.FaceitElo.Int32 != 2100 || !users.updatedWith.FaceitElo.Valid {
+		t.Errorf("expected FaceitElo {2100, true}, got {%d, %v}", users.updatedWith.FaceitElo.Int32, users.updatedWith.FaceitElo.Valid)
+	}
+	if users.updatedWith.FaceitLevel.Int16 != 10 || !users.updatedWith.FaceitLevel.Valid {
+		t.Errorf("expected FaceitLevel {10, true}, got {%d, %v}", users.updatedWith.FaceitLevel.Int16, users.updatedWith.FaceitLevel.Valid)
+	}
+}
+
 func TestHandleCallback_DeletesStateAfterUse(t *testing.T) {
 	states := newSpyStateStore()
 	states.data["oauth_state:valid-state"] = []byte(`{"code_verifier":"test-verifier"}`)

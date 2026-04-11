@@ -17,6 +17,7 @@ import (
 type SyncStore interface {
 	GetExistingFaceitMatchIDs(ctx context.Context, userID uuid.UUID) ([]string, error)
 	UpsertFaceitMatch(ctx context.Context, arg store.UpsertFaceitMatchParams) (store.FaceitMatch, error)
+	UpdateUser(ctx context.Context, arg store.UpdateUserParams) (store.User, error)
 }
 
 // AutoImporter enqueues demo import jobs for async processing during sync.
@@ -144,8 +145,23 @@ func (s *SyncService) Sync(ctx context.Context, userID uuid.UUID, faceitID strin
 		return 0, fmt.Errorf("fetching player profile: %w", err)
 	}
 	var currentElo int
+	var currentLevel int
 	if game, ok := player.Games["cs2"]; ok {
 		currentElo = game.FaceitElo
+		currentLevel = game.SkillLevel
+	}
+
+	// 6b. Update user profile with latest data from Faceit
+	_, err = s.store.UpdateUser(ctx, store.UpdateUserParams{
+		ID:          userID,
+		Nickname:    player.Nickname,
+		AvatarUrl:   sql.NullString{String: player.Avatar, Valid: player.Avatar != ""},
+		FaceitElo:   sql.NullInt32{Int32: int32(currentElo), Valid: currentElo > 0},
+		FaceitLevel: sql.NullInt16{Int16: int16(currentLevel), Valid: currentLevel > 0},
+		Country:     sql.NullString{String: player.Country, Valid: player.Country != ""},
+	})
+	if err != nil {
+		return 0, fmt.Errorf("updating user profile: %w", err)
 	}
 
 	// 7. Filter to processable matches (have details and player in teams)
