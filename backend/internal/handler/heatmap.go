@@ -93,7 +93,8 @@ func (h *HeatmapHandler) HandleAggregate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Parse and validate demo UUIDs.
+	// Parse, validate, and deduplicate demo UUIDs.
+	seen := make(map[uuid.UUID]struct{}, len(req.DemoIDs))
 	demoIDs := make([]uuid.UUID, 0, len(req.DemoIDs))
 	for _, idStr := range req.DemoIDs {
 		id, parseErr := uuid.Parse(idStr)
@@ -101,7 +102,10 @@ func (h *HeatmapHandler) HandleAggregate(w http.ResponseWriter, r *http.Request)
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid demo id: " + idStr})
 			return
 		}
-		demoIDs = append(demoIDs, id)
+		if _, dup := seen[id]; !dup {
+			seen[id] = struct{}{}
+			demoIDs = append(demoIDs, id)
+		}
 	}
 
 	// Validate filters.
@@ -133,9 +137,20 @@ func (h *HeatmapHandler) HandleAggregate(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	var mapName string
 	for _, d := range demos {
 		if d.UserID != userID {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "one or more demos not found"})
+			return
+		}
+		if !d.MapName.Valid || d.MapName.String == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "one or more demos has no map data"})
+			return
+		}
+		if mapName == "" {
+			mapName = d.MapName.String
+		} else if d.MapName.String != mapName {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "all demos must be from the same map"})
 			return
 		}
 	}

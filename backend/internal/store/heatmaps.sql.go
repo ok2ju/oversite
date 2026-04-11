@@ -57,7 +57,7 @@ WHERE ge.demo_id = ANY($1::uuid[])
   AND ge.x IS NOT NULL
   AND ge.y IS NOT NULL
   AND ($2::text IS NULL OR ge.attacker_steam_id = $2)
-  AND ($3::text IS NULL OR pr.team_side = $3)
+  AND ($3::text IS NULL OR (pr.team_side IS NOT NULL AND pr.team_side = $3))
   AND (cardinality($4::text[]) = 0 OR ge.weapon = ANY($4::text[]))
 GROUP BY ge.x, ge.y
 `

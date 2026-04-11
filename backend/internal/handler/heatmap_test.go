@@ -349,7 +349,7 @@ func TestHandleAggregate(t *testing.T) {
 					getDemosByIDsFn: func(_ context.Context, ids []uuid.UUID) ([]store.GetDemosByIDsRow, error) {
 						rows := make([]store.GetDemosByIDsRow, 0, len(ids))
 						for _, id := range ids {
-							rows = append(rows, store.GetDemosByIDsRow{ID: id, UserID: otherUser})
+							rows = append(rows, store.GetDemosByIDsRow{ID: id, UserID: otherUser, MapName: sql.NullString{String: "de_dust2", Valid: true}})
 						}
 						return rows, nil
 					},
@@ -369,8 +369,8 @@ func TestHandleAggregate(t *testing.T) {
 				dc := &mockHeatmapDemoChecker{
 					getDemosByIDsFn: func(_ context.Context, ids []uuid.UUID) ([]store.GetDemosByIDsRow, error) {
 						return []store.GetDemosByIDsRow{
-							{ID: ids[0], UserID: testUserID},
-							{ID: ids[1], UserID: otherUser},
+							{ID: ids[0], UserID: testUserID, MapName: sql.NullString{String: "de_dust2", Valid: true}},
+							{ID: ids[1], UserID: otherUser, MapName: sql.NullString{String: "de_dust2", Valid: true}},
 						}, nil
 					},
 				}
@@ -381,6 +381,72 @@ func TestHandleAggregate(t *testing.T) {
 				return h, req
 			},
 			wantStatus: http.StatusNotFound,
+		},
+		{
+			name: "duplicate demo IDs are deduplicated",
+			setup: func() (*handler.HeatmapHandler, *http.Request) {
+				hs := &mockHeatmapStore{
+					getHeatmapAggregationFn: func(_ context.Context, arg store.GetHeatmapAggregationParams) ([]store.GetHeatmapAggregationRow, error) {
+						if len(arg.DemoIds) != 1 {
+							t.Errorf("expected 1 deduplicated demo ID, got %d", len(arg.DemoIds))
+						}
+						return nil, nil
+					},
+				}
+				dc := &mockHeatmapDemoChecker{
+					getDemosByIDsFn: func(_ context.Context, ids []uuid.UUID) ([]store.GetDemosByIDsRow, error) {
+						if len(ids) != 1 {
+							t.Errorf("expected 1 deduplicated ID in query, got %d", len(ids))
+						}
+						return []store.GetDemosByIDsRow{
+							{ID: ids[0], UserID: testUserID, MapName: sql.NullString{String: "de_dust2", Valid: true}},
+						}, nil
+					},
+				}
+				h := handler.NewHeatmapHandler(dc, hs)
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/heatmaps/aggregate", heatmapRequest([]string{testDemoID.String(), testDemoID.String()}, nil))
+				req.Header.Set("Content-Type", "application/json")
+				req = withUserID(req, testUserID.String())
+				return h, req
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name: "demos from different maps returns 400",
+			setup: func() (*handler.HeatmapHandler, *http.Request) {
+				dc := &mockHeatmapDemoChecker{
+					getDemosByIDsFn: func(_ context.Context, ids []uuid.UUID) ([]store.GetDemosByIDsRow, error) {
+						return []store.GetDemosByIDsRow{
+							{ID: ids[0], UserID: testUserID, MapName: sql.NullString{String: "de_dust2", Valid: true}},
+							{ID: ids[1], UserID: testUserID, MapName: sql.NullString{String: "de_mirage", Valid: true}},
+						}, nil
+					},
+				}
+				h := handler.NewHeatmapHandler(dc, &mockHeatmapStore{})
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/heatmaps/aggregate", heatmapRequest([]string{testDemoID.String(), testDemoID2.String()}, nil))
+				req.Header.Set("Content-Type", "application/json")
+				req = withUserID(req, testUserID.String())
+				return h, req
+			},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name: "demo with null map_name returns 400",
+			setup: func() (*handler.HeatmapHandler, *http.Request) {
+				dc := &mockHeatmapDemoChecker{
+					getDemosByIDsFn: func(_ context.Context, ids []uuid.UUID) ([]store.GetDemosByIDsRow, error) {
+						return []store.GetDemosByIDsRow{
+							{ID: ids[0], UserID: testUserID, MapName: sql.NullString{}},
+						}, nil
+					},
+				}
+				h := handler.NewHeatmapHandler(dc, &mockHeatmapStore{})
+				req := httptest.NewRequest(http.MethodPost, "/api/v1/heatmaps/aggregate", heatmapRequest([]string{testDemoID.String()}, nil))
+				req.Header.Set("Content-Type", "application/json")
+				req = withUserID(req, testUserID.String())
+				return h, req
+			},
+			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name: "DB error returns 500",
