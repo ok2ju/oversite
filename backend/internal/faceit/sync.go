@@ -19,11 +19,16 @@ type SyncStore interface {
 	UpsertFaceitMatch(ctx context.Context, arg store.UpsertFaceitMatchParams) (store.FaceitMatch, error)
 }
 
+// AutoImporter enqueues demo import jobs for async processing during sync.
+type AutoImporter interface {
+	EnqueueImport(ctx context.Context, userID, matchID uuid.UUID, faceitMatchID, demoURL string, matchDate time.Time) error
+}
+
 // SyncService syncs a user's Faceit match history into the local database.
 type SyncService struct {
 	api      FaceitAPI
 	store    SyncStore
-	importer *DemoImporter
+	importer AutoImporter
 }
 
 // NewSyncService creates a new SyncService.
@@ -31,8 +36,8 @@ func NewSyncService(api FaceitAPI, store SyncStore) *SyncService {
 	return &SyncService{api: api, store: store}
 }
 
-// WithAutoImport enables automatic demo downloading during sync.
-func (s *SyncService) WithAutoImport(importer *DemoImporter) *SyncService {
+// WithAutoImport enables automatic demo importing during sync.
+func (s *SyncService) WithAutoImport(importer AutoImporter) *SyncService {
 	s.importer = importer
 	return s
 }
@@ -211,8 +216,7 @@ func (s *SyncService) Sync(ctx context.Context, userID uuid.UUID, faceitID strin
 			PlayedAt:      time.Unix(pm.summary.StartedAt, 0),
 		})
 		if err == sql.ErrNoRows {
-			// ON CONFLICT DO NOTHING — already existed, skip import
-			inserted++
+			// ON CONFLICT DO NOTHING — already existed, skip
 			continue
 		}
 		if err != nil {
@@ -220,10 +224,10 @@ func (s *SyncService) Sync(ctx context.Context, userID uuid.UUID, faceitID strin
 		}
 		inserted++
 
-		// Auto-import demo if enabled and demo URL present
+		// Enqueue async demo import if enabled and demo URL present
 		if s.importer != nil && demoURL.Valid {
-			if _, importErr := s.importer.Import(ctx, userID, match.ID, match.FaceitMatchID, demoURL.String, time.Unix(pm.summary.StartedAt, 0)); importErr != nil {
-				slog.Warn("auto-import failed, continuing sync",
+			if importErr := s.importer.EnqueueImport(ctx, userID, match.ID, match.FaceitMatchID, demoURL.String, time.Unix(pm.summary.StartedAt, 0)); importErr != nil {
+				slog.Warn("enqueueing demo import failed, continuing sync",
 					"match_id", pm.summary.MatchID,
 					"error", importErr,
 				)

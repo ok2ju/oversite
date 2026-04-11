@@ -103,12 +103,17 @@ func (d *DemoImporter) Import(ctx context.Context, userID, matchID uuid.UUID, fa
 	defer func() { _ = os.Remove(tmpFile.Name()) }()
 	defer func() { _ = tmpFile.Close() }()
 
-	size, err := io.Copy(tmpFile, resp.Body)
+	size, err := io.Copy(tmpFile, io.LimitReader(resp.Body, demo.MaxUploadSize+1))
 	if err != nil {
 		return nil, fmt.Errorf("%w: reading response body: %v", ErrDownloadFailed, err)
 	}
 
-	// 2. Validate magic bytes
+	// 2. Validate size (before writing more to disk)
+	if err := demo.ValidateSize(size); err != nil {
+		return nil, ErrInvalidDemo
+	}
+
+	// 3. Validate magic bytes
 	if _, err := tmpFile.Seek(0, io.SeekStart); err != nil {
 		return nil, fmt.Errorf("seeking temp file: %w", err)
 	}
@@ -118,11 +123,6 @@ func (d *DemoImporter) Import(ctx context.Context, userID, matchID uuid.UUID, fa
 		return nil, fmt.Errorf("%w: cannot read header", ErrInvalidDemo)
 	}
 	if err := demo.ValidateMagicBytes(header); err != nil {
-		return nil, ErrInvalidDemo
-	}
-
-	// 3. Validate size
-	if err := demo.ValidateSize(size); err != nil {
 		return nil, ErrInvalidDemo
 	}
 
@@ -160,6 +160,10 @@ func (d *DemoImporter) Import(ctx context.Context, userID, matchID uuid.UUID, fa
 		ID:     matchID,
 		DemoID: uuid.NullUUID{UUID: demoRecord.ID, Valid: true},
 	}); err != nil {
+		// Clean up S3 object on link failure
+		if delErr := d.s3.DeleteObject(ctx, d.bucket, key); delErr != nil {
+			slog.Error("cleaning up S3 object after link failure", "error", delErr, "key", key)
+		}
 		return nil, fmt.Errorf("linking faceit match to demo: %w", err)
 	}
 
@@ -176,6 +180,29 @@ func (d *DemoImporter) Import(ctx context.Context, userID, matchID uuid.UUID, fa
 		DemoID:   demoRecord.ID,
 		FileSize: size,
 	}, nil
+}
+
+// ImportEnqueuer enqueues demo import jobs for async processing.
+type ImportEnqueuer struct {
+	queue  ImportJobEnqueuer
+	stream string
+}
+
+// NewImportEnqueuer creates an ImportEnqueuer that enqueues jobs to the given stream.
+func NewImportEnqueuer(queue ImportJobEnqueuer, stream string) *ImportEnqueuer {
+	return &ImportEnqueuer{queue: queue, stream: stream}
+}
+
+// EnqueueImport enqueues a demo import job for async processing by the worker.
+func (e *ImportEnqueuer) EnqueueImport(ctx context.Context, userID, matchID uuid.UUID, faceitMatchID, demoURL string, matchDate time.Time) error {
+	_, err := e.queue.Enqueue(ctx, e.stream, map[string]interface{}{
+		"user_id":         userID.String(),
+		"match_id":        matchID.String(),
+		"faceit_match_id": faceitMatchID,
+		"demo_url":        demoURL,
+		"match_date":      matchDate.Format(time.RFC3339),
+	})
+	return err
 }
 
 // ImportByMatchID looks up a Faceit match by ID, validates ownership and state,

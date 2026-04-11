@@ -382,8 +382,13 @@ func faceitMatchToJSON(m store.FaceitMatch) faceitMatchResponse {
 }
 
 // HandleImportMatch imports a demo for a specific Faceit match.
-// Returns 202 Accepted with demo_id and file_size on success.
+// Returns 201 Created with demo_id and file_size on success.
 func (h *FaceitHandler) HandleImportMatch(w http.ResponseWriter, r *http.Request) {
+	if h.importer == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "demo import not available"})
+		return
+	}
+
 	userIDStr, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
@@ -420,7 +425,7 @@ func (h *FaceitHandler) HandleImportMatch(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	writeJSON(w, http.StatusAccepted, map[string]interface{}{
+	writeJSON(w, http.StatusCreated, map[string]interface{}{
 		"data": map[string]interface{}{
 			"demo_id":   result.DemoID.String(),
 			"file_size": result.FileSize,

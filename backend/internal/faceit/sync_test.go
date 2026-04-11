@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"sync"
 	"testing"
 	"time"
@@ -613,8 +611,8 @@ func TestSync_EloChain_IncrementalSync(t *testing.T) {
 	}
 }
 
-func TestSync_ImportFailureDoesNotBlockSync(t *testing.T) {
-	// 2 matches with demo URLs; importer that always fails.
+func TestSync_ImportEnqueueFailureDoesNotBlockSync(t *testing.T) {
+	// 2 matches with demo URLs; importer that always fails to enqueue.
 	// All matches should still be upserted.
 	api := &mockFaceitAPI{
 		player: &faceit.Player{
@@ -634,17 +632,12 @@ func TestSync_ImportFailureDoesNotBlockSync(t *testing.T) {
 	}
 	syncStore := &mockSyncStore{}
 
-	// Create a DemoImporter with a downloader that always fails
-	failDL := &failingHTTPDownloader{}
-	failS3 := &stubImportS3{}
-	failQ := &stubImportQueue{}
-	failStore := &stubImportStore{}
-	importer := faceit.NewDemoImporter(failStore, failS3, failQ, failDL, "test-bucket")
+	failImporter := &mockAutoImporter{err: errors.New("queue down")}
 
-	svc := faceit.NewSyncService(api, syncStore).WithAutoImport(importer)
+	svc := faceit.NewSyncService(api, syncStore).WithAutoImport(failImporter)
 	count, err := svc.Sync(context.Background(), testUserID, testFaceitID)
 	if err != nil {
-		t.Fatalf("sync should succeed even when import fails: %v", err)
+		t.Fatalf("sync should succeed even when enqueue fails: %v", err)
 	}
 	if count != 2 {
 		t.Errorf("inserted = %d, want 2", count)
@@ -654,35 +647,41 @@ func TestSync_ImportFailureDoesNotBlockSync(t *testing.T) {
 	}
 }
 
-// Stubs for the auto-import failure test
+func TestSync_ImportEnqueuedForNewMatches(t *testing.T) {
+	api := &mockFaceitAPI{
+		player: &faceit.Player{
+			PlayerID: testFaceitID,
+			Games:    map[string]faceit.Game{"cs2": {FaceitElo: 2050}},
+		},
+		history: map[string]*faceit.MatchHistory{
+			"0:20": {Items: []faceit.MatchSummary{
+				makeMatch("match-1", 1001, 2000, "faction1"),
+			}},
+		},
+		details: map[string]*faceit.MatchDetails{
+			"match-1": makeDetails("match-1", "de_dust2", "https://demo/1.dem"),
+		},
+	}
+	syncStore := &mockSyncStore{}
+	importer := &mockAutoImporter{}
 
-type failingHTTPDownloader struct{}
-
-func (f *failingHTTPDownloader) Do(_ *http.Request) (*http.Response, error) {
-	return nil, errors.New("network error")
+	svc := faceit.NewSyncService(api, syncStore).WithAutoImport(importer)
+	_, err := svc.Sync(context.Background(), testUserID, testFaceitID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if importer.calls != 1 {
+		t.Errorf("import enqueue calls = %d, want 1", importer.calls)
+	}
 }
 
-type stubImportStore struct{}
-
-func (s *stubImportStore) GetFaceitMatchByID(_ context.Context, _ uuid.UUID) (store.FaceitMatch, error) {
-	return store.FaceitMatch{}, nil
-}
-func (s *stubImportStore) CreateDemo(_ context.Context, _ store.CreateDemoParams) (store.Demo, error) {
-	return store.Demo{}, nil
-}
-func (s *stubImportStore) LinkFaceitMatchToDemo(_ context.Context, _ store.LinkFaceitMatchToDemoParams) (store.FaceitMatch, error) {
-	return store.FaceitMatch{}, nil
+// mockAutoImporter implements faceit.AutoImporter for tests.
+type mockAutoImporter struct {
+	err   error
+	calls int
 }
 
-type stubImportS3 struct{}
-
-func (s *stubImportS3) PutObject(_ context.Context, _, _ string, _ io.Reader, _ int64) error {
-	return nil
-}
-func (s *stubImportS3) DeleteObject(_ context.Context, _, _ string) error { return nil }
-
-type stubImportQueue struct{}
-
-func (s *stubImportQueue) Enqueue(_ context.Context, _ string, _ map[string]interface{}) (string, error) {
-	return "", nil
+func (m *mockAutoImporter) EnqueueImport(_ context.Context, _, _ uuid.UUID, _, _ string, _ time.Time) error {
+	m.calls++
+	return m.err
 }

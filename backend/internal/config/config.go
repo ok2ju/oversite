@@ -148,7 +148,8 @@ type WorkerConfig struct {
 }
 
 // LoadWorker reads configuration for the worker process from environment variables.
-// Required variables: DATABASE_URL, REDIS_URL, MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, FACEIT_API_KEY.
+// Required variables: DATABASE_URL, REDIS_URL, FACEIT_API_KEY.
+// When FACEIT_AUTO_IMPORT=true, also requires: MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY.
 func LoadWorker() (*WorkerConfig, error) {
 	cfg := &WorkerConfig{
 		MinioBucket:          getEnvOrDefault("MINIO_BUCKET", "oversite-demos"),
@@ -164,12 +165,20 @@ func LoadWorker() (*WorkerConfig, error) {
 	}
 
 	required := map[string]*string{
-		"DATABASE_URL":     &cfg.DatabaseURL,
-		"REDIS_URL":        &cfg.RedisURL,
-		"MINIO_ENDPOINT":   &cfg.MinioEndpoint,
-		"MINIO_ACCESS_KEY": &cfg.MinioAccessKey,
-		"MINIO_SECRET_KEY": &cfg.MinioSecretKey,
-		"FACEIT_API_KEY":   &cfg.FaceitAPIKey,
+		"DATABASE_URL":   &cfg.DatabaseURL,
+		"REDIS_URL":      &cfg.RedisURL,
+		"FACEIT_API_KEY": &cfg.FaceitAPIKey,
+	}
+
+	// MinIO credentials only required when auto-import is enabled
+	if cfg.FaceitAutoImport {
+		required["MINIO_ENDPOINT"] = &cfg.MinioEndpoint
+		required["MINIO_ACCESS_KEY"] = &cfg.MinioAccessKey
+		required["MINIO_SECRET_KEY"] = &cfg.MinioSecretKey
+	} else {
+		cfg.MinioEndpoint = os.Getenv("MINIO_ENDPOINT")
+		cfg.MinioAccessKey = os.Getenv("MINIO_ACCESS_KEY")
+		cfg.MinioSecretKey = os.Getenv("MINIO_SECRET_KEY")
 	}
 
 	var missing []string

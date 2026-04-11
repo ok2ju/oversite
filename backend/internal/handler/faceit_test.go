@@ -760,11 +760,11 @@ func TestFaceitHandleImportMatch(t *testing.T) {
 		wantError    string
 	}{
 		{
-			name:         "success returns 202",
+			name:         "success returns 201",
 			userID:       "22222222-2222-2222-2222-222222222222",
 			matchID:      testMatchID.String(),
 			importResult: &faceit.ImportResult{DemoID: testDemoID, FileSize: 1024},
-			wantStatus:   http.StatusAccepted,
+			wantStatus:   http.StatusCreated,
 		},
 		{
 			name:       "missing auth returns 401",
@@ -863,7 +863,7 @@ func TestFaceitHandleImportMatch(t *testing.T) {
 				}
 			}
 
-			if tt.wantStatus == http.StatusAccepted {
+			if tt.wantStatus == http.StatusCreated {
 				data, ok := body["data"].(map[string]interface{})
 				if !ok {
 					t.Fatal("expected data in response")

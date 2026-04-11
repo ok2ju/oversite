@@ -16,6 +16,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/cobra"
@@ -212,35 +213,56 @@ func workerCmd() *cobra.Command {
 				BaseURL: cfg.FaceitAPIBaseURL,
 			})
 
-			// MinIO object storage
-			minioClient, err := storage.NewMinIOClient(
-				cfg.MinioEndpoint, cfg.MinioAccessKey, cfg.MinioSecretKey, cfg.MinioUseSSL,
-			)
-			if err != nil {
-				return fmt.Errorf("creating minio client: %w", err)
-			}
-			if err := minioClient.EnsureBucket(context.Background(), cfg.MinioBucket); err != nil {
-				return fmt.Errorf("ensuring minio bucket: %w", err)
-			}
-
 			// Services
 			queries := store.New(db)
 			queue := worker.NewRedisQueueWithTimeout(redisClient, cfg.WorkerBlockTimeout)
 			syncSvc := faceit.NewSyncService(faceitAPI, queries)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
 			if cfg.FaceitAutoImport {
+				// MinIO object storage (only needed for auto-import)
+				minioClient, err := storage.NewMinIOClient(
+					cfg.MinioEndpoint, cfg.MinioAccessKey, cfg.MinioSecretKey, cfg.MinioUseSSL,
+				)
+				if err != nil {
+					return fmt.Errorf("creating minio client: %w", err)
+				}
+				if err := minioClient.EnsureBucket(context.Background(), cfg.MinioBucket); err != nil {
+					return fmt.Errorf("ensuring minio bucket: %w", err)
+				}
+
+				// Sync enqueues import jobs; a separate worker processes them
+				importEnqueuer := faceit.NewImportEnqueuer(queue, worker.DemoImportStream)
+				syncSvc = syncSvc.WithAutoImport(importEnqueuer)
+
 				demoImporter := faceit.NewDemoImporter(queries, minioClient, queue, &http.Client{Timeout: 5 * time.Minute}, cfg.MinioBucket)
-				syncSvc = syncSvc.WithAutoImport(demoImporter)
+				importFn := func(ctx context.Context, userID, matchID uuid.UUID) error {
+					_, err := demoImporter.ImportByMatchID(ctx, userID, matchID)
+					if errors.Is(err, faceit.ErrDemoAlreadyLinked) || errors.Is(err, faceit.ErrNoDemoURL) || errors.Is(err, faceit.ErrMatchNotFound) {
+						slog.Info("demo import skipped", "match_id", matchID, "reason", err.Error())
+						return nil
+					}
+					return err
+				}
+				importHandler := worker.NewDemoImportHandler(importFn)
+				importWorker := worker.NewWorker(queue, worker.DemoImportStream, "workers", "import-worker-1", importHandler).
+					WithMaxRetry(cfg.WorkerMaxRetry).
+					WithStaleThreshold(5 * time.Minute).
+					WithClaimInterval(cfg.WorkerClaimInterval)
+				if err := importWorker.Start(ctx); err != nil {
+					return fmt.Errorf("starting import worker: %w", err)
+				}
+				slog.Info("import worker running", "stream", worker.DemoImportStream)
 			}
 
-			// Worker
+			// Sync worker
 			faceitHandler := worker.NewFaceitSyncHandler(syncSvc)
 			w := worker.NewWorker(queue, worker.FaceitSyncStream, "workers", "worker-1", faceitHandler).
 				WithMaxRetry(cfg.WorkerMaxRetry).
 				WithStaleThreshold(cfg.WorkerStaleThreshold).
 				WithClaimInterval(cfg.WorkerClaimInterval)
-
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
 
 			if err := w.Start(ctx); err != nil {
 				return fmt.Errorf("starting worker: %w", err)

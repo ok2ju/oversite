@@ -247,7 +247,7 @@ func TestImport_CreateDemoFails_CleansUpS3(t *testing.T) {
 	}
 }
 
-func TestImport_LinkFails(t *testing.T) {
+func TestImport_LinkFails_CleansUpS3(t *testing.T) {
 	st := &mockImportStore{
 		createDemoResult: store.Demo{ID: importDemoID, Status: "uploaded", FileSize: 64},
 		linkErr:          errors.New("fk violation"),
@@ -264,6 +264,13 @@ func TestImport_LinkFails(t *testing.T) {
 	// Demo was still created
 	if len(st.createDemoCalls) != 1 {
 		t.Error("CreateDemo should still be called")
+	}
+	// S3 object should be uploaded then cleaned up
+	if len(s3.putCalls) != 1 {
+		t.Errorf("S3 PutObject should be called once, got %d", len(s3.putCalls))
+	}
+	if len(s3.deleteCalls) != 1 {
+		t.Errorf("S3 DeleteObject should be called once for cleanup, got %d", len(s3.deleteCalls))
 	}
 }
 
