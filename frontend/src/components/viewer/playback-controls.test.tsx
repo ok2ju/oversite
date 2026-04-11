@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest"
-import { render, screen, cleanup } from "@testing-library/react"
+import { screen, cleanup } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useViewerStore } from "@/stores/viewer"
 import { renderWithProviders } from "@/test/render"
