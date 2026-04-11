@@ -626,7 +626,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Round boundary test: auto-pause at round end |
 | | - All playback engine tests pass in CI |
 
-### P3-T07: Build playback controls UI
+### P3-T07: Build playback controls UI ✅
 
 | | |
 |---|---|
@@ -837,7 +837,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Failure isolation test: failed download doesn't block sync |
 | | - All import tests pass in CI |
 
-### P4-T06: Implement heatmap data endpoint
+### P4-T06: Implement heatmap data endpoint ✅
 
 | | |
 |---|---|
@@ -997,7 +997,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Reconnection test: state reconciles after disconnect/reconnect |
 | | - All Yjs client tests pass in CI |
 
-### P5-T04: Implement drawing canvas
+### P5-T04: Implement drawing canvas ✅
 
 | | |
 |---|---|
@@ -1075,7 +1075,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Availability test: buttons disabled when nothing to undo/redo |
 | | - All undo/redo tests pass in CI |
 
-### P5-T08: Implement board persistence
+### P5-T08: Implement board persistence ✅
 
 | | |
 |---|---|
