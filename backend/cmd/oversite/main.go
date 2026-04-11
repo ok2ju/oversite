@@ -111,6 +111,7 @@ func serveCmd() *cobra.Command {
 			tickHandler := handler.NewTickHandler(queries, queries)
 			rosterHandler := handler.NewRosterHandler(queries, queries)
 			eventHandler := handler.NewEventHandler(queries, queries)
+			heatmapHandler := handler.NewHeatmapHandler(queries, queries)
 
 			// Health checks with real dependencies
 			health := handler.NewHealthHandler(
@@ -118,7 +119,7 @@ func serveCmd() *cobra.Command {
 				stateStore,
 				&handler.MinIOChecker{Endpoint: cfg.MinioEndpoint, UseSSL: cfg.MinioUseSSL},
 			)
-			router := handler.NewRouter(health, authHandler, demoHandler, faceitHandler, tickHandler, rosterHandler, eventHandler, sessionStore)
+			router := handler.NewRouter(health, authHandler, demoHandler, faceitHandler, tickHandler, rosterHandler, eventHandler, heatmapHandler, sessionStore)
 
 			slog.Info("starting API server", "port", cfg.Port, "env", cfg.Environment)
 			return http.ListenAndServe(":"+cfg.Port, router)
