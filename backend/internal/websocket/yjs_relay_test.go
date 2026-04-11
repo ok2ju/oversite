@@ -589,3 +589,110 @@ func TestBinaryPassthrough(t *testing.T) {
 		t.Error("stored message is not byte-identical to input")
 	}
 }
+
+// --- Full persistence cycle tests ---
+
+func TestRelay_FullPersistenceCycle(t *testing.T) {
+	ms := newMockStateStore()
+	relay := newTestRelay(ms) // 30s interval, won't tick during test
+
+	ctx := context.Background()
+	boardID := "board-full-cycle"
+
+	// 1. First client joins a new board — no persisted state.
+	msgs, err := relay.OnFirstClientJoin(ctx, boardID)
+	if err != nil {
+		t.Fatalf("OnFirstClientJoin (first): %v", err)
+	}
+	if len(msgs) != 0 {
+		t.Fatalf("expected 0 messages on fresh board, got %d", len(msgs))
+	}
+
+	// 2. Accumulate sync messages.
+	syncMsg1 := []byte{yjsMsgSync, 0x01, 0x02}
+	syncMsg2 := []byte{yjsMsgSync, 0x03, 0x04, 0x05}
+
+	relay.HandleMessage(boardID, syncMsg1)
+	relay.HandleMessage(boardID, syncMsg2)
+
+	// 3. Last client leaves — triggers final save.
+	relay.OnLastClientLeave(ctx, boardID)
+
+	// 4. Verify the mock store received saved data.
+	if ms.getSaveCnt() != 1 {
+		t.Fatalf("expected 1 save, got %d", ms.getSaveCnt())
+	}
+	ms.mu.Lock()
+	savedData := ms.state[boardID]
+	ms.mu.Unlock()
+	if len(savedData) == 0 {
+		t.Fatal("expected non-empty saved state")
+	}
+
+	// 5. First client joins again — should load persisted state.
+	msgs, err = relay.OnFirstClientJoin(ctx, boardID)
+	if err != nil {
+		t.Fatalf("OnFirstClientJoin (second): %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 restored messages, got %d", len(msgs))
+	}
+	if !bytes.Equal(msgs[0], syncMsg1) {
+		t.Errorf("msg[0] = %v, want %v", msgs[0], syncMsg1)
+	}
+	if !bytes.Equal(msgs[1], syncMsg2) {
+		t.Errorf("msg[1] = %v, want %v", msgs[1], syncMsg2)
+	}
+
+	// 6. Latecomer joins — also gets the same messages.
+	copies := relay.OnClientJoin(boardID)
+	if len(copies) != 2 {
+		t.Fatalf("latecomer expected 2 messages, got %d", len(copies))
+	}
+	if !bytes.Equal(copies[0], syncMsg1) {
+		t.Errorf("latecomer msg[0] = %v, want %v", copies[0], syncMsg1)
+	}
+	if !bytes.Equal(copies[1], syncMsg2) {
+		t.Errorf("latecomer msg[1] = %v, want %v", copies[1], syncMsg2)
+	}
+
+	// Clean up.
+	relay.OnLastClientLeave(ctx, boardID)
+}
+
+func TestRelay_EmptyBoard_FullCycle(t *testing.T) {
+	ms := newMockStateStore()
+	relay := newTestRelay(ms)
+
+	ctx := context.Background()
+	boardID := "board-empty-cycle"
+
+	// 1. First client joins — new board, no state.
+	msgs, err := relay.OnFirstClientJoin(ctx, boardID)
+	if err != nil {
+		t.Fatalf("OnFirstClientJoin (first): %v", err)
+	}
+	if len(msgs) != 0 {
+		t.Fatalf("expected 0 messages, got %d", len(msgs))
+	}
+
+	// 2. No HandleMessage calls — client leaves immediately.
+	relay.OnLastClientLeave(ctx, boardID)
+
+	// 3. No save should happen (empty updates).
+	if ms.getSaveCnt() != 0 {
+		t.Errorf("expected 0 saves for empty board, got %d", ms.getSaveCnt())
+	}
+
+	// 4. First client joins again — still empty.
+	msgs, err = relay.OnFirstClientJoin(ctx, boardID)
+	if err != nil {
+		t.Fatalf("OnFirstClientJoin (second): %v", err)
+	}
+	if len(msgs) != 0 {
+		t.Fatalf("expected 0 messages after empty cycle, got %d", len(msgs))
+	}
+
+	// Clean up.
+	relay.OnLastClientLeave(ctx, boardID)
+}
