@@ -1,5 +1,6 @@
 import { http, HttpResponse } from "msw"
 import type { Demo, GameEvent, TickData } from "@/types/demo"
+import type { Round } from "@/types/round"
 
 export const mockDemos: Demo[] = [
   {
@@ -205,6 +206,43 @@ export const handlers = [
       },
     ]
     return HttpResponse.json({ data: events })
+  }),
+
+  http.get("/api/v1/demos/:id/rounds", ({ params }) => {
+    const demo = mockDemos.find((d) => d.id === params.id)
+    if (!demo) {
+      return HttpResponse.json({ error: "demo not found" }, { status: 404 })
+    }
+    const rounds: Round[] = [
+      {
+        id: "round-1",
+        round_number: 1,
+        start_tick: 0,
+        end_tick: 3200,
+        winner_side: "CT",
+        ct_score: 1,
+        t_score: 0,
+      },
+      {
+        id: "round-2",
+        round_number: 2,
+        start_tick: 3200,
+        end_tick: 6400,
+        winner_side: "T",
+        ct_score: 1,
+        t_score: 1,
+      },
+      {
+        id: "round-3",
+        round_number: 3,
+        start_tick: 6400,
+        end_tick: 9600,
+        winner_side: "CT",
+        ct_score: 2,
+        t_score: 1,
+      },
+    ]
+    return HttpResponse.json({ data: rounds })
   }),
 
   http.get("/api/v1/demos/:id/ticks", ({ request, params }) => {

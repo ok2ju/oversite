@@ -10,7 +10,7 @@ import (
 
 // NewRouter creates and configures the main chi router with middleware
 // and route definitions.
-func NewRouter(health *HealthHandler, authH *AuthHandler, demoH *DemoHandler, faceitH *FaceitHandler, tickH *TickHandler, rosterH *RosterHandler, eventH *EventHandler, heatmapH *HeatmapHandler, sessions auth.SessionStore) chi.Router {
+func NewRouter(health *HealthHandler, authH *AuthHandler, demoH *DemoHandler, faceitH *FaceitHandler, tickH *TickHandler, rosterH *RosterHandler, eventH *EventHandler, heatmapH *HeatmapHandler, roundH *RoundHandler, sessions auth.SessionStore) chi.Router {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -50,6 +50,7 @@ func NewRouter(health *HealthHandler, authH *AuthHandler, demoH *DemoHandler, fa
 			r.Get("/demos/{id}/rounds/{roundNumber}/players", rosterH.HandleGetPlayers)
 			r.Get("/demos/{id}/events", eventH.HandleGetEvents)
 			r.Post("/heatmaps/aggregate", heatmapH.HandleAggregate)
+			r.Get("/demos/{id}/rounds", roundH.HandleGetRounds)
 		})
 	})
 
