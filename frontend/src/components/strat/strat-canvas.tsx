@@ -66,6 +66,7 @@ export function StratCanvas() {
       mapUnsub = useStratStore.subscribe(
         (s) => s.mapName,
         (mapName) => {
+          if (destroyed) return
           if (mapName) {
             mapLayer
               ?.setMap(mapName)
@@ -86,6 +87,7 @@ export function StratCanvas() {
       boardUnsub = useStratStore.subscribe(
         (s) => s.boardId,
         (boardId) => {
+          if (destroyed) return
           // Clean up previous
           stratRenderer?.detach()
           currentProvider?.destroy()
@@ -110,7 +112,9 @@ export function StratCanvas() {
       mapUnsub?.()
       stratRenderer?.destroy()
       currentProvider?.destroy()
+      currentProvider = null
       currentDoc?.destroy()
+      currentDoc = null
       mapLayer?.destroy()
       camera?.destroy()
       viewerApp?.destroy()

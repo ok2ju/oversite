@@ -52,17 +52,15 @@ export function computeArrowHead(
   headLength: number
 ): { left: { x: number; y: number }; right: { x: number; y: number } } {
   const angle = Math.atan2(y2 - y1, x2 - x1)
-  const leftAngle = angle + Math.PI / 2
-  const rightAngle = angle - Math.PI / 2
 
   return {
     left: {
-      x: x2 - headLength * Math.cos(angle) + headLength * Math.cos(leftAngle),
-      y: y2 - headLength * Math.sin(angle) + headLength * Math.sin(leftAngle),
+      x: x2 - headLength * Math.cos(angle - Math.PI / 6),
+      y: y2 - headLength * Math.sin(angle - Math.PI / 6),
     },
     right: {
-      x: x2 - headLength * Math.cos(angle) + headLength * Math.cos(rightAngle),
-      y: y2 - headLength * Math.sin(angle) + headLength * Math.sin(rightAngle),
+      x: x2 - headLength * Math.cos(angle + Math.PI / 6),
+      y: y2 - headLength * Math.sin(angle + Math.PI / 6),
     },
   }
 }

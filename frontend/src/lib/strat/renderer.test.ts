@@ -1,80 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import * as Y from "yjs"
+import {
+  createMockGraphics,
+  createMockText,
+  type MockGraphics,
+  type MockText,
+} from "@/test/mocks/pixi"
 
-type MockGraphics = {
-  clear: ReturnType<typeof vi.fn>
-  circle: ReturnType<typeof vi.fn>
-  rect: ReturnType<typeof vi.fn>
-  moveTo: ReturnType<typeof vi.fn>
-  lineTo: ReturnType<typeof vi.fn>
-  fill: ReturnType<typeof vi.fn>
-  stroke: ReturnType<typeof vi.fn>
-  destroy: ReturnType<typeof vi.fn>
-  removeFromParent: ReturnType<typeof vi.fn>
-  poly: ReturnType<typeof vi.fn>
-}
-
-type MockText = {
-  text: string
-  style: Record<string, unknown>
-  position: { set: ReturnType<typeof vi.fn> }
-  destroy: ReturnType<typeof vi.fn>
-  removeFromParent: ReturnType<typeof vi.fn>
-}
-
-const { mockGraphicsInstances, createMockGraphics, mockTextInstances, createMockText } =
-  vi.hoisted(() => {
-    const mockGraphicsInstances: MockGraphics[] = []
-    const mockTextInstances: MockText[] = []
-
-    function createMockGraphics(): MockGraphics {
-      const g: MockGraphics = {
-        clear: vi.fn(),
-        circle: vi.fn(),
-        rect: vi.fn(),
-        moveTo: vi.fn(),
-        lineTo: vi.fn(),
-        fill: vi.fn(),
-        stroke: vi.fn(),
-        destroy: vi.fn(),
-        removeFromParent: vi.fn(),
-        poly: vi.fn(),
-      }
-      g.clear.mockReturnValue(g)
-      g.circle.mockReturnValue(g)
-      g.rect.mockReturnValue(g)
-      g.moveTo.mockReturnValue(g)
-      g.lineTo.mockReturnValue(g)
-      g.fill.mockReturnValue(g)
-      g.stroke.mockReturnValue(g)
-      g.poly.mockReturnValue(g)
-      mockGraphicsInstances.push(g)
-      return g
-    }
-
-    function createMockText(): MockText {
-      const t: MockText = {
-        text: "",
-        style: {},
-        position: { set: vi.fn() },
-        destroy: vi.fn(),
-        removeFromParent: vi.fn(),
-      }
-      mockTextInstances.push(t)
-      return t
-    }
-
-    return { mockGraphicsInstances, createMockGraphics, mockTextInstances, createMockText }
-  })
+const { mockGraphicsInstances, mockTextInstances } = vi.hoisted(() => {
+  const mockGraphicsInstances: MockGraphics[] = []
+  const mockTextInstances: MockText[] = []
+  return { mockGraphicsInstances, mockTextInstances }
+})
 
 vi.mock("pixi.js", () => ({
   Graphics: vi.fn().mockImplementation(function () {
-    return createMockGraphics()
+    const g = createMockGraphics()
+    mockGraphicsInstances.push(g)
+    return g
   }),
   Text: vi.fn().mockImplementation(function (_opts?: { text?: string; style?: Record<string, unknown> }) {
     const t = createMockText()
     t.text = _opts?.text ?? ""
     t.style = _opts?.style ?? {}
+    mockTextInstances.push(t)
     return t
   }),
   Container: vi.fn().mockImplementation(function () {
@@ -187,21 +136,21 @@ describe("computeArrowHead", () => {
   it("computes arrowhead points for a horizontal line (left to right)", () => {
     const result = computeArrowHead(0, 0, 100, 0, 10)
 
-    // Arrow points should be behind the tip at (100, 0)
-    expect(result.left.x).toBeCloseTo(90, 0)
-    expect(result.right.x).toBeCloseTo(90, 0)
+    // Wings angled backward at ±30° from the shaft
+    expect(result.left.x).toBeCloseTo(91.34, 1)
+    expect(result.right.x).toBeCloseTo(91.34, 1)
     // One above, one below the line
-    expect(result.left.y).toBeCloseTo(10, 0)
-    expect(result.right.y).toBeCloseTo(-10, 0)
+    expect(result.left.y).toBeCloseTo(5, 1)
+    expect(result.right.y).toBeCloseTo(-5, 1)
   })
 
   it("computes arrowhead points for a vertical line (top to bottom)", () => {
     const result = computeArrowHead(0, 0, 0, 100, 10)
 
-    expect(result.left.y).toBeCloseTo(90, 0)
-    expect(result.right.y).toBeCloseTo(90, 0)
-    expect(result.left.x).toBeCloseTo(-10, 0)
-    expect(result.right.x).toBeCloseTo(10, 0)
+    expect(result.left.y).toBeCloseTo(91.34, 1)
+    expect(result.right.y).toBeCloseTo(91.34, 1)
+    expect(result.left.x).toBeCloseTo(-5, 1)
+    expect(result.right.x).toBeCloseTo(5, 1)
   })
 
   it("computes arrowhead points for a diagonal line", () => {
