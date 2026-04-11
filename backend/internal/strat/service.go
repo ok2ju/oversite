@@ -12,9 +12,17 @@ import (
 
 // Sentinel errors for the strat service.
 var (
-	ErrNotFound  = errors.New("strategy board not found")
-	ErrForbidden = errors.New("not authorized to modify this board")
+	ErrNotFound         = errors.New("strategy board not found")
+	ErrForbidden        = errors.New("not authorized to modify this board")
+	ErrInvalidShareMode = errors.New("invalid share mode")
 )
+
+// validShareModes enumerates the allowed share_mode values.
+var validShareModes = map[string]bool{
+	"private":   true,
+	"read_only": true,
+	"editable":  true,
+}
 
 // Store is the subset of store.Queries needed by Service.
 type Store interface {
@@ -69,8 +77,13 @@ func (s *Service) List(ctx context.Context, userID uuid.UUID) ([]store.StrategyB
 }
 
 // Update modifies a strategy board. Returns ErrNotFound if missing,
-// ErrForbidden if the caller is not the owner.
+// ErrForbidden if the caller is not the owner, ErrInvalidShareMode if
+// shareMode is not one of: private, read_only, editable.
 func (s *Service) Update(ctx context.Context, userID, boardID uuid.UUID, title, mapName, shareMode string) (store.StrategyBoard, error) {
+	if !validShareModes[shareMode] {
+		return store.StrategyBoard{}, ErrInvalidShareMode
+	}
+
 	board, err := s.store.GetStrategyBoardByID(ctx, boardID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

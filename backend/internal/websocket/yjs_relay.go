@@ -180,7 +180,8 @@ func (r *YjsRelay) OnFirstClientJoin(ctx context.Context, boardID string) ([][]b
 	}
 
 	r.mu.Lock()
-	if old, exists := r.rooms[boardID]; exists {
+	old, replacing := r.rooms[boardID]
+	if replacing {
 		close(old.done)
 		if old.saveTicker != nil {
 			old.saveTicker.Stop()
@@ -188,6 +189,12 @@ func (r *YjsRelay) OnFirstClientJoin(ctx context.Context, boardID string) ([][]b
 	}
 	r.rooms[boardID] = room
 	r.mu.Unlock()
+
+	// Wait for the old auto-save goroutine to fully exit before starting
+	// a new one, preventing concurrent saveRoom calls for the same board.
+	if replacing && old.stopped != nil {
+		<-old.stopped
+	}
 
 	r.startAutoSave(room)
 

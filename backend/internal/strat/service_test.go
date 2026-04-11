@@ -14,8 +14,12 @@ import (
 // --- mock Store ---
 
 type mockStore struct {
-	boards map[uuid.UUID]store.StrategyBoard
-	err    error
+	boards    map[uuid.UUID]store.StrategyBoard
+	createErr error
+	getErr    error
+	listErr   error
+	updateErr error
+	deleteErr error
 }
 
 func newMockStore() *mockStore {
@@ -23,8 +27,8 @@ func newMockStore() *mockStore {
 }
 
 func (m *mockStore) CreateStrategyBoard(_ context.Context, arg store.CreateStrategyBoardParams) (store.StrategyBoard, error) {
-	if m.err != nil {
-		return store.StrategyBoard{}, m.err
+	if m.createErr != nil {
+		return store.StrategyBoard{}, m.createErr
 	}
 	b := store.StrategyBoard{
 		ID:        uuid.New(),
@@ -40,8 +44,8 @@ func (m *mockStore) CreateStrategyBoard(_ context.Context, arg store.CreateStrat
 }
 
 func (m *mockStore) GetStrategyBoardByID(_ context.Context, id uuid.UUID) (store.StrategyBoard, error) {
-	if m.err != nil {
-		return store.StrategyBoard{}, m.err
+	if m.getErr != nil {
+		return store.StrategyBoard{}, m.getErr
 	}
 	b, ok := m.boards[id]
 	if !ok {
@@ -51,8 +55,8 @@ func (m *mockStore) GetStrategyBoardByID(_ context.Context, id uuid.UUID) (store
 }
 
 func (m *mockStore) ListStrategyBoardsByUserID(_ context.Context, userID uuid.UUID) ([]store.StrategyBoard, error) {
-	if m.err != nil {
-		return nil, m.err
+	if m.listErr != nil {
+		return nil, m.listErr
 	}
 	var result []store.StrategyBoard
 	for _, b := range m.boards {
@@ -64,8 +68,8 @@ func (m *mockStore) ListStrategyBoardsByUserID(_ context.Context, userID uuid.UU
 }
 
 func (m *mockStore) UpdateStrategyBoard(_ context.Context, arg store.UpdateStrategyBoardParams) (store.StrategyBoard, error) {
-	if m.err != nil {
-		return store.StrategyBoard{}, m.err
+	if m.updateErr != nil {
+		return store.StrategyBoard{}, m.updateErr
 	}
 	b, ok := m.boards[arg.ID]
 	if !ok {
@@ -80,8 +84,8 @@ func (m *mockStore) UpdateStrategyBoard(_ context.Context, arg store.UpdateStrat
 }
 
 func (m *mockStore) DeleteStrategyBoard(_ context.Context, id uuid.UUID) error {
-	if m.err != nil {
-		return m.err
+	if m.deleteErr != nil {
+		return m.deleteErr
 	}
 	if _, ok := m.boards[id]; !ok {
 		return sql.ErrNoRows
@@ -120,7 +124,7 @@ func TestService_Create(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ms := newMockStore()
-			ms.err = tt.err
+			ms.createErr = tt.err
 			svc := NewService(ms)
 
 			board, err := svc.Create(context.Background(), uuid.New(), "Test Board", "de_dust2")
@@ -212,26 +216,41 @@ func TestService_List(t *testing.T) {
 }
 
 func TestService_Update(t *testing.T) {
-	ms := newMockStore()
 	ownerID := uuid.New()
 	otherID := uuid.New()
-	board := ms.seed(ownerID, "Original", "de_dust2")
-	svc := NewService(ms)
 
 	tests := []struct {
-		name    string
-		userID  uuid.UUID
-		boardID uuid.UUID
-		wantErr error
+		name      string
+		userID    uuid.UUID
+		shareMode string
+		setupErr  func(*mockStore)
+		useSeed   bool
+		wantErr   error
 	}{
-		{"success", ownerID, board.ID, nil},
-		{"not found", ownerID, uuid.New(), ErrNotFound},
-		{"forbidden", otherID, board.ID, ErrForbidden},
+		{"success", ownerID, "read_only", nil, true, nil},
+		{"not found", ownerID, "private", nil, false, ErrNotFound},
+		{"forbidden", otherID, "private", nil, true, ErrForbidden},
+		{"invalid share mode", ownerID, "team", nil, true, ErrInvalidShareMode},
+		{"store update error", ownerID, "editable", func(ms *mockStore) {
+			ms.updateErr = sql.ErrConnDone
+		}, true, sql.ErrConnDone},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := svc.Update(context.Background(), tt.userID, tt.boardID, "Updated", "de_mirage", "team")
+			ms := newMockStore()
+			var boardID uuid.UUID
+			if tt.useSeed {
+				boardID = ms.seed(ownerID, "Original", "de_dust2").ID
+			} else {
+				boardID = uuid.New()
+			}
+			if tt.setupErr != nil {
+				tt.setupErr(ms)
+			}
+			svc := NewService(ms)
+
+			_, err := svc.Update(context.Background(), tt.userID, boardID, "Updated", "de_mirage", tt.shareMode)
 			if tt.wantErr != nil {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -279,6 +298,15 @@ func TestService_Delete(t *testing.T) {
 				return ms.seed(ownerID, "Not Yours", "de_dust2").ID
 			},
 			ErrForbidden,
+		},
+		{
+			"store delete error",
+			ownerID,
+			func(ms *mockStore) uuid.UUID {
+				ms.deleteErr = sql.ErrConnDone
+				return ms.seed(ownerID, "Fail Delete", "de_dust2").ID
+			},
+			sql.ErrConnDone,
 		},
 	}
 
