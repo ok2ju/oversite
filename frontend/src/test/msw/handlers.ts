@@ -1,6 +1,7 @@
 import { http, HttpResponse } from "msw"
 import type { Demo, GameEvent, TickData } from "@/types/demo"
 import type { Round } from "@/types/round"
+import type { FaceitProfile, EloHistoryPoint } from "@/types/faceit"
 
 export const mockDemos: Demo[] = [
   {
@@ -281,6 +282,29 @@ export const handlers = [
         })
       }
     }
+    return HttpResponse.json({ data })
+  }),
+
+  http.get("/api/v1/faceit/profile", () => {
+    const profile: FaceitProfile = {
+      nickname: "TestPlayer",
+      avatar_url: "https://example.com/avatar.png",
+      elo: 1850,
+      level: 8,
+      country: "US",
+      matches_played: 142,
+      current_streak: { type: "win", count: 3 },
+    }
+    return HttpResponse.json({ data: profile })
+  }),
+
+  http.get("/api/v1/faceit/elo-history", () => {
+    const data: EloHistoryPoint[] = [
+      { elo: 1800, map_name: "de_dust2", played_at: "2026-03-01T12:00:00Z" },
+      { elo: 1820, map_name: "de_mirage", played_at: "2026-03-05T14:00:00Z" },
+      { elo: 1810, map_name: "de_inferno", played_at: "2026-03-10T16:00:00Z" },
+      { elo: 1850, map_name: "de_dust2", played_at: "2026-03-15T18:00:00Z" },
+    ]
     return HttpResponse.json({ data })
   }),
 ]

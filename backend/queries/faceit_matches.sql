@@ -31,5 +31,14 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 ON CONFLICT (user_id, faceit_match_id) DO NOTHING
 RETURNING *;
 
+-- name: CountFaceitMatchesByUserID :one
+SELECT COUNT(*) FROM faceit_matches WHERE user_id = $1;
+
+-- name: GetCurrentStreak :many
+SELECT result FROM faceit_matches
+WHERE user_id = $1
+ORDER BY played_at DESC
+LIMIT 30;
+
 -- name: DeleteFaceitMatchesByUserID :exec
 DELETE FROM faceit_matches WHERE user_id = $1;
