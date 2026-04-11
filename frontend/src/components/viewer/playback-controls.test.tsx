@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest"
-import { screen, cleanup } from "@testing-library/react"
+import { screen, cleanup, act } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useViewerStore } from "@/stores/viewer"
 import { renderWithProviders } from "@/test/render"
@@ -82,7 +82,7 @@ describe("PlaybackControls", () => {
       "0 / 128,000",
     )
 
-    useViewerStore.getState().setTick(64000)
+    act(() => useViewerStore.getState().setTick(64000))
     expect(screen.getByTestId("tick-counter")).toHaveTextContent(
       "64,000 / 128,000",
     )
