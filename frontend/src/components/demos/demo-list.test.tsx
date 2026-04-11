@@ -1,5 +1,5 @@
 import { vi, describe, it, expect } from "vitest"
-import { screen, within } from "@testing-library/react"
+import { screen } from "@testing-library/react"
 import { renderWithProviders, userEvent } from "@/test/render"
 import { DemoList } from "@/components/demos/demo-list"
 import type { Demo } from "@/types/demo"

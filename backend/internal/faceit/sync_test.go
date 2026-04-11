@@ -610,3 +610,78 @@ func TestSync_EloChain_IncrementalSync(t *testing.T) {
 		}
 	}
 }
+
+func TestSync_ImportEnqueueFailureDoesNotBlockSync(t *testing.T) {
+	// 2 matches with demo URLs; importer that always fails to enqueue.
+	// All matches should still be upserted.
+	api := &mockFaceitAPI{
+		player: &faceit.Player{
+			PlayerID: testFaceitID,
+			Games:    map[string]faceit.Game{"cs2": {FaceitElo: 2050}},
+		},
+		history: map[string]*faceit.MatchHistory{
+			"0:20": {Items: []faceit.MatchSummary{
+				makeMatch("match-2", 1002, 2020, "faction1"),
+				makeMatch("match-1", 1001, 2000, "faction1"),
+			}},
+		},
+		details: map[string]*faceit.MatchDetails{
+			"match-1": makeDetails("match-1", "de_dust2", "https://demo/1.dem"),
+			"match-2": makeDetails("match-2", "de_mirage", "https://demo/2.dem"),
+		},
+	}
+	syncStore := &mockSyncStore{}
+
+	failImporter := &mockAutoImporter{err: errors.New("queue down")}
+
+	svc := faceit.NewSyncService(api, syncStore).WithAutoImport(failImporter)
+	count, err := svc.Sync(context.Background(), testUserID, testFaceitID)
+	if err != nil {
+		t.Fatalf("sync should succeed even when enqueue fails: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("inserted = %d, want 2", count)
+	}
+	if len(syncStore.upserted) != 2 {
+		t.Errorf("upserted count = %d, want 2", len(syncStore.upserted))
+	}
+}
+
+func TestSync_ImportEnqueuedForNewMatches(t *testing.T) {
+	api := &mockFaceitAPI{
+		player: &faceit.Player{
+			PlayerID: testFaceitID,
+			Games:    map[string]faceit.Game{"cs2": {FaceitElo: 2050}},
+		},
+		history: map[string]*faceit.MatchHistory{
+			"0:20": {Items: []faceit.MatchSummary{
+				makeMatch("match-1", 1001, 2000, "faction1"),
+			}},
+		},
+		details: map[string]*faceit.MatchDetails{
+			"match-1": makeDetails("match-1", "de_dust2", "https://demo/1.dem"),
+		},
+	}
+	syncStore := &mockSyncStore{}
+	importer := &mockAutoImporter{}
+
+	svc := faceit.NewSyncService(api, syncStore).WithAutoImport(importer)
+	_, err := svc.Sync(context.Background(), testUserID, testFaceitID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if importer.calls != 1 {
+		t.Errorf("import enqueue calls = %d, want 1", importer.calls)
+	}
+}
+
+// mockAutoImporter implements faceit.AutoImporter for tests.
+type mockAutoImporter struct {
+	err   error
+	calls int
+}
+
+func (m *mockAutoImporter) EnqueueImport(_ context.Context, _, _ uuid.UUID, _, _ string, _ time.Time) error {
+	m.calls++
+	return m.err
+}

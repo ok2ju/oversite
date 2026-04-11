@@ -5,6 +5,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/ok2ju/oversite/backend/internal/auth"
 	"github.com/ok2ju/oversite/backend/internal/faceit"
 )
@@ -85,6 +86,14 @@ func (s *StubJobQueue) Dequeue(ctx context.Context, stream, group, consumer stri
 }
 
 func (s *StubJobQueue) Ack(ctx context.Context, stream, group, id string) error {
+	return nil
+}
+
+// StubAutoImporter is a no-op auto-importer for unit tests.
+// It implements faceit.AutoImporter.
+type StubAutoImporter struct{}
+
+func (s *StubAutoImporter) EnqueueImport(ctx context.Context, userID, matchID uuid.UUID, faceitMatchID, demoURL string, matchDate time.Time) error {
 	return nil
 }
 

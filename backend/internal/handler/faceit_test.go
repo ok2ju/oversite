@@ -10,9 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"github.com/ok2ju/oversite/backend/internal/auth"
+	"github.com/ok2ju/oversite/backend/internal/faceit"
 	"github.com/ok2ju/oversite/backend/internal/handler"
 	"github.com/ok2ju/oversite/backend/internal/store"
 )
@@ -352,7 +354,7 @@ func TestFaceitHandleGetMatches(t *testing.T) {
 				ms.listFilteredFn = tt.listFn
 			}
 
-			h := handler.NewFaceitHandler(&mockQueue{}, ms)
+			h := handler.NewFaceitHandler(&mockQueue{}, ms, nil)
 
 			url := "/api/v1/faceit/matches"
 			if tt.query != "" {
@@ -420,7 +422,7 @@ func TestFaceitHandleSync(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			q := &mockQueue{err: tt.queueErr}
-			h := handler.NewFaceitHandler(q, &mockFaceitStore{})
+			h := handler.NewFaceitHandler(q, &mockFaceitStore{}, nil)
 
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/faceit/sync", nil)
 			ctx := req.Context()
@@ -592,7 +594,7 @@ func TestFaceitHandleGetProfile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := handler.NewFaceitHandler(&mockQueue{}, tt.store)
+			h := handler.NewFaceitHandler(&mockQueue{}, tt.store, nil)
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/faceit/profile", nil)
 			if tt.userID != "" {
@@ -692,17 +694,16 @@ func TestFaceitHandleGetEloHistory(t *testing.T) {
 			wantLen:    0,
 		},
 		{
-			name:   "store error returns 500",
-			userID: faceitTestUserID.String(),
-			store:  &mockFaceitStore{eloErr: errors.New("db down")},
-
+			name:       "store error returns 500",
+			userID:     faceitTestUserID.String(),
+			store:      &mockFaceitStore{eloErr: errors.New("db down")},
 			wantStatus: http.StatusInternalServerError,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := handler.NewFaceitHandler(&mockQueue{}, tt.store)
+			h := handler.NewFaceitHandler(&mockQueue{}, tt.store, nil)
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/faceit/elo-history"+tt.query, nil)
 			if tt.userID != "" {
@@ -725,6 +726,150 @@ func TestFaceitHandleGetEloHistory(t *testing.T) {
 				data := body["data"].([]interface{})
 				if len(data) != tt.wantLen {
 					t.Errorf("data length = %d, want %d", len(data), tt.wantLen)
+				}
+			}
+		})
+	}
+}
+
+// --- HandleImportMatch tests ---
+
+type mockImporter struct {
+	result *faceit.ImportResult
+	err    error
+}
+
+func (m *mockImporter) ImportByMatchID(_ context.Context, _, _ uuid.UUID) (*faceit.ImportResult, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	return m.result, nil
+}
+
+func TestFaceitHandleImportMatch(t *testing.T) {
+	testDemoID := uuid.MustParse("44444444-4444-4444-4444-444444444444")
+	testMatchID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+
+	tests := []struct {
+		name         string
+		userID       string
+		matchID      string
+		importResult *faceit.ImportResult
+		importErr    error
+		wantStatus   int
+		wantError    string
+	}{
+		{
+			name:         "success returns 201",
+			userID:       "22222222-2222-2222-2222-222222222222",
+			matchID:      testMatchID.String(),
+			importResult: &faceit.ImportResult{DemoID: testDemoID, FileSize: 1024},
+			wantStatus:   http.StatusCreated,
+		},
+		{
+			name:       "missing auth returns 401",
+			matchID:    testMatchID.String(),
+			wantStatus: http.StatusUnauthorized,
+			wantError:  "unauthorized",
+		},
+		{
+			name:       "invalid match ID returns 400",
+			userID:     "22222222-2222-2222-2222-222222222222",
+			matchID:    "not-a-uuid",
+			wantStatus: http.StatusBadRequest,
+			wantError:  "invalid match id",
+		},
+		{
+			name:       "match not found returns 404",
+			userID:     "22222222-2222-2222-2222-222222222222",
+			matchID:    testMatchID.String(),
+			importErr:  faceit.ErrMatchNotFound,
+			wantStatus: http.StatusNotFound,
+			wantError:  "match not found",
+		},
+		{
+			name:       "match forbidden returns 404",
+			userID:     "22222222-2222-2222-2222-222222222222",
+			matchID:    testMatchID.String(),
+			importErr:  faceit.ErrMatchForbidden,
+			wantStatus: http.StatusNotFound,
+			wantError:  "match not found",
+		},
+		{
+			name:       "no demo URL returns 422",
+			userID:     "22222222-2222-2222-2222-222222222222",
+			matchID:    testMatchID.String(),
+			importErr:  faceit.ErrNoDemoURL,
+			wantStatus: http.StatusUnprocessableEntity,
+			wantError:  "match has no demo URL",
+		},
+		{
+			name:       "already linked returns 409",
+			userID:     "22222222-2222-2222-2222-222222222222",
+			matchID:    testMatchID.String(),
+			importErr:  faceit.ErrDemoAlreadyLinked,
+			wantStatus: http.StatusConflict,
+			wantError:  "demo already imported",
+		},
+		{
+			name:       "download failed returns 502",
+			userID:     "22222222-2222-2222-2222-222222222222",
+			matchID:    testMatchID.String(),
+			importErr:  faceit.ErrDownloadFailed,
+			wantStatus: http.StatusBadGateway,
+			wantError:  "demo download failed",
+		},
+		{
+			name:       "internal error returns 500",
+			userID:     "22222222-2222-2222-2222-222222222222",
+			matchID:    testMatchID.String(),
+			importErr:  errors.New("unexpected"),
+			wantStatus: http.StatusInternalServerError,
+			wantError:  "import failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			imp := &mockImporter{result: tt.importResult, err: tt.importErr}
+			h := handler.NewFaceitHandler(&mockQueue{}, nil, imp)
+
+			// Use chi router to extract URL params
+			r := chi.NewRouter()
+			r.Post("/api/v1/faceit/matches/{id}/import", h.HandleImportMatch)
+
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/faceit/matches/"+tt.matchID+"/import", nil)
+			ctx := req.Context()
+			if tt.userID != "" {
+				ctx = context.WithValue(ctx, auth.UserIDKey, tt.userID)
+			}
+			req = req.WithContext(ctx)
+			rec := httptest.NewRecorder()
+
+			r.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
+			}
+
+			var body map[string]interface{}
+			if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+				t.Fatalf("decoding response: %v", err)
+			}
+
+			if tt.wantError != "" {
+				if errMsg, ok := body["error"].(string); !ok || errMsg != tt.wantError {
+					t.Errorf("error = %v, want %q", body["error"], tt.wantError)
+				}
+			}
+
+			if tt.wantStatus == http.StatusCreated {
+				data, ok := body["data"].(map[string]interface{})
+				if !ok {
+					t.Fatal("expected data in response")
+				}
+				if data["demo_id"] != testDemoID.String() {
+					t.Errorf("demo_id = %v, want %s", data["demo_id"], testDemoID)
 				}
 			}
 		})

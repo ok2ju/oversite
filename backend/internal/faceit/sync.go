@@ -19,15 +19,27 @@ type SyncStore interface {
 	UpsertFaceitMatch(ctx context.Context, arg store.UpsertFaceitMatchParams) (store.FaceitMatch, error)
 }
 
+// AutoImporter enqueues demo import jobs for async processing during sync.
+type AutoImporter interface {
+	EnqueueImport(ctx context.Context, userID, matchID uuid.UUID, faceitMatchID, demoURL string, matchDate time.Time) error
+}
+
 // SyncService syncs a user's Faceit match history into the local database.
 type SyncService struct {
-	api   FaceitAPI
-	store SyncStore
+	api      FaceitAPI
+	store    SyncStore
+	importer AutoImporter
 }
 
 // NewSyncService creates a new SyncService.
 func NewSyncService(api FaceitAPI, store SyncStore) *SyncService {
 	return &SyncService{api: api, store: store}
+}
+
+// WithAutoImport enables automatic demo importing during sync.
+func (s *SyncService) WithAutoImport(importer AutoImporter) *SyncService {
+	s.importer = importer
+	return s
 }
 
 // maxPages is the maximum number of history pages to fetch.
@@ -191,7 +203,7 @@ func (s *SyncService) Sync(ctx context.Context, userID uuid.UUID, faceitID strin
 			demoURL = sql.NullString{String: pm.details.DemoURL[0], Valid: true}
 		}
 
-		_, err := s.store.UpsertFaceitMatch(ctx, store.UpsertFaceitMatchParams{
+		match, err := s.store.UpsertFaceitMatch(ctx, store.UpsertFaceitMatchParams{
 			UserID:        userID,
 			FaceitMatchID: pm.summary.MatchID,
 			MapName:       mapName,
@@ -203,11 +215,24 @@ func (s *SyncService) Sync(ctx context.Context, userID uuid.UUID, faceitID strin
 			DemoUrl:       demoURL,
 			PlayedAt:      time.Unix(pm.summary.StartedAt, 0),
 		})
-		// ON CONFLICT DO NOTHING returns sql.ErrNoRows — treat as success
-		if err != nil && err != sql.ErrNoRows {
+		if err == sql.ErrNoRows {
+			// ON CONFLICT DO NOTHING — already existed, skip
+			continue
+		}
+		if err != nil {
 			return inserted, fmt.Errorf("upserting match %s: %w", pm.summary.MatchID, err)
 		}
 		inserted++
+
+		// Enqueue async demo import if enabled and demo URL present
+		if s.importer != nil && demoURL.Valid {
+			if importErr := s.importer.EnqueueImport(ctx, userID, match.ID, match.FaceitMatchID, demoURL.String, time.Unix(pm.summary.StartedAt, 0)); importErr != nil {
+				slog.Warn("enqueueing demo import failed, continuing sync",
+					"match_id", pm.summary.MatchID,
+					"error", importErr,
+				)
+			}
+		}
 	}
 
 	return inserted, nil

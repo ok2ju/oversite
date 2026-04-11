@@ -24,7 +24,7 @@ export function UploadDialog() {
   const [open, setOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const { upload, progress, isUploading, error, isSuccess, reset } =
+  const { upload, progress, isUploading, error, reset } =
     useUploadDemo()
 
   function handleOpenChange(nextOpen: boolean) {
