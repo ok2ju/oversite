@@ -45,6 +45,7 @@ func NewRouter(health *HealthHandler, authH *AuthHandler, demoH *DemoHandler, fa
 			r.Post("/demos", demoH.HandleUpload)
 			r.Get("/demos/{id}", demoH.HandleGet)
 			r.Delete("/demos/{id}", demoH.HandleDelete)
+			r.Get("/faceit/matches", faceitH.HandleGetMatches)
 			r.Post("/faceit/sync", faceitH.HandleSync)
 			r.Get("/faceit/profile", faceitH.HandleGetProfile)
 			r.Get("/faceit/elo-history", faceitH.HandleGetEloHistory)

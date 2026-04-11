@@ -42,3 +42,17 @@ LIMIT 30;
 
 -- name: DeleteFaceitMatchesByUserID :exec
 DELETE FROM faceit_matches WHERE user_id = $1;
+
+-- name: CountFaceitMatchesFiltered :one
+SELECT COUNT(*) FROM faceit_matches
+WHERE user_id = $1
+  AND (sqlc.narg('map_name')::varchar IS NULL OR map_name = sqlc.narg('map_name'))
+  AND (sqlc.narg('result')::varchar IS NULL OR result = sqlc.narg('result'));
+
+-- name: GetFaceitMatchesFiltered :many
+SELECT * FROM faceit_matches
+WHERE user_id = $1
+  AND (sqlc.narg('map_name')::varchar IS NULL OR map_name = sqlc.narg('map_name'))
+  AND (sqlc.narg('result')::varchar IS NULL OR result = sqlc.narg('result'))
+ORDER BY played_at DESC
+LIMIT $2 OFFSET $3;

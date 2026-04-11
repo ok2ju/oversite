@@ -33,6 +33,7 @@ func (m *mockQueue) Enqueue(_ context.Context, stream string, data map[string]in
 }
 
 type mockFaceitStore struct {
+	// Profile/streak fields
 	user       store.User
 	userErr    error
 	matchCount int64
@@ -41,6 +42,9 @@ type mockFaceitStore struct {
 	streakErr  error
 	eloHistory []store.GetEloHistoryRow
 	eloErr     error
+	// Match list fields
+	countFilteredFn func(ctx context.Context, arg store.CountFaceitMatchesFilteredParams) (int64, error)
+	listFilteredFn  func(ctx context.Context, arg store.GetFaceitMatchesFilteredParams) ([]store.FaceitMatch, error)
 }
 
 func (m *mockFaceitStore) GetUserByID(_ context.Context, _ uuid.UUID) (store.User, error) {
@@ -57,6 +61,314 @@ func (m *mockFaceitStore) CountFaceitMatchesByUserID(_ context.Context, _ uuid.U
 
 func (m *mockFaceitStore) GetCurrentStreak(_ context.Context, _ uuid.UUID) ([]string, error) {
 	return m.streak, m.streakErr
+}
+
+func (m *mockFaceitStore) CountFaceitMatchesFiltered(ctx context.Context, arg store.CountFaceitMatchesFilteredParams) (int64, error) {
+	return m.countFilteredFn(ctx, arg)
+}
+
+func (m *mockFaceitStore) GetFaceitMatchesFiltered(ctx context.Context, arg store.GetFaceitMatchesFilteredParams) ([]store.FaceitMatch, error) {
+	return m.listFilteredFn(ctx, arg)
+}
+
+var faceitTestUserID = uuid.MustParse("11111111-1111-1111-1111-111111111111")
+var faceitTestDemoID = uuid.MustParse("11111111-2222-3333-4444-555555555555")
+
+func testUser() store.User {
+	return store.User{
+		ID:          faceitTestUserID,
+		FaceitID:    "faceit-abc",
+		Nickname:    "TestPlayer",
+		AvatarUrl:   sql.NullString{String: "https://example.com/avatar.png", Valid: true},
+		FaceitElo:   sql.NullInt32{Int32: 1850, Valid: true},
+		FaceitLevel: sql.NullInt16{Int16: 8, Valid: true},
+		Country:     sql.NullString{String: "US", Valid: true},
+	}
+}
+
+func sampleMatches() []store.FaceitMatch {
+	return []store.FaceitMatch{
+		{
+			ID:            uuid.New(),
+			UserID:        faceitTestUserID,
+			FaceitMatchID: "1-abc",
+			MapName:       "de_dust2",
+			ScoreTeam:     16,
+			ScoreOpponent: 10,
+			Result:        "W",
+			EloBefore:     sql.NullInt32{Int32: 2000, Valid: true},
+			EloAfter:      sql.NullInt32{Int32: 2025, Valid: true},
+			Kills:         sql.NullInt16{Int16: 22, Valid: true},
+			Deaths:        sql.NullInt16{Int16: 15, Valid: true},
+			Assists:       sql.NullInt16{Int16: 5, Valid: true},
+			DemoUrl:       sql.NullString{String: "https://demo.url/1", Valid: true},
+			DemoID:        uuid.NullUUID{UUID: faceitTestDemoID, Valid: true},
+			PlayedAt:      time.Date(2026, 3, 10, 18, 0, 0, 0, time.UTC),
+		},
+		{
+			ID:            uuid.New(),
+			UserID:        faceitTestUserID,
+			FaceitMatchID: "1-def",
+			MapName:       "de_mirage",
+			ScoreTeam:     12,
+			ScoreOpponent: 16,
+			Result:        "L",
+			EloBefore:     sql.NullInt32{},
+			EloAfter:      sql.NullInt32{},
+			Kills:         sql.NullInt16{},
+			Deaths:        sql.NullInt16{},
+			Assists:       sql.NullInt16{},
+			DemoUrl:       sql.NullString{},
+			DemoID:        uuid.NullUUID{},
+			PlayedAt:      time.Date(2026, 3, 9, 14, 0, 0, 0, time.UTC),
+		},
+	}
+}
+
+func TestFaceitHandleGetMatches(t *testing.T) {
+	matches := sampleMatches()
+
+	tests := []struct {
+		name       string
+		userID     string
+		query      string
+		countFn    func(ctx context.Context, arg store.CountFaceitMatchesFilteredParams) (int64, error)
+		listFn     func(ctx context.Context, arg store.GetFaceitMatchesFilteredParams) ([]store.FaceitMatch, error)
+		wantStatus int
+		check      func(t *testing.T, body map[string]interface{})
+	}{
+		{
+			name:   "valid request returns 200 with data and meta",
+			userID: faceitTestUserID.String(),
+			countFn: func(_ context.Context, _ store.CountFaceitMatchesFilteredParams) (int64, error) {
+				return 2, nil
+			},
+			listFn: func(_ context.Context, _ store.GetFaceitMatchesFilteredParams) ([]store.FaceitMatch, error) {
+				return matches, nil
+			},
+			wantStatus: http.StatusOK,
+			check: func(t *testing.T, body map[string]interface{}) {
+				data := body["data"].([]interface{})
+				if len(data) != 2 {
+					t.Errorf("data length = %d, want 2", len(data))
+				}
+				meta := body["meta"].(map[string]interface{})
+				if meta["total"].(float64) != 2 {
+					t.Errorf("total = %v, want 2", meta["total"])
+				}
+				if meta["page"].(float64) != 1 {
+					t.Errorf("page = %v, want 1", meta["page"])
+				}
+				if meta["per_page"].(float64) != 20 {
+					t.Errorf("per_page = %v, want 20", meta["per_page"])
+				}
+				// Check first match fields
+				first := data[0].(map[string]interface{})
+				if first["map_name"] != "de_dust2" {
+					t.Errorf("map_name = %v, want de_dust2", first["map_name"])
+				}
+				if first["elo_change"].(float64) != 25 {
+					t.Errorf("elo_change = %v, want 25", first["elo_change"])
+				}
+				if first["has_demo"] != true {
+					t.Errorf("has_demo = %v, want true", first["has_demo"])
+				}
+				// Check second match null elo
+				second := data[1].(map[string]interface{})
+				if second["elo_change"] != nil {
+					t.Errorf("elo_change = %v, want nil", second["elo_change"])
+				}
+				if second["has_demo"] != false {
+					t.Errorf("has_demo = %v, want false", second["has_demo"])
+				}
+			},
+		},
+		{
+			name:       "no auth returns 401",
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:   "default pagination uses page=1 per_page=20",
+			userID: faceitTestUserID.String(),
+			countFn: func(_ context.Context, _ store.CountFaceitMatchesFilteredParams) (int64, error) {
+				return 0, nil
+			},
+			listFn: func(_ context.Context, arg store.GetFaceitMatchesFilteredParams) ([]store.FaceitMatch, error) {
+				if arg.Limit != 20 {
+					t.Errorf("limit = %d, want 20", arg.Limit)
+				}
+				if arg.Offset != 0 {
+					t.Errorf("offset = %d, want 0", arg.Offset)
+				}
+				return nil, nil
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "custom pagination page=2 per_page=10 produces offset=10",
+			userID: faceitTestUserID.String(),
+			query:  "page=2&per_page=10",
+			countFn: func(_ context.Context, _ store.CountFaceitMatchesFilteredParams) (int64, error) {
+				return 15, nil
+			},
+			listFn: func(_ context.Context, arg store.GetFaceitMatchesFilteredParams) ([]store.FaceitMatch, error) {
+				if arg.Limit != 10 {
+					t.Errorf("limit = %d, want 10", arg.Limit)
+				}
+				if arg.Offset != 10 {
+					t.Errorf("offset = %d, want 10", arg.Offset)
+				}
+				return nil, nil
+			},
+			wantStatus: http.StatusOK,
+			check: func(t *testing.T, body map[string]interface{}) {
+				meta := body["meta"].(map[string]interface{})
+				if meta["page"].(float64) != 2 {
+					t.Errorf("page = %v, want 2", meta["page"])
+				}
+				if meta["per_page"].(float64) != 10 {
+					t.Errorf("per_page = %v, want 10", meta["per_page"])
+				}
+			},
+		},
+		{
+			name:   "map_name filter populates NullString",
+			userID: faceitTestUserID.String(),
+			query:  "map_name=de_dust2",
+			countFn: func(_ context.Context, arg store.CountFaceitMatchesFilteredParams) (int64, error) {
+				if !arg.MapName.Valid || arg.MapName.String != "de_dust2" {
+					t.Errorf("count map_name = %v, want de_dust2", arg.MapName)
+				}
+				return 1, nil
+			},
+			listFn: func(_ context.Context, arg store.GetFaceitMatchesFilteredParams) ([]store.FaceitMatch, error) {
+				if !arg.MapName.Valid || arg.MapName.String != "de_dust2" {
+					t.Errorf("list map_name = %v, want de_dust2", arg.MapName)
+				}
+				return matches[:1], nil
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "result filter populates NullString",
+			userID: faceitTestUserID.String(),
+			query:  "result=W",
+			countFn: func(_ context.Context, arg store.CountFaceitMatchesFilteredParams) (int64, error) {
+				if !arg.Result.Valid || arg.Result.String != "W" {
+					t.Errorf("count result = %v, want W", arg.Result)
+				}
+				return 1, nil
+			},
+			listFn: func(_ context.Context, arg store.GetFaceitMatchesFilteredParams) ([]store.FaceitMatch, error) {
+				if !arg.Result.Valid || arg.Result.String != "W" {
+					t.Errorf("list result = %v, want W", arg.Result)
+				}
+				return matches[:1], nil
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "both filters combined",
+			userID: faceitTestUserID.String(),
+			query:  "map_name=de_dust2&result=W",
+			countFn: func(_ context.Context, arg store.CountFaceitMatchesFilteredParams) (int64, error) {
+				if !arg.MapName.Valid || arg.MapName.String != "de_dust2" {
+					t.Errorf("count map_name = %v, want de_dust2", arg.MapName)
+				}
+				if !arg.Result.Valid || arg.Result.String != "W" {
+					t.Errorf("count result = %v, want W", arg.Result)
+				}
+				return 1, nil
+			},
+			listFn: func(_ context.Context, arg store.GetFaceitMatchesFilteredParams) ([]store.FaceitMatch, error) {
+				return matches[:1], nil
+			},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:   "empty result returns empty data array",
+			userID: faceitTestUserID.String(),
+			countFn: func(_ context.Context, _ store.CountFaceitMatchesFilteredParams) (int64, error) {
+				return 0, nil
+			},
+			listFn: func(_ context.Context, _ store.GetFaceitMatchesFilteredParams) ([]store.FaceitMatch, error) {
+				return nil, nil
+			},
+			wantStatus: http.StatusOK,
+			check: func(t *testing.T, body map[string]interface{}) {
+				data := body["data"].([]interface{})
+				if len(data) != 0 {
+					t.Errorf("data length = %d, want 0", len(data))
+				}
+				meta := body["meta"].(map[string]interface{})
+				if meta["total"].(float64) != 0 {
+					t.Errorf("total = %v, want 0", meta["total"])
+				}
+			},
+		},
+		{
+			name:   "count DB error returns 500",
+			userID: faceitTestUserID.String(),
+			countFn: func(_ context.Context, _ store.CountFaceitMatchesFilteredParams) (int64, error) {
+				return 0, errors.New("db down")
+			},
+			listFn: func(_ context.Context, _ store.GetFaceitMatchesFilteredParams) ([]store.FaceitMatch, error) {
+				return nil, nil
+			},
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:   "list DB error returns 500",
+			userID: faceitTestUserID.String(),
+			countFn: func(_ context.Context, _ store.CountFaceitMatchesFilteredParams) (int64, error) {
+				return 2, nil
+			},
+			listFn: func(_ context.Context, _ store.GetFaceitMatchesFilteredParams) ([]store.FaceitMatch, error) {
+				return nil, errors.New("db down")
+			},
+			wantStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ms := &mockFaceitStore{}
+			if tt.countFn != nil {
+				ms.countFilteredFn = tt.countFn
+			}
+			if tt.listFn != nil {
+				ms.listFilteredFn = tt.listFn
+			}
+
+			h := handler.NewFaceitHandler(&mockQueue{}, ms)
+
+			url := "/api/v1/faceit/matches"
+			if tt.query != "" {
+				url += "?" + tt.query
+			}
+			req := httptest.NewRequest(http.MethodGet, url, nil)
+			ctx := req.Context()
+			if tt.userID != "" {
+				ctx = context.WithValue(ctx, auth.UserIDKey, tt.userID)
+			}
+			req = req.WithContext(ctx)
+			rec := httptest.NewRecorder()
+
+			h.HandleGetMatches(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d", rec.Code, tt.wantStatus)
+			}
+
+			if tt.check != nil {
+				var body map[string]interface{}
+				if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+					t.Fatalf("decoding response: %v", err)
+				}
+				tt.check(t, body)
+			}
+		})
+	}
 }
 
 func TestFaceitHandleSync(t *testing.T) {
@@ -138,20 +450,6 @@ func TestFaceitHandleSync(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-var faceitTestUserID = uuid.MustParse("11111111-1111-1111-1111-111111111111")
-
-func testUser() store.User {
-	return store.User{
-		ID:          faceitTestUserID,
-		FaceitID:    "faceit-abc",
-		Nickname:    "TestPlayer",
-		AvatarUrl:   sql.NullString{String: "https://example.com/avatar.png", Valid: true},
-		FaceitElo:   sql.NullInt32{Int32: 1850, Valid: true},
-		FaceitLevel: sql.NullInt16{Int16: 8, Valid: true},
-		Country:     sql.NullString{String: "US", Valid: true},
 	}
 }
 
