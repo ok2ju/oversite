@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useFaceitProfile, useEloHistory } from "@/hooks/use-faceit"
 import { ProfileCard } from "@/components/dashboard/profile-card"
 import { EloChart } from "@/components/dashboard/elo-chart"
+import { MatchList } from "@/components/dashboard/match-list"
 
 export default function DashboardPage() {
   const { data: profile, isLoading: profileLoading } = useFaceitProfile()
@@ -26,6 +27,7 @@ export default function DashboardPage() {
         days={days}
         onDaysChange={setDays}
       />
+      <MatchList />
     </div>
   )
 }

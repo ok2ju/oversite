@@ -1,7 +1,83 @@
 import { http, HttpResponse } from "msw"
 import type { Demo, GameEvent, TickData } from "@/types/demo"
+import type { FaceitMatch } from "@/types/faceit"
 import type { Round } from "@/types/round"
 import type { FaceitProfile, EloHistoryPoint } from "@/types/faceit"
+
+export const mockFaceitMatches: FaceitMatch[] = [
+  {
+    id: "fm-1",
+    faceit_match_id: "1-abc",
+    map_name: "de_dust2",
+    score_team: 16,
+    score_opponent: 10,
+    result: "W",
+    elo_before: 2000,
+    elo_after: 2025,
+    elo_change: 25,
+    kills: 22,
+    deaths: 15,
+    assists: 5,
+    demo_url: "https://demo.url/1",
+    demo_id: "demo-1",
+    has_demo: true,
+    played_at: "2026-03-10T18:00:00Z",
+  },
+  {
+    id: "fm-2",
+    faceit_match_id: "1-def",
+    map_name: "de_mirage",
+    score_team: 12,
+    score_opponent: 16,
+    result: "L",
+    elo_before: 2025,
+    elo_after: 2005,
+    elo_change: -20,
+    kills: 18,
+    deaths: 20,
+    assists: 3,
+    demo_url: null,
+    demo_id: null,
+    has_demo: false,
+    played_at: "2026-03-09T14:00:00Z",
+  },
+  {
+    id: "fm-3",
+    faceit_match_id: "1-ghi",
+    map_name: "de_inferno",
+    score_team: 16,
+    score_opponent: 14,
+    result: "W",
+    elo_before: null,
+    elo_after: null,
+    elo_change: null,
+    kills: 25,
+    deaths: 18,
+    assists: 7,
+    demo_url: null,
+    demo_id: null,
+    has_demo: false,
+    played_at: "2026-03-08T20:00:00Z",
+  },
+  {
+    id: "fm-4",
+    faceit_match_id: "1-jkl",
+    map_name: "de_dust2",
+    score_team: 10,
+    score_opponent: 16,
+    result: "L",
+    elo_before: 2050,
+    elo_after: 2030,
+    elo_change: -20,
+    kills: 14,
+    deaths: 19,
+    assists: 2,
+    demo_url: "https://demo.url/4",
+    demo_id: "demo-4",
+    has_demo: true,
+    played_at: "2026-03-07T16:00:00Z",
+  },
+]
 
 export const mockDemos: Demo[] = [
   {
@@ -306,5 +382,28 @@ export const handlers = [
       { elo: 1850, map_name: "de_dust2", played_at: "2026-03-15T18:00:00Z" },
     ]
     return HttpResponse.json({ data })
+  }),
+
+  http.get("/api/v1/faceit/matches", ({ request }) => {
+    const url = new URL(request.url)
+    const page = Number(url.searchParams.get("page") ?? "1")
+    const perPage = Number(url.searchParams.get("per_page") ?? "20")
+    const mapFilter = url.searchParams.get("map_name")
+    const resultFilter = url.searchParams.get("result")
+
+    let filtered = [...mockFaceitMatches]
+    if (mapFilter) {
+      filtered = filtered.filter((m) => m.map_name === mapFilter)
+    }
+    if (resultFilter) {
+      filtered = filtered.filter((m) => m.result === resultFilter)
+    }
+
+    const start = (page - 1) * perPage
+    const sliced = filtered.slice(start, start + perPage)
+    return HttpResponse.json({
+      data: sliced,
+      meta: { total: filtered.length, page, per_page: perPage },
+    })
   }),
 ]

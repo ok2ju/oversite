@@ -1,7 +1,11 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import { screen, waitFor } from "@testing-library/react"
 import { renderWithProviders } from "@/test/render"
 import DashboardPage from "@/app/(app)/dashboard/page"
+
+vi.mock("next/navigation", () => ({
+  useRouter: vi.fn(() => ({ push: vi.fn() })),
+}))
 
 describe("DashboardPage", () => {
   it("renders page heading", () => {

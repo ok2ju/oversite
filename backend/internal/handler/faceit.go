@@ -9,9 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-
 	chimw "github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 
 	"github.com/ok2ju/oversite/backend/internal/auth"
 	"github.com/ok2ju/oversite/backend/internal/store"
@@ -24,6 +23,8 @@ type FaceitStore interface {
 	GetEloHistory(ctx context.Context, arg store.GetEloHistoryParams) ([]store.GetEloHistoryRow, error)
 	CountFaceitMatchesByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
 	GetCurrentStreak(ctx context.Context, userID uuid.UUID) ([]string, error)
+	CountFaceitMatchesFiltered(ctx context.Context, arg store.CountFaceitMatchesFilteredParams) (int64, error)
+	GetFaceitMatchesFiltered(ctx context.Context, arg store.GetFaceitMatchesFilteredParams) ([]store.FaceitMatch, error)
 }
 
 // FaceitHandler handles Faceit-related HTTP endpoints.
@@ -237,4 +238,137 @@ func (h *FaceitHandler) HandleGetEloHistory(w http.ResponseWriter, r *http.Reque
 	}
 
 	writeJSON(w, http.StatusOK, eloHistoryResponse{Data: points})
+}
+
+// HandleGetMatches returns a paginated, filtered list of Faceit matches for the authenticated user.
+func (h *FaceitHandler) HandleGetMatches(w http.ResponseWriter, r *http.Request) {
+	userIDStr, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	userID, err := uuid.Parse(userIDStr)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid user id"})
+		return
+	}
+
+	page, perPage := parsePagination(r)
+
+	var mapFilter, resultFilter sql.NullString
+	if v := r.URL.Query().Get("map_name"); v != "" {
+		mapFilter = sql.NullString{String: v, Valid: true}
+	}
+	if v := r.URL.Query().Get("result"); v != "" {
+		if v != "W" && v != "L" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid result filter: must be W or L"})
+			return
+		}
+		resultFilter = sql.NullString{String: v, Valid: true}
+	}
+
+	countArg := store.CountFaceitMatchesFilteredParams{
+		UserID:  userID,
+		MapName: mapFilter,
+		Result:  resultFilter,
+	}
+	total, err := h.store.CountFaceitMatchesFiltered(r.Context(), countArg)
+	if err != nil {
+		slog.Error("counting faceit matches", "error", err, "request_id", chimw.GetReqID(r.Context()))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to count matches"})
+		return
+	}
+
+	listArg := store.GetFaceitMatchesFilteredParams{
+		UserID:  userID,
+		Limit:   int32(perPage),
+		Offset:  int32((page - 1) * perPage),
+		MapName: mapFilter,
+		Result:  resultFilter,
+	}
+	matches, err := h.store.GetFaceitMatchesFiltered(r.Context(), listArg)
+	if err != nil {
+		slog.Error("listing faceit matches", "error", err, "request_id", chimw.GetReqID(r.Context()))
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list matches"})
+		return
+	}
+
+	items := make([]faceitMatchResponse, 0, len(matches))
+	for _, m := range matches {
+		items = append(items, faceitMatchToJSON(m))
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"data": items,
+		"meta": map[string]interface{}{
+			"total":    total,
+			"page":     page,
+			"per_page": perPage,
+		},
+	})
+}
+
+type faceitMatchResponse struct {
+	ID            string  `json:"id"`
+	FaceitMatchID string  `json:"faceit_match_id"`
+	MapName       string  `json:"map_name"`
+	ScoreTeam     int16   `json:"score_team"`
+	ScoreOpponent int16   `json:"score_opponent"`
+	Result        string  `json:"result"`
+	EloBefore     *int32  `json:"elo_before"`
+	EloAfter      *int32  `json:"elo_after"`
+	EloChange     *int32  `json:"elo_change"`
+	Kills         *int16  `json:"kills"`
+	Deaths        *int16  `json:"deaths"`
+	Assists       *int16  `json:"assists"`
+	DemoUrl       *string `json:"demo_url"`
+	DemoID        *string `json:"demo_id"`
+	HasDemo       bool    `json:"has_demo"`
+	PlayedAt      string  `json:"played_at"`
+}
+
+func faceitMatchToJSON(m store.FaceitMatch) faceitMatchResponse {
+	resp := faceitMatchResponse{
+		ID:            m.ID.String(),
+		FaceitMatchID: m.FaceitMatchID,
+		MapName:       m.MapName,
+		ScoreTeam:     m.ScoreTeam,
+		ScoreOpponent: m.ScoreOpponent,
+		Result:        m.Result,
+		HasDemo:       m.DemoID.Valid,
+		PlayedAt:      m.PlayedAt.Format("2006-01-02T15:04:05Z"),
+	}
+	if m.EloBefore.Valid {
+		v := m.EloBefore.Int32
+		resp.EloBefore = &v
+	}
+	if m.EloAfter.Valid {
+		v := m.EloAfter.Int32
+		resp.EloAfter = &v
+	}
+	if m.EloBefore.Valid && m.EloAfter.Valid {
+		v := m.EloAfter.Int32 - m.EloBefore.Int32
+		resp.EloChange = &v
+	}
+	if m.Kills.Valid {
+		v := m.Kills.Int16
+		resp.Kills = &v
+	}
+	if m.Deaths.Valid {
+		v := m.Deaths.Int16
+		resp.Deaths = &v
+	}
+	if m.Assists.Valid {
+		v := m.Assists.Int16
+		resp.Assists = &v
+	}
+	if m.DemoUrl.Valid {
+		resp.DemoUrl = &m.DemoUrl.String
+	}
+	if m.DemoID.Valid {
+		s := m.DemoID.UUID.String()
+		resp.DemoID = &s
+	}
+	return resp
 }

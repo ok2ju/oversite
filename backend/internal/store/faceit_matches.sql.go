@@ -24,6 +24,26 @@ func (q *Queries) CountFaceitMatchesByUserID(ctx context.Context, userID uuid.UU
 	return count, err
 }
 
+const countFaceitMatchesFiltered = `-- name: CountFaceitMatchesFiltered :one
+SELECT COUNT(*) FROM faceit_matches
+WHERE user_id = $1
+  AND ($2::varchar IS NULL OR map_name = $2)
+  AND ($3::varchar IS NULL OR result = $3)
+`
+
+type CountFaceitMatchesFilteredParams struct {
+	UserID  uuid.UUID
+	MapName sql.NullString
+	Result  sql.NullString
+}
+
+func (q *Queries) CountFaceitMatchesFiltered(ctx context.Context, arg CountFaceitMatchesFilteredParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countFaceitMatchesFiltered, arg.UserID, arg.MapName, arg.Result)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createFaceitMatch = `-- name: CreateFaceitMatch :one
 INSERT INTO faceit_matches (user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
@@ -244,6 +264,69 @@ type GetFaceitMatchesByUserIDParams struct {
 
 func (q *Queries) GetFaceitMatchesByUserID(ctx context.Context, arg GetFaceitMatchesByUserIDParams) ([]FaceitMatch, error) {
 	rows, err := q.db.QueryContext(ctx, getFaceitMatchesByUserID, arg.UserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FaceitMatch
+	for rows.Next() {
+		var i FaceitMatch
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.FaceitMatchID,
+			&i.MapName,
+			&i.ScoreTeam,
+			&i.ScoreOpponent,
+			&i.Result,
+			&i.EloBefore,
+			&i.EloAfter,
+			&i.Kills,
+			&i.Deaths,
+			&i.Assists,
+			&i.DemoUrl,
+			&i.DemoID,
+			&i.PlayedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getFaceitMatchesFiltered = `-- name: GetFaceitMatchesFiltered :many
+SELECT id, user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at, created_at FROM faceit_matches
+WHERE user_id = $1
+  AND ($4::varchar IS NULL OR map_name = $4)
+  AND ($5::varchar IS NULL OR result = $5)
+ORDER BY played_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type GetFaceitMatchesFilteredParams struct {
+	UserID  uuid.UUID
+	Limit   int32
+	Offset  int32
+	MapName sql.NullString
+	Result  sql.NullString
+}
+
+func (q *Queries) GetFaceitMatchesFiltered(ctx context.Context, arg GetFaceitMatchesFilteredParams) ([]FaceitMatch, error) {
+	rows, err := q.db.QueryContext(ctx, getFaceitMatchesFiltered,
+		arg.UserID,
+		arg.Limit,
+		arg.Offset,
+		arg.MapName,
+		arg.Result,
+	)
 	if err != nil {
 		return nil, err
 	}
