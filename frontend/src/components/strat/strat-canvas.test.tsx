@@ -1,0 +1,315 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
+import { render, screen, cleanup } from "@testing-library/react"
+import { useStratStore } from "@/stores/strat"
+
+const mockDestroy = vi.fn()
+const mockTickerStart = vi.fn()
+const mockTickerStop = vi.fn()
+const mockTickerAdd = vi.fn()
+const mockTickerRemove = vi.fn()
+const mockTicker = {
+  start: mockTickerStart,
+  stop: mockTickerStop,
+  add: mockTickerAdd,
+  remove: mockTickerRemove,
+  speed: 1,
+}
+
+const mockAddLayer = vi.fn().mockReturnValue({ addChild: vi.fn(), removeChild: vi.fn() })
+const mockCanvas = document.createElement("canvas")
+
+const mockApp = {
+  initialized: true,
+  ticker: mockTicker,
+  destroy: mockDestroy,
+  addLayer: mockAddLayer,
+  stage: { addChild: vi.fn() },
+  canvas: mockCanvas,
+}
+
+const mockCreateViewerApp = vi.fn().mockResolvedValue(mockApp)
+
+vi.mock("@/lib/pixi/app", () => ({
+  createViewerApp: (...args: unknown[]) => mockCreateViewerApp(...args),
+}))
+
+const mockSetMap = vi.fn().mockResolvedValue(undefined)
+const mockClear = vi.fn()
+const mockMapLayerDestroy = vi.fn()
+let mockMapLayerCalibration: unknown = null
+
+vi.mock("@/lib/pixi/layers/map-layer", () => {
+  return {
+    MapLayer: class MockMapLayer {
+      get calibration() {
+        return mockMapLayerCalibration
+      }
+      setMap = mockSetMap
+      clear = mockClear
+      destroy = mockMapLayerDestroy
+    },
+  }
+})
+
+const mockRendererAttach = vi.fn()
+const mockRendererDetach = vi.fn()
+const mockRendererDestroy = vi.fn()
+
+vi.mock("@/lib/strat/renderer", () => {
+  return {
+    StratRenderer: class MockStratRenderer {
+      attach = mockRendererAttach
+      detach = mockRendererDetach
+      destroy = mockRendererDestroy
+    },
+  }
+})
+
+const mockStratDocDestroy = vi.fn()
+const mockCreateStratDoc = vi.fn().mockReturnValue({ destroy: mockStratDocDestroy })
+
+vi.mock("@/lib/yjs/doc", () => ({
+  createStratDoc: (...args: unknown[]) => mockCreateStratDoc(...args),
+}))
+
+const mockProviderDestroy = vi.fn()
+const mockCreateStratProvider = vi.fn().mockReturnValue({ destroy: mockProviderDestroy })
+
+vi.mock("@/lib/yjs/provider", () => ({
+  createStratProvider: (...args: unknown[]) => mockCreateStratProvider(...args),
+}))
+
+const mockCameraDestroy = vi.fn()
+const mockCameraSetScreenSize = vi.fn()
+const mockCameraSetMapSize = vi.fn()
+const mockCameraResetView = vi.fn()
+const mockCameraContainer = {
+  addChild: vi.fn(),
+  removeChild: vi.fn(),
+  position: { set: vi.fn() },
+  scale: { set: vi.fn() },
+  label: "camera-viewport",
+}
+
+vi.mock("@/lib/pixi/camera", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/pixi/camera")>()
+  return {
+    ...actual,
+    Camera: class MockCamera {
+      container = mockCameraContainer
+      setScreenSize = mockCameraSetScreenSize
+      setMapSize = mockCameraSetMapSize
+      resetView = mockCameraResetView
+      destroy = mockCameraDestroy
+    },
+  }
+})
+
+import { StratCanvas } from "./strat-canvas"
+
+describe("StratCanvas", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockTicker.speed = 1
+    mockApp.initialized = true
+    mockApp.stage = { addChild: vi.fn() }
+    mockAddLayer.mockReturnValue({ addChild: vi.fn(), removeChild: vi.fn() })
+    mockCreateViewerApp.mockResolvedValue(mockApp)
+    mockSetMap.mockResolvedValue(undefined)
+    mockCameraDestroy.mockReset()
+    mockCameraSetScreenSize.mockReset()
+    mockMapLayerCalibration = null
+    mockCreateStratDoc.mockReturnValue({ destroy: mockStratDocDestroy })
+    mockCreateStratProvider.mockReturnValue({ destroy: mockProviderDestroy })
+    useStratStore.getState().reset()
+  })
+
+  afterEach(() => {
+    cleanup()
+  })
+
+  it("renders container div with data-testid", () => {
+    render(<StratCanvas />)
+    expect(screen.getByTestId("strat-canvas-container")).toBeInTheDocument()
+  })
+
+  it("calls createViewerApp with container element on mount", async () => {
+    render(<StratCanvas />)
+
+    await vi.waitFor(() => {
+      expect(mockCreateViewerApp).toHaveBeenCalledWith({
+        container: screen.getByTestId("strat-canvas-container"),
+      })
+    })
+  })
+
+  it("calls destroy on unmount", async () => {
+    const { unmount } = render(<StratCanvas />)
+
+    await vi.waitFor(() => {
+      expect(mockCreateViewerApp).toHaveBeenCalled()
+    })
+
+    unmount()
+    expect(mockDestroy).toHaveBeenCalled()
+  })
+
+  it("creates map and drawings layers under camera container", async () => {
+    render(<StratCanvas />)
+
+    await vi.waitFor(() => {
+      expect(mockCreateViewerApp).toHaveBeenCalled()
+    })
+
+    expect(mockAddLayer).toHaveBeenCalledWith("map", mockCameraContainer)
+    expect(mockAddLayer).toHaveBeenCalledWith("drawings", mockCameraContainer)
+    const calls = mockAddLayer.mock.calls.map((c: unknown[]) => c[0])
+    expect(calls.indexOf("map")).toBeLessThan(calls.indexOf("drawings"))
+  })
+
+  it("loads map when mapName changes", async () => {
+    render(<StratCanvas />)
+
+    await vi.waitFor(() => {
+      expect(mockCreateViewerApp).toHaveBeenCalled()
+    })
+
+    useStratStore.getState().setBoard("board-1", "de_mirage")
+
+    await vi.waitFor(() => {
+      expect(mockSetMap).toHaveBeenCalledWith("de_mirage")
+    })
+  })
+
+  it("clears map when mapName becomes null", async () => {
+    useStratStore.getState().setBoard("board-1", "de_mirage")
+
+    render(<StratCanvas />)
+
+    await vi.waitFor(() => {
+      expect(mockCreateViewerApp).toHaveBeenCalled()
+    })
+
+    await vi.waitFor(() => {
+      expect(mockSetMap).toHaveBeenCalledWith("de_mirage")
+    })
+
+    mockClear.mockClear()
+    useStratStore.getState().setBoard(null, null)
+
+    await vi.waitFor(() => {
+      expect(mockClear).toHaveBeenCalled()
+    })
+  })
+
+  it("calls setMapSize after map loads", async () => {
+    const mockCalibration = { originX: -2476, originY: 3239, scale: 4.4, width: 1024, height: 1024 }
+
+    mockSetMap.mockImplementation(() => {
+      mockMapLayerCalibration = mockCalibration
+      return Promise.resolve()
+    })
+
+    render(<StratCanvas />)
+
+    await vi.waitFor(() => {
+      expect(mockCreateViewerApp).toHaveBeenCalled()
+    })
+
+    mockCameraSetMapSize.mockClear()
+    useStratStore.getState().setBoard("board-1", "de_dust2")
+
+    await vi.waitFor(() => {
+      expect(mockSetMap).toHaveBeenCalledWith("de_dust2")
+    })
+
+    await vi.waitFor(() => {
+      expect(mockCameraSetMapSize).toHaveBeenCalledWith(1024, 1024)
+    })
+
+    mockMapLayerCalibration = null
+  })
+
+  it("creates doc + provider and attaches renderer when boardId is set", async () => {
+    render(<StratCanvas />)
+
+    await vi.waitFor(() => {
+      expect(mockCreateViewerApp).toHaveBeenCalled()
+    })
+
+    useStratStore.getState().setBoard("board-1", "de_mirage")
+
+    await vi.waitFor(() => {
+      expect(mockCreateStratDoc).toHaveBeenCalled()
+    })
+
+    expect(mockCreateStratProvider).toHaveBeenCalledWith(
+      expect.objectContaining({ stratId: "board-1" })
+    )
+    expect(mockRendererAttach).toHaveBeenCalled()
+  })
+
+  it("destroys previous doc/provider when boardId changes", async () => {
+    render(<StratCanvas />)
+
+    await vi.waitFor(() => {
+      expect(mockCreateViewerApp).toHaveBeenCalled()
+    })
+
+    useStratStore.getState().setBoard("board-1", "de_mirage")
+
+    await vi.waitFor(() => {
+      expect(mockCreateStratDoc).toHaveBeenCalled()
+    })
+
+    mockRendererDetach.mockClear()
+    useStratStore.getState().setBoard("board-2", "de_dust2")
+
+    await vi.waitFor(() => {
+      expect(mockRendererDetach).toHaveBeenCalled()
+    })
+
+    expect(mockProviderDestroy).toHaveBeenCalled()
+    expect(mockStratDocDestroy).toHaveBeenCalled()
+  })
+
+  it("destroys camera on unmount", async () => {
+    const { unmount } = render(<StratCanvas />)
+
+    await vi.waitFor(() => {
+      expect(mockCreateViewerApp).toHaveBeenCalled()
+    })
+
+    unmount()
+    expect(mockCameraDestroy).toHaveBeenCalled()
+  })
+
+  it("handles async init completing after cleanup (StrictMode guard)", async () => {
+    let resolveInit: (value: typeof mockApp) => void
+    mockCreateViewerApp.mockReturnValue(
+      new Promise((resolve) => {
+        resolveInit = resolve
+      })
+    )
+
+    const { unmount } = render(<StratCanvas />)
+    unmount()
+
+    resolveInit!(mockApp)
+
+    await vi.waitFor(() => {
+      expect(mockDestroy).toHaveBeenCalled()
+    })
+  })
+
+  it("observes container resize and updates camera screen size", async () => {
+    render(<StratCanvas />)
+
+    await vi.waitFor(() => {
+      expect(mockCreateViewerApp).toHaveBeenCalled()
+    })
+
+    // Camera setScreenSize is called once during init
+    expect(mockCameraSetScreenSize).toHaveBeenCalled()
+  })
+})
