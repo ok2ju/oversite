@@ -169,7 +169,7 @@ func TestFaceitHandleGetProfile(t *testing.T) {
 			store: &mockFaceitStore{
 				user:       testUser(),
 				matchCount: 142,
-				streak:     []string{"win", "win", "win", "loss"},
+				streak:     []string{"W", "W", "W", "L"},
 			},
 			wantStatus: http.StatusOK,
 			wantCheck: func(t *testing.T, body map[string]interface{}) {
@@ -207,9 +207,36 @@ func TestFaceitHandleGetProfile(t *testing.T) {
 			name:   "user not found returns 404",
 			userID: faceitTestUserID.String(),
 			store: &mockFaceitStore{
-				userErr: errors.New("user not found"),
+				userErr: sql.ErrNoRows,
 			},
 			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:   "db error on user lookup returns 500",
+			userID: faceitTestUserID.String(),
+			store: &mockFaceitStore{
+				userErr: errors.New("connection refused"),
+			},
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:   "count error returns 500",
+			userID: faceitTestUserID.String(),
+			store: &mockFaceitStore{
+				user:     testUser(),
+				countErr: errors.New("db timeout"),
+			},
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:   "streak error returns 500",
+			userID: faceitTestUserID.String(),
+			store: &mockFaceitStore{
+				user:       testUser(),
+				matchCount: 10,
+				streakErr:  errors.New("db timeout"),
+			},
+			wantStatus: http.StatusInternalServerError,
 		},
 		{
 			name:   "no matches returns zero streak",
@@ -237,7 +264,7 @@ func TestFaceitHandleGetProfile(t *testing.T) {
 			store: &mockFaceitStore{
 				user:       testUser(),
 				matchCount: 10,
-				streak:     []string{"loss", "loss", "win"},
+				streak:     []string{"L", "L", "W"},
 			},
 			wantStatus: http.StatusOK,
 			wantCheck: func(t *testing.T, body map[string]interface{}) {

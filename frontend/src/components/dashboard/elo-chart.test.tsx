@@ -4,14 +4,6 @@ import { renderWithProviders, userEvent } from "@/test/render"
 import { EloChart } from "@/components/dashboard/elo-chart"
 import type { EloHistoryPoint } from "@/types/faceit"
 
-// Recharts uses ResizeObserver internally which jsdom doesn't have
-class ResizeObserverStub {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-}
-globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver
-
 const mockData: EloHistoryPoint[] = [
   { elo: 1800, map_name: "de_dust2", played_at: "2026-03-01T12:00:00Z" },
   { elo: 1820, map_name: "de_mirage", played_at: "2026-03-05T14:00:00Z" },

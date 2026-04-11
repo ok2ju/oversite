@@ -2,6 +2,8 @@ package handler
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -63,20 +65,32 @@ func (h *FaceitHandler) HandleSync(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "sync_queued"})
 }
 
+// mapResult maps raw DB result values ("W", "L") to frontend-expected strings.
+func mapResult(raw string) string {
+	switch raw {
+	case "W":
+		return "win"
+	case "L":
+		return "loss"
+	default:
+		return raw
+	}
+}
+
 // streakResult computes the current streak from a list of recent match results.
 func streakResult(results []string) (string, int) {
 	if len(results) == 0 {
 		return "none", 0
 	}
-	streakType := results[0]
+	first := results[0]
 	count := 0
 	for _, r := range results {
-		if r != streakType {
+		if r != first {
 			break
 		}
 		count++
 	}
-	return streakType, count
+	return mapResult(first), count
 }
 
 type profileResponse struct {
@@ -114,8 +128,12 @@ func (h *FaceitHandler) HandleGetProfile(w http.ResponseWriter, r *http.Request)
 
 	user, err := h.store.GetUserByID(r.Context(), userID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "user not found"})
+			return
+		}
 		slog.Error("getting user", "error", err, "request_id", chimw.GetReqID(r.Context()))
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "user not found"})
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
 		return
 	}
 

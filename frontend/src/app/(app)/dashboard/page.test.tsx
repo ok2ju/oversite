@@ -3,14 +3,6 @@ import { screen, waitFor } from "@testing-library/react"
 import { renderWithProviders } from "@/test/render"
 import DashboardPage from "@/app/(app)/dashboard/page"
 
-// Recharts uses ResizeObserver internally which jsdom doesn't have
-class ResizeObserverStub {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-}
-globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver
-
 describe("DashboardPage", () => {
   it("renders page heading", () => {
     renderWithProviders(<DashboardPage />)
