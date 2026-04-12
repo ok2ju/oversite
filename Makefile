@@ -34,7 +34,7 @@ migrate-create: ## Create new migration pair (usage: make migrate-create name=<n
 # ========================
 
 lint: ## Run all linters
-	go tool golangci-lint run ./...
+	golangci-lint run ./...
 	cd frontend && pnpm lint
 
 typecheck: ## Run TypeScript type checking
