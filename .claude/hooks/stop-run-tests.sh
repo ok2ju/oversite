@@ -17,6 +17,7 @@ CHANGED=$(sort -u "$TRACKING_FILE")
 FE_TEST_FILES=()
 FE_SOURCE_FILES=()
 BE_PACKAGES=()
+ROOT_GO_PACKAGES=()
 
 while IFS= read -r file; do
   if [[ "$file" == */frontend/src/*.test.ts ]] || [[ "$file" == */frontend/src/*.test.tsx ]]; then
@@ -26,6 +27,15 @@ while IFS= read -r file; do
   elif [[ "$file" == */backend/*.go ]]; then
     pkg_dir=$(dirname "${file#*backend/}")
     BE_PACKAGES+=("./$pkg_dir/...")
+  elif [[ "$file" == *.go ]]; then
+    # Root-level Go files (Wails app, internal/)
+    rel="${file#$PROJECT_ROOT/}"
+    pkg_dir=$(dirname "$rel")
+    if [ "$pkg_dir" = "." ]; then
+      ROOT_GO_PACKAGES+=("./...")
+    else
+      ROOT_GO_PACKAGES+=("./$pkg_dir/...")
+    fi
   fi
 done <<< "$CHANGED"
 
@@ -60,6 +70,19 @@ if [ ${#BE_PACKAGES[@]} -gt 0 ]; then
   cd "$PROJECT_ROOT/backend"
   echo "=== Backend tests ==="
   go test -race -count=1 -timeout=60s "${BE_PACKAGES[@]}" 2>&1 | tail -40 || FAILED=1
+fi
+
+# --- Root-level Go tests (Wails app, internal/) ---
+if [ ${#ROOT_GO_PACKAGES[@]} -gt 0 ]; then
+  UNIQUE_ROOT_PKGS=$(printf '%s\n' "${ROOT_GO_PACKAGES[@]}" | sort -u)
+  ROOT_GO_PACKAGES=()
+  while IFS= read -r pkg; do
+    [ -n "$pkg" ] && ROOT_GO_PACKAGES+=("$pkg")
+  done <<< "$UNIQUE_ROOT_PKGS"
+
+  cd "$PROJECT_ROOT"
+  echo "=== Root Go tests ==="
+  go test -race -count=1 -timeout=60s "${ROOT_GO_PACKAGES[@]}" 2>&1 | tail -40 || FAILED=1
 fi
 
 exit $FAILED

@@ -4,6 +4,7 @@ pre-commit:
     frontend-lint:
       root: "frontend/"
       glob: "frontend/**/*.{ts,tsx,js,mjs}"
+      exclude: "frontend/wailsjs/**"
       run: npx eslint --no-warn-ignored {staged_files}
 
     backend-lint:

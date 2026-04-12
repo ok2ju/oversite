@@ -16,12 +16,15 @@ rm -f "$TRACKING_FILE"
 
 HAS_FE=false
 HAS_BE=false
+HAS_ROOT_GO=false
 
 while IFS= read -r file; do
   if [[ "$file" == */frontend/src/*.ts ]] || [[ "$file" == */frontend/src/*.tsx ]]; then
     HAS_FE=true
   elif [[ "$file" == */backend/*.go ]]; then
     HAS_BE=true
+  elif [[ "$file" == *.go ]]; then
+    HAS_ROOT_GO=true
   fi
 done <<< "$CHANGED"
 
@@ -34,10 +37,17 @@ if $HAS_FE; then
   npx tsc --noEmit 2>&1 | head -40 || FAILED=1
 fi
 
-# --- Go vet ---
+# --- Go vet (backend/) ---
 if $HAS_BE; then
   cd "$PROJECT_ROOT/backend"
-  echo "=== Go vet ==="
+  echo "=== Go vet (backend) ==="
+  go vet ./... 2>&1 | head -40 || FAILED=1
+fi
+
+# --- Go vet (root/internal/) ---
+if $HAS_ROOT_GO; then
+  cd "$PROJECT_ROOT"
+  echo "=== Go vet (root) ==="
   go vet ./... 2>&1 | head -40 || FAILED=1
 fi
 

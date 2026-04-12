@@ -63,6 +63,10 @@ lefthook-local.yml
 # Claude Code hooks temp files
 .claude/.edited-files
 
+# Wails
+build/bin/
+frontend/dist/
+
 # Temporary
 tmp/
 *.tmp
