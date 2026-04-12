@@ -49,7 +49,7 @@ function wireAwareness(a1: Awareness, a2: Awareness) {
         ...removed,
       ])
       applyAwarenessUpdate(a2, update, "peer")
-    }
+    },
   )
   a2.on(
     "update",
@@ -68,7 +68,7 @@ function wireAwareness(a1: Awareness, a2: Awareness) {
         ...removed,
       ])
       applyAwarenessUpdate(a1, update, "peer")
-    }
+    },
   )
 }
 
@@ -103,7 +103,7 @@ describe("Yjs integration: two-client sync", () => {
     const idB = createDrawingElement(
       elementsB,
       { ...baseProps, type: "arrow", color: "#00ff00", created_by: "user-b" },
-      docB
+      docB,
     )
 
     const elementsA = getDrawingElements(docA)
@@ -113,7 +113,7 @@ describe("Yjs integration: two-client sync", () => {
     const idA = createDrawingElement(
       elementsA,
       { ...baseProps, type: "line", created_by: "user-a" },
-      docA
+      docA,
     )
 
     expect(elementsB.length).toBe(2)
@@ -162,7 +162,7 @@ describe("Yjs integration: two-client sync", () => {
     createDrawingElement(
       elementsA,
       { ...baseProps, type: "rectangle", created_by: "user-a" },
-      docA
+      docA,
     )
     expect(getDrawingElements(docB).length).toBe(1)
 
@@ -173,7 +173,7 @@ describe("Yjs integration: two-client sync", () => {
     createDrawingElement(
       elementsA,
       { ...baseProps, type: "circle", created_by: "user-a" },
-      docA
+      docA,
     )
     expect(getDrawingElements(docA).length).toBe(2)
 
@@ -195,13 +195,13 @@ describe("Yjs integration: two-client sync", () => {
     createDrawingElement(
       getDrawingElements(docA),
       { ...baseProps, type: "freehand", created_by: "user-a" },
-      docA
+      docA,
     )
 
     createDrawingElement(
       getDrawingElements(docB),
       { ...baseProps, type: "line", created_by: "user-b" },
-      docB
+      docB,
     )
 
     connectDocs(docA, docB)
@@ -211,13 +211,13 @@ describe("Yjs integration: two-client sync", () => {
 
     const idsA = new Set(
       Array.from({ length: getDrawingElements(docA).length }, (_, i) =>
-        getDrawingElements(docA).get(i).get("id")
-      )
+        getDrawingElements(docA).get(i).get("id"),
+      ),
     )
     const idsB = new Set(
       Array.from({ length: getDrawingElements(docB).length }, (_, i) =>
-        getDrawingElements(docB).get(i).get("id")
-      )
+        getDrawingElements(docB).get(i).get("id"),
+      ),
     )
     expect(idsA).toEqual(idsB)
   })
@@ -228,11 +228,7 @@ describe("Yjs integration: two-client sync", () => {
     wireDocs(docA, docB)
 
     const elementsA = getDrawingElements(docA)
-    createDrawingElement(
-      elementsA,
-      { ...baseProps, stroke_data: [1, 2] },
-      docA
-    )
+    createDrawingElement(elementsA, { ...baseProps, stroke_data: [1, 2] }, docA)
 
     const elA = elementsA.get(0)
     const elB = getDrawingElements(docB).get(0)

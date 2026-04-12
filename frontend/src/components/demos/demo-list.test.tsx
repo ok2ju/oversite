@@ -64,11 +64,7 @@ describe("DemoList", () => {
     const user = userEvent.setup()
 
     renderWithProviders(
-      <DemoList
-        demos={[parsingDemo()]}
-        isLoading={false}
-        onDelete={vi.fn()}
-      />,
+      <DemoList demos={[parsingDemo()]} isLoading={false} onDelete={vi.fn()} />,
     )
 
     await user.click(screen.getByText("de_mirage"))
@@ -80,7 +76,9 @@ describe("DemoList", () => {
       <DemoList demos={[]} isLoading={true} onDelete={vi.fn()} />,
     )
 
-    const skeletons = container.querySelectorAll('[data-testid="demo-skeleton"]')
+    const skeletons = container.querySelectorAll(
+      '[data-testid="demo-skeleton"]',
+    )
     expect(skeletons.length).toBeGreaterThan(0)
   })
 
@@ -92,9 +90,7 @@ describe("DemoList", () => {
     )
 
     await user.click(screen.getByRole("button", { name: /delete/i }))
-    expect(
-      screen.getByText(/are you sure/i),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/are you sure/i)).toBeInTheDocument()
   })
 
   it("calls onDelete when confirming delete", async () => {

@@ -7,7 +7,10 @@ export interface ViewerAppOptions {
 
 export class ViewerApp {
   private app: Application
-  private layers = new Map<string, { container: Container; parent: Container }>()
+  private layers = new Map<
+    string,
+    { container: Container; parent: Container }
+  >()
   private _initialized = false
 
   constructor(app: Application) {
@@ -71,7 +74,7 @@ export class ViewerApp {
   destroy(): void {
     this.app.destroy(
       { removeView: true },
-      { children: true, texture: true, textureSource: true }
+      { children: true, texture: true, textureSource: true },
     )
     this.layers.clear()
     this._initialized = false
@@ -79,7 +82,7 @@ export class ViewerApp {
 }
 
 export async function createViewerApp(
-  options: ViewerAppOptions
+  options: ViewerAppOptions,
 ): Promise<ViewerApp> {
   const app = new Application()
   const viewer = new ViewerApp(app)

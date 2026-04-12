@@ -32,7 +32,11 @@ describe("TickBuffer", () => {
 
   beforeEach(() => {
     fetchFn = vi.fn<FetchTicksFn>()
-    buffer = new TickBuffer("demo-1", { fetchFn, chunkSize: 100, maxCachedChunks: 3 })
+    buffer = new TickBuffer("demo-1", {
+      fetchFn,
+      chunkSize: 100,
+      maxCachedChunks: 3,
+    })
   })
 
   describe("chunk calculation", () => {
@@ -43,7 +47,7 @@ describe("TickBuffer", () => {
         "demo-1",
         0,
         99,
-        expect.any(AbortSignal)
+        expect.any(AbortSignal),
       )
     })
 
@@ -54,7 +58,7 @@ describe("TickBuffer", () => {
         "demo-1",
         100,
         199,
-        expect.any(AbortSignal)
+        expect.any(AbortSignal),
       )
     })
 
@@ -65,7 +69,7 @@ describe("TickBuffer", () => {
         "demo-1",
         0,
         99,
-        expect.any(AbortSignal)
+        expect.any(AbortSignal),
       )
     })
   })
@@ -130,7 +134,7 @@ describe("TickBuffer", () => {
         "demo-1",
         100,
         199,
-        expect.any(AbortSignal)
+        expect.any(AbortSignal),
       )
     })
 
@@ -157,18 +161,16 @@ describe("TickBuffer", () => {
         "demo-1",
         500,
         599,
-        expect.any(AbortSignal)
+        expect.any(AbortSignal),
       )
     })
 
     it("aborts in-flight fetches for unneeded chunks on seek", async () => {
       const abortSignals: AbortSignal[] = []
-      fetchFn.mockImplementation(
-        (_demoId, _start, _end, signal) => {
-          abortSignals.push(signal)
-          return new Promise(() => {}) // never resolves
-        }
-      )
+      fetchFn.mockImplementation((_demoId, _start, _end, signal) => {
+        abortSignals.push(signal)
+        return new Promise(() => {}) // never resolves
+      })
 
       // Start fetch for chunk 0-99
       buffer.getTickData(50)
@@ -274,12 +276,10 @@ describe("TickBuffer", () => {
   describe("dispose", () => {
     it("aborts all in-flight requests", () => {
       const abortSignals: AbortSignal[] = []
-      fetchFn.mockImplementation(
-        (_demoId, _start, _end, signal) => {
-          abortSignals.push(signal)
-          return new Promise(() => {})
-        }
-      )
+      fetchFn.mockImplementation((_demoId, _start, _end, signal) => {
+        abortSignals.push(signal)
+        return new Promise(() => {})
+      })
 
       buffer.getTickData(0)
       buffer.getTickData(100)

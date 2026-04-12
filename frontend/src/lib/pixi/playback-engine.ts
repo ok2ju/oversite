@@ -63,7 +63,10 @@ export class PlaybackEngine {
     // Check round boundary crossing
     if (this.autoPauseEnabled && this.roundBoundaries.length > 0) {
       for (const boundary of this.roundBoundaries) {
-        if (previousTick < boundary.endTick && this.fractionalTick >= boundary.endTick) {
+        if (
+          previousTick < boundary.endTick &&
+          this.fractionalTick >= boundary.endTick
+        ) {
           this.fractionalTick = boundary.endTick
           this.setTick(boundary.endTick)
           this.pauseFn()

@@ -31,7 +31,7 @@ export function zoomToPoint(
   viewport: Viewport,
   cursorX: number,
   cursorY: number,
-  newZoom: number
+  newZoom: number,
 ): Viewport {
   const clamped = clampZoom(newZoom)
   const worldX = (cursorX - viewport.x) / viewport.zoom
@@ -48,7 +48,7 @@ export function clampPan(
   mapW: number,
   mapH: number,
   screenW: number,
-  screenH: number
+  screenH: number,
 ): Viewport {
   const scaledW = mapW * viewport.zoom
   const scaledH = mapH * viewport.zoom
@@ -77,7 +77,7 @@ export function clampPan(
 export function computeViewportRect(
   viewport: Viewport,
   screenW: number,
-  screenH: number
+  screenH: number,
 ): ViewportRect {
   return {
     x: -viewport.x / viewport.zoom,
@@ -90,7 +90,7 @@ export function computeViewportRect(
 export function screenToWorld(
   screenX: number,
   screenY: number,
-  viewport: Viewport
+  viewport: Viewport,
 ): { x: number; y: number } {
   return {
     x: (screenX - viewport.x) / viewport.zoom,
@@ -189,7 +189,7 @@ export class Camera {
       this.mapWidth,
       this.mapHeight,
       this.screenWidth,
-      this.screenHeight
+      this.screenHeight,
     )
     this.applyAndPublish()
   }
@@ -211,7 +211,11 @@ export class Camera {
     const dx = e.clientX - this.dragStartX
     const dy = e.clientY - this.dragStartY
 
-    if (!this.hasDragged && Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) {
+    if (
+      !this.hasDragged &&
+      Math.abs(dx) < DRAG_THRESHOLD &&
+      Math.abs(dy) < DRAG_THRESHOLD
+    ) {
       return
     }
 
@@ -227,7 +231,7 @@ export class Camera {
       this.mapWidth,
       this.mapHeight,
       this.screenWidth,
-      this.screenHeight
+      this.screenHeight,
     )
     this.applyAndPublish()
   }

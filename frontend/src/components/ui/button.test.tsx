@@ -14,7 +14,15 @@ describe("Button", () => {
   it("handles click events", async () => {
     const user = userEvent.setup()
     let clicked = false
-    renderWithProviders(<Button onClick={() => { clicked = true }}>Click</Button>)
+    renderWithProviders(
+      <Button
+        onClick={() => {
+          clicked = true
+        }}
+      >
+        Click
+      </Button>,
+    )
 
     await user.click(screen.getByRole("button", { name: "Click" }))
     expect(clicked).toBe(true)
@@ -38,7 +46,10 @@ describe("MSW integration", () => {
   it("supports per-test handler overrides", async () => {
     server.use(
       http.get("/api/v1/auth/me", () => {
-        return HttpResponse.json({ data: null, error: "unauthorized" }, { status: 401 })
+        return HttpResponse.json(
+          { data: null, error: "unauthorized" },
+          { status: 401 },
+        )
       }),
     )
 

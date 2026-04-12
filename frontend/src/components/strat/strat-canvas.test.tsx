@@ -45,14 +45,18 @@ vi.mock("@/lib/strat/renderer", () => {
 })
 
 const mockStratDocDestroy = vi.fn()
-const mockCreateStratDoc = vi.fn().mockReturnValue({ destroy: mockStratDocDestroy })
+const mockCreateStratDoc = vi
+  .fn()
+  .mockReturnValue({ destroy: mockStratDocDestroy })
 
 vi.mock("@/lib/yjs/doc", () => ({
   createStratDoc: (...args: unknown[]) => mockCreateStratDoc(...args),
 }))
 
 const mockProviderDestroy = vi.fn()
-const mockCreateStratProvider = vi.fn().mockReturnValue({ destroy: mockProviderDestroy })
+const mockCreateStratProvider = vi
+  .fn()
+  .mockReturnValue({ destroy: mockProviderDestroy })
 
 vi.mock("@/lib/yjs/provider", () => ({
   createStratProvider: (...args: unknown[]) => mockCreateStratProvider(...args),
@@ -138,7 +142,10 @@ describe("StratCanvas", () => {
     })
 
     expect(mockApp.addLayer).toHaveBeenCalledWith("map", mockCameraContainer)
-    expect(mockApp.addLayer).toHaveBeenCalledWith("drawings", mockCameraContainer)
+    expect(mockApp.addLayer).toHaveBeenCalledWith(
+      "drawings",
+      mockCameraContainer,
+    )
     const calls = mockApp.addLayer.mock.calls.map((c: unknown[]) => c[0])
     expect(calls.indexOf("map")).toBeLessThan(calls.indexOf("drawings"))
   })
@@ -179,7 +186,13 @@ describe("StratCanvas", () => {
   })
 
   it("calls setMapSize after map loads", async () => {
-    const mockCalibration = { originX: -2476, originY: 3239, scale: 4.4, width: 1024, height: 1024 }
+    const mockCalibration = {
+      originX: -2476,
+      originY: 3239,
+      scale: 4.4,
+      width: 1024,
+      height: 1024,
+    }
 
     mockSetMap.mockImplementation(() => {
       mockMapLayerCalibration = mockCalibration
@@ -220,7 +233,7 @@ describe("StratCanvas", () => {
     })
 
     expect(mockCreateStratProvider).toHaveBeenCalledWith(
-      expect.objectContaining({ stratId: "board-1" })
+      expect.objectContaining({ stratId: "board-1" }),
     )
     expect(mockRendererAttach).toHaveBeenCalled()
   })
@@ -265,7 +278,7 @@ describe("StratCanvas", () => {
     mockCreateViewerApp.mockReturnValue(
       new Promise((resolve) => {
         resolveInit = resolve
-      })
+      }),
     )
 
     const { unmount } = renderWithProviders(<StratCanvas />)

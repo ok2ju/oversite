@@ -78,9 +78,7 @@ describe("PlaybackControls", () => {
     useViewerStore.getState().setDemoId("demo-1")
     renderWithProviders(<PlaybackControls />)
 
-    expect(screen.getByTestId("tick-counter")).toHaveTextContent(
-      "0 / 128,000",
-    )
+    expect(screen.getByTestId("tick-counter")).toHaveTextContent("0 / 128,000")
 
     act(() => useViewerStore.getState().setTick(64000))
     expect(screen.getByTestId("tick-counter")).toHaveTextContent(

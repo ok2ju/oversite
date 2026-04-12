@@ -26,13 +26,55 @@ export interface WorldCoord {
 }
 
 export const MAP_CALIBRATIONS: Record<CS2MapName, MapCalibration> = {
-  de_dust2: { originX: -2476, originY: 3239, scale: 4.4, width: 1024, height: 1024 },
-  de_mirage: { originX: -3230, originY: 1713, scale: 5.0, width: 1024, height: 1024 },
-  de_inferno: { originX: -2087, originY: 3870, scale: 4.9, width: 1024, height: 1024 },
-  de_nuke: { originX: -3453, originY: 2887, scale: 7.0, width: 1024, height: 1024 },
-  de_ancient: { originX: -2953, originY: 2164, scale: 5.0, width: 1024, height: 1024 },
-  de_vertigo: { originX: -3168, originY: 1762, scale: 4.0, width: 1024, height: 1024 },
-  de_anubis: { originX: -2796, originY: 3328, scale: 5.22, width: 1024, height: 1024 },
+  de_dust2: {
+    originX: -2476,
+    originY: 3239,
+    scale: 4.4,
+    width: 1024,
+    height: 1024,
+  },
+  de_mirage: {
+    originX: -3230,
+    originY: 1713,
+    scale: 5.0,
+    width: 1024,
+    height: 1024,
+  },
+  de_inferno: {
+    originX: -2087,
+    originY: 3870,
+    scale: 4.9,
+    width: 1024,
+    height: 1024,
+  },
+  de_nuke: {
+    originX: -3453,
+    originY: 2887,
+    scale: 7.0,
+    width: 1024,
+    height: 1024,
+  },
+  de_ancient: {
+    originX: -2953,
+    originY: 2164,
+    scale: 5.0,
+    width: 1024,
+    height: 1024,
+  },
+  de_vertigo: {
+    originX: -3168,
+    originY: 1762,
+    scale: 4.0,
+    width: 1024,
+    height: 1024,
+  },
+  de_anubis: {
+    originX: -2796,
+    originY: 3328,
+    scale: 5.22,
+    width: 1024,
+    height: 1024,
+  },
 }
 
 const CS2_MAP_NAMES = new Set<string>(Object.keys(MAP_CALIBRATIONS))
@@ -49,14 +91,20 @@ export function getRadarImagePath(mapName: CS2MapName): string {
   return `/maps/${mapName}.png`
 }
 
-export function worldToPixel(world: WorldCoord, calibration: MapCalibration): PixelCoord {
+export function worldToPixel(
+  world: WorldCoord,
+  calibration: MapCalibration,
+): PixelCoord {
   return {
     x: (world.x - calibration.originX) / calibration.scale,
     y: (calibration.originY - world.y) / calibration.scale,
   }
 }
 
-export function pixelToWorld(pixel: PixelCoord, calibration: MapCalibration): WorldCoord {
+export function pixelToWorld(
+  pixel: PixelCoord,
+  calibration: MapCalibration,
+): WorldCoord {
   return {
     x: pixel.x * calibration.scale + calibration.originX,
     y: calibration.originY - pixel.y * calibration.scale,

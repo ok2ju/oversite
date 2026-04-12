@@ -107,7 +107,8 @@ export function DemoCard({ demo, onDelete }: DemoCardProps) {
               <AlertDialogHeader>
                 <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will permanently delete this demo and its associated data.
+                  This will permanently delete this demo and its associated
+                  data.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

@@ -72,7 +72,10 @@ export function StratCanvas() {
               ?.setMap(mapName)
               .then(() => {
                 if (mapLayer?.calibration) {
-                  camera?.setMapSize(mapLayer.calibration.width, mapLayer.calibration.height)
+                  camera?.setMapSize(
+                    mapLayer.calibration.width,
+                    mapLayer.calibration.height,
+                  )
                 }
               })
               .catch(console.error)
@@ -80,7 +83,7 @@ export function StratCanvas() {
             mapLayer?.clear()
           }
         },
-        { fireImmediately: true }
+        { fireImmediately: true },
       )
 
       // Subscribe to boardId changes -> create/swap Yjs doc + provider
@@ -97,11 +100,14 @@ export function StratCanvas() {
 
           if (boardId) {
             currentDoc = createStratDoc()
-            currentProvider = createStratProvider({ stratId: boardId, doc: currentDoc })
+            currentProvider = createStratProvider({
+              stratId: boardId,
+              doc: currentDoc,
+            })
             stratRenderer?.attach(currentDoc)
           }
         },
-        { fireImmediately: true }
+        { fireImmediately: true },
       )
     })
 

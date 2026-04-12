@@ -67,10 +67,7 @@ describe("AuthProvider", () => {
   it("redirects to /login when unauthenticated", async () => {
     server.use(
       http.get("/api/v1/auth/me", () => {
-        return HttpResponse.json(
-          { error: "unauthorized" },
-          { status: 401 },
-        )
+        return HttpResponse.json({ error: "unauthorized" }, { status: 401 })
       }),
     )
 
@@ -90,10 +87,7 @@ describe("AuthProvider", () => {
 
     server.use(
       http.get("/api/v1/auth/me", () => {
-        return HttpResponse.json(
-          { error: "unauthorized" },
-          { status: 401 },
-        )
+        return HttpResponse.json({ error: "unauthorized" }, { status: 401 })
       }),
     )
 
@@ -115,10 +109,7 @@ describe("AuthProvider", () => {
 
     server.use(
       http.get("/api/v1/auth/me", () => {
-        return HttpResponse.json(
-          { error: "unauthorized" },
-          { status: 401 },
-        )
+        return HttpResponse.json({ error: "unauthorized" }, { status: 401 })
       }),
     )
 

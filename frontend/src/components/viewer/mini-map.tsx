@@ -4,7 +4,11 @@ import Image from "next/image"
 import { Maximize2 } from "lucide-react"
 import { useViewerStore } from "@/stores/viewer"
 import { computeViewportRect } from "@/lib/pixi/camera"
-import { isCS2Map, getMapCalibration, getRadarImagePath } from "@/lib/maps/calibration"
+import {
+  isCS2Map,
+  getMapCalibration,
+  getRadarImagePath,
+} from "@/lib/maps/calibration"
 
 const MINIMAP_SIZE = 150
 

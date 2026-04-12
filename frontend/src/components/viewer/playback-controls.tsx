@@ -29,11 +29,12 @@ export function PlaybackControls() {
 
   const { data } = useRounds(demoId)
 
-  const roundBoundaries = data?.data.map((r) => ({
-    roundNumber: r.round_number,
-    startTick: r.start_tick,
-    endTick: r.end_tick,
-  })) ?? []
+  const roundBoundaries =
+    data?.data.map((r) => ({
+      roundNumber: r.round_number,
+      startTick: r.start_tick,
+      endTick: r.end_tick,
+    })) ?? []
 
   const handleScrubStart = useCallback(() => {
     pause()

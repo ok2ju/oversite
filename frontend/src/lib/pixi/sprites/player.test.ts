@@ -106,9 +106,15 @@ const {
 })
 
 vi.mock("pixi.js", () => ({
-  Container: vi.fn().mockImplementation(function () { return createMockContainer() }),
-  Graphics: vi.fn().mockImplementation(function () { return createMockGraphics() }),
-  Text: vi.fn().mockImplementation(function () { return createMockText() }),
+  Container: vi.fn().mockImplementation(function () {
+    return createMockContainer()
+  }),
+  Graphics: vi.fn().mockImplementation(function () {
+    return createMockGraphics()
+  }),
+  Text: vi.fn().mockImplementation(function () {
+    return createMockText()
+  }),
 }))
 
 import { MAP_TEST_COORDINATES } from "@/lib/maps/__tests__/fixtures/coordinate-pairs"
@@ -204,63 +210,159 @@ describe("PlayerSprite", () => {
 
   describe("update()", () => {
     it("sets container x and y position", () => {
-      sprite.update({ x: 100, y: 200, yaw: 0, team: "CT", name: "player1", isAlive: true, isSelected: false })
+      sprite.update({
+        x: 100,
+        y: 200,
+        yaw: 0,
+        team: "CT",
+        name: "player1",
+        isAlive: true,
+        isSelected: false,
+      })
       const container = mockContainerInstances[0]
       expect(container.x).toBe(100)
       expect(container.y).toBe(200)
     })
 
     it("sets alpha 1.0 for alive player", () => {
-      sprite.update({ x: 0, y: 0, yaw: 0, team: "CT", name: "p", isAlive: true, isSelected: false })
+      sprite.update({
+        x: 0,
+        y: 0,
+        yaw: 0,
+        team: "CT",
+        name: "p",
+        isAlive: true,
+        isSelected: false,
+      })
       expect(mockContainerInstances[0].alpha).toBe(1.0)
     })
 
     it("sets alpha 0.3 for dead player", () => {
-      sprite.update({ x: 0, y: 0, yaw: 0, team: "CT", name: "p", isAlive: false, isSelected: false })
+      sprite.update({
+        x: 0,
+        y: 0,
+        yaw: 0,
+        team: "CT",
+        name: "p",
+        isAlive: false,
+        isSelected: false,
+      })
       expect(mockContainerInstances[0].alpha).toBe(0.3)
     })
 
     it("shows death marker when dead", () => {
-      sprite.update({ x: 0, y: 0, yaw: 0, team: "CT", name: "p", isAlive: false, isSelected: false })
+      sprite.update({
+        x: 0,
+        y: 0,
+        yaw: 0,
+        team: "CT",
+        name: "p",
+        isAlive: false,
+        isSelected: false,
+      })
       expect(mockGraphicsInstances[2].visible).toBe(true)
     })
 
     it("hides death marker when alive", () => {
-      sprite.update({ x: 0, y: 0, yaw: 0, team: "CT", name: "p", isAlive: true, isSelected: false })
+      sprite.update({
+        x: 0,
+        y: 0,
+        yaw: 0,
+        team: "CT",
+        name: "p",
+        isAlive: true,
+        isSelected: false,
+      })
       expect(mockGraphicsInstances[2].visible).toBe(false)
     })
 
     it("shows selection ring when selected", () => {
-      sprite.update({ x: 0, y: 0, yaw: 0, team: "CT", name: "p", isAlive: true, isSelected: true })
+      sprite.update({
+        x: 0,
+        y: 0,
+        yaw: 0,
+        team: "CT",
+        name: "p",
+        isAlive: true,
+        isSelected: true,
+      })
       expect(mockGraphicsInstances[3].visible).toBe(true)
     })
 
     it("hides selection ring when not selected", () => {
-      sprite.update({ x: 0, y: 0, yaw: 0, team: "CT", name: "p", isAlive: true, isSelected: false })
+      sprite.update({
+        x: 0,
+        y: 0,
+        yaw: 0,
+        team: "CT",
+        name: "p",
+        isAlive: true,
+        isSelected: false,
+      })
       expect(mockGraphicsInstances[3].visible).toBe(false)
     })
 
     it("applies CT team color to circle", () => {
-      sprite.update({ x: 0, y: 0, yaw: 0, team: "CT", name: "p", isAlive: true, isSelected: false })
+      sprite.update({
+        x: 0,
+        y: 0,
+        yaw: 0,
+        team: "CT",
+        name: "p",
+        isAlive: true,
+        isSelected: false,
+      })
       const circle = mockGraphicsInstances[0]
       expect(circle.fill).toHaveBeenCalledWith(0x5b9bd5)
     })
 
     it("applies T team color to circle", () => {
-      sprite.update({ x: 0, y: 0, yaw: 0, team: "T", name: "p", isAlive: true, isSelected: false })
+      sprite.update({
+        x: 0,
+        y: 0,
+        yaw: 0,
+        team: "T",
+        name: "p",
+        isAlive: true,
+        isSelected: false,
+      })
       const circle = mockGraphicsInstances[0]
       expect(circle.fill).toHaveBeenCalledWith(0xe67e22)
     })
 
     it("sets view angle rotation from yaw", () => {
-      sprite.update({ x: 0, y: 0, yaw: 90, team: "CT", name: "p", isAlive: true, isSelected: false })
+      sprite.update({
+        x: 0,
+        y: 0,
+        yaw: 90,
+        team: "CT",
+        name: "p",
+        isAlive: true,
+        isSelected: false,
+      })
       const viewAngle = mockGraphicsInstances[1]
       expect(viewAngle.rotation).toBeCloseTo(-Math.PI / 2)
     })
 
     it("transitions alive to dead correctly", () => {
-      sprite.update({ x: 0, y: 0, yaw: 0, team: "CT", name: "p", isAlive: true, isSelected: false })
-      sprite.update({ x: 0, y: 0, yaw: 0, team: "CT", name: "p", isAlive: false, isSelected: false })
+      sprite.update({
+        x: 0,
+        y: 0,
+        yaw: 0,
+        team: "CT",
+        name: "p",
+        isAlive: true,
+        isSelected: false,
+      })
+      sprite.update({
+        x: 0,
+        y: 0,
+        yaw: 0,
+        team: "CT",
+        name: "p",
+        isAlive: false,
+        isSelected: false,
+      })
       expect(mockContainerInstances[0].alpha).toBe(0.3)
       expect(mockGraphicsInstances[2].visible).toBe(true)
     })
@@ -270,13 +372,17 @@ describe("PlayerSprite", () => {
     it("registers click handler on container", () => {
       const cb = vi.fn()
       sprite.setClickHandler(cb, "76561198000000001")
-      expect(mockContainerInstances[0].on).toHaveBeenCalledWith("pointerdown", expect.any(Function))
+      expect(mockContainerInstances[0].on).toHaveBeenCalledWith(
+        "pointerdown",
+        expect.any(Function),
+      )
     })
 
     it("invokes callback with steamId when clicked", () => {
       const cb = vi.fn()
       sprite.setClickHandler(cb, "76561198000000001")
-      const handler = mockContainerInstances[0].on.mock.calls[0][1] as () => void
+      const handler = mockContainerInstances[0].on.mock
+        .calls[0][1] as () => void
       handler()
       expect(cb).toHaveBeenCalledWith("76561198000000001")
     })

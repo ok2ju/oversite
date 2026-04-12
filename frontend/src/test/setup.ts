@@ -9,7 +9,8 @@ class ResizeObserverStub {
   unobserve() {}
   disconnect() {}
 }
-globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver
+globalThis.ResizeObserver =
+  ResizeObserverStub as unknown as typeof ResizeObserver
 
 // jsdom doesn't implement matchMedia — stub it for next-themes
 Object.defineProperty(window, "matchMedia", {

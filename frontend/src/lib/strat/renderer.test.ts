@@ -19,7 +19,10 @@ vi.mock("pixi.js", () => ({
     mockGraphicsInstances.push(g)
     return g
   }),
-  Text: vi.fn().mockImplementation(function (_opts?: { text?: string; style?: Record<string, unknown> }) {
+  Text: vi.fn().mockImplementation(function (_opts?: {
+    text?: string
+    style?: Record<string, unknown>
+  }) {
     const t = createMockText()
     t.text = _opts?.text ?? ""
     t.style = _opts?.style ?? {}
@@ -60,7 +63,7 @@ function addElement(
     icon_name: string
     label: string
     created_by: string
-  }> = {}
+  }> = {},
 ): string {
   const elements = getDrawingElements(doc)
   return createDrawingElement(
@@ -80,7 +83,7 @@ function addElement(
       label: overrides.label,
       created_by: overrides.created_by ?? "user-1",
     },
-    doc
+    doc,
   )
 }
 
@@ -158,10 +161,10 @@ describe("computeArrowHead", () => {
 
     // Both points should be at the same distance from tip
     const distL = Math.sqrt(
-      (result.left.x - 100) ** 2 + (result.left.y - 100) ** 2
+      (result.left.x - 100) ** 2 + (result.left.y - 100) ** 2,
     )
     const distR = Math.sqrt(
-      (result.right.x - 100) ** 2 + (result.right.y - 100) ** 2
+      (result.right.x - 100) ** 2 + (result.right.y - 100) ** 2,
     )
     expect(distL).toBeCloseTo(distR, 0)
   })
@@ -269,7 +272,10 @@ describe("StratRenderer", () => {
   describe("element type rendering", () => {
     it("renders freehand with moveTo/lineTo from stroke_data", () => {
       const doc = new Y.Doc()
-      addElement(doc, { type: "freehand", stroke_data: [10, 20, 30, 40, 50, 60] })
+      addElement(doc, {
+        type: "freehand",
+        stroke_data: [10, 20, 30, 40, 50, 60],
+      })
       renderer.attach(doc)
 
       const g = mockGraphicsInstances[0]
@@ -303,7 +309,13 @@ describe("StratRenderer", () => {
 
     it("renders rectangle with rect()", () => {
       const doc = new Y.Doc()
-      addElement(doc, { type: "rectangle", x: 10, y: 20, width: 100, height: 80 })
+      addElement(doc, {
+        type: "rectangle",
+        x: 10,
+        y: 20,
+        width: 100,
+        height: 80,
+      })
       renderer.attach(doc)
 
       const g = mockGraphicsInstances[0]
@@ -323,7 +335,13 @@ describe("StratRenderer", () => {
 
     it("renders text with PixiJS Text object", () => {
       const doc = new Y.Doc()
-      addElement(doc, { type: "text", text: "Rush B", x: 100, y: 200, color: "#ff0000" })
+      addElement(doc, {
+        type: "text",
+        text: "Rush B",
+        x: 100,
+        y: 200,
+        color: "#ff0000",
+      })
       renderer.attach(doc)
 
       // Text type creates both a Graphics (placeholder) and a Text

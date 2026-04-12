@@ -1,33 +1,36 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-const { mockAssets, mockSpriteInstances, createMockSpriteInstance } = vi.hoisted(() => {
-  const mockTexture = { width: 1024, height: 1024 }
-  const mockAssets = {
-    load: vi.fn().mockResolvedValue(mockTexture),
-  }
-  const mockSpriteInstances: Array<{
-    texture: unknown
-    width: number
-    height: number
-    destroy: ReturnType<typeof vi.fn>
-  }> = []
-  const createMockSpriteInstance = (options?: { texture?: unknown }) => {
-    const sprite = {
-      texture: options?.texture ?? null,
-      width: 0,
-      height: 0,
-      destroy: vi.fn(),
+const { mockAssets, mockSpriteInstances, createMockSpriteInstance } =
+  vi.hoisted(() => {
+    const mockTexture = { width: 1024, height: 1024 }
+    const mockAssets = {
+      load: vi.fn().mockResolvedValue(mockTexture),
     }
-    mockSpriteInstances.push(sprite)
-    return sprite
-  }
-  return { mockAssets, mockSpriteInstances, createMockSpriteInstance }
-})
+    const mockSpriteInstances: Array<{
+      texture: unknown
+      width: number
+      height: number
+      destroy: ReturnType<typeof vi.fn>
+    }> = []
+    const createMockSpriteInstance = (options?: { texture?: unknown }) => {
+      const sprite = {
+        texture: options?.texture ?? null,
+        width: 0,
+        height: 0,
+        destroy: vi.fn(),
+      }
+      mockSpriteInstances.push(sprite)
+      return sprite
+    }
+    return { mockAssets, mockSpriteInstances, createMockSpriteInstance }
+  })
 
 vi.mock("pixi.js", () => {
   return {
     Assets: mockAssets,
-    Sprite: vi.fn().mockImplementation(function (options?: { texture?: unknown }) {
+    Sprite: vi.fn().mockImplementation(function (options?: {
+      texture?: unknown
+    }) {
       return createMockSpriteInstance(options)
     }),
   }
@@ -36,9 +39,30 @@ vi.mock("pixi.js", () => {
 vi.mock("@/lib/maps/calibration", () => ({
   isCS2Map: (name: string) => name === "de_dust2" || name === "de_mirage",
   getMapCalibration: (name: string) => {
-    const cals: Record<string, { originX: number; originY: number; scale: number; width: number; height: number }> = {
-      de_dust2: { originX: -2476, originY: 3239, scale: 4.4, width: 1024, height: 1024 },
-      de_mirage: { originX: -3230, originY: 1713, scale: 5.0, width: 1024, height: 1024 },
+    const cals: Record<
+      string,
+      {
+        originX: number
+        originY: number
+        scale: number
+        width: number
+        height: number
+      }
+    > = {
+      de_dust2: {
+        originX: -2476,
+        originY: 3239,
+        scale: 4.4,
+        width: 1024,
+        height: 1024,
+      },
+      de_mirage: {
+        originX: -3230,
+        originY: 1713,
+        scale: 5.0,
+        width: 1024,
+        height: 1024,
+      },
     }
     return cals[name]
   },
@@ -122,7 +146,7 @@ describe("MapLayer", () => {
 
     it("throws for unknown map", async () => {
       await expect(layer.setMap("de_unknown")).rejects.toThrow(
-        'Unknown CS2 map: "de_unknown"'
+        'Unknown CS2 map: "de_unknown"',
       )
     })
   })
@@ -135,8 +159,16 @@ describe("MapLayer", () => {
       const secondTexture = { width: 1024, height: 1024 }
 
       mockAssets.load
-        .mockReturnValueOnce(new Promise((r) => { resolveFirst = r }))
-        .mockReturnValueOnce(new Promise((r) => { resolveSecond = r }))
+        .mockReturnValueOnce(
+          new Promise((r) => {
+            resolveFirst = r
+          }),
+        )
+        .mockReturnValueOnce(
+          new Promise((r) => {
+            resolveSecond = r
+          }),
+        )
 
       const first = layer.setMap("de_dust2")
       const second = layer.setMap("de_mirage")
@@ -156,7 +188,11 @@ describe("MapLayer", () => {
 
     it("discards stale load when clear is called during in-flight setMap", async () => {
       let resolveLoad!: (value: unknown) => void
-      mockAssets.load.mockReturnValueOnce(new Promise((r) => { resolveLoad = r }))
+      mockAssets.load.mockReturnValueOnce(
+        new Promise((r) => {
+          resolveLoad = r
+        }),
+      )
 
       const promise = layer.setMap("de_dust2")
       layer.clear()
@@ -170,7 +206,11 @@ describe("MapLayer", () => {
 
     it("discards stale load when destroy is called during in-flight setMap", async () => {
       let resolveLoad!: (value: unknown) => void
-      mockAssets.load.mockReturnValueOnce(new Promise((r) => { resolveLoad = r }))
+      mockAssets.load.mockReturnValueOnce(
+        new Promise((r) => {
+          resolveLoad = r
+        }),
+      )
 
       const promise = layer.setMap("de_dust2")
       layer.destroy()

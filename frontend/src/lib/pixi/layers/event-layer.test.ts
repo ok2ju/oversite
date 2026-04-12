@@ -55,7 +55,6 @@ vi.mock("pixi.js", () => ({
   }),
 }))
 
-
 import { EventLayer } from "./event-layer"
 import type { GameEvent } from "@/types/demo"
 import {
@@ -172,7 +171,9 @@ describe("EventLayer", () => {
     })
 
     it("draws X marker at victim pixel position", () => {
-      layer.setEvents([makeEvent({ event_type: "kill", tick: 100, x: -500, y: 1000 })])
+      layer.setEvents([
+        makeEvent({ event_type: "kill", tick: 100, x: -500, y: 1000 }),
+      ])
       layer.update(100, mockCalibration)
 
       const g = mockGraphicsInstances[0]
@@ -212,7 +213,11 @@ describe("EventLayer", () => {
   describe("update — smoke", () => {
     it("activates at smoke_start tick", () => {
       layer.setEvents([
-        makeEvent({ event_type: "smoke_start", tick: 200, extra_data: { entity_id: "s1" } }),
+        makeEvent({
+          event_type: "smoke_start",
+          tick: 200,
+          extra_data: { entity_id: "s1" },
+        }),
       ])
       layer.update(199, mockCalibration)
       expect(mockGraphicsInstances.length).toBe(0)
@@ -223,7 +228,11 @@ describe("EventLayer", () => {
 
     it("releases after smoke duration", () => {
       layer.setEvents([
-        makeEvent({ event_type: "smoke_start", tick: 100, extra_data: { entity_id: "s1" } }),
+        makeEvent({
+          event_type: "smoke_start",
+          tick: 100,
+          extra_data: { entity_id: "s1" },
+        }),
       ])
       layer.update(100, mockCalibration)
       const g = mockGraphicsInstances[0]
@@ -234,7 +243,11 @@ describe("EventLayer", () => {
 
     it("alpha matches computeSmokeState during smoke", () => {
       layer.setEvents([
-        makeEvent({ event_type: "smoke_start", tick: 100, extra_data: { entity_id: "s1" } }),
+        makeEvent({
+          event_type: "smoke_start",
+          tick: 100,
+          extra_data: { entity_id: "s1" },
+        }),
       ])
       // Update at smoke mid-point (hold phase)
       const mid = 100 + Math.floor(SMOKE_DURATION_TICKS / 2)
@@ -247,7 +260,11 @@ describe("EventLayer", () => {
   describe("update — HE grenade", () => {
     it("activates at grenade_detonate for HE Grenade", () => {
       layer.setEvents([
-        makeEvent({ event_type: "grenade_detonate", tick: 150, weapon: "HE Grenade" }),
+        makeEvent({
+          event_type: "grenade_detonate",
+          tick: 150,
+          weapon: "HE Grenade",
+        }),
       ])
       layer.update(149, mockCalibration)
       expect(mockGraphicsInstances.length).toBe(0)
@@ -258,7 +275,11 @@ describe("EventLayer", () => {
 
     it("releases after HE_DURATION_TICKS", () => {
       layer.setEvents([
-        makeEvent({ event_type: "grenade_detonate", tick: 150, weapon: "HE Grenade" }),
+        makeEvent({
+          event_type: "grenade_detonate",
+          tick: 150,
+          weapon: "HE Grenade",
+        }),
       ])
       layer.update(150, mockCalibration)
       const g = mockGraphicsInstances[0]
@@ -270,7 +291,11 @@ describe("EventLayer", () => {
   describe("update — flash", () => {
     it("activates at grenade_detonate for Flashbang", () => {
       layer.setEvents([
-        makeEvent({ event_type: "grenade_detonate", tick: 200, weapon: "Flashbang" }),
+        makeEvent({
+          event_type: "grenade_detonate",
+          tick: 200,
+          weapon: "Flashbang",
+        }),
       ])
       layer.update(199, mockCalibration)
       expect(mockGraphicsInstances.length).toBe(0)
@@ -281,7 +306,11 @@ describe("EventLayer", () => {
 
     it("releases after FLASH_DURATION_TICKS", () => {
       layer.setEvents([
-        makeEvent({ event_type: "grenade_detonate", tick: 200, weapon: "Flashbang" }),
+        makeEvent({
+          event_type: "grenade_detonate",
+          tick: 200,
+          weapon: "Flashbang",
+        }),
       ])
       layer.update(200, mockCalibration)
       const g = mockGraphicsInstances[0]

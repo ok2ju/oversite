@@ -31,7 +31,12 @@ export interface EffectState {
   progress: number
 }
 
-const INACTIVE: EffectState = { active: false, alpha: 0, radius: 0, progress: 0 }
+const INACTIVE: EffectState = {
+  active: false,
+  alpha: 0,
+  radius: 0,
+  progress: 0,
+}
 
 export function computeSmokeState(
   tickOffset: number,
@@ -67,7 +72,8 @@ export function computeHEState(tickOffset: number): EffectState {
     alpha = 1
   } else {
     radius = HE_RADIUS
-    alpha = 1 - (tickOffset - HE_EXPAND_TICKS) / (HE_DURATION_TICKS - HE_EXPAND_TICKS)
+    alpha =
+      1 - (tickOffset - HE_EXPAND_TICKS) / (HE_DURATION_TICKS - HE_EXPAND_TICKS)
   }
 
   return {
@@ -108,7 +114,10 @@ export function computeKillState(tickOffset: number): EffectState {
   }
 }
 
-export function computeBombPlantState(tickOffset: number, durationTicks: number): EffectState {
+export function computeBombPlantState(
+  tickOffset: number,
+  durationTicks: number,
+): EffectState {
   if (tickOffset < 0 || tickOffset >= durationTicks) return INACTIVE
 
   const phase = tickOffset % BOMB_FLASH_INTERVAL_TICKS
@@ -122,7 +131,10 @@ export function computeBombPlantState(tickOffset: number, durationTicks: number)
   }
 }
 
-export function computeBombDefuseState(tickOffset: number, hasKit: boolean): EffectState {
+export function computeBombDefuseState(
+  tickOffset: number,
+  hasKit: boolean,
+): EffectState {
   const duration = hasKit ? BOMB_DEFUSE_KIT_TICKS : BOMB_DEFUSE_TICKS
   if (tickOffset < 0 || tickOffset >= duration) return INACTIVE
 

@@ -32,7 +32,7 @@ function wireAwareness(a1: Awareness, a2: Awareness) {
         ...removed,
       ])
       applyAwarenessUpdate(a2, update, "peer")
-    }
+    },
   )
   a2.on(
     "update",
@@ -51,7 +51,7 @@ function wireAwareness(a1: Awareness, a2: Awareness) {
         ...removed,
       ])
       applyAwarenessUpdate(a1, update, "peer")
-    }
+    },
   )
 }
 

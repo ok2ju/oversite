@@ -22,7 +22,7 @@ export const COLLABORATION_COLORS: string[] = [
 
 export function setLocalUser(
   awareness: Awareness,
-  user: AwarenessUserState["user"]
+  user: AwarenessUserState["user"],
 ): void {
   awareness.setLocalStateField("user", user)
   awareness.setLocalStateField("cursor", null)
@@ -31,7 +31,7 @@ export function setLocalUser(
 export function updateCursorPosition(
   awareness: Awareness,
   x: number,
-  y: number
+  y: number,
 ): void {
   awareness.setLocalStateField("cursor", { x, y })
 }
@@ -41,7 +41,7 @@ export function clearCursor(awareness: Awareness): void {
 }
 
 export function getRemoteStates(
-  awareness: Awareness
+  awareness: Awareness,
 ): Map<number, AwarenessUserState> {
   const localId = awareness.clientID
   const result = new Map<number, AwarenessUserState>()
@@ -55,7 +55,7 @@ export function getRemoteStates(
 
 export function onAwarenessChange(
   awareness: Awareness,
-  callback: () => void
+  callback: () => void,
 ): () => void {
   awareness.on("change", callback)
   return () => awareness.off("change", callback)

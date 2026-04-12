@@ -36,7 +36,10 @@ export class PlayerSprite {
     this.circle.circle(0, 0, PLAYER_RADIUS).fill(0xffffff)
 
     // Name label (above circle)
-    this.nameLabel = new Text({ text: "", style: { fill: 0xffffff, fontSize: 11 } })
+    this.nameLabel = new Text({
+      text: "",
+      style: { fill: 0xffffff, fontSize: 11 },
+    })
     this.nameLabel.anchor.set(0.5, 1)
     this.nameLabel.y = -(PLAYER_RADIUS + 2)
 
@@ -46,11 +49,11 @@ export class PlayerSprite {
       .moveTo(0, 0)
       .lineTo(
         VIEW_ANGLE_LENGTH * Math.cos(-VIEW_ANGLE_HALF_FOV),
-        VIEW_ANGLE_LENGTH * Math.sin(-VIEW_ANGLE_HALF_FOV)
+        VIEW_ANGLE_LENGTH * Math.sin(-VIEW_ANGLE_HALF_FOV),
       )
       .lineTo(
         VIEW_ANGLE_LENGTH * Math.cos(VIEW_ANGLE_HALF_FOV),
-        VIEW_ANGLE_LENGTH * Math.sin(VIEW_ANGLE_HALF_FOV)
+        VIEW_ANGLE_LENGTH * Math.sin(VIEW_ANGLE_HALF_FOV),
       )
       .closePath()
       .fill({ color: 0xffffff, alpha: 0.4 })
@@ -69,7 +72,9 @@ export class PlayerSprite {
 
     // Selection ring (stroke only)
     this.selectionRing = new Graphics()
-    this.selectionRing.circle(0, 0, SELECTION_RING_RADIUS).stroke({ color: 0xffffff, width: 2 })
+    this.selectionRing
+      .circle(0, 0, SELECTION_RING_RADIUS)
+      .stroke({ color: 0xffffff, width: 2 })
     this.selectionRing.visible = false
 
     this.container.addChild(this.circle)

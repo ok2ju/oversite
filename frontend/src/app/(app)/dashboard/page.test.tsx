@@ -41,9 +41,7 @@ describe("DashboardPage", () => {
 
     // Wait for chart data to load
     await waitFor(() => {
-      expect(
-        screen.queryByTestId("elo-chart-skeleton"),
-      ).not.toBeInTheDocument()
+      expect(screen.queryByTestId("elo-chart-skeleton")).not.toBeInTheDocument()
     })
   })
 })

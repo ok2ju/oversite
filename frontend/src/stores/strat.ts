@@ -1,7 +1,14 @@
 import { create } from "zustand"
 import { subscribeWithSelector } from "zustand/middleware"
 
-type StratTool = "select" | "draw" | "line" | "arrow" | "text" | "icon" | "eraser"
+type StratTool =
+  | "select"
+  | "draw"
+  | "line"
+  | "arrow"
+  | "text"
+  | "icon"
+  | "eraser"
 
 interface StratState {
   currentTool: StratTool
@@ -32,5 +39,5 @@ export const useStratStore = create<StratState>()(
     setColor: (color) => set({ color }),
     setStrokeWidth: (width) => set({ strokeWidth: width }),
     reset: () => set(initialState),
-  }))
+  })),
 )

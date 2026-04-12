@@ -13,7 +13,12 @@ const mockData: EloHistoryPoint[] = [
 describe("EloChart", () => {
   it("renders time range buttons", () => {
     renderWithProviders(
-      <EloChart data={mockData} isLoading={false} days={30} onDaysChange={vi.fn()} />,
+      <EloChart
+        data={mockData}
+        isLoading={false}
+        days={30}
+        onDaysChange={vi.fn()}
+      />,
     )
 
     expect(screen.getByText("30d")).toBeInTheDocument()
@@ -27,7 +32,12 @@ describe("EloChart", () => {
     const user = userEvent.setup()
 
     renderWithProviders(
-      <EloChart data={mockData} isLoading={false} days={30} onDaysChange={onDaysChange} />,
+      <EloChart
+        data={mockData}
+        isLoading={false}
+        days={30}
+        onDaysChange={onDaysChange}
+      />,
     )
 
     await user.click(screen.getByText("90d"))
@@ -36,7 +46,12 @@ describe("EloChart", () => {
 
   it("shows loading skeleton when isLoading is true", () => {
     renderWithProviders(
-      <EloChart data={undefined} isLoading={true} days={30} onDaysChange={vi.fn()} />,
+      <EloChart
+        data={undefined}
+        isLoading={true}
+        days={30}
+        onDaysChange={vi.fn()}
+      />,
     )
 
     expect(screen.getByTestId("elo-chart-skeleton")).toBeInTheDocument()
@@ -52,7 +67,12 @@ describe("EloChart", () => {
 
   it("shows empty state when data is undefined", () => {
     renderWithProviders(
-      <EloChart data={undefined} isLoading={false} days={30} onDaysChange={vi.fn()} />,
+      <EloChart
+        data={undefined}
+        isLoading={false}
+        days={30}
+        onDaysChange={vi.fn()}
+      />,
     )
 
     expect(screen.getByText("No ELO history available")).toBeInTheDocument()
@@ -60,15 +80,27 @@ describe("EloChart", () => {
 
   it("renders chart container when data is provided", () => {
     const { container } = renderWithProviders(
-      <EloChart data={mockData} isLoading={false} days={30} onDaysChange={vi.fn()} />,
+      <EloChart
+        data={mockData}
+        isLoading={false}
+        days={30}
+        onDaysChange={vi.fn()}
+      />,
     )
 
-    expect(container.querySelector(".recharts-responsive-container")).toBeInTheDocument()
+    expect(
+      container.querySelector(".recharts-responsive-container"),
+    ).toBeInTheDocument()
   })
 
   it("renders the ELO History title", () => {
     renderWithProviders(
-      <EloChart data={mockData} isLoading={false} days={30} onDaysChange={vi.fn()} />,
+      <EloChart
+        data={mockData}
+        isLoading={false}
+        days={30}
+        onDaysChange={vi.fn()}
+      />,
     )
 
     expect(screen.getByText("ELO History")).toBeInTheDocument()

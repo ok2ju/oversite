@@ -22,12 +22,9 @@ export function useTickData() {
     }
   }, [demoId])
 
-  const getTickData = useCallback(
-    (tick: number): TickData[] | null => {
-      return bufferRef.current?.getTickData(tick) ?? null
-    },
-    []
-  )
+  const getTickData = useCallback((tick: number): TickData[] | null => {
+    return bufferRef.current?.getTickData(tick) ?? null
+  }, [])
 
   const seek = useCallback((tick: number): void => {
     bufferRef.current?.seek(tick)

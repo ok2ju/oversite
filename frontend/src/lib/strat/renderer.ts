@@ -1,6 +1,10 @@
 import { Graphics, Text, type Container } from "pixi.js"
 import * as Y from "yjs"
-import { getDrawingElements, getStrokeData, type DrawingElement } from "@/lib/yjs/doc"
+import {
+  getDrawingElements,
+  getStrokeData,
+  type DrawingElement,
+} from "@/lib/yjs/doc"
 
 const ARROW_HEAD_LENGTH = 12
 const PLACEHOLDER_RADIUS = 8
@@ -49,7 +53,7 @@ export function computeArrowHead(
   y1: number,
   x2: number,
   y2: number,
-  headLength: number
+  headLength: number,
 ): { left: { x: number; y: number }; right: { x: number; y: number } } {
   const angle = Math.atan2(y2 - y1, x2 - x1)
 
@@ -69,7 +73,7 @@ function renderElement(
   g: Graphics,
   data: ElementData,
   container: Container,
-  texts: Map<string, Text>
+  texts: Map<string, Text>,
 ): void {
   g.clear()
 
@@ -99,8 +103,14 @@ function renderElement(
       g.moveTo(data.x, data.y).lineTo(x2, y2).stroke(strokeStyle)
 
       const head = computeArrowHead(data.x, data.y, x2, y2, ARROW_HEAD_LENGTH)
-      g.poly([x2, y2, head.left.x, head.left.y, head.right.x, head.right.y])
-        .fill({ color: data.color })
+      g.poly([
+        x2,
+        y2,
+        head.left.x,
+        head.left.y,
+        head.right.x,
+        head.right.y,
+      ]).fill({ color: data.color })
       break
     }
     case "rectangle": {
@@ -132,8 +142,7 @@ function renderElement(
     case "player_token":
     case "grenade_marker":
     case "waypoint": {
-      g.circle(data.x, data.y, PLACEHOLDER_RADIUS)
-        .fill({ color: data.color })
+      g.circle(data.x, data.y, PLACEHOLDER_RADIUS).fill({ color: data.color })
       break
     }
   }

@@ -6,11 +6,11 @@ import type { PlayerRosterEntry, PlayerRosterResponse } from "@/types/roster"
 export async function fetchRoster(
   demoId: string,
   roundNumber: number,
-  signal: AbortSignal
+  signal: AbortSignal,
 ): Promise<PlayerRosterEntry[]> {
   const res = await fetch(
     `/api/v1/demos/${demoId}/rounds/${roundNumber}/players`,
-    { credentials: "include", signal }
+    { credentials: "include", signal },
   )
   if (!res.ok) throw new Error(`Failed to fetch roster: ${res.status}`)
   const json: PlayerRosterResponse = await res.json()

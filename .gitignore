@@ -60,6 +60,9 @@ e2e/playwright-report/
 # Lefthook
 lefthook-local.yml
 
+# Claude Code hooks temp files
+.claude/.edited-files
+
 # Temporary
 tmp/
 *.tmp

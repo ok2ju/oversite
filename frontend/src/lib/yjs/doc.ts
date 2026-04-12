@@ -54,7 +54,7 @@ export function getDrawingElements(doc: Y.Doc): Y.Array<Y.Map<unknown>> {
 export function createDrawingElement(
   elements: Y.Array<Y.Map<unknown>>,
   props: Omit<DrawingElement, "id" | "created_at">,
-  doc: Y.Doc
+  doc: Y.Doc,
 ): string {
   const id = crypto.randomUUID()
   const created_at = Date.now()
@@ -77,7 +77,7 @@ export function createDrawingElement(
 export function removeDrawingElement(
   elements: Y.Array<Y.Map<unknown>>,
   id: string,
-  doc: Y.Doc
+  doc: Y.Doc,
 ): boolean {
   let found = false
   doc.transact(() => {

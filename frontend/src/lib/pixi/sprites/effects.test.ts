@@ -65,7 +65,9 @@ describe("computeSmokeState", () => {
 
   it("respects custom durationTicks", () => {
     const customDuration = 200
-    expect(computeSmokeState(customDuration - 1, customDuration).active).toBe(true)
+    expect(computeSmokeState(customDuration - 1, customDuration).active).toBe(
+      true,
+    )
     expect(computeSmokeState(customDuration, customDuration).active).toBe(false)
   })
 
@@ -95,7 +97,8 @@ describe("computeHEState", () => {
   })
 
   it("fades out after expand phase", () => {
-    const afterExpand = HE_EXPAND_TICKS + Math.floor((HE_DURATION_TICKS - HE_EXPAND_TICKS) / 2)
+    const afterExpand =
+      HE_EXPAND_TICKS + Math.floor((HE_DURATION_TICKS - HE_EXPAND_TICKS) / 2)
     const state = computeHEState(afterExpand)
     expect(state.active).toBe(true)
     expect(state.alpha).toBeGreaterThan(0)
@@ -149,7 +152,8 @@ describe("computeKillState", () => {
 
   it("fades out in the last third", () => {
     const fadeStart = Math.floor((KILL_DURATION_TICKS * 2) / 3)
-    const midFade = fadeStart + Math.floor((KILL_DURATION_TICKS - fadeStart) / 2)
+    const midFade =
+      fadeStart + Math.floor((KILL_DURATION_TICKS - fadeStart) / 2)
     const state = computeKillState(midFade)
     expect(state.active).toBe(true)
     expect(state.alpha).toBeGreaterThan(0)
@@ -174,7 +178,10 @@ describe("computeBombPlantState", () => {
 
   it("oscillates alpha based on BOMB_FLASH_INTERVAL_TICKS", () => {
     const stateOn = computeBombPlantState(0, duration)
-    const stateOff = computeBombPlantState(Math.floor(BOMB_FLASH_INTERVAL_TICKS * 0.75), duration)
+    const stateOff = computeBombPlantState(
+      Math.floor(BOMB_FLASH_INTERVAL_TICKS * 0.75),
+      duration,
+    )
     expect(stateOn.alpha).not.toEqual(stateOff.alpha)
   })
 
@@ -211,11 +218,15 @@ describe("computeBombDefuseState", () => {
   })
 
   it("is inactive after BOMB_DEFUSE_KIT_TICKS with kit", () => {
-    expect(computeBombDefuseState(BOMB_DEFUSE_KIT_TICKS, true).active).toBe(false)
+    expect(computeBombDefuseState(BOMB_DEFUSE_KIT_TICKS, true).active).toBe(
+      false,
+    )
   })
 
   it("is still active at BOMB_DEFUSE_KIT_TICKS without kit", () => {
-    expect(computeBombDefuseState(BOMB_DEFUSE_KIT_TICKS, false).active).toBe(true)
+    expect(computeBombDefuseState(BOMB_DEFUSE_KIT_TICKS, false).active).toBe(
+      true,
+    )
   })
 })
 
@@ -223,6 +234,8 @@ describe("worldRadiusToPixel", () => {
   it("divides world radius by scale", () => {
     expect(worldRadiusToPixel(440, 4.4)).toBeCloseTo(100)
     expect(worldRadiusToPixel(500, 5.0)).toBeCloseTo(100)
-    expect(worldRadiusToPixel(SMOKE_RADIUS, 4.4)).toBeCloseTo(SMOKE_RADIUS / 4.4)
+    expect(worldRadiusToPixel(SMOKE_RADIUS, 4.4)).toBeCloseTo(
+      SMOKE_RADIUS / 4.4,
+    )
   })
 })

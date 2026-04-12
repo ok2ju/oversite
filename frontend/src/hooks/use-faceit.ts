@@ -23,9 +23,7 @@ export function useEloHistory(days: number = 30) {
   return useQuery({
     queryKey: ["faceit", "elo-history", days],
     queryFn: () =>
-      fetchJSON<EloHistoryResponse>(
-        `/api/v1/faceit/elo-history?days=${days}`,
-      ),
+      fetchJSON<EloHistoryResponse>(`/api/v1/faceit/elo-history?days=${days}`),
     select: (res) => res.data,
   })
 }

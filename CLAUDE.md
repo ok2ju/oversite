@@ -164,15 +164,15 @@ Before writing or modifying any test file, you **must**:
    - **Frontend**: Always use `renderWithProviders()` from `src/test/render.tsx` (provides QueryClientProvider, ThemeProvider, AuthProvider). Never create a raw `QueryClientProvider` wrapper in a test file.
    - **Frontend mocks**: Use MSW handlers from `src/test/msw/handlers.ts` for API mocking. Use PixiJS mock factories from `src/test/mocks/pixi.ts`. Use `vi.mock()` with hoisting only for Next.js navigation (`next/navigation`, `next/router`).
    - **Go mocks**: Use stub implementations from `internal/testutil/mocks.go` (`StubS3Client`, `StubSessionStore`, `StubJobQueue`, `StubFaceitAPI`). Never create ad-hoc mock structs that duplicate these.
-3. **Run the test immediately** after writing it — do not move to the next file until the test passes (the PostToolUse hook does this automatically)
+3. **Run the test immediately** after writing it — do not move to the next file until the test passes (the Stop hook runs tests automatically when your turn ends)
 
 ## Claude Code Automations
 
-### Hooks (auto-run on edits)
-- **PostToolUse (format)**: Auto-runs `eslint --fix` on TS/TSX, `gofmt`+`goimports` on Go files
-- **PostToolUse (test)**: Auto-runs affected tests on any source or test file edit — uses `vitest --related` for TS/TSX source files, direct run for test files, package-scoped `go test -race` for Go files
-- **PostToolUse (typecheck)**: Auto-runs `tsc --noEmit` on TS/TSX file edits to catch type errors (ESLint alone misses these)
+### Hooks (tiered quality checks)
 - **PreToolUse**: Blocks edits to lock files (`pnpm-lock.yaml`, `go.sum`) and sqlc-generated `*.sql.go` files
+- **PostToolUse (format)**: Auto-formats on every edit — `prettier --write` + `eslint --fix` on TS/TSX, `gofmt` + `goimports` on Go files. Also tracks edited files for Stop hooks.
+- **Stop (tests)**: Runs affected tests once when Claude's turn ends — `vitest --related` for TS/TSX source files, direct run for test files, package-scoped `go test -race` for Go files. Only tests packages with edits this turn.
+- **Stop (typecheck)**: Runs `tsc --noEmit` for frontend changes and `go vet ./...` for backend changes. Runs once per turn after tests. Cleans up the edited-files tracking list.
 
 ### Subagents (`.claude/agents/`)
 - **security-reviewer** -- Reviews code for auth, injection, WebSocket, and data exposure vulnerabilities

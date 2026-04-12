@@ -61,9 +61,7 @@ describe("ProfileCard", () => {
   })
 
   it("shows loading skeletons when isLoading is true", () => {
-    renderWithProviders(
-      <ProfileCard profile={undefined} isLoading={true} />,
-    )
+    renderWithProviders(<ProfileCard profile={undefined} isLoading={true} />)
 
     expect(screen.getByTestId("profile-card-skeleton")).toBeInTheDocument()
   })
@@ -104,11 +102,11 @@ describe("ProfileCard", () => {
   })
 
   it("returns null when no profile and not loading", () => {
-    renderWithProviders(
-      <ProfileCard profile={undefined} isLoading={false} />,
-    )
+    renderWithProviders(<ProfileCard profile={undefined} isLoading={false} />)
 
     expect(screen.queryByText("ELO")).not.toBeInTheDocument()
-    expect(screen.queryByTestId("profile-card-skeleton")).not.toBeInTheDocument()
+    expect(
+      screen.queryByTestId("profile-card-skeleton"),
+    ).not.toBeInTheDocument()
   })
 })

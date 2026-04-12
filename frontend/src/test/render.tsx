@@ -21,10 +21,18 @@ interface ProvidersOptions {
 function createAllProviders({ withAuth = false }: ProvidersOptions = {}) {
   return function AllProviders({ children }: { children: React.ReactNode }) {
     const queryClient = createTestQueryClient()
-    const content = withAuth ? <AuthProvider>{children}</AuthProvider> : children
+    const content = withAuth ? (
+      <AuthProvider>{children}</AuthProvider>
+    ) : (
+      children
+    )
     return (
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem={false}
+        >
           {content}
         </ThemeProvider>
       </QueryClientProvider>
@@ -36,9 +44,15 @@ interface RenderWithProvidersOptions extends Omit<RenderOptions, "wrapper"> {
   withAuth?: boolean
 }
 
-export function renderWithProviders(ui: React.ReactElement, options?: RenderWithProvidersOptions) {
+export function renderWithProviders(
+  ui: React.ReactElement,
+  options?: RenderWithProvidersOptions,
+) {
   const { withAuth, ...renderOptions } = options ?? {}
-  return render(ui, { wrapper: createAllProviders({ withAuth }), ...renderOptions })
+  return render(ui, {
+    wrapper: createAllProviders({ withAuth }),
+    ...renderOptions,
+  })
 }
 
 export { render } from "@testing-library/react"

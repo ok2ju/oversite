@@ -22,7 +22,9 @@ describe("Header", () => {
   it("renders the theme toggle button", () => {
     renderWithProviders(<Header />)
 
-    expect(screen.getByRole("button", { name: "Toggle theme" })).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: "Toggle theme" }),
+    ).toBeInTheDocument()
   })
 
   it('calls setTheme with "light" when current theme is "dark"', async () => {

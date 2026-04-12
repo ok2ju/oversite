@@ -33,7 +33,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
 
-  const { data: user, isLoading, isError } = useQuery<User>({
+  const {
+    data: user,
+    isLoading,
+    isError,
+  } = useQuery<User>({
     queryKey: ["auth", "me"],
     queryFn: fetchCurrentUser,
     retry: false,
@@ -49,7 +53,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [isLoading, isAuthenticated, isPublicPath, router])
 
   return (
-    <AuthContext.Provider value={{ user: user ?? null, isLoading, isAuthenticated }}>
+    <AuthContext.Provider
+      value={{ user: user ?? null, isLoading, isAuthenticated }}
+    >
       {children}
     </AuthContext.Provider>
   )

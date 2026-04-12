@@ -26,8 +26,8 @@ function setupViewerSubscriptions(app: ViewerApp): () => void {
           app.ticker.stop()
         }
       },
-      { fireImmediately: true }
-    )
+      { fireImmediately: true },
+    ),
   )
 
   return () => unsubs.forEach((fn) => fn())
@@ -107,7 +107,8 @@ export function ViewerCanvas() {
       playerLayer = new PlayerLayer(playerContainer)
 
       playerLayer.onPlayerClick((steamId) => {
-        const { selectedPlayerSteamId, setSelectedPlayer } = useViewerStore.getState()
+        const { selectedPlayerSteamId, setSelectedPlayer } =
+          useViewerStore.getState()
         setSelectedPlayer(selectedPlayerSteamId === steamId ? null : steamId)
       })
 
@@ -146,14 +147,14 @@ export function ViewerCanvas() {
             engine.seek(currentTick)
             tickBuffer?.seek(currentTick)
           }
-        }
+        },
       )
 
       resetUnsub = useViewerStore.subscribe(
         (s) => s.resetViewportCounter,
         () => {
           camera?.resetView()
-        }
+        },
       )
 
       mapUnsub = useViewerStore.subscribe(
@@ -164,7 +165,10 @@ export function ViewerCanvas() {
               ?.setMap(mapName)
               .then(() => {
                 if (mapLayer?.calibration) {
-                  camera?.setMapSize(mapLayer.calibration.width, mapLayer.calibration.height)
+                  camera?.setMapSize(
+                    mapLayer.calibration.width,
+                    mapLayer.calibration.height,
+                  )
                 }
               })
               .catch(console.error)
@@ -172,7 +176,7 @@ export function ViewerCanvas() {
             mapLayer?.clear()
           }
         },
-        { fireImmediately: true }
+        { fireImmediately: true },
       )
 
       demoUnsub = useViewerStore.subscribe(
@@ -185,7 +189,7 @@ export function ViewerCanvas() {
           engineSetTick = 0
           camera?.resetView()
         },
-        { fireImmediately: true }
+        { fireImmediately: true },
       )
 
       tickUnsub = useViewerStore.subscribe(
@@ -196,7 +200,7 @@ export function ViewerCanvas() {
           if (data === null) return
           playerLayer.update(data, mapLayer.calibration, selected)
         },
-        { fireImmediately: false, equalityFn: shallow }
+        { fireImmediately: false, equalityFn: shallow },
       )
 
       roundUnsub = useViewerStore.subscribe(
@@ -217,7 +221,7 @@ export function ViewerCanvas() {
               }
             })
         },
-        { fireImmediately: true, equalityFn: shallow }
+        { fireImmediately: true, equalityFn: shallow },
       )
 
       tickerFn = () => {

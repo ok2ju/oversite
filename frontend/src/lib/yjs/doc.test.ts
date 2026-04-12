@@ -103,7 +103,11 @@ describe("doc", () => {
       wireDocs(doc1, doc2)
 
       const elements1 = getDrawingElements(doc1)
-      createDrawingElement(elements1, { ...baseProps, stroke_data: [1, 2] }, doc1)
+      createDrawingElement(
+        elements1,
+        { ...baseProps, stroke_data: [1, 2] },
+        doc1,
+      )
 
       const el1 = elements1.get(0)
       const el2 = getDrawingElements(doc2).get(0)

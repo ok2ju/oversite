@@ -11,14 +11,20 @@ async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json()
 }
 
-async function fetchGameEvents(demoId: string, signal?: AbortSignal): Promise<GameEventsResponse> {
-  return fetchJSON<GameEventsResponse>(`/api/v1/demos/${demoId}/events`, { signal })
+async function fetchGameEvents(
+  demoId: string,
+  signal?: AbortSignal,
+): Promise<GameEventsResponse> {
+  return fetchJSON<GameEventsResponse>(`/api/v1/demos/${demoId}/events`, {
+    signal,
+  })
 }
 
 export function useGameEvents(demoId: string | null) {
   return useQuery({
     queryKey: ["game-events", demoId],
-    queryFn: ({ signal }: { signal: AbortSignal }) => fetchGameEvents(demoId!, signal),
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      fetchGameEvents(demoId!, signal),
     enabled: !!demoId,
     staleTime: Infinity,
   })

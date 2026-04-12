@@ -1,7 +1,11 @@
 import { vi, describe, it, expect } from "vitest"
 import { screen } from "@testing-library/react"
 import { renderWithProviders, userEvent } from "@/test/render"
-import { DemoCard, formatFileSize, formatDuration } from "@/components/demos/demo-card"
+import {
+  DemoCard,
+  formatFileSize,
+  formatDuration,
+} from "@/components/demos/demo-card"
 import type { Demo } from "@/types/demo"
 import { mockDemos } from "@/test/msw/handlers"
 
@@ -17,9 +21,7 @@ function readyDemo(): Demo {
 
 describe("DemoCard", () => {
   it("renders all demo fields correctly", () => {
-    renderWithProviders(
-      <DemoCard demo={readyDemo()} onDelete={vi.fn()} />,
-    )
+    renderWithProviders(<DemoCard demo={readyDemo()} onDelete={vi.fn()} />)
 
     expect(screen.getByText("de_dust2")).toBeInTheDocument()
     expect(screen.getByText("ready")).toBeInTheDocument()
@@ -29,9 +31,7 @@ describe("DemoCard", () => {
 
   it("shows 'Unknown Map' when map_name is null", () => {
     const demo: Demo = { ...mockDemos[2] }
-    renderWithProviders(
-      <DemoCard demo={demo} onDelete={vi.fn()} />,
-    )
+    renderWithProviders(<DemoCard demo={demo} onDelete={vi.fn()} />)
 
     expect(screen.getByText("Unknown Map")).toBeInTheDocument()
   })
@@ -55,9 +55,7 @@ describe("DemoCard", () => {
     >)
     const user = userEvent.setup()
 
-    renderWithProviders(
-      <DemoCard demo={readyDemo()} onDelete={vi.fn()} />,
-    )
+    renderWithProviders(<DemoCard demo={readyDemo()} onDelete={vi.fn()} />)
 
     await user.click(screen.getByText("de_dust2"))
     expect(push).toHaveBeenCalledWith("/demos/demo-1")
@@ -71,9 +69,7 @@ describe("DemoCard", () => {
     const user = userEvent.setup()
     const parsingDemo = mockDemos.find((d) => d.status === "parsing")!
 
-    renderWithProviders(
-      <DemoCard demo={parsingDemo} onDelete={vi.fn()} />,
-    )
+    renderWithProviders(<DemoCard demo={parsingDemo} onDelete={vi.fn()} />)
 
     await user.click(screen.getByText("de_mirage"))
     expect(push).not.toHaveBeenCalled()

@@ -32,7 +32,13 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-type EffectType = "kill" | "smoke" | "he" | "flash" | "bomb_plant" | "bomb_defuse"
+type EffectType =
+  | "kill"
+  | "smoke"
+  | "he"
+  | "flash"
+  | "bomb_plant"
+  | "bomb_defuse"
 
 interface ScheduledEffect {
   type: EffectType
@@ -93,7 +99,10 @@ function drawKill(
 
   // Attacker → victim line
   if (effect.attackerX !== undefined && effect.attackerY !== undefined) {
-    const ap = worldToPixel({ x: effect.attackerX, y: effect.attackerY }, calibration)
+    const ap = worldToPixel(
+      { x: effect.attackerX, y: effect.attackerY },
+      calibration,
+    )
     g.moveTo(ap.x, ap.y)
       .lineTo(vp.x, vp.y)
       .stroke({ color: COLOR_KILL, width: 1, alpha: state.alpha * 0.5 })
@@ -128,7 +137,9 @@ function drawHE(
 ): void {
   const p = worldToPixel({ x: effect.x, y: effect.y }, calibration)
   const r = worldRadiusToPixel(state.radius, calibration.scale)
-  g.clear().circle(p.x, p.y, Math.max(1, r)).fill({ color: COLOR_HE, alpha: state.alpha })
+  g.clear()
+    .circle(p.x, p.y, Math.max(1, r))
+    .fill({ color: COLOR_HE, alpha: state.alpha })
 }
 
 function drawFlash(
@@ -150,7 +161,9 @@ function drawBombPlant(
 ): void {
   const p = worldToPixel({ x: effect.x, y: effect.y }, calibration)
   const r = worldRadiusToPixel(BOMB_ICON_RADIUS, calibration.scale)
-  g.clear().circle(p.x, p.y, r).fill({ color: COLOR_BOMB_PLANT, alpha: state.alpha })
+  g.clear()
+    .circle(p.x, p.y, r)
+    .fill({ color: COLOR_BOMB_PLANT, alpha: state.alpha })
 }
 
 function drawBombDefuse(
@@ -161,15 +174,23 @@ function drawBombDefuse(
 ): void {
   const p = worldToPixel({ x: effect.x, y: effect.y }, calibration)
   const r = worldRadiusToPixel(BOMB_ICON_RADIUS, calibration.scale)
-  g.clear().circle(p.x, p.y, r).fill({ color: COLOR_BOMB_DEFUSE, alpha: state.progress })
+  g.clear()
+    .circle(p.x, p.y, r)
+    .fill({ color: COLOR_BOMB_DEFUSE, alpha: state.progress })
 }
 
-function computeState(effect: ScheduledEffect, tickOffset: number): EffectState {
+function computeState(
+  effect: ScheduledEffect,
+  tickOffset: number,
+): EffectState {
   switch (effect.type) {
     case "kill":
       return computeKillState(tickOffset)
     case "smoke":
-      return computeSmokeState(tickOffset, effect.smokeDuration ?? SMOKE_DURATION_TICKS)
+      return computeSmokeState(
+        tickOffset,
+        effect.smokeDuration ?? SMOKE_DURATION_TICKS,
+      )
     case "he":
       return computeHEState(tickOffset)
     case "flash":
@@ -310,7 +331,11 @@ function buildScheduled(events: GameEvent[]): ScheduledEffect[] {
           x,
           y,
         }
-        if (extra && typeof extra.attacker_x === "number" && typeof extra.attacker_y === "number") {
+        if (
+          extra &&
+          typeof extra.attacker_x === "number" &&
+          typeof extra.attacker_y === "number"
+        ) {
           effect.attackerX = extra.attacker_x
           effect.attackerY = extra.attacker_y
         }

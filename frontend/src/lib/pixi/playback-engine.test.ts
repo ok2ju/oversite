@@ -154,14 +154,16 @@ describe("PlaybackEngine", () => {
       const { engine, state, setTick } = createEngine()
       // 8 frames x 62.5ms at 1x = 500ms = 32 ticks
       for (let i = 0; i < 8; i++) engine.update(62.5)
-      const tickAfterFirstUpdate = setTick.mock.calls[setTick.mock.calls.length - 1][0]
+      const tickAfterFirstUpdate =
+        setTick.mock.calls[setTick.mock.calls.length - 1][0]
       expect(tickAfterFirstUpdate).toBe(32)
 
       // Change speed to 2x
       state.speed = 2
       // 62.5ms at 2x = 8 ticks more
       engine.update(62.5)
-      const tickAfterSecond = setTick.mock.calls[setTick.mock.calls.length - 1][0]
+      const tickAfterSecond =
+        setTick.mock.calls[setTick.mock.calls.length - 1][0]
       // Should be 32 + 8 = 40
       expect(tickAfterSecond).toBe(40)
     })

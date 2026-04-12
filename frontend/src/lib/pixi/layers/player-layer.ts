@@ -21,7 +21,7 @@ export class PlayerLayer {
   update(
     tickData: TickData[],
     calibration: MapCalibration,
-    selectedSteamId: string | null
+    selectedSteamId: string | null,
   ): void {
     const activeSteamIds = new Set<string>()
 

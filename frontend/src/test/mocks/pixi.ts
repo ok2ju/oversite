@@ -156,7 +156,9 @@ export function createMockViewerApp(): MockViewerApp {
       speed: 1,
     },
     destroy: vi.fn(),
-    addLayer: vi.fn().mockReturnValue({ addChild: vi.fn(), removeChild: vi.fn() }),
+    addLayer: vi
+      .fn()
+      .mockReturnValue({ addChild: vi.fn(), removeChild: vi.fn() }),
     stage: { addChild: vi.fn() },
     canvas: document.createElement("canvas"),
   }

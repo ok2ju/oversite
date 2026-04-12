@@ -240,7 +240,9 @@ describe("Camera class", () => {
       const addSpy = vi.spyOn(canvas, "addEventListener")
       const cam = createCamera()
 
-      expect(addSpy).toHaveBeenCalledWith("wheel", expect.any(Function), { passive: false })
+      expect(addSpy).toHaveBeenCalledWith("wheel", expect.any(Function), {
+        passive: false,
+      })
       expect(addSpy).toHaveBeenCalledWith("pointerdown", expect.any(Function))
       expect(addSpy).toHaveBeenCalledWith("pointermove", expect.any(Function))
       expect(addSpy).toHaveBeenCalledWith("pointerup", expect.any(Function))
@@ -262,10 +264,19 @@ describe("Camera class", () => {
       cam.destroy()
 
       expect(removeSpy).toHaveBeenCalledWith("wheel", expect.any(Function))
-      expect(removeSpy).toHaveBeenCalledWith("pointerdown", expect.any(Function))
-      expect(removeSpy).toHaveBeenCalledWith("pointermove", expect.any(Function))
+      expect(removeSpy).toHaveBeenCalledWith(
+        "pointerdown",
+        expect.any(Function),
+      )
+      expect(removeSpy).toHaveBeenCalledWith(
+        "pointermove",
+        expect.any(Function),
+      )
       expect(removeSpy).toHaveBeenCalledWith("pointerup", expect.any(Function))
-      expect(removeSpy).toHaveBeenCalledWith("pointercancel", expect.any(Function))
+      expect(removeSpy).toHaveBeenCalledWith(
+        "pointercancel",
+        expect.any(Function),
+      )
     })
   })
 
@@ -318,7 +329,7 @@ describe("Camera class", () => {
           clientX: 512,
           clientY: 512,
           cancelable: true,
-        })
+        }),
       )
 
       expect(onViewportChange).toHaveBeenCalled()
@@ -341,7 +352,7 @@ describe("Camera class", () => {
           clientX: 512,
           clientY: 512,
           cancelable: true,
-        })
+        }),
       )
 
       expect(onViewportChange).toHaveBeenCalled()
@@ -364,7 +375,7 @@ describe("Camera class", () => {
           clientX: 512,
           clientY: 512,
           cancelable: true,
-        })
+        }),
       )
 
       expect(onViewportChange).toHaveBeenCalled()
@@ -381,8 +392,21 @@ describe("Camera class", () => {
       cam.setMapSize(2048, 2048)
       onViewportChange.mockClear()
 
-      canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 100, clientY: 100, pointerId: 1 }))
-      canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 110, clientY: 115, pointerId: 1 }))
+      canvas.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          button: 0,
+          clientX: 100,
+          clientY: 100,
+          pointerId: 1,
+        }),
+      )
+      canvas.dispatchEvent(
+        new PointerEvent("pointermove", {
+          clientX: 110,
+          clientY: 115,
+          pointerId: 1,
+        }),
+      )
 
       expect(onViewportChange).toHaveBeenCalled()
       cam.destroy()
@@ -393,8 +417,21 @@ describe("Camera class", () => {
       cam.setScreenSize(1024, 1024)
       onViewportChange.mockClear()
 
-      canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 2, clientX: 100, clientY: 100, pointerId: 1 }))
-      canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 150, clientY: 150, pointerId: 1 }))
+      canvas.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          button: 2,
+          clientX: 100,
+          clientY: 100,
+          pointerId: 1,
+        }),
+      )
+      canvas.dispatchEvent(
+        new PointerEvent("pointermove", {
+          clientX: 150,
+          clientY: 150,
+          pointerId: 1,
+        }),
+      )
 
       expect(onViewportChange).not.toHaveBeenCalled()
       cam.destroy()
@@ -405,8 +442,21 @@ describe("Camera class", () => {
       cam.setScreenSize(1024, 1024)
       onViewportChange.mockClear()
 
-      canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 100, clientY: 100, pointerId: 1 }))
-      canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 101, clientY: 100, pointerId: 1 }))
+      canvas.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          button: 0,
+          clientX: 100,
+          clientY: 100,
+          pointerId: 1,
+        }),
+      )
+      canvas.dispatchEvent(
+        new PointerEvent("pointermove", {
+          clientX: 101,
+          clientY: 100,
+          pointerId: 1,
+        }),
+      )
 
       expect(onViewportChange).not.toHaveBeenCalled()
       cam.destroy()
@@ -414,7 +464,14 @@ describe("Camera class", () => {
 
     it("calls setPointerCapture on pointerdown", () => {
       const cam = createCamera()
-      canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 100, clientY: 100, pointerId: 42 }))
+      canvas.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          button: 0,
+          clientX: 100,
+          clientY: 100,
+          pointerId: 42,
+        }),
+      )
 
       expect(canvas.setPointerCapture).toHaveBeenCalledWith(42)
       cam.destroy()
@@ -422,7 +479,14 @@ describe("Camera class", () => {
 
     it("calls releasePointerCapture on pointerup", () => {
       const cam = createCamera()
-      canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 100, clientY: 100, pointerId: 42 }))
+      canvas.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          button: 0,
+          clientX: 100,
+          clientY: 100,
+          pointerId: 42,
+        }),
+      )
       canvas.dispatchEvent(new PointerEvent("pointerup", { pointerId: 42 }))
 
       expect(canvas.releasePointerCapture).toHaveBeenCalledWith(42)
@@ -431,7 +495,14 @@ describe("Camera class", () => {
 
     it("calls releasePointerCapture on pointercancel", () => {
       const cam = createCamera()
-      canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 100, clientY: 100, pointerId: 7 }))
+      canvas.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          button: 0,
+          clientX: 100,
+          clientY: 100,
+          pointerId: 7,
+        }),
+      )
       canvas.dispatchEvent(new PointerEvent("pointercancel", { pointerId: 7 }))
 
       expect(canvas.releasePointerCapture).toHaveBeenCalledWith(7)
@@ -442,11 +513,24 @@ describe("Camera class", () => {
       const cam = createCamera({ onViewportChange })
       cam.setScreenSize(1024, 1024)
 
-      canvas.dispatchEvent(new PointerEvent("pointerdown", { button: 0, clientX: 100, clientY: 100, pointerId: 1 }))
+      canvas.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          button: 0,
+          clientX: 100,
+          clientY: 100,
+          pointerId: 1,
+        }),
+      )
       canvas.dispatchEvent(new PointerEvent("pointerup", { pointerId: 1 }))
 
       onViewportChange.mockClear()
-      canvas.dispatchEvent(new PointerEvent("pointermove", { clientX: 200, clientY: 200, pointerId: 1 }))
+      canvas.dispatchEvent(
+        new PointerEvent("pointermove", {
+          clientX: 200,
+          clientY: 200,
+          pointerId: 1,
+        }),
+      )
 
       expect(onViewportChange).not.toHaveBeenCalled()
       cam.destroy()

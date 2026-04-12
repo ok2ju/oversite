@@ -11,14 +11,18 @@ async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json()
 }
 
-async function fetchRounds(demoId: string, signal?: AbortSignal): Promise<RoundsResponse> {
+async function fetchRounds(
+  demoId: string,
+  signal?: AbortSignal,
+): Promise<RoundsResponse> {
   return fetchJSON<RoundsResponse>(`/api/v1/demos/${demoId}/rounds`, { signal })
 }
 
 export function useRounds(demoId: string | null) {
   return useQuery({
     queryKey: ["rounds", demoId],
-    queryFn: ({ signal }: { signal: AbortSignal }) => fetchRounds(demoId!, signal),
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      fetchRounds(demoId!, signal),
     enabled: !!demoId,
     staleTime: Infinity,
   })

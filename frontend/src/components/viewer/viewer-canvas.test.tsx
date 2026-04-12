@@ -15,7 +15,9 @@ const mockTicker = {
   speed: 1,
 }
 
-const mockAddLayer = vi.fn().mockReturnValue({ addChild: vi.fn(), removeChild: vi.fn() })
+const mockAddLayer = vi
+  .fn()
+  .mockReturnValue({ addChild: vi.fn(), removeChild: vi.fn() })
 const mockCanvas = document.createElement("canvas")
 
 const mockApp = {
@@ -99,7 +101,13 @@ const mockCameraDestroy = vi.fn()
 const mockCameraSetScreenSize = vi.fn()
 const mockCameraSetMapSize = vi.fn()
 const mockCameraResetView = vi.fn()
-const mockCameraContainer = { addChild: vi.fn(), removeChild: vi.fn(), position: { set: vi.fn() }, scale: { set: vi.fn() }, label: "camera-viewport" }
+const mockCameraContainer = {
+  addChild: vi.fn(),
+  removeChild: vi.fn(),
+  position: { set: vi.fn() },
+  scale: { set: vi.fn() },
+  label: "camera-viewport",
+}
 
 vi.mock("@/lib/pixi/camera", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/pixi/camera")>()
@@ -288,7 +296,13 @@ describe("ViewerCanvas", () => {
   })
 
   it("calls setMapSize after map loads", async () => {
-    const mockCalibration = { originX: -2476, originY: 3239, scale: 4.4, width: 1024, height: 1024 }
+    const mockCalibration = {
+      originX: -2476,
+      originY: 3239,
+      scale: 4.4,
+      width: 1024,
+      height: 1024,
+    }
 
     // Make setMap set calibration via the module-level getter when it resolves
     mockSetMap.mockImplementation(() => {
@@ -322,7 +336,7 @@ describe("ViewerCanvas", () => {
     mockCreateViewerApp.mockReturnValue(
       new Promise((resolve) => {
         resolveInit = resolve
-      })
+      }),
     )
 
     const { unmount } = render(<ViewerCanvas />)

@@ -24,8 +24,7 @@ export function UploadDialog() {
   const [open, setOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const { upload, progress, isUploading, error, reset } =
-    useUploadDemo()
+  const { upload, progress, isUploading, error, reset } = useUploadDemo()
 
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen)
@@ -82,11 +81,7 @@ export function UploadDialog() {
             </p>
           )}
           {isUploading && <Progress value={progress} />}
-          {error && (
-            <p className="text-sm text-destructive">
-              {error.message}
-            </p>
-          )}
+          {error && <p className="text-sm text-destructive">{error.message}</p>}
           <Button
             onClick={handleUpload}
             disabled={!selectedFile || isUploading}

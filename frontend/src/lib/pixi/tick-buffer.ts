@@ -4,7 +4,7 @@ export type FetchTicksFn = (
   demoId: string,
   startTick: number,
   endTick: number,
-  signal: AbortSignal
+  signal: AbortSignal,
 ) => Promise<TickData[]>
 
 export const DEFAULT_CHUNK_SIZE = 6400
@@ -25,7 +25,12 @@ interface ChunkState {
 
 // Uses raw fetch instead of TanStack Query because TickBuffer manages its own
 // imperative LRU chunk cache with abort-on-seek — outside React's lifecycle.
-const defaultFetchFn: FetchTicksFn = async (demoId, startTick, endTick, signal) => {
+const defaultFetchFn: FetchTicksFn = async (
+  demoId,
+  startTick,
+  endTick,
+  signal,
+) => {
   const params = new URLSearchParams({
     start_tick: String(startTick),
     end_tick: String(endTick),
@@ -54,7 +59,8 @@ export class TickBuffer {
     this.demoId = demoId
     this.fetchFn = options.fetchFn ?? defaultFetchFn
     this.chunkSize = options.chunkSize ?? DEFAULT_CHUNK_SIZE
-    this.lookAheadThreshold = options.lookAheadThreshold ?? DEFAULT_LOOK_AHEAD_THRESHOLD
+    this.lookAheadThreshold =
+      options.lookAheadThreshold ?? DEFAULT_LOOK_AHEAD_THRESHOLD
     this.maxCachedChunks = options.maxCachedChunks ?? DEFAULT_MAX_CACHED_CHUNKS
   }
 

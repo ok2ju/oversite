@@ -25,15 +25,20 @@ const { mockSpriteInstances, createMockSprite } = vi.hoisted(() => {
 })
 
 vi.mock("../sprites/player", () => ({
-  PlayerSprite: vi.fn().mockImplementation(function () { return createMockSprite() }),
+  PlayerSprite: vi.fn().mockImplementation(function () {
+    return createMockSprite()
+  }),
 }))
 
 vi.mock("@/lib/maps/calibration", () => ({
   worldToPixel: vi.fn(
-    (world: { x: number; y: number }, calibration: { originX: number; originY: number; scale: number }) => ({
+    (
+      world: { x: number; y: number },
+      calibration: { originX: number; originY: number; scale: number },
+    ) => ({
       x: (world.x - calibration.originX) / calibration.scale,
       y: (calibration.originY - world.y) / calibration.scale,
-    })
+    }),
   ),
 }))
 
@@ -73,7 +78,9 @@ function makeTickData(overrides: Partial<TickData> = {}): TickData {
   }
 }
 
-function makeRosterEntry(overrides: Partial<PlayerRosterEntry> = {}): PlayerRosterEntry {
+function makeRosterEntry(
+  overrides: Partial<PlayerRosterEntry> = {},
+): PlayerRosterEntry {
   return {
     steam_id: "76561198000000001",
     player_name: "player1",
@@ -105,14 +112,20 @@ describe("PlayerLayer", () => {
 
     it("adds new sprite container to layer container", () => {
       layer.update([makeTickData()], testCalibration, null)
-      expect(container.addChild).toHaveBeenCalledWith(mockSpriteInstances[0].container)
+      expect(container.addChild).toHaveBeenCalledWith(
+        mockSpriteInstances[0].container,
+      )
     })
 
     it("calls update on each sprite with correct data", () => {
-      const tick = makeTickData({ steam_id: "player1", is_alive: true, yaw: 90 })
+      const tick = makeTickData({
+        steam_id: "player1",
+        is_alive: true,
+        yaw: 90,
+      })
       layer.update([tick], testCalibration, null)
       expect(mockSpriteInstances[0].update).toHaveBeenCalledWith(
-        expect.objectContaining({ isAlive: true, isSelected: false })
+        expect.objectContaining({ isAlive: true, isSelected: false }),
       )
     })
 
@@ -121,7 +134,10 @@ describe("PlayerLayer", () => {
       layer.update([tick], testCalibration, null)
       // worldToPixel(-672, -672) with de_dust2 calibration = (410, 889)
       expect(mockSpriteInstances[0].update).toHaveBeenCalledWith(
-        expect.objectContaining({ x: expect.closeTo(410, 0), y: expect.closeTo(889, 0) })
+        expect.objectContaining({
+          x: expect.closeTo(410, 0),
+          y: expect.closeTo(889, 0),
+        }),
       )
     })
 
@@ -129,7 +145,7 @@ describe("PlayerLayer", () => {
       const tick = makeTickData({ steam_id: "player1" })
       layer.update([tick], testCalibration, "player1")
       expect(mockSpriteInstances[0].update).toHaveBeenCalledWith(
-        expect.objectContaining({ isSelected: true })
+        expect.objectContaining({ isSelected: true }),
       )
     })
 
@@ -137,7 +153,7 @@ describe("PlayerLayer", () => {
       const tick = makeTickData({ steam_id: "player1" })
       layer.update([tick], testCalibration, "player2")
       expect(mockSpriteInstances[0].update).toHaveBeenCalledWith(
-        expect.objectContaining({ isSelected: false })
+        expect.objectContaining({ isSelected: false }),
       )
     })
 
@@ -153,46 +169,75 @@ describe("PlayerLayer", () => {
       const tick = makeTickData({ steam_id: "player1" })
       layer.update([tick], testCalibration, null)
       layer.update([], testCalibration, null)
-      expect(container.removeChild).toHaveBeenCalledWith(mockSpriteInstances[0].container)
+      expect(container.removeChild).toHaveBeenCalledWith(
+        mockSpriteInstances[0].container,
+      )
       expect(mockSpriteInstances[0].destroy).toHaveBeenCalled()
     })
 
     it("sets click handler on new sprites when onPlayerClick is registered", () => {
       const cb = vi.fn()
       layer.onPlayerClick(cb)
-      layer.update([makeTickData({ steam_id: "player1" })], testCalibration, null)
-      expect(mockSpriteInstances[0].setClickHandler).toHaveBeenCalledWith(cb, "player1")
+      layer.update(
+        [makeTickData({ steam_id: "player1" })],
+        testCalibration,
+        null,
+      )
+      expect(mockSpriteInstances[0].setClickHandler).toHaveBeenCalledWith(
+        cb,
+        "player1",
+      )
     })
   })
 
   describe("setRoster()", () => {
     it("provides team_side from roster to sprite update", () => {
-      layer.setRoster([makeRosterEntry({ steam_id: "player1", team_side: "T" })])
-      layer.update([makeTickData({ steam_id: "player1" })], testCalibration, null)
+      layer.setRoster([
+        makeRosterEntry({ steam_id: "player1", team_side: "T" }),
+      ])
+      layer.update(
+        [makeTickData({ steam_id: "player1" })],
+        testCalibration,
+        null,
+      )
       expect(mockSpriteInstances[0].update).toHaveBeenCalledWith(
-        expect.objectContaining({ team: "T" })
+        expect.objectContaining({ team: "T" }),
       )
     })
 
     it("provides player_name from roster to sprite update", () => {
-      layer.setRoster([makeRosterEntry({ steam_id: "player1", player_name: "TestPlayer" })])
-      layer.update([makeTickData({ steam_id: "player1" })], testCalibration, null)
+      layer.setRoster([
+        makeRosterEntry({ steam_id: "player1", player_name: "TestPlayer" }),
+      ])
+      layer.update(
+        [makeTickData({ steam_id: "player1" })],
+        testCalibration,
+        null,
+      )
       expect(mockSpriteInstances[0].update).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "TestPlayer" })
+        expect.objectContaining({ name: "TestPlayer" }),
       )
     })
 
     it("falls back to truncated steamId when no roster entry", () => {
-      layer.update([makeTickData({ steam_id: "76561198000000001" })], testCalibration, null)
+      layer.update(
+        [makeTickData({ steam_id: "76561198000000001" })],
+        testCalibration,
+        null,
+      )
       expect(mockSpriteInstances[0].update).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "7656119800" })
+        expect.objectContaining({ name: "7656119800" }),
       )
     })
 
     it("falls back to CT side when no roster entry", () => {
-      layer.update([makeTickData({ steam_id: "76561198000000001" })], testCalibration, null)
+      layer.update(
+        [makeTickData({ steam_id: "76561198000000001" })],
+        testCalibration,
+        null,
+      )
       expect(mockSpriteInstances[0].update).toHaveBeenCalledWith(
-        expect.objectContaining({ team: "CT" })
+        expect.objectContaining({ team: "CT" }),
       )
     })
   })
@@ -201,8 +246,15 @@ describe("PlayerLayer", () => {
     it("registers callback that is forwarded to new sprites", () => {
       const cb = vi.fn()
       layer.onPlayerClick(cb)
-      layer.update([makeTickData({ steam_id: "player1" })], testCalibration, null)
-      expect(mockSpriteInstances[0].setClickHandler).toHaveBeenCalledWith(cb, "player1")
+      layer.update(
+        [makeTickData({ steam_id: "player1" })],
+        testCalibration,
+        null,
+      )
+      expect(mockSpriteInstances[0].setClickHandler).toHaveBeenCalledWith(
+        cb,
+        "player1",
+      )
     })
   })
 
@@ -211,7 +263,7 @@ describe("PlayerLayer", () => {
       layer.update(
         [makeTickData({ steam_id: "p1" }), makeTickData({ steam_id: "p2" })],
         testCalibration,
-        null
+        null,
       )
       layer.clear()
       expect(container.removeChild).toHaveBeenCalledTimes(2)

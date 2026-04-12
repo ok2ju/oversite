@@ -53,8 +53,16 @@ export const useViewerStore = create<ViewerState>()(
     togglePlay: () => set((state) => ({ isPlaying: !state.isPlaying })),
     pause: () => set({ isPlaying: false }),
     setSpeed: (speed) => set({ speed }),
-    setRound: (round) => set({ currentRound: round, selectedPlayerSteamId: null }),
-    setDemoId: (id) => set({ demoId: id, currentTick: 0, mapName: null, selectedPlayerSteamId: null, viewport: { ...DEFAULT_VIEWPORT } }),
+    setRound: (round) =>
+      set({ currentRound: round, selectedPlayerSteamId: null }),
+    setDemoId: (id) =>
+      set({
+        demoId: id,
+        currentTick: 0,
+        mapName: null,
+        selectedPlayerSteamId: null,
+        viewport: { ...DEFAULT_VIEWPORT },
+      }),
     setMapName: (name) => set({ mapName: name }),
     setSelectedPlayer: (steamId) => set({ selectedPlayerSteamId: steamId }),
     setViewport: (v) => set({ viewport: v }),
@@ -65,5 +73,5 @@ export const useViewerStore = create<ViewerState>()(
         resetViewportCounter: state.resetViewportCounter + 1,
       })),
     reset: () => set(initialState),
-  }))
+  })),
 )

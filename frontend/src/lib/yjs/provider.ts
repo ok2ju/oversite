@@ -21,7 +21,9 @@ export function buildWsUrl(host: string, protocol: string): string {
   return `${wsProtocol}//${host}/ws/strat`
 }
 
-export function createStratProvider(options: StratProviderOptions): StratProvider {
+export function createStratProvider(
+  options: StratProviderOptions,
+): StratProvider {
   const { stratId, doc, awareness, connect = true } = options
   const url = buildWsUrl(window.location.host, window.location.protocol)
 

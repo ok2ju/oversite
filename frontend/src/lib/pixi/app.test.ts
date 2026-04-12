@@ -46,7 +46,7 @@ describe("ViewerApp", () => {
       await createViewerApp({ container, background: 0xff0000 })
 
       expect(mockApp.init).toHaveBeenCalledWith(
-        expect.objectContaining({ background: 0xff0000 })
+        expect.objectContaining({ background: 0xff0000 }),
       )
     })
 
@@ -110,7 +110,10 @@ describe("ViewerApp", () => {
 
     it("removeLayer removes from custom parent when one was provided", () => {
       const parent = { addChild: vi.fn(), removeChild: vi.fn() }
-      const layer = app.addLayer("overlay", parent as unknown as import("pixi.js").Container)
+      const layer = app.addLayer(
+        "overlay",
+        parent as unknown as import("pixi.js").Container,
+      )
       app.removeLayer("overlay")
 
       expect(parent.removeChild).toHaveBeenCalledWith(layer)
@@ -120,7 +123,10 @@ describe("ViewerApp", () => {
 
     it("addLayer with parent adds to parent instead of stage", () => {
       const parent = { addChild: vi.fn() }
-      const layer = app.addLayer("overlay", parent as unknown as import("pixi.js").Container)
+      const layer = app.addLayer(
+        "overlay",
+        parent as unknown as import("pixi.js").Container,
+      )
 
       expect(parent.addChild).toHaveBeenCalledWith(layer)
       expect(mockApp.stage.addChild).not.toHaveBeenCalledWith(layer)
@@ -142,7 +148,7 @@ describe("ViewerApp", () => {
 
       expect(mockApp.destroy).toHaveBeenCalledWith(
         { removeView: true },
-        { children: true, texture: true, textureSource: true }
+        { children: true, texture: true, textureSource: true },
       )
       expect(app.initialized).toBe(false)
       expect(app.getLayer("map")).toBeUndefined()

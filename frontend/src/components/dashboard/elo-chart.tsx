@@ -56,7 +56,12 @@ function CustomTooltip({
   )
 }
 
-export function EloChart({ data, isLoading, days, onDaysChange }: EloChartProps) {
+export function EloChart({
+  data,
+  isLoading,
+  days,
+  onDaysChange,
+}: EloChartProps) {
   return (
     <Card>
       <CardHeader>
@@ -78,7 +83,10 @@ export function EloChart({ data, isLoading, days, onDaysChange }: EloChartProps)
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <Skeleton className="h-[300px] w-full" data-testid="elo-chart-skeleton" />
+          <Skeleton
+            className="h-[300px] w-full"
+            data-testid="elo-chart-skeleton"
+          />
         ) : !data || data.length === 0 ? (
           <div className="flex h-[300px] items-center justify-center text-muted-foreground">
             No ELO history available
