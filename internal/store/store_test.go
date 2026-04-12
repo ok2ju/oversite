@@ -3,24 +3,11 @@ package store_test
 import (
 	"context"
 	"database/sql"
-	"path/filepath"
 	"testing"
 
-	"github.com/ok2ju/oversite/internal/database"
 	"github.com/ok2ju/oversite/internal/store"
-	"github.com/ok2ju/oversite/migrations"
+	"github.com/ok2ju/oversite/internal/testutil"
 )
-
-func openTestDBWithMigrations(t *testing.T) *sql.DB {
-	t.Helper()
-	dbPath := filepath.Join(t.TempDir(), "test.db")
-	db, err := database.OpenWithMigrations(dbPath, migrations.FS)
-	if err != nil {
-		t.Fatalf("OpenWithMigrations: %v", err)
-	}
-	t.Cleanup(func() { db.Close() })
-	return db
-}
 
 func createTestUser(t *testing.T, q *store.Queries) store.User {
 	t.Helper()
@@ -39,8 +26,7 @@ func createTestUser(t *testing.T, q *store.Queries) store.User {
 }
 
 func TestCreateAndGetUser(t *testing.T) {
-	db := openTestDBWithMigrations(t)
-	q := store.New(db)
+	q, _ := testutil.NewTestQueries(t)
 	ctx := context.Background()
 
 	created := createTestUser(t, q)
@@ -77,8 +63,7 @@ func TestCreateAndGetUser(t *testing.T) {
 }
 
 func TestUpdateUser(t *testing.T) {
-	db := openTestDBWithMigrations(t)
-	q := store.New(db)
+	q, _ := testutil.NewTestQueries(t)
 	ctx := context.Background()
 
 	created := createTestUser(t, q)
@@ -110,8 +95,7 @@ func TestUpdateUser(t *testing.T) {
 }
 
 func TestCreateDemoAndList(t *testing.T) {
-	db := openTestDBWithMigrations(t)
-	q := store.New(db)
+	q, _ := testutil.NewTestQueries(t)
 	ctx := context.Background()
 
 	user := createTestUser(t, q)
@@ -169,8 +153,7 @@ func TestCreateDemoAndList(t *testing.T) {
 }
 
 func TestUpdateDemoAfterParse(t *testing.T) {
-	db := openTestDBWithMigrations(t)
-	q := store.New(db)
+	q, _ := testutil.NewTestQueries(t)
 	ctx := context.Background()
 
 	user := createTestUser(t, q)
@@ -208,8 +191,7 @@ func TestUpdateDemoAfterParse(t *testing.T) {
 }
 
 func TestStrategyBoardCRUD(t *testing.T) {
-	db := openTestDBWithMigrations(t)
-	q := store.New(db)
+	q, _ := testutil.NewTestQueries(t)
 	ctx := context.Background()
 
 	board, err := q.CreateStrategyBoard(ctx, store.CreateStrategyBoardParams{
@@ -244,8 +226,7 @@ func TestStrategyBoardCRUD(t *testing.T) {
 }
 
 func TestDeleteUser(t *testing.T) {
-	db := openTestDBWithMigrations(t)
-	q := store.New(db)
+	q, _ := testutil.NewTestQueries(t)
 	ctx := context.Background()
 
 	user := createTestUser(t, q)
