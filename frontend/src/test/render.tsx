@@ -1,6 +1,6 @@
 import { render, type RenderOptions } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { ThemeProvider } from "next-themes"
+import { ThemeProvider } from "@/components/providers/theme-provider"
 import { AuthProvider } from "@/components/providers/auth-provider"
 
 function createTestQueryClient() {
@@ -28,13 +28,7 @@ function createAllProviders({ withAuth = false }: ProvidersOptions = {}) {
     )
     return (
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem={false}
-        >
-          {content}
-        </ThemeProvider>
+        <ThemeProvider defaultTheme="dark">{content}</ThemeProvider>
       </QueryClientProvider>
     )
   }

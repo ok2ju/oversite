@@ -147,7 +147,7 @@ T01 (Wails init) ──┬── T02 (SQLite) ──┬── T03 (sqlc)
 
 ---
 
-### T05: Configure shadcn/ui + Tailwind CSS
+### T05: Configure shadcn/ui + Tailwind CSS -- COMPLETED
 
 **Complexity:** S | **Depends on:** T04
 
@@ -277,7 +277,7 @@ clean:          ## Remove build artifacts
 
 ---
 
-### T09: Set Up Go Test Infrastructure
+### T09: Set Up Go Test Infrastructure -- COMPLETED
 
 **Complexity:** M | **Depends on:** T02
 
