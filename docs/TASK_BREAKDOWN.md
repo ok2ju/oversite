@@ -47,7 +47,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ## 2. Phase 1: Desktop Foundation
 
-### P1-T01: Initialize Wails project
+### P1-T01: Initialize Wails project [COMPLETE]
 
 | | |
 |---|---|
@@ -62,7 +62,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Frontend dev server runs (`pnpm dev`) |
 | | - Directory structure matches ARCHITECTURE.md Section 10 |
 
-### P1-T02: Set up SQLite with migrations
+### P1-T02: Set up SQLite with migrations [COMPLETE]
 
 | | |
 |---|---|
@@ -78,7 +78,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Foreign keys enforced (`PRAGMA foreign_keys` returns 1) |
 | | - Integration test creates temp DB, runs migrations, verifies tables |
 
-### P1-T03: Configure sqlc for SQLite dialect
+### P1-T03: Configure sqlc for SQLite dialect [COMPLETE]
 
 | | |
 |---|---|
@@ -93,7 +93,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Basic insert + select test passes against temp SQLite |
 | | - Query files organized by domain (demos.sql, rounds.sql, etc.) |
 
-### P1-T04: Scaffold Vite + React frontend
+### P1-T04: Scaffold Vite + React frontend [COMPLETE]
 
 | | |
 |---|---|
@@ -109,7 +109,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Wails JS runtime imports resolve |
 | | - Component test for shell layout passes |
 
-### P1-T05: Configure shadcn/ui + Tailwind CSS
+### P1-T05: Configure shadcn/ui + Tailwind CSS [COMPLETE]
 
 | | |
 |---|---|
@@ -124,7 +124,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Tailwind classes apply correctly |
 | | - Component library matches design system |
 
-### P1-T06: Set up Zustand stores (skeleton)
+### P1-T06: Set up Zustand stores (skeleton) [COMPLETE]
 
 | | |
 |---|---|
@@ -138,7 +138,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Unit tests verify initial state and basic state transitions |
 | | - Stores export selectors for common derived state |
 
-### P1-T07: Set up CI pipeline
+### P1-T07: Set up CI pipeline [COMPLETE]
 
 | | |
 |---|---|
@@ -153,7 +153,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - TypeScript lint + typecheck + test pass |
 | | - Wails build produces binaries for at least one platform |
 
-### P1-T08: Create root Makefile
+### P1-T08: Create root Makefile [COMPLETE]
 
 | | |
 |---|---|
@@ -167,7 +167,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - `make dev` starts Wails dev mode |
 | | - `make test` runs all test suites |
 
-### P1-T09: Set up Go test infrastructure
+### P1-T09: Set up Go test infrastructure [COMPLETE]
 
 | | |
 |---|---|
@@ -182,7 +182,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - `go test -race ./...` passes with example test |
 | | - Golden file helpers can write + compare files |
 
-### P1-T10: Set up frontend test infrastructure
+### P1-T10: Set up frontend test infrastructure [COMPLETE]
 
 | | |
 |---|---|
