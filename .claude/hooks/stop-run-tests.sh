@@ -82,7 +82,7 @@ if [ ${#ROOT_GO_PACKAGES[@]} -gt 0 ]; then
 
   cd "$PROJECT_ROOT"
   echo "=== Root Go tests ==="
-  go test -race -count=1 -timeout=60s "${ROOT_GO_PACKAGES[@]}" 2>&1 | tail -40 || FAILED=1
+  GOCACHE="${TMPDIR:-/tmp}/go-build" go test -race -count=1 -timeout=60s -buildvcs=false "${ROOT_GO_PACKAGES[@]}" 2>&1 | tail -40 || FAILED=1
 fi
 
 exit $FAILED

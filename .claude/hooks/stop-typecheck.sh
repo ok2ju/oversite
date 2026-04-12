@@ -48,7 +48,7 @@ fi
 if $HAS_ROOT_GO; then
   cd "$PROJECT_ROOT"
   echo "=== Go vet (root) ==="
-  go vet ./... 2>&1 | head -40 || FAILED=1
+  GOCACHE="${TMPDIR:-/tmp}/go-build" go vet -buildvcs=false ./... 2>&1 | head -40 || FAILED=1
 fi
 
 exit $FAILED
