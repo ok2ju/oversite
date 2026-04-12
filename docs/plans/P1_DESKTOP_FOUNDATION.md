@@ -32,7 +32,7 @@ T01 (Wails init) ──┬── T02 (SQLite) ──┬── T03 (sqlc)
 
 ## Task Plans
 
-### T01: Initialize Wails Project -- NEEDS SEPARATE PLANNING
+### T01: Initialize Wails Project -- COMPLETED
 
 **Why:** This is the most structurally impactful task. It defines the directory layout, Go module path, Wails config, embed.FS integration, and app struct that every other task depends on.
 
@@ -49,7 +49,7 @@ T01 (Wails init) ──┬── T02 (SQLite) ──┬── T03 (sqlc)
 
 ---
 
-### T02: Set Up SQLite with Migrations -- NEEDS SEPARATE PLANNING
+### T02: Set Up SQLite with Migrations -- COMPLETED
 
 **Why:** Translating 10 PostgreSQL tables to SQLite involves non-trivial type mapping and design decisions.
 
@@ -100,7 +100,7 @@ T01 (Wails init) ──┬── T02 (SQLite) ──┬── T03 (sqlc)
    - `vite.config.ts` with `@vitejs/plugin-react`, path aliases (`@/` -> `src/`)
    - `tsconfig.json` (remove Next.js plugin, `next-env.d.ts`)
    - `index.html` as Vite entry point
-   - `src/main.tsx` with `createRoot` (React 18 -- Wails v2 targets React 18)
+   - `src/main.tsx` with `createRoot` (React 19)
 
 2. **Install react-router-dom v6** and create route structure:
    ```
@@ -141,7 +141,7 @@ T01 (Wails init) ──┬── T02 (SQLite) ──┬── T03 (sqlc)
 - `frontend/src/components/layout/sidebar.tsx` (rewritten from existing)
 - `frontend/src/components/layout/header.tsx` (adapted from existing)
 
-**React 18 vs 19 note:** Existing frontend uses React 19.2.4. Wails v2 targets React 18. Downgrade needed. Check existing code for React 19-specific APIs (`use()`, `useFormStatus()`, ref-as-prop). Zustand stores and PixiJS logic are version-agnostic.
+**React version note:** Using React 19. Zustand stores and PixiJS logic are version-agnostic.
 
 **Acceptance:** All routes render placeholders, sidebar highlights active route, Wails JS runtime imports resolve.
 
@@ -400,7 +400,6 @@ clean:          ## Remove build artifacts
 |------|--------|------------|
 | `modernc.org/sqlite` + sqlc compatibility | High | Validate `RETURNING *`, `ON CONFLICT`, `json_each()` in T02/T03 planning |
 | Tick data bulk insert perf without COPY | Medium | Benchmark batched INSERT (10K rows/tx) in T02; fallback to `PRAGMA synchronous=OFF` during import |
-| React 19 -> 18 downgrade | Medium | Scan for `use()`, `useFormStatus()`, ref-as-prop before T04 |
 | Wails WebView + PixiJS WebGL | Low (P1) | Runtime testing deferred to P3 (viewer phase) |
 | `golang-migrate` SQLite driver registration | Low | Verify modernc.org/sqlite registers as `"sqlite"` in database/sql |
 

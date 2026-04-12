@@ -200,6 +200,26 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ---
 
+## Pre-Phase 2: Demo Parser Spike
+
+### P2-S01: Demo parser spike
+
+| | |
+|---|---|
+| **Complexity** | M |
+| **Deps** | P1-T01 |
+| **Test Types** | N/A (spike — throwaway prototype) |
+| **TDD Workflow** | N/A — exploratory. Output informs P2-T06 design. |
+| **Description** | 1-day time-boxed prototype to validate `demoinfocs-golang` v5 with real CS2 `.dem` files. Parse at least 3 demos of varying size. Extract player positions, kills, and grenade events. Measure parse time and peak memory. Document CS2-specific edge cases (warmup rounds, bot behavior, overtime, demo format quirks). |
+| **Key Files** | `cmd/spike-parser/main.go` (throwaway, not merged to main) |
+| **Acceptance Criteria** | - Successfully parses 3+ real CS2 `.dem` files without panics |
+| | - Extracts player positions, kill events, and grenade events |
+| | - Documents parse time and peak memory per demo |
+| | - Lists CS2-specific edge cases discovered |
+| | - Produces written findings (issue or doc) informing P2-T06 design |
+
+---
+
 ## 3. Phase 2: Auth & Demo Pipeline
 
 ### P2-T01: Implement loopback OAuth flow
@@ -1077,7 +1097,7 @@ This single task is the project's biggest risk. The same mitigation applies as t
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| Go | 1.22+ | Backend development |
+| Go | 1.26+ | Backend development |
 | Node.js | 20 LTS | Frontend development |
 | pnpm | 9+ | Package manager |
 | Wails CLI | v2 (latest) | Desktop app framework |

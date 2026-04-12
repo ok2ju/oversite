@@ -15,3 +15,6 @@ This directory captures key architectural decisions for Oversite. Each ADR recor
 | [0007](0007-wails-framework.md) | Use Wails as the desktop application framework | Accepted |
 | [0008](0008-sqlite-local-database.md) | Use SQLite as the local database | Accepted |
 | [0009](0009-loopback-oauth-desktop.md) | Loopback OAuth flow for desktop authentication | Accepted |
+| [0010](0010-sqlc-type-safe-sql.md) | sqlc for type-safe SQL generation | Accepted |
+| [0011](0011-zustand-state-management.md) | Zustand for frontend state management | Accepted |
+| [0012](0012-tanstack-query-wails-bindings.md) | TanStack Query for Wails binding responses | Accepted |

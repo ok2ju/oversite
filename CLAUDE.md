@@ -154,4 +154,4 @@ Before writing or modifying any test file, you **must**:
 - `docs/PRD.md` -- Product requirements, user stories, data models
 - `docs/ARCHITECTURE.md` -- System design, DB schema, data flows
 - `docs/IMPLEMENTATION_PLAN.md` -- 6-phase delivery plan
-- `docs/TASK_BREAKDOWN.md` -- 68 granular tasks with acceptance criteria
+- `docs/TASK_BREAKDOWN.md` -- 63 granular tasks with acceptance criteria

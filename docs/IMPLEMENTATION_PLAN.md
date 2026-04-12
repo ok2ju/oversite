@@ -200,9 +200,17 @@ CI pipeline      Demo library UI     Scoreboard         Dashboard UI     Board m
 | P2-T10 | Build demo library UI (list, grid, drag-drop, status, delete) | M |
 | P2-T11 | Implement folder import binding (recursive .dem scan) | S |
 
+### Pre-Phase 2: Demo Parser Spike
+
+| Task | Description | Complexity |
+|------|-------------|-----------|
+| P2-S01 | **Demo parser spike** (1-day prototype: parse real .dem, extract positions + kills, validate demoinfocs-golang v5 compatibility with CS2 demos) | M |
+
+**Purpose**: De-risk P2-T06 (XL) before committing to the full parser implementation. Run after P1 completes. Output: working prototype, list of CS2-specific edge cases, memory/performance baseline.
+
 ### Critical Path Note
 
-**P2-T06 (Demo Parser Core)** is the highest-risk, highest-complexity task. The `demoinfocs-golang` library requires careful integration. This task carries over from the web version -- the parser logic is identical, only the output target changes (SQLite transactions instead of PostgreSQL via worker).
+**P2-T06 (Demo Parser Core)** is the highest-risk, highest-complexity task. The `demoinfocs-golang` library requires careful integration. This task carries over from the web version -- the parser logic is identical, only the output target changes (SQLite transactions instead of PostgreSQL via worker). **P2-S01 (spike) should complete before starting P2-T06.**
 
 ---
 

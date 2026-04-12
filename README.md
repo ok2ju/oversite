@@ -1,25 +1,27 @@
 # Oversite
 
-CS2 2D demo viewer and analytics platform for Faceit players. Upload demos, watch top-down playback, generate heatmaps, collaborate on strategies, and track Faceit stats -- all in the browser.
+CS2 2D demo viewer and analytics platform for Faceit players. Single-binary desktop app -- import local demos, watch top-down playback, generate heatmaps, plan strategies, and track Faceit stats.
 
 ## Prerequisites
 
 | Tool | Version | Install |
 |------|---------|---------|
-| [Docker](https://www.docker.com/) | 24+ | [Docker Desktop](https://www.docker.com/products/docker-desktop/) |
-| [Docker Compose](https://docs.docker.com/compose/) | 2.20+ | Included with Docker Desktop |
-| [Go](https://go.dev/) | 1.22+ | `brew install go` |
-| [Node.js](https://nodejs.org/) | 20+ | `brew install node` |
+| [Go](https://go.dev/) | 1.26+ | `brew install go` |
+| [Node.js](https://nodejs.org/) | 20 LTS | `brew install node` |
 | [pnpm](https://pnpm.io/) | 9+ | `corepack enable && corepack prepare pnpm@latest --activate` |
-| [mkcert](https://github.com/FiloSottile/mkcert) | -- | `brew install mkcert` |
+| [Wails](https://wails.io/) | v2 | `go install github.com/wailsapp/wails/v2/cmd/wails@latest` |
 
-You also need a [Faceit Developer](https://developers.faceit.com) account with an OAuth app registered.
+### Platform-specific
 
-> **Why mkcert?** Faceit requires HTTPS redirect URIs, even for localhost. mkcert generates locally-trusted TLS certificates so `https://localhost` works without browser warnings. Certs are auto-generated on first `make dev`.
+| Platform | Additional requirement |
+|----------|----------------------|
+| macOS | Xcode Command Line Tools (`xcode-select --install`) |
+| Windows | [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) (usually pre-installed on Windows 10+) |
+| Linux | `sudo apt install libwebkit2gtk-4.0-dev build-essential` (Ubuntu/Debian) |
+
+You also need a [Faceit Developer](https://developers.faceit.com) account with an OAuth app registered. Set the redirect URI to `http://localhost` (any port -- the app uses a loopback OAuth flow per RFC 8252).
 
 ## Quick Start
-
-### 1. Clone and configure
 
 ```bash
 git clone git@github.com:ok2ju/oversite.git
@@ -30,137 +32,83 @@ cd frontend && pnpm install && cd ..
 
 # Install pre-commit hooks
 make hooks
+
+# Start dev mode (Go backend + frontend with hot-reload)
+wails dev
 ```
 
-### 2. Set up environment
+The app opens in a native window. Go changes trigger a backend rebuild; frontend changes hot-reload via Vite.
+
+## Development Commands
 
 ```bash
-cp .env.example .env
-```
+# Wails
+wails dev                # Dev mode with hot-reload (Go + frontend)
+wails build              # Production build (single binary)
 
-Edit `.env` and fill in your Faceit credentials:
+# Go (from project root)
+go build ./...           # Build all Go code
+go test -race ./...      # Run unit tests (with race detector)
+go tool golangci-lint run  # Lint
+make sqlc                # Regenerate Go code from SQL queries
 
-```
-FACEIT_CLIENT_ID=your_client_id
-FACEIT_CLIENT_SECRET=your_client_secret
-FACEIT_REDIRECT_URI=https://localhost/api/v1/auth/faceit/callback
-FACEIT_API_KEY=your_api_key
-```
+# Frontend (in frontend/)
+pnpm dev                 # Dev server on :3000
+pnpm build               # Production build
+pnpm lint                # ESLint
+pnpm typecheck           # tsc --noEmit
+pnpm test                # Vitest
 
-> Get these by creating an app at [developers.faceit.com](https://developers.faceit.com).
-> Set the OAuth redirect URI to `https://localhost/api/v1/auth/faceit/callback`.
+# Testing
+make test                # Run all tests (unit + integration)
+make test-unit           # Go + TS unit tests only
+make test-e2e            # Playwright E2E tests (in e2e/)
 
-### 3. Start the stack
-
-```bash
-make dev
-```
-
-This automatically generates local TLS certificates (via mkcert) on first run, then starts all services with hot-reload:
-
-| Service | URL | Description |
-|---------|-----|-------------|
-| nginx | [localhost](https://localhost) | Reverse proxy -- HTTPS entry point |
-| web | localhost:3000 | Next.js frontend |
-| api | localhost:8080 | Go REST API |
-| ws | localhost:8081 | Go WebSocket server |
-| worker | -- | Background job processor |
-| postgres | localhost:5432 | TimescaleDB database |
-| redis | localhost:6379 | Sessions, cache, job queue |
-| minio | [localhost:9001](http://localhost:9001) | S3-compatible demo storage (console) |
-
-### 4. Run database migrations
-
-In a separate terminal:
-
-```bash
-make migrate-up
-```
-
-### 5. Open the app
-
-Visit **https://localhost** and click **Sign in with Faceit**.
-
-## Development Workflows
-
-### Full stack (Docker)
-
-```bash
-make dev              # Start everything with hot-reload (foreground)
-make up               # Start everything in background
-make down             # Stop all services
-make logs             # Tail all logs
-make logs s=api       # Tail logs for a specific service
-make ps               # Show service status
-make restart s=api    # Restart a specific service
-```
-
-### Frontend only (faster HMR)
-
-Run the backend in Docker and Next.js locally for faster iteration:
-
-```bash
-make up                  # Start backend services in background
-cd frontend && pnpm dev  # Start Next.js dev server
-```
-
-Visit **http://localhost:3000**. API requests are proxied to the Go backend via Next.js rewrites.
-
-> When running this way, update `.env`:
-> `FACEIT_REDIRECT_URI=https://localhost/api/v1/auth/faceit/callback`
-> The OAuth callback always goes through nginx (HTTPS), even when developing on `:3000`.
-
-### Database
-
-```bash
-make migrate-up       # Run all pending migrations
-make migrate-down     # Rollback last migration
-make migrate-create   # Create new migration files (interactive)
-make sqlc             # Regenerate Go code from SQL queries
-```
-
-### Testing
-
-```bash
-make test             # Run all tests (unit + integration + e2e)
-make test-unit        # Go + TypeScript unit tests
-make test-integration # Go integration tests (requires Docker)
-make test-e2e         # Playwright E2E tests
-```
-
-### Linting
-
-```bash
-make lint             # Lint Go + TypeScript
-make typecheck        # TypeScript type checking
+# Quality
+make lint                # Lint Go + TS
+make typecheck           # TypeScript type checking
+make build               # Build all artifacts
+make clean               # Remove build artifacts
 ```
 
 ## Project Structure
 
 ```
 oversite/
-├── backend/          # Go API, WebSocket server, worker
-├── frontend/         # Next.js App Router frontend
-├── e2e/              # Playwright E2E tests
-├── nginx/            # Reverse proxy config
-├── docs/             # PRD, architecture, implementation plan
-├── docker-compose.yml
-├── docker-compose.dev.yml
-└── Makefile
+├── main.go              # Wails entry point
+├── app.go               # App struct (Wails bindings)
+├── internal/            # Go business logic (auth, demo, faceit, heatmap, etc.)
+├── migrations/          # SQLite migration files (embedded in binary)
+├── queries/             # sqlc SQL files
+├── frontend/            # Vite + React 19 SPA
+│   ├── src/
+│   │   ├── routes/      # react-router-dom pages
+│   │   ├── components/  # UI, viewer, strat, layout
+│   │   ├── stores/      # Zustand stores
+│   │   └── lib/         # PixiJS, maps, utils
+│   └── wailsjs/         # Auto-generated Wails bindings
+├── e2e/                 # Playwright E2E tests
+├── docs/                # PRD, Architecture, Plans, ADRs
+└── Makefile             # Root dev commands
 ```
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for system design and data flows.
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js, TypeScript, PixiJS v8, shadcn/ui, Tailwind, Zustand, TanStack Query |
-| Backend | Go, chi router, gorilla/websocket |
-| Demo Parsing | demoinfocs-golang v5 |
-| Database | PostgreSQL 16 + TimescaleDB |
-| Cache/Queue | Redis 7 (sessions, cache, Streams job queue) |
-| Storage | MinIO (S3-compatible) |
-| Collaboration | Yjs CRDT |
-| Auth | Faceit OAuth 2.0 + PKCE |
-| Infra | Docker Compose, nginx |
+| Runtime | Wails v2 (Go backend + system WebView frontend) |
+| Frontend | Vite + React 19, TypeScript, PixiJS v8, shadcn/ui, Tailwind CSS, Zustand, TanStack Query v5 |
+| Backend | Go 1.26+, Wails bindings (no HTTP server) |
+| Demo Parsing | markus-wa/demoinfocs-golang v5 |
+| Database | SQLite (modernc.org/sqlite, pure Go, WAL mode) |
+| SQL | sqlc (type-safe generated Go, SQLite dialect) |
+| Auth | Faceit OAuth 2.0 + PKCE (loopback redirect), OS keychain |
+| Packaging | Single native binary per platform (macOS, Windows, Linux) |
+
+## Documentation
+
+- [`docs/PRD.md`](docs/PRD.md) -- Product requirements, user stories, data models
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) -- System design, DB schema, data flows
+- [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) -- 6-phase delivery plan
+- [`docs/TASK_BREAKDOWN.md`](docs/TASK_BREAKDOWN.md) -- 63 granular tasks with acceptance criteria
+- [`docs/adr/`](docs/adr/) -- Architecture Decision Records

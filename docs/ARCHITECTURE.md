@@ -471,13 +471,13 @@ EventsOn('demo:parse:progress', (progress: DemoProgress) => {
 
 ### 6.4 Full Binding Reference
 
-See [PRD.md Section 9](PRD.md#9-wails-bindings-overview) for the complete binding method table.
+See [PRD.md Section 10](PRD.md#10-wails-bindings-overview) for the complete binding method table.
 
 ---
 
 ## 7. Database Schema
 
-SQLite database using `modernc.org/sqlite` (pure Go). WAL mode enabled for concurrent reads during writes.
+SQLite database using `modernc.org/sqlite` (pure Go). WAL mode enabled for concurrent reads during writes. This section contains the canonical DDL. For business-level field descriptions, see [PRD.md Section 9](PRD.md#9-data-models).
 
 ### 7.1 Schema DDL
 
@@ -763,7 +763,25 @@ User preferences stored in `config.json` in the app data directory:
 
 Loaded at startup by Go backend; exposed to frontend via `GetConfig`/`SetConfig` bindings.
 
-### 9.4 Coordinate Calibration
+### 9.4 SQLite Data Integrity & Recovery
+
+The SQLite database is the sole store for all parsed demo data. Since re-parsing demos is possible but expensive (< 10s per demo), data integrity matters.
+
+**WAL checkpoint**: SQLite WAL mode is used for concurrent reads. The WAL file is checkpointed automatically by SQLite. On graceful shutdown (`app.Shutdown()`), force a WAL checkpoint via `PRAGMA wal_checkpoint(TRUNCATE)` to ensure the database file is self-contained.
+
+**Pre-migration backup**: Before running `golang-migrate` up migrations, copy the database file to `oversite.db.bak`. If migration fails, the backup allows manual recovery. The backup is overwritten on each migration run (only the most recent is kept).
+
+**Corruption detection**: On startup, run `PRAGMA integrity_check` (fast on small databases). If corruption is detected:
+1. Log the error with full details
+2. Show a modal to the user: "Database may be corrupted. You can re-import your demos to rebuild."
+3. Offer to reset the database (delete and recreate with fresh migrations)
+4. Demo `.dem` source files are stored by reference and are not affected
+
+**Transaction discipline**: All multi-row inserts (tick data, events, rounds) are wrapped in explicit transactions. A parse failure mid-way rolls back the entire transaction — no partial demo data in the database.
+
+**Recovery path**: Since demos are stored as external `.dem` files (not copied into the database), the worst-case recovery is: delete `oversite.db`, restart the app (migrations recreate schema), re-import demos. Faceit match data can be re-synced from the API.
+
+### 9.5 Coordinate Calibration
 
 Each CS2 map has calibration data mapping game world-space to radar image pixel-space. Stored in the frontend as TypeScript constants:
 
@@ -779,7 +797,7 @@ export const MAP_CALIBRATION = {
 //          pixelY = (originY - worldY) / scale
 ```
 
-### 9.5 Auto-Update
+### 9.6 Auto-Update
 
 - On startup, check for new version via HTTPS to a releases endpoint (GitHub Releases API or custom)
 - Show non-intrusive notification if update available
