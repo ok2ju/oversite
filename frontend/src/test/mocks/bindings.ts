@@ -1,4 +1,13 @@
 import { vi } from "vitest"
+import {
+  mockDemos,
+  createMockEvents,
+  mockRounds,
+  mockFaceitMatches,
+  mockFaceitProfile,
+  mockEloHistory,
+  mockUser,
+} from "@/test/fixtures"
 
 // ---------------------------------------------------------------------------
 // Wails App binding mocks (wailsjs/go/main/App)
@@ -12,6 +21,93 @@ export const mockAppBindings = {
   Greet: vi
     .fn<(name: string) => Promise<string>>()
     .mockResolvedValue("Hello TestPlayer, welcome to Oversite!"),
+
+  GetCurrentUser: vi
+    .fn<() => Promise<typeof mockUser>>()
+    .mockResolvedValue(mockUser),
+
+  LoginWithFaceit: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+
+  ListDemos: vi
+    .fn<
+      (
+        page: number,
+        perPage: number,
+      ) => Promise<{
+        data: typeof mockDemos
+        meta: { total: number; page: number; per_page: number }
+      }>
+    >()
+    .mockImplementation((page = 1, perPage = 20) => {
+      const start = (page - 1) * perPage
+      const sliced = mockDemos.slice(start, start + perPage)
+      return Promise.resolve({
+        data: sliced,
+        meta: { total: mockDemos.length, page, per_page: perPage },
+      })
+    }),
+
+  ImportDemoFile: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+
+  DeleteDemo: vi
+    .fn<(id: number) => Promise<void>>()
+    .mockResolvedValue(undefined),
+
+  GetDemoRounds: vi
+    .fn<(demoId: string) => Promise<typeof mockRounds>>()
+    .mockResolvedValue(mockRounds),
+
+  GetDemoEvents: vi
+    .fn<(demoId: string) => Promise<ReturnType<typeof createMockEvents>>>()
+    .mockImplementation((demoId: string) =>
+      Promise.resolve(createMockEvents(demoId)),
+    ),
+
+  GetDemoTicks: vi
+    .fn<
+      (demoId: string, startTick: number, endTick: number) => Promise<never[]>
+    >()
+    .mockResolvedValue([]),
+
+  GetRoundRoster: vi
+    .fn<(demoId: string, roundNumber: number) => Promise<never[]>>()
+    .mockResolvedValue([]),
+
+  GetFaceitProfile: vi
+    .fn<() => Promise<typeof mockFaceitProfile>>()
+    .mockResolvedValue(mockFaceitProfile),
+
+  GetEloHistory: vi
+    .fn<() => Promise<typeof mockEloHistory>>()
+    .mockResolvedValue(mockEloHistory),
+
+  GetFaceitMatches: vi
+    .fn<
+      (
+        page: number,
+        perPage: number,
+        mapName: string,
+        result: string,
+      ) => Promise<{
+        data: typeof mockFaceitMatches
+        meta: { total: number; page: number; per_page: number }
+      }>
+    >()
+    .mockImplementation((page = 1, perPage = 20, mapName = "", result = "") => {
+      let filtered = [...mockFaceitMatches]
+      if (mapName) {
+        filtered = filtered.filter((m) => m.map_name === mapName)
+      }
+      if (result) {
+        filtered = filtered.filter((m) => m.result === result)
+      }
+      const start = (page - 1) * perPage
+      const sliced = filtered.slice(start, start + perPage)
+      return Promise.resolve({
+        data: sliced,
+        meta: { total: filtered.length, page, per_page: perPage },
+      })
+    }),
 }
 
 /**
@@ -22,7 +118,7 @@ export const mockAppBindings = {
  * Or for per-test control:
  *
  *   import { mockAppBindings } from "@/test/mocks/bindings"
- *   mockAppBindings.Greet.mockResolvedValueOnce("custom greeting")
+ *   mockAppBindings.GetCurrentUser.mockResolvedValueOnce(customUser)
  */
 export function resetAppBindings() {
   Object.values(mockAppBindings).forEach((fn) => fn.mockClear())

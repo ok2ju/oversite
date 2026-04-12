@@ -1,9 +1,10 @@
 import { vi, describe, it, expect } from "vitest"
 import { screen, waitFor } from "@testing-library/react"
 import { renderWithProviders, userEvent } from "@/test/render"
+import { mockAppBindings } from "@/test/mocks/bindings"
 import DemosPage from "@/routes/demos"
-import { server } from "@/test/msw/server"
-import { http, HttpResponse } from "msw"
+
+vi.mock("@wailsjs/go/main/App", () => mockAppBindings)
 
 const mockNavigate = vi.fn()
 vi.mock("react-router-dom", async () => {
@@ -12,24 +13,20 @@ vi.mock("react-router-dom", async () => {
 })
 
 describe("DemosPage", () => {
-  it("renders title and upload button", async () => {
+  it("renders title and import button", async () => {
     renderWithProviders(<DemosPage />)
 
     expect(screen.getByText("Demos")).toBeInTheDocument()
     expect(
-      screen.getByRole("button", { name: /upload demo/i }),
+      screen.getByRole("button", { name: /import demo/i }),
     ).toBeInTheDocument()
   })
 
   it("shows empty state when no demos exist", async () => {
-    server.use(
-      http.get("/api/v1/demos", () => {
-        return HttpResponse.json({
-          data: [],
-          meta: { total: 0, page: 1, per_page: 20 },
-        })
-      }),
-    )
+    mockAppBindings.ListDemos.mockResolvedValueOnce({
+      data: [],
+      meta: { total: 0, page: 1, per_page: 20 },
+    })
 
     renderWithProviders(<DemosPage />)
 
@@ -46,11 +43,11 @@ describe("DemosPage", () => {
     })
   })
 
-  it("opens upload dialog when upload button is clicked", async () => {
+  it("opens import dialog when import button is clicked", async () => {
     const user = userEvent.setup()
     renderWithProviders(<DemosPage />)
 
-    await user.click(screen.getByRole("button", { name: /upload demo/i }))
+    await user.click(screen.getByRole("button", { name: /import demo/i }))
     await waitFor(() => {
       expect(screen.getByRole("dialog")).toBeInTheDocument()
     })

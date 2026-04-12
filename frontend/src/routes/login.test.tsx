@@ -1,7 +1,10 @@
 import { screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
-import { renderWithProviders } from "@/test/render"
+import { describe, expect, it, vi } from "vitest"
+import { renderWithProviders, userEvent } from "@/test/render"
+import { mockAppBindings } from "@/test/mocks/bindings"
 import LoginPage from "@/routes/login"
+
+vi.mock("@wailsjs/go/main/App", () => mockAppBindings)
 
 describe("LoginPage", () => {
   it("renders app title", () => {
@@ -12,13 +15,17 @@ describe("LoginPage", () => {
   it("renders sign in with Faceit button", () => {
     renderWithProviders(<LoginPage />)
     expect(
-      screen.getByRole("link", { name: /sign in with faceit/i }),
+      screen.getByRole("button", { name: /sign in with faceit/i }),
     ).toBeInTheDocument()
   })
 
-  it("button links to the backend OAuth endpoint", () => {
+  it("calls LoginWithFaceit binding on click", async () => {
+    const user = userEvent.setup()
     renderWithProviders(<LoginPage />)
-    const link = screen.getByRole("link", { name: /sign in with faceit/i })
-    expect(link).toHaveAttribute("href", "/api/v1/auth/faceit")
+
+    await user.click(
+      screen.getByRole("button", { name: /sign in with faceit/i }),
+    )
+    expect(mockAppBindings.LoginWithFaceit).toHaveBeenCalled()
   })
 })

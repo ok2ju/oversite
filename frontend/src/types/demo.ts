@@ -13,7 +13,6 @@ export interface Demo {
   created_at: string
 }
 
-/** @deprecated Web API wrapper — will be removed when hooks migrate to Wails bindings */
 export interface DemoListResponse {
   data: Demo[]
   meta: { total: number; page: number; per_page: number }

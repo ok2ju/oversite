@@ -1,7 +1,10 @@
 import { vi, describe, it, expect } from "vitest"
 import { screen, waitFor, within } from "@testing-library/react"
 import { renderWithProviders, userEvent } from "@/test/render"
+import { mockAppBindings } from "@/test/mocks/bindings"
 import { MatchList } from "@/components/dashboard/match-list"
+
+vi.mock("@wailsjs/go/main/App", () => mockAppBindings)
 
 const mockNavigate = vi.fn()
 vi.mock("react-router-dom", async () => {

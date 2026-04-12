@@ -1,9 +1,10 @@
 import { screen, waitFor } from "@testing-library/react"
-import { http, HttpResponse } from "msw"
 import { describe, expect, it, vi, beforeEach } from "vitest"
 import { renderWithProviders } from "@/test/render"
-import { server } from "@/test/msw/server"
+import { mockAppBindings } from "@/test/mocks/bindings"
 import { AuthProvider, useAuth } from "./auth-provider"
+
+vi.mock("@wailsjs/go/main/App", () => mockAppBindings)
 
 const mockNavigate = vi.fn()
 vi.mock("react-router-dom", async () => {
@@ -28,10 +29,8 @@ describe("AuthProvider", () => {
   })
 
   it("shows loading state while checking session", () => {
-    server.use(
-      http.get("/api/v1/auth/me", () => {
-        return new Promise(() => {})
-      }),
+    mockAppBindings.GetCurrentUser.mockImplementationOnce(
+      () => new Promise(() => {}),
     )
 
     renderWithProviders(
@@ -60,10 +59,8 @@ describe("AuthProvider", () => {
   })
 
   it("redirects to /login when unauthenticated", async () => {
-    server.use(
-      http.get("/api/v1/auth/me", () => {
-        return HttpResponse.json({ error: "unauthorized" }, { status: 401 })
-      }),
+    mockAppBindings.GetCurrentUser.mockRejectedValueOnce(
+      new Error("unauthorized"),
     )
 
     renderWithProviders(
@@ -79,10 +76,8 @@ describe("AuthProvider", () => {
   })
 
   it("does not redirect when on /login page", async () => {
-    server.use(
-      http.get("/api/v1/auth/me", () => {
-        return HttpResponse.json({ error: "unauthorized" }, { status: 401 })
-      }),
+    mockAppBindings.GetCurrentUser.mockRejectedValueOnce(
+      new Error("unauthorized"),
     )
 
     renderWithProviders(
@@ -100,10 +95,8 @@ describe("AuthProvider", () => {
   })
 
   it("does not redirect when on /callback page", async () => {
-    server.use(
-      http.get("/api/v1/auth/me", () => {
-        return HttpResponse.json({ error: "unauthorized" }, { status: 401 })
-      }),
+    mockAppBindings.GetCurrentUser.mockRejectedValueOnce(
+      new Error("unauthorized"),
     )
 
     renderWithProviders(
@@ -121,15 +114,11 @@ describe("AuthProvider", () => {
   })
 
   it("exposes correct user data after successful auth check", async () => {
-    server.use(
-      http.get("/api/v1/auth/me", () => {
-        return HttpResponse.json({
-          user_id: "custom-id",
-          faceit_id: "faceit-123",
-          nickname: "ProPlayer",
-        })
-      }),
-    )
+    mockAppBindings.GetCurrentUser.mockResolvedValueOnce({
+      user_id: "custom-id",
+      faceit_id: "faceit-123",
+      nickname: "ProPlayer",
+    })
 
     renderWithProviders(
       <AuthProvider>

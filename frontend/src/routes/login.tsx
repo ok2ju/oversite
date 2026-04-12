@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button"
+import { LoginWithFaceit } from "@wailsjs/go/main/App"
 
 export default function LoginPage() {
   return (
@@ -9,8 +10,8 @@ export default function LoginPage() {
           CS2 demo viewer and analytics platform
         </p>
       </div>
-      <Button asChild size="lg">
-        <a href="/api/v1/auth/faceit">Sign in with Faceit</a>
+      <Button size="lg" onClick={() => LoginWithFaceit()}>
+        Sign in with Faceit
       </Button>
     </div>
   )

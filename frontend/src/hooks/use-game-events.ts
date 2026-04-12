@@ -1,30 +1,11 @@
-"use client"
-
 import { useQuery } from "@tanstack/react-query"
-import type { GameEventsResponse } from "@/types/demo"
-
-async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, { credentials: "include", ...init })
-  if (!res.ok) {
-    throw new Error(`${res.status} ${res.statusText}`)
-  }
-  return res.json()
-}
-
-async function fetchGameEvents(
-  demoId: string,
-  signal?: AbortSignal,
-): Promise<GameEventsResponse> {
-  return fetchJSON<GameEventsResponse>(`/api/v1/demos/${demoId}/events`, {
-    signal,
-  })
-}
+import { GetDemoEvents } from "@wailsjs/go/main/App"
+import type { GameEvent } from "@/types/demo"
 
 export function useGameEvents(demoId: string | null) {
   return useQuery({
     queryKey: ["game-events", demoId],
-    queryFn: ({ signal }: { signal: AbortSignal }) =>
-      fetchGameEvents(demoId!, signal),
+    queryFn: () => GetDemoEvents(demoId!) as Promise<GameEvent[]>,
     enabled: !!demoId,
     staleTime: Infinity,
   })

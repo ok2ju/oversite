@@ -43,7 +43,7 @@ export function ViewerCanvas() {
   // Feed event data into the EventLayer whenever the query result changes.
   useEffect(() => {
     if (gameEventsData && eventLayerRef.current) {
-      eventLayerRef.current.setEvents(gameEventsData.data)
+      eventLayerRef.current.setEvents(gameEventsData)
     }
   }, [gameEventsData])
 
