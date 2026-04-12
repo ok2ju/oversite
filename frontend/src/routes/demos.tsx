@@ -1,5 +1,3 @@
-"use client"
-
 import { useDemos, useDeleteDemo } from "@/hooks/use-demos"
 import { DemoList } from "@/components/demos/demo-list"
 import { UploadDialog } from "@/components/demos/upload-dialog"

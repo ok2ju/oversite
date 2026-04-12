@@ -1,13 +1,15 @@
 import { vi, describe, it, expect } from "vitest"
 import { screen, waitFor } from "@testing-library/react"
 import { renderWithProviders, userEvent } from "@/test/render"
-import DemosPage from "@/app/(app)/demos/page"
+import DemosPage from "@/routes/demos"
 import { server } from "@/test/msw/server"
 import { http, HttpResponse } from "msw"
 
-vi.mock("next/navigation", () => ({
-  useRouter: vi.fn(() => ({ push: vi.fn() })),
-}))
+const mockNavigate = vi.fn()
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual("react-router-dom")
+  return { ...actual, useNavigate: () => mockNavigate }
+})
 
 describe("DemosPage", () => {
   it("renders title and upload button", async () => {

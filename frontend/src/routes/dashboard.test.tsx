@@ -1,11 +1,13 @@
 import { describe, it, expect, vi } from "vitest"
 import { screen, waitFor } from "@testing-library/react"
 import { renderWithProviders } from "@/test/render"
-import DashboardPage from "@/app/(app)/dashboard/page"
+import DashboardPage from "@/routes/dashboard"
 
-vi.mock("next/navigation", () => ({
-  useRouter: vi.fn(() => ({ push: vi.fn() })),
-}))
+const mockNavigate = vi.fn()
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual("react-router-dom")
+  return { ...actual, useNavigate: () => mockNavigate }
+})
 
 describe("DashboardPage", () => {
   it("renders page heading", () => {
@@ -20,10 +22,8 @@ describe("DashboardPage", () => {
   it("shows loading states initially then renders profile data", async () => {
     renderWithProviders(<DashboardPage />)
 
-    // Loading skeletons appear initially
     expect(screen.getByTestId("profile-card-skeleton")).toBeInTheDocument()
 
-    // After data loads, profile card shows
     await waitFor(() => {
       expect(screen.getByText("TestPlayer")).toBeInTheDocument()
     })
@@ -39,7 +39,6 @@ describe("DashboardPage", () => {
     expect(screen.getByText("30d")).toBeInTheDocument()
     expect(screen.getByText("90d")).toBeInTheDocument()
 
-    // Wait for chart data to load
     await waitFor(() => {
       expect(screen.queryByTestId("elo-chart-skeleton")).not.toBeInTheDocument()
     })

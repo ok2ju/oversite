@@ -1,5 +1,3 @@
-"use client"
-
 import { useState } from "react"
 import { useFaceitProfile, useEloHistory } from "@/hooks/use-faceit"
 import { ProfileCard } from "@/components/dashboard/profile-card"

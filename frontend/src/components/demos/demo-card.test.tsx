@@ -9,11 +9,11 @@ import {
 import type { Demo } from "@/types/demo"
 import { mockDemos } from "@/test/msw/handlers"
 
-vi.mock("next/navigation", () => ({
-  useRouter: vi.fn(() => ({ push: vi.fn() })),
-}))
-
-const { useRouter } = await import("next/navigation")
+const mockNavigate = vi.fn()
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual("react-router-dom")
+  return { ...actual, useNavigate: () => mockNavigate }
+})
 
 function readyDemo(): Demo {
   return mockDemos.find((d) => d.status === "ready")!
@@ -49,29 +49,23 @@ describe("DemoCard", () => {
   })
 
   it("navigates when clicking a ready demo", async () => {
-    const push = vi.fn()
-    vi.mocked(useRouter).mockReturnValue({ push } as unknown as ReturnType<
-      typeof useRouter
-    >)
+    mockNavigate.mockClear()
     const user = userEvent.setup()
 
     renderWithProviders(<DemoCard demo={readyDemo()} onDelete={vi.fn()} />)
 
     await user.click(screen.getByText("de_dust2"))
-    expect(push).toHaveBeenCalledWith("/demos/demo-1")
+    expect(mockNavigate).toHaveBeenCalledWith("/demos/demo-1")
   })
 
   it("does not navigate when clicking a non-ready demo", async () => {
-    const push = vi.fn()
-    vi.mocked(useRouter).mockReturnValue({ push } as unknown as ReturnType<
-      typeof useRouter
-    >)
+    mockNavigate.mockClear()
     const user = userEvent.setup()
     const parsingDemo = mockDemos.find((d) => d.status === "parsing")!
 
     renderWithProviders(<DemoCard demo={parsingDemo} onDelete={vi.fn()} />)
 
     await user.click(screen.getByText("de_mirage"))
-    expect(push).not.toHaveBeenCalled()
+    expect(mockNavigate).not.toHaveBeenCalled()
   })
 })

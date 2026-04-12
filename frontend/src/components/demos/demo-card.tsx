@@ -1,6 +1,4 @@
-"use client"
-
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -54,7 +52,7 @@ export function formatDate(iso: string): string {
 }
 
 export function DemoCard({ demo, onDelete }: DemoCardProps) {
-  const router = useRouter()
+  const navigate = useNavigate()
 
   return (
     <Card
@@ -65,7 +63,7 @@ export function DemoCard({ demo, onDelete }: DemoCardProps) {
       }
       onClick={() => {
         if (demo.status === "ready") {
-          router.push(`/demos/${demo.id}`)
+          navigate(`/demos/${demo.id}`)
         }
       }}
     >

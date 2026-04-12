@@ -1,7 +1,4 @@
-"use client"
-
-import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { NavLink } from "react-router-dom"
 import {
   LayoutDashboard,
   Film,
@@ -22,30 +19,30 @@ const navItems = [
 ]
 
 export function Sidebar() {
-  const pathname = usePathname()
-
   return (
     <aside className="flex h-full w-64 flex-col border-r bg-card">
       <div className="flex h-14 items-center border-b px-6">
-        <Link href="/dashboard" className="text-lg font-bold">
+        <NavLink to="/dashboard" className="text-lg font-bold">
           Oversite
-        </Link>
+        </NavLink>
       </div>
       <nav className="flex-1 space-y-1 p-4">
         {navItems.map((item) => (
-          <Link
+          <NavLink
             key={item.href}
-            href={item.href}
-            className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              pathname === item.href || pathname?.startsWith(item.href + "/")
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
+            to={item.href}
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )
+            }
           >
             <item.icon className="h-4 w-4" />
             {item.label}
-          </Link>
+          </NavLink>
         ))}
       </nav>
     </aside>

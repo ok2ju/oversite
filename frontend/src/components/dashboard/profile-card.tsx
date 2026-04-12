@@ -1,4 +1,3 @@
-import Image from "next/image"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -75,7 +74,7 @@ export function ProfileCard({ profile, isLoading }: ProfileCardProps) {
       <CardHeader>
         <div className="flex items-center gap-4">
           {profile.avatar_url ? (
-            <Image
+            <img
               src={profile.avatar_url}
               alt={profile.nickname}
               width={64}

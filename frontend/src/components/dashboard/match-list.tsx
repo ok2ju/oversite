@@ -1,7 +1,5 @@
-"use client"
-
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
@@ -29,7 +27,7 @@ function formatDate(iso: string): string {
 }
 
 export function MatchList() {
-  const router = useRouter()
+  const navigate = useNavigate()
   const [page, setPage] = useState(1)
   const [mapFilter, setMapFilter] = useState("")
   const [resultFilter, setResultFilter] = useState("")
@@ -46,7 +44,7 @@ export function MatchList() {
 
   function handleRowClick(match: FaceitMatch) {
     if (match.has_demo && match.demo_id) {
-      router.push(`/demos/${match.demo_id}`)
+      navigate(`/demos/${match.demo_id}`)
     }
   }
 

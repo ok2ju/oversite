@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 import { renderWithProviders } from "@/test/render"
-import LoginPage from "./page"
+import LoginPage from "@/routes/login"
 
 describe("LoginPage", () => {
   it("renders app title", () => {

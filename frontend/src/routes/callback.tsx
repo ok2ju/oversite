@@ -1,14 +1,12 @@
-"use client"
-
 import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 
 export default function CallbackPage() {
-  const router = useRouter()
+  const navigate = useNavigate()
 
   useEffect(() => {
-    router.push("/dashboard")
-  }, [router])
+    navigate("/dashboard")
+  }, [navigate])
 
   return (
     <div className="flex min-h-screen items-center justify-center">
