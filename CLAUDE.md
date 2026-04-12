@@ -24,19 +24,12 @@ All desktop Go code lives at the **root module level** (`go.mod` = `github.com/o
 oversite/
 ├── main.go                         # Wails entry point
 ├── app.go                          # App struct (Startup/Shutdown, Wails bindings)
+├── types.go                        # Domain types (exposed via Wails bindings)
 ├── go.mod                          # Root Go module
 ├── wails.json                      # Wails project config
 ├── internal/
-│   ├── auth/                       # OAuth loopback, keyring
-│   ├── config/                     # File-based config
 │   ├── database/                   # SQLite connection, migration runner
-│   ├── demo/                       # Parser, import service
-│   ├── faceit/                     # API client, sync
-│   ├── heatmap/                    # KDE generation
-│   ├── lineup/                     # Grenade lineup service
-│   ├── model/                      # Domain types
 │   ├── store/                      # sqlc generated code (SQLite)
-│   ├── strat/                      # Strategy board service
 │   └── testutil/                   # Shared test helpers
 ├── migrations/                     # SQLite migration files (embedded in binary)
 ├── queries/                        # sqlc SQL files
@@ -70,7 +63,7 @@ wails build              # Production build (single binary)
 # Go (from project root)
 go build ./...           # Build all Go code
 go test -race ./...      # Run unit tests (with race detector)
-go tool golangci-lint run  # Lint
+golangci-lint run ./...    # Lint (installed separately, not a go tool)
 make sqlc                # Regenerate Go code from SQL
 
 # Frontend (in frontend/)
@@ -109,6 +102,8 @@ Single embedded SQLite database using `modernc.org/sqlite` (pure Go, no CGo). WA
 ### Wails Bindings (No REST API)
 
 Go struct methods on the App struct are automatically exposed as TypeScript functions in the frontend. No HTTP server, no REST routes. Long-running operations (demo parsing) report progress via Wails runtime events.
+
+**Current status**: All binding methods in `app.go` are stubs returning `errNotImplemented`. Domain types live in `types.go` at the root package level. The frontend uses mock/placeholder data via Zustand stores. Implementing a binding means: (1) write the Go logic, (2) update the frontend to use real data instead of mocks.
 
 ### Synchronous Processing
 
