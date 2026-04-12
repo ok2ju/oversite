@@ -56,7 +56,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | N/A (infrastructure) |
 | **TDD Workflow** | N/A -- verify via `wails dev` launching the app window |
 | **Description** | Initialize the Wails v2 project: Go module, `wails.json` config, `main.go` entry point with Wails `App` struct, frontend Vite scaffold with `embed.FS` integration. Set up the monorepo directory structure per ARCHITECTURE.md Section 10. |
-| **Key Files** | `wails.json`, `backend/cmd/oversite/main.go`, `backend/internal/app/app.go`, `frontend/package.json`, `frontend/vite.config.ts`, `frontend/index.html` |
+| **Key Files** | `wails.json`, `main.go`, `app.go`, `frontend/package.json`, `frontend/vite.config.ts`, `frontend/index.html` |
 | **Acceptance Criteria** | - `wails dev` launches a window with the default Wails template |
 | | - Go module compiles (`go build ./...`) |
 | | - Frontend dev server runs (`pnpm dev`) |
@@ -71,7 +71,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | integration |
 | **TDD Workflow** | 1. RED: Write test that opens SQLite DB, runs migrations, and verifies tables exist. 2. GREEN: Implement SQLite connection (modernc.org/sqlite), WAL mode setup, migration runner. 3. REFACTOR: Extract DB setup into reusable function. |
 | **Description** | Set up SQLite using `modernc.org/sqlite` (pure Go). Enable WAL mode. Create migration framework (golang-migrate with SQLite driver or custom). Write initial migration with full schema from ARCHITECTURE.md Section 7. |
-| **Key Files** | `backend/internal/store/db.go`, `backend/internal/store/db_test.go`, `backend/migrations/001_initial_schema.up.sql`, `backend/migrations/001_initial_schema.down.sql` |
+| **Key Files** | `internal/database/sqlite.go`, `internal/database/sqlite_test.go`, `migrations/001_initial_schema.up.sql`, `migrations/001_initial_schema.down.sql`, `migrations/embed.go` |
 | **Acceptance Criteria** | - SQLite database created in OS app data directory |
 | | - WAL mode enabled (`PRAGMA journal_mode` returns `wal`) |
 | | - All tables from schema DDL created |
@@ -87,7 +87,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | unit, integration |
 | **TDD Workflow** | 1. RED: Write test for a basic query (e.g., insert + select a demo). 2. GREEN: Configure sqlc.yaml for SQLite, write SQL queries, generate Go code. 3. REFACTOR: Organize query files by domain. |
 | **Description** | Configure sqlc with SQLite dialect. Write SQL query files for all entities: users, demos, rounds, player_rounds, tick_data, game_events, strategy_boards, grenade_lineups, faceit_matches. Generate type-safe Go code. Verify generated code compiles and basic CRUD works against temp SQLite. |
-| **Key Files** | `backend/sqlc.yaml`, `backend/queries/*.sql`, `backend/internal/store/*.sql.go` (generated) |
+| **Key Files** | `sqlc.yaml`, `queries/*.sql`, `internal/store/*.sql.go` (generated) |
 | **Acceptance Criteria** | - `sqlc generate` succeeds with no errors |
 | | - Generated Go code compiles |
 | | - Basic insert + select test passes against temp SQLite |
@@ -176,7 +176,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | N/A (infrastructure) |
 | **TDD Workflow** | N/A -- verify via running an example test |
 | **Description** | Create shared test helpers: `testutil.NewTestDB()` returns temp SQLite with migrations applied (`:memory:` for speed). Create mock interfaces: `MockKeyring`, `MockFaceitClient`. Create golden file test helpers. Set up `go test -race` as default. |
-| **Key Files** | `backend/internal/testutil/db.go`, `backend/internal/testutil/mocks.go`, `backend/internal/testutil/golden.go` |
+| **Key Files** | `internal/testutil/db.go`, `internal/testutil/mocks.go`, `internal/testutil/golden.go` |
 | **Acceptance Criteria** | - `testutil.NewTestDB()` returns a migrated temp SQLite |
 | | - Mock interfaces match production interfaces |
 | | - `go test -race ./...` passes with example test |
@@ -211,7 +211,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | unit, integration |
 | **TDD Workflow** | 1. RED: Write test for temp HTTP listener capturing callback code; test PKCE code verifier/challenge generation. 2. GREEN: Implement temp listener, PKCE helpers, token exchange. 3. REFACTOR: Extract HTTP client, add timeout handling. |
 | **Description** | Implement RFC 8252 loopback OAuth: start temp listener on `127.0.0.1:{random_port}`, generate PKCE code verifier/challenge, build Faceit auth URL, open system browser, capture callback, exchange code for tokens. |
-| **Key Files** | `backend/internal/auth/oauth.go`, `backend/internal/auth/pkce.go`, `backend/internal/auth/oauth_test.go`, `backend/internal/auth/pkce_test.go` |
+| **Key Files** | `internal/auth/oauth.go`, `internal/auth/pkce.go`, `internal/auth/oauth_test.go`, `internal/auth/pkce_test.go` |
 | **Acceptance Criteria** | - Temp listener starts on random port and captures auth code |
 | | - PKCE code verifier/challenge are RFC 7636 compliant |
 | | - Token exchange works against Faceit token endpoint |
@@ -227,7 +227,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | unit |
 | **TDD Workflow** | 1. RED: Write test for store/retrieve/delete tokens using mock keyring. 2. GREEN: Implement keyring wrapper with `zalando/go-keyring`. 3. REFACTOR: Define interface for testing. |
 | **Description** | Create a `TokenStore` interface backed by `zalando/go-keyring`. Store refresh token under service name `oversite-faceit-auth`. Access token held in memory only. Mock interface for testing. |
-| **Key Files** | `backend/internal/auth/keyring.go`, `backend/internal/auth/keyring_test.go`, `backend/internal/testutil/mocks.go` (add MockKeyring) |
+| **Key Files** | `internal/auth/keyring.go`, `internal/auth/keyring_test.go`, `internal/testutil/mocks.go` (add MockKeyring) |
 | **Acceptance Criteria** | - Refresh token stored/retrieved from OS keychain |
 | | - Access token held in memory, not persisted |
 | | - `TokenStore` interface allows mock substitution |
@@ -242,7 +242,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | unit, integration |
 | **TDD Workflow** | 1. RED: Write test for login flow (mock OAuth + mock keyring -> returns user). Test for token refresh. Test for logout (clears keyring). 2. GREEN: Implement AuthService with login, logout, refresh, getCurrentUser. 3. REFACTOR: Add error types for auth failures. |
 | **Description** | Create `AuthService` that orchestrates: loopback OAuth -> token exchange -> fetch Faceit profile -> upsert user in SQLite -> store refresh token in keychain. Expose as Wails bindings: `StartLogin()`, `GetCurrentUser()`, `Logout()`, `RefreshProfile()`. |
-| **Key Files** | `backend/internal/auth/service.go`, `backend/internal/auth/service_test.go` |
+| **Key Files** | `internal/auth/service.go`, `internal/auth/service_test.go` |
 | **Acceptance Criteria** | - Login flow creates/updates user in SQLite |
 | | - Logout clears keychain token and in-memory access token |
 | | - Token refresh fetches new access token using refresh token |
@@ -274,7 +274,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | unit, integration |
 | **TDD Workflow** | 1. RED: Write test: import valid .dem file creates demo record in SQLite with status=imported. Test: import invalid file returns validation error. 2. GREEN: Implement ImportDemo binding with file validation (magic bytes, size). 3. REFACTOR: Extract validation into reusable function. |
 | **Description** | Implement `ImportDemo(path)` Wails binding: validate `.dem` file (check magic bytes `HL2DEMO`, size limits), insert demo record in SQLite with status `imported`, trigger parsing. Implement `ImportFolder(path)` for recursive scan. Implement `OpenFileDialog()` and `OpenFolderDialog()` using Wails runtime dialogs. |
-| **Key Files** | `backend/internal/demo/import.go`, `backend/internal/demo/import_test.go`, `backend/internal/demo/validate.go`, `backend/internal/demo/validate_test.go` |
+| **Key Files** | `internal/demo/import.go`, `internal/demo/import_test.go`, `internal/demo/validate.go`, `internal/demo/validate_test.go` |
 | **Acceptance Criteria** | - Valid `.dem` file creates demo record with correct metadata |
 | | - Invalid file (wrong magic bytes, too large) returns descriptive error |
 | | - Folder import recursively finds all `.dem` files |
@@ -290,7 +290,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | unit, golden |
 | **TDD Workflow** | 1. Spike: prototype with demoinfocs-golang to validate API, extract sample data. 2. RED: Write golden file tests comparing parser output against known-good data. 3. GREEN: Implement full parser with event handlers for positions, kills, grenades, bombs, rounds. 4. REFACTOR: Extract per-event-type handlers; add edge case handling (warmup, OT, bots). |
 | **Description** | Integrate `markus-wa/demoinfocs-golang` v5. Register handlers for: player positions (every Nth tick), kills, grenade throws/detonations, bomb plant/defuse, round start/end. Extract match metadata (map, duration, tick rate). Handle edge cases: warmup rounds, overtime, bot players, disconnects. This is the same parser logic as the web version -- only the output target changes (direct SQLite insert vs. Redis Streams + Worker). |
-| **Key Files** | `backend/internal/demo/parser.go`, `backend/internal/demo/parser_test.go`, `backend/testdata/*.golden` |
+| **Key Files** | `internal/demo/parser.go`, `internal/demo/parser_test.go`, `testdata/*.golden` |
 | **Acceptance Criteria** | - Parser extracts positions, kills, grenades, bombs, rounds from test demos |
 | | - Golden file tests pass for at least 3 different demo files |
 | | - Warmup rounds are excluded from parsed data |
@@ -307,7 +307,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | integration |
 | **TDD Workflow** | 1. RED: Write test: parse demo + insert ticks; verify tick_data table has expected row count and sample values. 2. GREEN: Implement batched transaction inserts (10K rows per transaction). 3. REFACTOR: Tune batch size; add progress reporting via Wails events. |
 | **Description** | After parsing, batch-insert tick data into SQLite `tick_data` table. Use transactions with 10,000-row batches for write performance. Emit Wails runtime events for progress reporting. Verify composite PK `(demo_id, tick, steam_id)` handles the ~1.28M rows per demo. |
-| **Key Files** | `backend/internal/demo/ingest.go`, `backend/internal/demo/ingest_test.go` |
+| **Key Files** | `internal/demo/ingest.go`, `internal/demo/ingest_test.go` |
 | **Acceptance Criteria** | - ~1.28M rows inserted for a typical demo |
 | | - Batch inserts complete in < 5 seconds |
 | | - Progress events emitted during ingestion |
@@ -323,7 +323,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | integration |
 | **TDD Workflow** | 1. RED: Write test: parse demo; verify game_events table has correct kill/grenade/bomb events with positions. 2. GREEN: Insert events from parser output. 3. REFACTOR: Normalize event types; add extra_data JSON for type-specific fields. |
 | **Description** | Insert game events (kills, grenade throws, grenade detonations, bomb plants, bomb defuses) into `game_events` table. Include attacker/victim steam IDs, weapons, positions, and event-specific extra data as JSON. |
-| **Key Files** | `backend/internal/demo/events.go`, `backend/internal/demo/events_test.go` |
+| **Key Files** | `internal/demo/events.go`, `internal/demo/events_test.go` |
 | **Acceptance Criteria** | - All event types correctly inserted with positions |
 | | - Kill events include headshot flag, weapon, flash assist in extra_data |
 | | - Grenade events include throw and landing positions |
@@ -339,7 +339,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | integration |
 | **TDD Workflow** | 1. RED: Write test: parse demo; verify rounds table has correct round count, scores, win reasons. Verify player_rounds has per-player stats. 2. GREEN: Insert round and player_round data. 3. REFACTOR: Handle overtime rounds; validate score progression. |
 | **Description** | Insert round summaries and per-player-per-round statistics into `rounds` and `player_rounds` tables. |
-| **Key Files** | `backend/internal/demo/rounds.go`, `backend/internal/demo/rounds_test.go` |
+| **Key Files** | `internal/demo/rounds.go`, `internal/demo/rounds_test.go` |
 | **Acceptance Criteria** | - Round count matches actual demo rounds (excluding warmup) |
 | | - Scores progress correctly |
 | | - Player K/D/A/damage totals match per-round |
@@ -372,7 +372,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | unit |
 | **TDD Workflow** | 1. RED: Write test: given a temp dir with .dem and non-.dem files, ImportFolder returns only .dem paths. 2. GREEN: Implement recursive directory walk with .dem filter. 3. REFACTOR: Add progress event for large folders. |
 | **Description** | Implement `ImportFolder(path)` binding that recursively scans a directory for `.dem` files and imports each one. Skip non-`.dem` files. Report progress via Wails events. |
-| **Key Files** | `backend/internal/demo/folder.go`, `backend/internal/demo/folder_test.go` |
+| **Key Files** | `internal/demo/folder.go`, `internal/demo/folder_test.go` |
 | **Acceptance Criteria** | - Recursively finds all `.dem` files in directory tree |
 | | - Skips non-`.dem` files and directories |
 | | - Returns list of imported demos |
@@ -578,7 +578,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | unit |
 | **TDD Workflow** | 1. RED: Write tests for GetProfile, GetMatches, GetEloHistory with mock HTTP responses. 2. GREEN: Implement HTTP client with auth header injection. 3. REFACTOR: Add rate limiting; extract response types. |
 | **Description** | Go HTTP client for Faceit Data API: get player profile, match history (paginated), ELO history. Inject access token from auth service. Handle rate limiting (429) with exponential backoff. |
-| **Key Files** | `backend/internal/faceit/client.go`, `backend/internal/faceit/client_test.go`, `backend/internal/faceit/types.go` |
+| **Key Files** | `internal/faceit/client.go`, `internal/faceit/client_test.go`, `internal/faceit/types.go` |
 | **Acceptance Criteria** | - GetProfile returns typed Faceit profile |
 | | - GetMatches returns paginated match list |
 | | - GetEloHistory returns ELO data points |
@@ -594,7 +594,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | unit, integration |
 | **TDD Workflow** | 1. RED: Write test: sync fetches new matches, upserts into SQLite, skips already-synced. 2. GREEN: Implement sync service with delta detection. 3. REFACTOR: Add progress events; handle partial failures. |
 | **Description** | In-process Faceit match sync (replaces web version's Redis Streams worker). Fetch recent matches, compare with SQLite, upsert new ones. No background job -- runs synchronously when triggered. Exposed as `SyncMatches()` Wails binding. |
-| **Key Files** | `backend/internal/faceit/sync.go`, `backend/internal/faceit/sync_test.go` |
+| **Key Files** | `internal/faceit/sync.go`, `internal/faceit/sync_test.go` |
 | **Acceptance Criteria** | - New matches inserted into SQLite |
 | | - Existing matches skipped (no duplicates) |
 | | - ELO before/after calculated correctly |
@@ -640,7 +640,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | unit, integration |
 | **TDD Workflow** | 1. RED: Write test: given a Faceit match with demo URL, download file and trigger import. 2. GREEN: Implement download with progress events. 3. REFACTOR: Add retry logic; handle large files. |
 | **Description** | Download `.dem` files from Faceit match data URLs. Save to a configurable local directory. Trigger import + parse after download. Exposed as `ImportMatchDemo(matchId)` binding. |
-| **Key Files** | `backend/internal/faceit/download.go`, `backend/internal/faceit/download_test.go` |
+| **Key Files** | `internal/faceit/download.go`, `internal/faceit/download_test.go` |
 | **Acceptance Criteria** | - Demo downloaded from Faceit URL to local directory |
 | | - Progress events emitted during download |
 | | - Import triggered automatically after download |
@@ -655,7 +655,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | unit, integration |
 | **TDD Workflow** | 1. RED: Write test: given demo IDs and filters, binding returns aggregated position/event data. 2. GREEN: Implement SQLite aggregation queries. 3. REFACTOR: Optimize query performance; add caching. |
 | **Description** | `GetHeatmapData()` binding: query tick_data and game_events tables with filters (demo IDs, map, side, weapon, player). Return aggregated position data suitable for KDE rendering. |
-| **Key Files** | `backend/internal/heatmap/service.go`, `backend/internal/heatmap/service_test.go` |
+| **Key Files** | `internal/heatmap/service.go`, `internal/heatmap/service_test.go` |
 | **Acceptance Criteria** | - Returns position data filtered by criteria |
 | | - Multi-demo aggregation works correctly |
 | | - Query performance < 500ms for 10-demo aggregate |
@@ -777,7 +777,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | unit, integration |
 | **TDD Workflow** | 1. RED: Write test: save board state as JSON to SQLite; load it back; verify equality. 2. GREEN: Implement serialize/deserialize + SaveBoard/GetBoard bindings. 3. REFACTOR: Add autosave with debouncing. |
 | **Description** | Serialize board state (all drawings, tokens, annotations) to JSON. Save to `strategy_boards.board_state` via `SaveBoard()` binding. Autosave on changes (debounced 1s). Load on board open. |
-| **Key Files** | `backend/internal/strat/service.go`, `backend/internal/strat/service_test.go`, `frontend/src/hooks/useAutoSave.ts` |
+| **Key Files** | `internal/strat/service.go`, `internal/strat/service_test.go`, `frontend/src/hooks/useAutoSave.ts` |
 | **Acceptance Criteria** | - Board state round-trips through JSON correctly |
 | | - Autosave triggers on changes (debounced) |
 | | - Board survives app restart |
@@ -820,7 +820,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | unit |
 | **TDD Workflow** | 1. RED: Write test: export board to JSON string; import from JSON creates new board. 2. GREEN: Implement ExportBoardJSON/ImportBoardJSON bindings. 3. REFACTOR: Add validation for imported JSON. |
 | **Description** | Export board as JSON file (for sharing via Discord, etc.). Import board from JSON file. Replaces web version's share links. |
-| **Key Files** | `backend/internal/strat/export.go`, `backend/internal/strat/export_test.go` |
+| **Key Files** | `internal/strat/export.go`, `internal/strat/export_test.go` |
 | **Acceptance Criteria** | - JSON export produces valid, importable JSON |
 | | - Import creates new board from JSON |
 | | - Invalid JSON shows descriptive error |
@@ -835,7 +835,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | unit, golden |
 | **TDD Workflow** | 1. RED: Write golden file test for grenade extraction (known throws from test demo). 2. GREEN: Add grenade throw/detonate event handlers to parser. 3. REFACTOR: Correlate throw with landing position. |
 | **Description** | Extend demo parser to extract grenade throws: thrower position, aim angles, grenade type, landing/detonation position. Correlate throw events with detonation events. Insert into `grenade_lineups` table. |
-| **Key Files** | `backend/internal/demo/grenades.go`, `backend/internal/demo/grenades_test.go` |
+| **Key Files** | `internal/demo/grenades.go`, `internal/demo/grenades_test.go` |
 | **Acceptance Criteria** | - Grenade throws extracted with correct positions and angles |
 | | - Throw correlated with landing position |
 | | - All grenade types handled (smoke, flash, HE, molotov) |
@@ -865,7 +865,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | unit, integration |
 | **TDD Workflow** | 1. RED: Write tests for UpdateLineup, DeleteLineup, ToggleFavorite. 2. GREEN: Implement CRUD bindings + SQLite queries. 3. REFACTOR: Add tag management; bulk operations. |
 | **Description** | Lineup management: edit title/description/tags, delete, toggle favorite. Custom notes per lineup. Tag-based filtering. |
-| **Key Files** | `backend/internal/lineup/service.go`, `backend/internal/lineup/service_test.go` |
+| **Key Files** | `internal/lineup/service.go`, `internal/lineup/service_test.go` |
 | **Acceptance Criteria** | - Update changes title, description, tags |
 | | - Delete removes lineup |
 | | - Toggle favorite flips is_favorite flag |
@@ -899,7 +899,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | unit (benchmarks) |
 | **TDD Workflow** | Benchmark critical SQLite queries. Profile demo parsing. Optimize based on data. |
 | **Description** | Profile demo parsing time and memory. Benchmark SQLite queries: tick range scans, event queries, heatmap aggregation. Optimize: query plans (EXPLAIN), index usage, transaction batch sizes. Ensure < 10s parse, < 50ms tick query. |
-| **Key Files** | Various `backend/internal/**/*_test.go` (benchmark functions) |
+| **Key Files** | Various `internal/**/*_test.go` (benchmark functions) |
 | **Acceptance Criteria** | - Demo parse < 10s for 100 MB demo |
 | | - Tick range query < 50ms |
 | | - Heatmap aggregation < 500ms for 10 demos |
@@ -929,7 +929,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Test Types** | unit |
 | **TDD Workflow** | 1. RED: Write test: given a GitHub Releases response with newer version, returns UpdateInfo. 2. GREEN: Implement version check + download link extraction. 3. REFACTOR: Add check frequency setting; dismissible notification. |
 | **Description** | On startup, check GitHub Releases API for newer version. Show non-intrusive notification if available. User-initiated download (open browser to release page). Configurable check frequency. |
-| **Key Files** | `backend/internal/app/updater.go`, `backend/internal/app/updater_test.go` |
+| **Key Files** | `internal/app/updater.go`, `internal/app/updater_test.go` |
 | **Acceptance Criteria** | - Detects newer version via GitHub Releases API |
 | | - Shows notification with version info |
 | | - User can dismiss or open download page |

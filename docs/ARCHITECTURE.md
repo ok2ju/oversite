@@ -792,23 +792,25 @@ export const MAP_CALIBRATION = {
 
 ```
 oversite/
-├── backend/
-│   ├── cmd/oversite/main.go        # Wails app entry point
-│   ├── internal/
-│   │   ├── app/                    # Wails App struct + bindings
-│   │   ├── auth/                   # OAuth loopback, keyring
-│   │   ├── config/                 # Env/file-based config
-│   │   ├── demo/                   # Parser, import service
-│   │   ├── faceit/                 # API client, sync
-│   │   ├── heatmap/                # KDE generation
-│   │   ├── lineup/                 # Grenade lineup service
-│   │   ├── model/                  # Domain types
-│   │   ├── store/                  # sqlc generated code (SQLite)
-│   │   ├── strat/                  # Strategy board service
-│   │   └── testutil/               # Shared test helpers
-│   ├── migrations/                 # SQL migration files (SQLite)
-│   ├── queries/                    # sqlc SQL files
-│   └── Makefile
+├── main.go                         # Wails entry point
+├── app.go                          # App struct (Startup/Shutdown)
+├── go.mod                          # Root Go module (github.com/ok2ju/oversite)
+├── wails.json                      # Wails project config
+├── internal/
+│   ├── auth/                       # OAuth loopback, keyring
+│   ├── config/                     # Env/file-based config
+│   ├── database/                   # SQLite connection, migrations
+│   ├── demo/                       # Parser, import service
+│   ├── faceit/                     # API client, sync
+│   ├── heatmap/                    # KDE generation
+│   ├── lineup/                     # Grenade lineup service
+│   ├── model/                      # Domain types
+│   ├── store/                      # sqlc generated code (SQLite)
+│   ├── strat/                      # Strategy board service
+│   └── testutil/                   # Shared test helpers
+├── migrations/                     # SQL migration files (SQLite, embedded)
+├── queries/                        # sqlc SQL files
+├── testdata/                       # Golden files for parser tests
 ├── frontend/
 │   ├── src/
 │   │   ├── routes/                 # react-router-dom pages
@@ -823,11 +825,13 @@ oversite/
 │   ├── public/maps/                # Radar images
 │   ├── index.html                  # Vite entry point
 │   └── vite.config.ts
+├── backend/                        # Web version (legacy, not used for desktop)
 ├── e2e/                            # Playwright E2E tests
-├── wails.json                      # Wails project config
 ├── Makefile                        # Root dev commands
 └── docs/                           # PRD, Architecture, Plans, ADRs
 ```
+
+> **Note:** All desktop Go code lives at the root module level. The `backend/` directory contains the web version's codebase and is **not** modified for desktop development.
 
 ---
 
