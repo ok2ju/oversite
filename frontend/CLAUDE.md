@@ -15,4 +15,4 @@ TDD (Red-Green-Refactor). All conventions below apply.
 - **Zustand stores**: Pure unit tests (no DOM needed).
 - **TanStack Query hooks**: `renderHook()` + MSW.
 - **PixiJS logic**: Unit-test transforms, interpolation, state. Visual output screenshot-tested with Playwright.
-- **Yjs**: Test with in-memory `Y.Doc` pairs.
+

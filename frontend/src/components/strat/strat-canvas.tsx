@@ -5,10 +5,7 @@ import { createViewerApp, type ViewerApp } from "@/lib/pixi/app"
 import { Camera } from "@/lib/pixi/camera"
 import { MapLayer } from "@/lib/pixi/layers/map-layer"
 import { StratRenderer } from "@/lib/strat/renderer"
-import { createStratDoc } from "@/lib/yjs/doc"
-import { createStratProvider, type StratProvider } from "@/lib/yjs/provider"
 import { useStratStore } from "@/stores/strat"
-import type * as Y from "yjs"
 
 export function StratCanvas() {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -23,10 +20,7 @@ export function StratCanvas() {
     let mapLayer: MapLayer | null = null
     let stratRenderer: StratRenderer | null = null
     let mapUnsub: (() => void) | null = null
-    let boardUnsub: (() => void) | null = null
     let resizeObserver: ResizeObserver | null = null
-    let currentDoc: Y.Doc | null = null
-    let currentProvider: StratProvider | null = null
 
     createViewerApp({ container }).then((app) => {
       if (destroyed) {
@@ -86,41 +80,16 @@ export function StratCanvas() {
         { fireImmediately: true },
       )
 
-      // Subscribe to boardId changes -> create/swap Yjs doc + provider
-      boardUnsub = useStratStore.subscribe(
-        (s) => s.boardId,
-        (boardId) => {
-          if (destroyed) return
-          // Clean up previous
-          stratRenderer?.detach()
-          currentProvider?.destroy()
-          currentDoc?.destroy()
-          currentProvider = null
-          currentDoc = null
-
-          if (boardId) {
-            currentDoc = createStratDoc()
-            currentProvider = createStratProvider({
-              stratId: boardId,
-              doc: currentDoc,
-            })
-            stratRenderer?.attach(currentDoc)
-          }
-        },
-        { fireImmediately: true },
-      )
+      // TODO: Subscribe to boardId changes and load strat data via Wails bindings
+      // when the desktop strat board is implemented (P5 tasks).
+      // Previously this used Yjs collaborative docs over WebSocket.
     })
 
     return () => {
       destroyed = true
       resizeObserver?.disconnect()
-      boardUnsub?.()
       mapUnsub?.()
       stratRenderer?.destroy()
-      currentProvider?.destroy()
-      currentProvider = null
-      currentDoc?.destroy()
-      currentDoc = null
       mapLayer?.destroy()
       camera?.destroy()
       viewerApp?.destroy()

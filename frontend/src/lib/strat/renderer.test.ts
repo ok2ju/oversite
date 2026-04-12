@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import * as Y from "yjs"
 import {
   createMockGraphics,
   createMockText,
@@ -37,8 +36,7 @@ vi.mock("pixi.js", () => ({
   }),
 }))
 
-import { StratRenderer, readElementData, computeArrowHead } from "./renderer"
-import { createDrawingElement, getDrawingElements } from "@/lib/yjs/doc"
+import { StratRenderer, computeArrowHead, type ElementData } from "./renderer"
 
 function createMockContainer() {
   return {
@@ -47,93 +45,27 @@ function createMockContainer() {
   }
 }
 
-function addElement(
-  doc: Y.Doc,
-  overrides: Partial<{
-    type: string
-    x: number
-    y: number
-    width: number
-    height: number
-    rotation: number
-    color: string
-    lineWidth: number
-    stroke_data: number[]
-    text: string
-    icon_name: string
-    label: string
-    created_by: string
-  }> = {},
-): string {
-  const elements = getDrawingElements(doc)
-  return createDrawingElement(
-    elements,
-    {
-      type: (overrides.type ?? "freehand") as "freehand",
-      x: overrides.x ?? 100,
-      y: overrides.y ?? 200,
-      width: overrides.width ?? 50,
-      height: overrides.height ?? 50,
-      rotation: overrides.rotation ?? 0,
-      color: overrides.color ?? "#ff0000",
-      lineWidth: overrides.lineWidth ?? 2,
-      stroke_data: overrides.stroke_data ?? [],
-      text: overrides.text,
-      icon_name: overrides.icon_name,
-      label: overrides.label,
-      created_by: overrides.created_by ?? "user-1",
-    },
-    doc,
-  )
+let nextId = 0
+function makeElement(overrides: Partial<ElementData> = {}): ElementData {
+  nextId++
+  return {
+    id: overrides.id ?? `el-${nextId}`,
+    type: overrides.type ?? "freehand",
+    x: overrides.x ?? 100,
+    y: overrides.y ?? 200,
+    width: overrides.width ?? 50,
+    height: overrides.height ?? 50,
+    rotation: overrides.rotation ?? 0,
+    color: overrides.color ?? "#ff0000",
+    lineWidth: overrides.lineWidth ?? 2,
+    stroke_data: overrides.stroke_data ?? [],
+    text: overrides.text,
+    icon_name: overrides.icon_name,
+    label: overrides.label,
+    created_by: overrides.created_by ?? "user-1",
+    created_at: overrides.created_at ?? Date.now(),
+  }
 }
-
-describe("readElementData", () => {
-  it("extracts all properties from Y.Map into a plain object", () => {
-    const doc = new Y.Doc()
-    const elements = getDrawingElements(doc)
-    addElement(doc, { type: "line", x: 10, y: 20, width: 100, height: 50 })
-
-    const elementMap = elements.get(0)
-    const data = readElementData(elementMap)
-
-    expect(data.type).toBe("line")
-    expect(data.x).toBe(10)
-    expect(data.y).toBe(20)
-    expect(data.width).toBe(100)
-    expect(data.height).toBe(50)
-    expect(data.color).toBe("#ff0000")
-    expect(data.lineWidth).toBe(2)
-    expect(data.id).toBeDefined()
-    expect(data.created_by).toBe("user-1")
-  })
-
-  it("handles empty stroke_data", () => {
-    const doc = new Y.Doc()
-    const elements = getDrawingElements(doc)
-    addElement(doc, { stroke_data: [] })
-
-    const data = readElementData(elements.get(0))
-    expect(data.stroke_data).toEqual([])
-  })
-
-  it("reads stroke_data with values", () => {
-    const doc = new Y.Doc()
-    const elements = getDrawingElements(doc)
-    addElement(doc, { stroke_data: [10, 20, 30, 40] })
-
-    const data = readElementData(elements.get(0))
-    expect(data.stroke_data).toEqual([10, 20, 30, 40])
-  })
-
-  it("handles optional text field", () => {
-    const doc = new Y.Doc()
-    const elements = getDrawingElements(doc)
-    addElement(doc, { type: "text", text: "Rush B" })
-
-    const data = readElementData(elements.get(0))
-    expect(data.text).toBe("Rush B")
-  })
-})
 
 describe("computeArrowHead", () => {
   it("computes arrowhead points for a horizontal line (left to right)", () => {
@@ -175,6 +107,7 @@ describe("StratRenderer", () => {
   let renderer: StratRenderer
 
   beforeEach(() => {
+    nextId = 0
     mockGraphicsInstances.length = 0
     mockTextInstances.length = 0
     vi.clearAllMocks()
@@ -182,101 +115,77 @@ describe("StratRenderer", () => {
     renderer = new StratRenderer(container as never)
   })
 
-  describe("attach / full sync", () => {
-    it("renders all existing elements on attach", () => {
-      const doc = new Y.Doc()
-      addElement(doc, { type: "line" })
-      addElement(doc, { type: "rectangle" })
+  describe("addElement", () => {
+    it("creates a Graphics and adds it to the container", () => {
+      renderer.addElement(makeElement({ type: "line" }))
 
-      renderer.attach(doc)
+      expect(mockGraphicsInstances).toHaveLength(1)
+      expect(container.addChild).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe("sync", () => {
+    it("renders all elements in the data array", () => {
+      renderer.sync([
+        makeElement({ id: "a", type: "line" }),
+        makeElement({ id: "b", type: "rectangle" }),
+      ])
 
       expect(mockGraphicsInstances).toHaveLength(2)
       expect(container.addChild).toHaveBeenCalledTimes(2)
     })
 
     it("creates no Graphics for empty array", () => {
-      const doc = new Y.Doc()
-
-      renderer.attach(doc)
+      renderer.sync([])
 
       expect(mockGraphicsInstances).toHaveLength(0)
       expect(container.addChild).not.toHaveBeenCalled()
     })
-  })
 
-  describe("Yjs change -> re-render", () => {
-    it("adds a new Graphics when element is added after attach", () => {
-      const doc = new Y.Doc()
-      renderer.attach(doc)
-
-      addElement(doc, { type: "freehand" })
-
-      expect(mockGraphicsInstances).toHaveLength(1)
-      expect(container.addChild).toHaveBeenCalledTimes(1)
-    })
-
-    it("removes Graphics when element is removed", () => {
-      const doc = new Y.Doc()
-      const id = addElement(doc, { type: "line" })
-      renderer.attach(doc)
-
-      const elements = getDrawingElements(doc)
+    it("removes elements no longer present", () => {
+      const el = makeElement({ id: "a", type: "line" })
+      renderer.sync([el])
       expect(mockGraphicsInstances).toHaveLength(1)
 
-      // Remove element
-      doc.transact(() => {
-        for (let i = 0; i < elements.length; i++) {
-          if (elements.get(i).get("id") === id) {
-            elements.delete(i, 1)
-            break
-          }
-        }
-      })
+      renderer.sync([])
 
       expect(container.removeChild).toHaveBeenCalled()
       expect(mockGraphicsInstances[0].destroy).toHaveBeenCalled()
     })
 
-    it("re-renders when a property changes", () => {
-      const doc = new Y.Doc()
-      addElement(doc, { type: "line" })
-      renderer.attach(doc)
+    it("re-renders when data changes", () => {
+      const el = makeElement({ id: "a", type: "line", color: "#ff0000" })
+      renderer.sync([el])
 
       const g = mockGraphicsInstances[0]
       g.clear.mockClear()
 
-      // Change a property
-      const elements = getDrawingElements(doc)
-      elements.get(0).set("color", "#00ff00")
-
-      expect(g.clear).toHaveBeenCalled()
-    })
-
-    it("re-renders when stroke_data is appended", () => {
-      const doc = new Y.Doc()
-      addElement(doc, { type: "freehand", stroke_data: [0, 0] })
-      renderer.attach(doc)
-
-      const g = mockGraphicsInstances[0]
-      g.clear.mockClear()
-
-      // Append stroke data
-      const elements = getDrawingElements(doc)
-      const strokeArr = elements.get(0).get("stroke_data") as Y.Array<number>
-      strokeArr.push([10, 20, 30, 40])
+      renderer.sync([{ ...el, color: "#00ff00" }])
 
       expect(g.clear).toHaveBeenCalled()
     })
   })
 
+  describe("removeElement", () => {
+    it("destroys Graphics and removes from container", () => {
+      const el = makeElement({ id: "a", type: "line" })
+      renderer.addElement(el)
+
+      renderer.removeElement("a")
+
+      expect(container.removeChild).toHaveBeenCalled()
+      expect(mockGraphicsInstances[0].destroy).toHaveBeenCalled()
+    })
+  })
+
   describe("element type rendering", () => {
     it("renders freehand with moveTo/lineTo from stroke_data", () => {
-      const doc = new Y.Doc()
-      addElement(doc, {
-        type: "freehand",
-        stroke_data: [10, 20, 30, 40, 50, 60],
-      })
-      renderer.attach(doc)
+      renderer.addElement(
+        makeElement({
+          type: "freehand",
+          stroke_data: [10, 20, 30, 40, 50, 60],
+        }),
+      )
 
       const g = mockGraphicsInstances[0]
       expect(g.moveTo).toHaveBeenCalled()
@@ -285,9 +194,9 @@ describe("StratRenderer", () => {
     })
 
     it("renders line with moveTo/lineTo", () => {
-      const doc = new Y.Doc()
-      addElement(doc, { type: "line", x: 10, y: 20, width: 100, height: 50 })
-      renderer.attach(doc)
+      renderer.addElement(
+        makeElement({ type: "line", x: 10, y: 20, width: 100, height: 50 }),
+      )
 
       const g = mockGraphicsInstances[0]
       expect(g.moveTo).toHaveBeenCalledWith(10, 20)
@@ -296,9 +205,9 @@ describe("StratRenderer", () => {
     })
 
     it("renders arrow with line + arrowhead polygon", () => {
-      const doc = new Y.Doc()
-      addElement(doc, { type: "arrow", x: 0, y: 0, width: 100, height: 0 })
-      renderer.attach(doc)
+      renderer.addElement(
+        makeElement({ type: "arrow", x: 0, y: 0, width: 100, height: 0 }),
+      )
 
       const g = mockGraphicsInstances[0]
       expect(g.moveTo).toHaveBeenCalled()
@@ -308,15 +217,15 @@ describe("StratRenderer", () => {
     })
 
     it("renders rectangle with rect()", () => {
-      const doc = new Y.Doc()
-      addElement(doc, {
-        type: "rectangle",
-        x: 10,
-        y: 20,
-        width: 100,
-        height: 80,
-      })
-      renderer.attach(doc)
+      renderer.addElement(
+        makeElement({
+          type: "rectangle",
+          x: 10,
+          y: 20,
+          width: 100,
+          height: 80,
+        }),
+      )
 
       const g = mockGraphicsInstances[0]
       expect(g.rect).toHaveBeenCalledWith(10, 20, 100, 80)
@@ -324,9 +233,9 @@ describe("StratRenderer", () => {
     })
 
     it("renders circle with circle()", () => {
-      const doc = new Y.Doc()
-      addElement(doc, { type: "circle", x: 50, y: 50, width: 40, height: 40 })
-      renderer.attach(doc)
+      renderer.addElement(
+        makeElement({ type: "circle", x: 50, y: 50, width: 40, height: 40 }),
+      )
 
       const g = mockGraphicsInstances[0]
       expect(g.circle).toHaveBeenCalledWith(50, 50, 20)
@@ -334,26 +243,23 @@ describe("StratRenderer", () => {
     })
 
     it("renders text with PixiJS Text object", () => {
-      const doc = new Y.Doc()
-      addElement(doc, {
-        type: "text",
-        text: "Rush B",
-        x: 100,
-        y: 200,
-        color: "#ff0000",
-      })
-      renderer.attach(doc)
+      renderer.addElement(
+        makeElement({
+          type: "text",
+          text: "Rush B",
+          x: 100,
+          y: 200,
+          color: "#ff0000",
+        }),
+      )
 
-      // Text type creates both a Graphics (placeholder) and a Text
       expect(mockTextInstances).toHaveLength(1)
       expect(mockTextInstances[0].position.set).toHaveBeenCalledWith(100, 200)
       expect(container.addChild).toHaveBeenCalled()
     })
 
     it("renders icon as filled circle placeholder", () => {
-      const doc = new Y.Doc()
-      addElement(doc, { type: "icon", x: 50, y: 50 })
-      renderer.attach(doc)
+      renderer.addElement(makeElement({ type: "icon", x: 50, y: 50 }))
 
       const g = mockGraphicsInstances[0]
       expect(g.circle).toHaveBeenCalled()
@@ -361,9 +267,7 @@ describe("StratRenderer", () => {
     })
 
     it("renders player_token as filled circle placeholder", () => {
-      const doc = new Y.Doc()
-      addElement(doc, { type: "player_token", x: 50, y: 50 })
-      renderer.attach(doc)
+      renderer.addElement(makeElement({ type: "player_token", x: 50, y: 50 }))
 
       const g = mockGraphicsInstances[0]
       expect(g.circle).toHaveBeenCalled()
@@ -371,9 +275,7 @@ describe("StratRenderer", () => {
     })
 
     it("renders grenade_marker as filled circle placeholder", () => {
-      const doc = new Y.Doc()
-      addElement(doc, { type: "grenade_marker", x: 50, y: 50 })
-      renderer.attach(doc)
+      renderer.addElement(makeElement({ type: "grenade_marker", x: 50, y: 50 }))
 
       const g = mockGraphicsInstances[0]
       expect(g.circle).toHaveBeenCalled()
@@ -381,9 +283,7 @@ describe("StratRenderer", () => {
     })
 
     it("renders waypoint as filled circle placeholder", () => {
-      const doc = new Y.Doc()
-      addElement(doc, { type: "waypoint", x: 50, y: 50 })
-      renderer.attach(doc)
+      renderer.addElement(makeElement({ type: "waypoint", x: 50, y: 50 }))
 
       const g = mockGraphicsInstances[0]
       expect(g.circle).toHaveBeenCalled()
@@ -391,42 +291,23 @@ describe("StratRenderer", () => {
     })
   })
 
-  describe("detach", () => {
-    it("clears all Graphics and stops observing", () => {
-      const doc = new Y.Doc()
-      addElement(doc, { type: "line" })
-      addElement(doc, { type: "rectangle" })
-      renderer.attach(doc)
+  describe("clear", () => {
+    it("destroys all Graphics and Text objects", () => {
+      renderer.addElement(makeElement({ id: "a", type: "line" }))
+      renderer.addElement(makeElement({ id: "b", type: "rectangle" }))
 
-      expect(mockGraphicsInstances).toHaveLength(2)
-
-      renderer.detach()
+      renderer.clear()
 
       expect(mockGraphicsInstances[0].destroy).toHaveBeenCalled()
       expect(mockGraphicsInstances[1].destroy).toHaveBeenCalled()
       expect(container.removeChild).toHaveBeenCalledTimes(2)
     })
-
-    it("further Yjs changes have no effect after detach", () => {
-      const doc = new Y.Doc()
-      renderer.attach(doc)
-      renderer.detach()
-
-      const addChildCalls = container.addChild.mock.calls.length
-
-      addElement(doc, { type: "line" })
-
-      // No new Graphics should be created
-      expect(container.addChild.mock.calls.length).toBe(addChildCalls)
-    })
   })
 
   describe("destroy", () => {
     it("calls destroy on all Graphics and Text objects", () => {
-      const doc = new Y.Doc()
-      addElement(doc, { type: "line" })
-      addElement(doc, { type: "text", text: "test" })
-      renderer.attach(doc)
+      renderer.addElement(makeElement({ id: "a", type: "line" }))
+      renderer.addElement(makeElement({ id: "b", type: "text", text: "test" }))
 
       renderer.destroy()
 
@@ -440,36 +321,14 @@ describe("StratRenderer", () => {
   })
 
   describe("batch rendering", () => {
-    it("handles 100+ elements on attach", () => {
-      const doc = new Y.Doc()
-      doc.transact(() => {
-        for (let i = 0; i < 100; i++) {
-          addElement(doc, { type: "line", x: i, y: i })
-        }
-      })
+    it("handles 100+ elements via sync", () => {
+      const data = Array.from({ length: 100 }, (_, i) =>
+        makeElement({ id: `el-batch-${i}`, type: "line", x: i, y: i }),
+      )
 
-      renderer.attach(doc)
+      renderer.sync(data)
 
       expect(mockGraphicsInstances).toHaveLength(100)
-    })
-
-    it("targeted update only affects changed element", () => {
-      const doc = new Y.Doc()
-      addElement(doc, { type: "line" })
-      addElement(doc, { type: "rectangle" })
-      renderer.attach(doc)
-
-      const g0 = mockGraphicsInstances[0]
-      const g1 = mockGraphicsInstances[1]
-      g0.clear.mockClear()
-      g1.clear.mockClear()
-
-      // Change only the first element
-      const elements = getDrawingElements(doc)
-      elements.get(0).set("color", "#00ff00")
-
-      expect(g0.clear).toHaveBeenCalled()
-      expect(g1.clear).not.toHaveBeenCalled()
     })
   })
 })

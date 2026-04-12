@@ -1,6 +1,4 @@
 # Go
-backend/cmd/oversite/oversite
-backend/oversite
 *.exe
 *.exe~
 *.dll
@@ -10,19 +8,19 @@ backend/oversite
 *.out
 vendor/
 
+# Wails binary
+oversite
+build/bin/
+
 # Node / Frontend
 node_modules/
 .pnpm-store/
-.next/
-out/
-frontend/.next/
-frontend/out/
+frontend/dist/
 *.tsbuildinfo
 
 # Environment
 .env
 .env.*
-!.env.example
 
 # IDE
 .idea/
@@ -34,13 +32,6 @@ frontend/out/
 # OS
 .DS_Store
 Thumbs.db
-
-# TLS certs (local dev)
-nginx/certs/
-
-# Docker volumes
-data/
-minio-data/
 
 # Debug
 *.log
@@ -62,10 +53,6 @@ lefthook-local.yml
 
 # Claude Code hooks temp files
 .claude/.edited-files
-
-# Wails
-build/bin/
-frontend/dist/
 
 # Temporary
 tmp/

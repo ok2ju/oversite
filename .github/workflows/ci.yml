@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   # ========================
-  # Go Backend
+  # Go (root module)
   # ========================
   go-lint:
     name: Go Lint
@@ -22,9 +22,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
-          cache-dependency-path: backend/go.sum
+          cache-dependency-path: go.sum
       - name: golangci-lint
-        working-directory: backend
         run: go tool golangci-lint run ./...
 
   go-test:
@@ -35,28 +34,14 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
-          cache-dependency-path: backend/go.sum
+          cache-dependency-path: go.sum
       - name: Run unit tests
-        working-directory: backend
         run: go test -race -coverprofile=coverage.out ./...
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:
           name: go-coverage
-          path: backend/coverage.out
-
-  go-integration:
-    name: Go Integration Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.26"
-          cache-dependency-path: backend/go.sum
-      - name: Run integration tests
-        working-directory: backend
-        run: go test -tags integration -race -count=1 -timeout 300s ./...
+          path: coverage.out
 
   go-build:
     name: Go Build
@@ -66,10 +51,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
-          cache-dependency-path: backend/go.sum
-      - name: Build binary
-        working-directory: backend
-        run: CGO_ENABLED=0 go build -o oversite ./cmd/oversite
+          cache-dependency-path: go.sum
+      - name: Build
+        run: go build ./...
 
   # ========================
   # Frontend
@@ -95,7 +79,7 @@ jobs:
         run: pnpm lint
       - name: Typecheck
         working-directory: frontend
-        run: pnpm tsc --noEmit
+        run: pnpm typecheck
 
   frontend-test:
     name: Frontend Unit Tests
@@ -136,16 +120,3 @@ jobs:
       - name: Build
         working-directory: frontend
         run: pnpm build
-
-  # ========================
-  # Docker
-  # ========================
-  docker-build:
-    name: Docker Build Validation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build backend image
-        run: docker build -t oversite-backend ./backend
-      - name: Build frontend image
-        run: docker build -t oversite-frontend ./frontend
