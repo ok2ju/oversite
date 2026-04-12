@@ -195,7 +195,7 @@ T01 (Wails init) ──┬── T02 (SQLite) ──┬── T03 (sqlc)
 
 ---
 
-### T07: Set Up CI Pipeline
+### T07: Set Up CI Pipeline -- COMPLETED
 
 **Complexity:** M | **Depends on:** T01, T09, T10
 

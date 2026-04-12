@@ -43,18 +43,6 @@ jobs:
           name: go-coverage
           path: coverage.out
 
-  go-build:
-    name: Go Build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.26"
-          cache-dependency-path: go.sum
-      - name: Build
-        run: go build ./...
-
   # ========================
   # Frontend
   # ========================
@@ -101,11 +89,26 @@ jobs:
         working-directory: frontend
         run: pnpm test
 
-  frontend-build:
-    name: Frontend Build
-    runs-on: ubuntu-latest
+  # ========================
+  # Wails Build (replaces separate go-build + frontend-build)
+  # ========================
+  wails-build:
+    name: Wails Build (${{ matrix.os }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            runner: ubuntu-latest
+          - os: macos
+            runner: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache-dependency-path: go.sum
       - uses: pnpm/action-setup@v4
         with:
           version: 9
@@ -114,9 +117,25 @@ jobs:
           node-version: "20"
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
-      - name: Install dependencies
+
+      - name: Install Linux dependencies
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev build-essential pkg-config
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install frontend dependencies
         working-directory: frontend
         run: pnpm install --frozen-lockfile
+
       - name: Build
-        working-directory: frontend
-        run: pnpm build
+        run: wails build
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: oversite-${{ matrix.os }}
+          path: build/bin/
