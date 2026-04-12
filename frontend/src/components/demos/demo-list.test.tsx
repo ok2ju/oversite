@@ -37,7 +37,7 @@ describe("DemoList", () => {
 
     expect(screen.getByText("ready")).toBeInTheDocument()
     expect(screen.getByText("parsing")).toBeInTheDocument()
-    expect(screen.getByText("uploaded")).toBeInTheDocument()
+    expect(screen.getByText("imported")).toBeInTheDocument()
     expect(screen.getByText("failed")).toBeInTheDocument()
   })
 
@@ -50,7 +50,7 @@ describe("DemoList", () => {
     )
 
     await user.click(screen.getByText("de_dust2"))
-    expect(mockNavigate).toHaveBeenCalledWith("/demos/demo-1")
+    expect(mockNavigate).toHaveBeenCalledWith("/demos/1")
   })
 
   it("does not navigate when clicking a non-ready demo", async () => {
@@ -97,11 +97,11 @@ describe("DemoList", () => {
 
     await user.click(screen.getByRole("button", { name: /delete/i }))
     await user.click(screen.getByRole("button", { name: /confirm/i }))
-    expect(onDelete).toHaveBeenCalledWith("demo-1")
+    expect(onDelete).toHaveBeenCalledWith(1)
   })
 
-  it("shows 'Unknown Map' when map_name is null", () => {
-    const demo: Demo = { ...mockDemos[2], status: "uploaded" }
+  it("shows 'Unknown Map' when map_name is empty", () => {
+    const demo: Demo = { ...mockDemos[2], map_name: "" }
     renderWithProviders(
       <DemoList demos={[demo]} isLoading={false} onDelete={vi.fn()} />,
     )

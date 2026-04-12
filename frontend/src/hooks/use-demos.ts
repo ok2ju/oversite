@@ -24,7 +24,7 @@ export function useDemos(page = 1, perPage = 20) {
       const data = query.state.data
       if (!data) return false
       const hasActive = data.data.some(
-        (d) => d.status === "uploaded" || d.status === "parsing",
+        (d) => d.status === "imported" || d.status === "parsing",
       )
       return hasActive ? 5000 : false
     },
@@ -94,7 +94,7 @@ export function useDeleteDemo() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: (id: string) =>
+    mutationFn: (id: number) =>
       fetch(`/api/v1/demos/${id}`, {
         method: "DELETE",
         credentials: "include",

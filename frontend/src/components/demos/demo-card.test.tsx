@@ -29,8 +29,8 @@ describe("DemoCard", () => {
     expect(screen.getByText("33:20")).toBeInTheDocument()
   })
 
-  it("shows 'Unknown Map' when map_name is null", () => {
-    const demo: Demo = { ...mockDemos[2] }
+  it("shows 'Unknown Map' when map_name is empty", () => {
+    const demo: Demo = { ...mockDemos[2], map_name: "" }
     renderWithProviders(<DemoCard demo={demo} onDelete={vi.fn()} />)
 
     expect(screen.getByText("Unknown Map")).toBeInTheDocument()
@@ -55,7 +55,7 @@ describe("DemoCard", () => {
     renderWithProviders(<DemoCard demo={readyDemo()} onDelete={vi.fn()} />)
 
     await user.click(screen.getByText("de_dust2"))
-    expect(mockNavigate).toHaveBeenCalledWith("/demos/demo-1")
+    expect(mockNavigate).toHaveBeenCalledWith("/demos/1")
   })
 
   it("does not navigate when clicking a non-ready demo", async () => {

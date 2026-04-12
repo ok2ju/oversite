@@ -90,7 +90,7 @@ T01 (Wails init) ──┬── T02 (SQLite) ──┬── T03 (sqlc)
 
 ---
 
-### T04: Scaffold Vite + React Frontend
+### T04: Scaffold Vite + React Frontend -- COMPLETED
 
 **Complexity:** M | **Depends on:** T01
 
@@ -170,7 +170,7 @@ T01 (Wails init) ──┬── T02 (SQLite) ──┬── T03 (sqlc)
 
 ---
 
-### T06: Set Up Zustand Stores (Skeleton)
+### T06: Set Up Zustand Stores (Skeleton) -- COMPLETED
 
 **Complexity:** S | **Depends on:** T04
 

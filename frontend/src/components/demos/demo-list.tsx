@@ -8,7 +8,7 @@ import type { Demo } from "@/types/demo"
 interface DemoListProps {
   demos: Demo[]
   isLoading: boolean
-  onDelete: (id: string) => void
+  onDelete: (id: number) => void
 }
 
 export function DemoList({ demos, isLoading, onDelete }: DemoListProps) {

@@ -81,8 +81,9 @@ export const mockFaceitMatches: FaceitMatch[] = [
 
 export const mockDemos: Demo[] = [
   {
-    id: "demo-1",
+    id: 1,
     map_name: "de_dust2",
+    file_path: "/Users/test/demos/match1.dem",
     file_size: 150_000_000,
     status: "ready",
     total_ticks: 128000,
@@ -92,36 +93,39 @@ export const mockDemos: Demo[] = [
     created_at: "2026-03-01T19:00:00Z",
   },
   {
-    id: "demo-2",
+    id: 2,
     map_name: "de_mirage",
+    file_path: "/Users/test/demos/match2.dem",
     file_size: 120_000_000,
     status: "parsing",
-    total_ticks: null,
-    tick_rate: null,
-    duration_secs: null,
-    match_date: null,
+    total_ticks: 0,
+    tick_rate: 0,
+    duration_secs: 0,
+    match_date: "",
     created_at: "2026-03-02T10:00:00Z",
   },
   {
-    id: "demo-3",
-    map_name: null,
+    id: 3,
+    map_name: "de_ancient",
+    file_path: "/Users/test/demos/match3.dem",
     file_size: 80_000_000,
-    status: "uploaded",
-    total_ticks: null,
-    tick_rate: null,
-    duration_secs: null,
-    match_date: null,
+    status: "imported",
+    total_ticks: 0,
+    tick_rate: 0,
+    duration_secs: 0,
+    match_date: "",
     created_at: "2026-03-03T12:00:00Z",
   },
   {
-    id: "demo-4",
+    id: 4,
     map_name: "de_inferno",
+    file_path: "/Users/test/demos/match4.dem",
     file_size: 140_000_000,
     status: "failed",
-    total_ticks: null,
-    tick_rate: null,
-    duration_secs: null,
-    match_date: null,
+    total_ticks: 0,
+    tick_rate: 0,
+    duration_secs: 0,
+    match_date: "",
     created_at: "2026-03-04T08:00:00Z",
   },
 ]
@@ -148,7 +152,7 @@ export const handlers = [
   }),
 
   http.get("/api/v1/demos/:id", ({ params }) => {
-    const demo = mockDemos.find((d) => d.id === params.id)
+    const demo = mockDemos.find((d) => d.id === Number(params.id))
     if (!demo) {
       return HttpResponse.json({ error: "demo not found" }, { status: 404 })
     }
@@ -159,8 +163,8 @@ export const handlers = [
     return HttpResponse.json(
       {
         data: {
-          id: "demo-new",
-          status: "uploaded",
+          id: 99,
+          status: "imported",
           file_size: 100_000_000,
           created_at: new Date().toISOString(),
         },
@@ -170,7 +174,7 @@ export const handlers = [
   }),
 
   http.delete("/api/v1/demos/:id", ({ params }) => {
-    const demo = mockDemos.find((d) => d.id === params.id)
+    const demo = mockDemos.find((d) => d.id === Number(params.id))
     if (!demo) {
       return HttpResponse.json({ error: "demo not found" }, { status: 404 })
     }
@@ -178,7 +182,7 @@ export const handlers = [
   }),
 
   http.get("/api/v1/demos/:id/events", ({ params }) => {
-    const demo = mockDemos.find((d) => d.id === params.id)
+    const demo = mockDemos.find((d) => d.id === Number(params.id))
     if (!demo) {
       return HttpResponse.json({ error: "demo not found" }, { status: 404 })
     }
@@ -286,7 +290,7 @@ export const handlers = [
   }),
 
   http.get("/api/v1/demos/:id/rounds", ({ params }) => {
-    const demo = mockDemos.find((d) => d.id === params.id)
+    const demo = mockDemos.find((d) => d.id === Number(params.id))
     if (!demo) {
       return HttpResponse.json({ error: "demo not found" }, { status: 404 })
     }
@@ -332,7 +336,7 @@ export const handlers = [
     const url = new URL(request.url)
     const startTick = Number(url.searchParams.get("start_tick") ?? "0")
     const endTick = Number(url.searchParams.get("end_tick") ?? "0")
-    const demo = mockDemos.find((d) => d.id === params.id)
+    const demo = mockDemos.find((d) => d.id === Number(params.id))
     if (!demo) {
       return HttpResponse.json({ error: "demo not found" }, { status: 404 })
     }
