@@ -1,7 +1,7 @@
 # ADR-0004: Use TimescaleDB Hypertable for Tick-Level Player Position Data
 
 **Date:** 2026-03-31
-**Status:** Accepted
+**Status:** Superseded by [ADR-0008](0008-sqlite-local-database.md)
 
 ## Context
 

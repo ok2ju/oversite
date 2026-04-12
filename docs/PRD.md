@@ -1,7 +1,7 @@
 # Oversite -- Product Requirements Document
 
-> **Version:** 1.0
-> **Last Updated:** 2026-03-31
+> **Version:** 2.0
+> **Last Updated:** 2026-04-12
 > **Status:** Draft
 
 ---
@@ -16,31 +16,38 @@
 6. [User Stories](#6-user-stories)
 7. [Non-Functional Requirements](#7-non-functional-requirements)
 8. [Data Models](#8-data-models)
-9. [API Design Overview](#9-api-design-overview)
+9. [Wails Bindings Overview](#9-wails-bindings-overview)
 
 ---
 
 ## 1. Product Vision
 
-**Oversite** is a web-based 2D demo viewer and analytics platform for Counter-Strike 2 (CS2) Faceit players. It transforms raw `.dem` files into interactive playback, heatmaps, strategy boards, and stat dashboards -- giving competitive players the tools to study their game without leaving the browser.
+**Oversite** is a desktop 2D demo viewer and analytics platform for Counter-Strike 2 (CS2) Faceit players. It transforms local `.dem` files into interactive playback, heatmaps, strategy boards, and stat dashboards -- giving competitive players the tools to study their game on their own machine, with zero cloud infrastructure.
 
 ### Problem Statement
 
-CS2 players on Faceit lack a unified, web-accessible tool to:
+CS2 players on Faceit lack a fast, unified tool to:
 
 - Review demo playback in 2D (top-down) without launching CS2
 - Aggregate statistics across multiple demos and Faceit matches
-- Collaborate on strategies in real time with teammates
-- Catalog and share grenade lineups extracted from actual gameplay
+- Plan strategies on a map canvas with drawing tools
+- Catalog and browse grenade lineups extracted from actual gameplay
+
+### Why Desktop
+
+- **No upload latency**: Demos are already on disk; parsing starts instantly
+- **No infrastructure cost**: No servers to host or maintain
+- **Full hardware utilization**: Gamers have capable machines; leverage local CPU/GPU
+- **Simpler architecture**: Single binary, single process, local database
 
 ### Product Goals
 
 | # | Goal | Success Metric |
 |---|------|---------------|
-| G1 | Instant demo playback | < 30s from upload to first frame rendered |
+| G1 | Instant demo playback | < 10s from selecting a local `.dem` to first frame rendered |
 | G2 | Cross-demo analytics | Heatmaps aggregating 10+ demos render in < 5s |
-| G3 | Real-time collaboration | Strat board syncs across 5 concurrent users with < 200ms latency |
-| G4 | Grenade knowledge base | Users can save, tag, and share lineups |
+| G3 | Local strategy planning | Drawing tools responsive at 60 FPS on the map canvas |
+| G4 | Grenade knowledge base | Users can browse, save, tag, and filter lineups |
 | G5 | Faceit integration | Auto-fetch recent matches, display ELO history |
 
 ---
@@ -55,7 +62,7 @@ CS2 players on Faceit lack a unified, web-accessible tool to:
 | Goal | Identify personal mistakes, track ELO trends |
 | Pain Point | Rewatching full demos in-game is slow; no easy cross-demo stats |
 | Key Features | 2D Viewer, Heatmaps, Faceit Stats Dashboard |
-| Technical Level | Comfortable with web apps, not a developer |
+| Technical Level | Comfortable installing desktop apps; not a developer |
 
 ### Persona 2: Team IGL ("Sofia")
 
@@ -73,9 +80,9 @@ CS2 players on Faceit lack a unified, web-accessible tool to:
 |-----------|--------|
 | Role | Content creator / coach who reviews others' demos |
 | Goal | Quickly scrub through demos, generate visual insights for content |
-| Pain Point | Existing tools require desktop apps or CS2 running |
-| Key Features | 2D Viewer (speed controls), Heatmaps, shareable links |
-| Technical Level | High; comfortable with web tools and data |
+| Pain Point | Existing tools require CS2 running or clunky web uploads |
+| Key Features | 2D Viewer (speed controls), Heatmaps, PNG export |
+| Technical Level | High; comfortable with desktop tools and data |
 
 ---
 
@@ -83,50 +90,45 @@ CS2 players on Faceit lack a unified, web-accessible tool to:
 
 | Layer | Technology | Notes |
 |-------|-----------|-------|
-| **Frontend** | Next.js 14+ (App Router) | Server components, file-based routing |
+| **Desktop Framework** | Wails v2 | Go backend + system WebView; single binary output |
+| **Frontend** | Vite + React 18 | SPA with react-router-dom; embedded via `embed.FS` |
 | **UI Components** | shadcn/ui + Tailwind CSS | Accessible, themeable component library |
 | **2D Rendering** | PixiJS v8 | WebGL canvas for performant 2D playback |
 | **State Management** | Zustand | Lightweight stores, selector-based subscriptions |
-| **Data Fetching** | TanStack Query v5 | Server state caching, background refetch |
-| **Backend** | Go 1.22+ + chi router | High-performance HTTP + middleware |
+| **Data Fetching** | TanStack Query v5 | Caches Wails binding responses; background refetch for Faceit data |
+| **Backend** | Go 1.22+ | Business logic exposed as Wails bindings |
 | **Demo Parser** | markus-wa/demoinfocs-golang v5 | Only mature Go-based CS2 demo parser |
-| **Database** | PostgreSQL 16 + TimescaleDB | Hypertables for tick-level time-series data |
-| **SQL Generation** | sqlc | Type-safe Go code from SQL queries |
-| **Cache / Queue** | Redis 7 | Sessions, caching, job queue via Redis Streams |
-| **Object Storage** | MinIO | S3-compatible; stores `.dem` files and assets |
-| **Real-time** | WebSocket (gorilla/websocket) | Bidirectional for playback sync + strat collab |
-| **CRDT** | Yjs | Conflict-free collaboration for strategy board |
-| **Auth** | Faceit OAuth 2.0 | Single sign-on for target audience |
-| **Containerization** | Docker Compose | Local dev + production-ready |
+| **Database** | SQLite (modernc.org/sqlite) | Pure Go, CGo-free; WAL mode; local file |
+| **SQL Generation** | sqlc (SQLite dialect) | Type-safe Go code from SQL queries |
+| **Auth** | Faceit OAuth 2.0 + PKCE | Loopback redirect flow (RFC 8252) |
+| **Token Storage** | zalando/go-keyring | OS keychain (Keychain, Credential Manager, Secret Service) |
+| **Routing** | react-router-dom v6 | Client-side SPA routing |
 
 ---
 
 ## 4. Information Architecture
 
-### Next.js Route Structure
+### React Router Structure
 
 ```
-app/
-├── (auth)/
-│   ├── login/page.tsx              # Faceit OAuth login
-│   └── callback/page.tsx           # OAuth callback handler
-├── (app)/
-│   ├── layout.tsx                  # Authenticated shell (sidebar + header)
-│   ├── dashboard/page.tsx          # Faceit stats overview
+src/
+├── routes/
+│   ├── root.tsx                    # App shell (sidebar + header + Outlet)
+│   ├── login.tsx                   # Faceit OAuth login trigger
+│   ├── dashboard.tsx               # Faceit stats overview
 │   ├── demos/
-│   │   ├── page.tsx                # Demo library (list/grid)
-│   │   └── [demoId]/
-│   │       ├── page.tsx            # 2D Viewer (PixiJS canvas)
-│   │       └── heatmap/page.tsx    # Heatmap view for this demo
-│   ├── heatmaps/page.tsx           # Cross-demo aggregated heatmaps
+│   │   ├── index.tsx               # Demo library (list/grid, drag-drop import)
+│   │   └── $demoId/
+│   │       ├── viewer.tsx          # 2D Viewer (PixiJS canvas)
+│   │       └── heatmap.tsx         # Heatmap view for this demo
+│   ├── heatmaps.tsx                # Cross-demo aggregated heatmaps
 │   ├── strats/
-│   │   ├── page.tsx                # Strategy board list
-│   │   └── [stratId]/page.tsx      # Collaborative strat board (Yjs)
+│   │   ├── index.tsx               # Strategy board list
+│   │   └── $stratId.tsx            # Strategy board canvas
 │   ├── lineups/
-│   │   ├── page.tsx                # Grenade lineup library
-│   │   └── [lineupId]/page.tsx     # Lineup detail + 2D preview
-│   └── settings/page.tsx           # User preferences
-└── api/                            # Next.js API routes (BFF proxy)
+│   │   ├── index.tsx               # Grenade lineup library
+│   │   └── $lineupId.tsx           # Lineup detail + 2D preview
+│   └── settings.tsx                # User preferences
 ```
 
 ### Navigation Hierarchy
@@ -139,6 +141,22 @@ Sidebar:
   ├── Strategy Board     → /strats
   ├── Grenade Lineups    → /lineups
   └── Settings           → /settings
+```
+
+### Window & Menu Structure
+
+```
+Oversite
+├── File
+│   ├── Open Demo...        (Ctrl/Cmd+O)
+│   ├── Import Folder...
+│   └── Quit                (Ctrl/Cmd+Q)
+├── View
+│   ├── Toggle Sidebar
+│   └── Full Screen         (F11)
+└── Help
+    ├── Check for Updates
+    └── About Oversite
 ```
 
 ---
@@ -246,19 +264,18 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 - Smoke/molotov/flash markers that can be placed on map
 - Timing markers (numbered waypoints for execute order)
 
-#### F3.3 Real-Time Collaboration
+#### F3.3 Local Persistence
 
-- **Protocol**: WebSocket with Yjs CRDT for state synchronization
-- Multiple users can draw simultaneously; changes merge automatically
-- User cursors visible with name labels (Yjs Awareness protocol)
-- Presence indicators showing who is viewing the board
+- Strategy board state saved to SQLite as JSON
+- Autosave on every change (debounced)
+- Full undo/redo history within a session
 
-#### F3.4 Persistence & Sharing
+#### F3.4 Export & Management
 
-- Save strategy boards to user's library
-- Shareable link (read-only or edit access)
+- Save strategy boards to user's local library
 - Export as PNG image
 - Duplicate/fork existing boards
+- Import/export boards as JSON files (for sharing via Discord, etc.)
 
 ---
 
@@ -280,7 +297,7 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 
 - Paginated list of recent Faceit matches
 - Each entry: map, score, K/D/A, ELO change, date
-- Click to open demo (if available) in 2D Viewer
+- Click to open demo (if available locally) in 2D Viewer
 - Filter by map, result (W/L), date range
 
 #### F4.4 Performance Trends
@@ -292,7 +309,7 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 #### F4.5 Auto-Fetch
 
 - On login, automatically fetch the user's recent Faceit match history
-- Background job to periodically sync new matches
+- In-process sync (no background worker -- runs in the Go backend directly)
 - Optionally auto-download demos from Faceit match rooms
 
 ---
@@ -317,65 +334,87 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 - Add custom notes and tags
 - Mark favorites for quick access
 
-#### F5.4 Community Sharing (Future)
+---
 
-- Submit lineups to a public catalog
-- Upvote/downvote system
-- Filter by popularity and recency
+### F6: Local Demo Management
+
+#### F6.1 File Import
+
+- Drag-and-drop `.dem` files onto the app window
+- File picker dialog (Ctrl/Cmd+O)
+- Import entire folders (recursive scan for `.dem` files)
+
+#### F6.2 Demo Library
+
+- List view of all imported demos with metadata (map, date, players, size, status)
+- Grid view option with map thumbnails
+- Sort by date, map, size
+- Search by player name, map name
+
+#### F6.3 Auto-Scan (Optional)
+
+- Configure a "watch folder" that the app scans for new `.dem` files on startup
+- Default to CS2's demo download directory if detectable
+
+#### F6.4 Storage Management
+
+- Show total database size and demo count
+- Delete demos (removes parsed data from SQLite; optionally removes source `.dem` file)
+- Re-parse a demo (useful after parser updates)
 
 ---
 
 ## 6. User Stories
 
-### Authentication & Onboarding
+### Installation & Auth
 
 | ID | Story | Acceptance Criteria |
 |----|-------|-------------------|
-| US-01 | As a Faceit player, I want to log in with my Faceit account so I don't need a separate password | OAuth 2.0 flow completes; user profile created/updated from Faceit data |
-| US-02 | As a new user, I want to see a quick onboarding tour so I understand the main features | First-login modal with 3-4 slides; dismissible; doesn't show again |
-| US-03 | As a user, I want to log out and have my session cleared | Session cookie/token invalidated; redirected to login page |
+| US-01 | As a player, I want to install Oversite by downloading a single file | Installer/binary available for macOS, Windows, Linux; installs in < 30 seconds |
+| US-02 | As a player, I want to log in with my Faceit account | Loopback OAuth flow opens browser; tokens stored in OS keychain; profile displayed |
+| US-03 | As a new user, I want to see a quick onboarding tour | First-launch modal with 3-4 slides; dismissible; doesn't show again |
 
 ### Demo Management
 
 | ID | Story | Acceptance Criteria |
 |----|-------|-------------------|
-| US-04 | As a player, I want to upload a `.dem` file so I can review it in 2D | File upload accepts `.dem` (max 500 MB); progress indicator; parsing starts automatically |
-| US-05 | As a player, I want to see a list of my uploaded demos | Library page shows demos sorted by date; shows map, date, players, status |
-| US-06 | As a player, I want to delete a demo I no longer need | Confirm dialog; removes demo file from storage and parsed data from DB |
-| US-07 | As a player, I want demos from my Faceit matches auto-imported | Background sync fetches demos from recent Faceit matches; status shown in library |
+| US-04 | As a player, I want to drag-and-drop `.dem` files to import them | Drop zone accepts `.dem` files; parsing starts immediately; progress shown |
+| US-05 | As a player, I want to import an entire folder of demos | Folder picker scans recursively; skips non-`.dem` files; batch progress indicator |
+| US-06 | As a player, I want to see a list of my imported demos | Library shows demos sorted by date; displays map, date, players, parse status |
+| US-07 | As a player, I want to delete a demo I no longer need | Confirm dialog; removes parsed data from SQLite; optionally deletes `.dem` file |
+| US-08 | As a player, I want demos from Faceit matches auto-downloaded | After Faceit sync, app offers to download demos; progress shown in library |
 
 ### 2D Viewer
 
 | ID | Story | Acceptance Criteria |
 |----|-------|-------------------|
-| US-08 | As a player, I want to watch a demo in 2D top-down view | PixiJS canvas renders map + players + events; plays at real-time speed |
-| US-09 | As a player, I want to control playback speed | Speed selector works (0.25x-4x); playback visually matches selected speed |
-| US-10 | As a player, I want to scrub to any point in the demo | Timeline slider seeks to correct tick; canvas updates immediately |
-| US-11 | As a player, I want to jump to a specific round | Round selector lists all rounds; clicking jumps to round start tick |
-| US-12 | As a player, I want to see kill events on the map | Kill lines drawn from killer to victim; kill-feed updates; death X appears |
-| US-13 | As a player, I want to see grenade effects on the map | Smokes, flashes, HEs, molotovs render with appropriate visual effects and timing |
-| US-14 | As a player, I want to zoom and pan the map | Scroll-to-zoom works; click-drag pans; mini-map shows viewport position |
-| US-15 | As a player, I want to see the scoreboard for the current round | Toggle-able overlay shows accurate per-player stats for the viewed round |
+| US-09 | As a player, I want to watch a demo in 2D top-down view | PixiJS canvas renders map + players + events; plays at real-time speed |
+| US-10 | As a player, I want to control playback speed | Speed selector works (0.25x-4x); playback visually matches selected speed |
+| US-11 | As a player, I want to scrub to any point in the demo | Timeline slider seeks to correct tick; canvas updates immediately |
+| US-12 | As a player, I want to jump to a specific round | Round selector lists all rounds; clicking jumps to round start tick |
+| US-13 | As a player, I want to see kill events on the map | Kill lines drawn from killer to victim; kill-feed updates; death X appears |
+| US-14 | As a player, I want to see grenade effects on the map | Smokes, flashes, HEs, molotovs render with appropriate visual effects |
+| US-15 | As a player, I want to zoom and pan the map | Scroll-to-zoom works; click-drag pans; mini-map shows viewport position |
+| US-16 | As a player, I want to see the scoreboard for the current round | Toggle-able overlay shows accurate per-player stats |
 
 ### Heatmaps & Analytics
 
 | ID | Story | Acceptance Criteria |
 |----|-------|-------------------|
-| US-16 | As a player, I want to see a kill heatmap for a demo | KDE heatmap overlays on map image; color gradient indicates density |
-| US-17 | As a player, I want to filter heatmaps by side, weapon, or player | Filters update heatmap in real-time; UI shows active filters |
-| US-18 | As a player, I want to see aggregated heatmaps across multiple demos | User can select demos to aggregate; combined heatmap renders correctly |
-| US-19 | As a player, I want to see my per-demo statistics | Stats page shows K/D/A, ADR, HS%, KAST, Rating for each demo |
-| US-20 | As a player, I want to see stat trends over time | Line charts render with correct data points; time range selectable |
+| US-17 | As a player, I want to see a kill heatmap for a demo | KDE heatmap overlays on map image; color gradient indicates density |
+| US-18 | As a player, I want to filter heatmaps by side, weapon, or player | Filters update heatmap in real-time; UI shows active filters |
+| US-19 | As a player, I want to see aggregated heatmaps across multiple demos | Select demos to aggregate; combined heatmap renders correctly |
+| US-20 | As a player, I want to see my per-demo statistics | Stats page shows K/D/A, ADR, HS%, KAST, Rating |
+| US-21 | As a player, I want to see stat trends over time | Line charts render with correct data points; time range selectable |
 
 ### Strategy Board
 
 | ID | Story | Acceptance Criteria |
 |----|-------|-------------------|
-| US-21 | As an IGL, I want to draw strategies on a map | Drawing tools (freehand, line, arrow, shapes) work on map canvas |
-| US-22 | As an IGL, I want to place player tokens on the map | CT/T tokens draggable; labeled; snap to reasonable positions |
-| US-23 | As an IGL, I want to collaborate with teammates in real time | Multiple users see each other's changes within 200ms; no conflicts |
-| US-24 | As an IGL, I want to share a strategy board with a link | Generated link opens board in read-only or edit mode as configured |
-| US-25 | As a user, I want to export a strategy board as an image | PNG export captures the full board state at current zoom |
+| US-22 | As an IGL, I want to draw strategies on a map | Drawing tools (freehand, line, arrow, shapes) work on map canvas |
+| US-23 | As an IGL, I want to place player tokens on the map | CT/T tokens draggable; labeled; snap to reasonable positions |
+| US-24 | As a user, I want to export a strategy board as PNG | PNG export captures the full board state at current zoom |
+| US-25 | As a user, I want to share a board via JSON export | Export produces a JSON file; import on another machine restores the board |
 
 ### Faceit Dashboard
 
@@ -393,7 +432,7 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 | US-30 | As a player, I want lineups auto-extracted from my demos | After parsing, grenade throws appear in lineup catalog with correct data |
 | US-31 | As a player, I want to browse lineups by map and type | Filter UI works; results update; 2D preview shows throw + landing |
 | US-32 | As a player, I want to save lineups to my personal collection | Save button adds to collection; appears in "My Lineups" view |
-| US-33 | As a player, I want to jump to the lineup's source moment in the demo | "View in Demo" link opens viewer at the exact tick of the throw |
+| US-33 | As a player, I want to jump to the lineup's source tick in the demo | "View in Demo" link opens viewer at the exact tick |
 
 ---
 
@@ -403,25 +442,21 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 
 | Metric | Target |
 |--------|--------|
-| Demo upload + parse (avg 100 MB file) | < 30 seconds end-to-end |
+| Demo parse time (avg 100 MB file) | < 10 seconds (local disk, no upload) |
 | 2D Viewer frame rate | Stable 60 FPS at 1080p |
 | Heatmap render (single demo) | < 2 seconds |
 | Heatmap render (10-demo aggregate) | < 5 seconds |
-| API response time (p95) | < 200ms |
-| Time to Interactive (TTI) | < 3 seconds on broadband |
-| Strategy board sync latency | < 200ms between participants |
+| App startup time (cold) | < 3 seconds to interactive UI |
+| Tick data query latency (SQLite) | < 50ms for a 1000-tick range |
 
 ### 7.2 Security
 
-- All traffic over HTTPS (TLS 1.3)
-- OAuth 2.0 with PKCE for Faceit authentication
-- Server-side session management via Redis
-- CSRF protection on all state-changing endpoints
-- Input validation and sanitization on all API endpoints
-- Rate limiting on upload and API endpoints
+- Faceit OAuth 2.0 with PKCE (loopback redirect, RFC 8252)
+- Refresh tokens stored in OS keychain (encrypted at rest)
+- Access tokens held in memory only (never persisted to disk)
 - `.dem` file validation (magic bytes, size limits) before parsing
-- No direct database exposure; all access through Go API
-- MinIO bucket policies: private by default, signed URLs for access
+- No network listeners except during OAuth callback (temporary, localhost only)
+- SQLite database file permissions: owner read/write only
 
 ### 7.3 Accessibility
 
@@ -431,28 +466,26 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 - Color-blind-friendly palette option for team colors
 - Canvas elements: provide text alternatives where feasible (scoreboard, stats)
 
-### 7.4 Browser Support
+### 7.4 Platform Support
 
-| Browser | Minimum Version |
-|---------|----------------|
-| Chrome | 110+ |
-| Firefox | 110+ |
-| Safari | 16+ |
-| Edge | 110+ |
+| Platform | Minimum Version | WebView Engine |
+|----------|----------------|---------------|
+| macOS | 12 (Monterey)+ | WebKit (WKWebView) |
+| Windows | 10 (1903)+ | WebView2 (Chromium-based) |
+| Linux | Ubuntu 22.04+ | WebKitGTK |
 
-- WebGL 2.0 required for PixiJS rendering
-- WebSocket support required for real-time features
-- JavaScript must be enabled
+- WebGL 2.0 required for PixiJS rendering (all supported WebView versions support this)
+- Requires internet access only for Faceit OAuth and API calls
 
-### 7.5 Scalability Targets (Initial)
+### 7.5 Installation & Distribution
 
 | Dimension | Target |
 |-----------|--------|
-| Concurrent users | 100 |
-| Stored demos | 10,000 |
-| Max demo file size | 500 MB |
-| Max strategy boards per user | 50 |
-| Max concurrent strat board collaborators | 10 |
+| Install size | < 30 MB |
+| Installer format (macOS) | `.dmg` or `.app` bundle |
+| Installer format (Windows) | `.exe` (NSIS) or `.msi` |
+| Installer format (Linux) | `.AppImage` or `.deb` |
+| Auto-update | Built-in update checker + download |
 
 ### 7.6 Test Coverage & Quality
 
@@ -461,10 +494,10 @@ The project follows **Test-Driven Development (TDD)**. Every feature is develope
 | Metric | Target |
 |--------|--------|
 | Go backend line coverage | >= 80% |
-| Go critical-path coverage (parser, ingest, auth) | >= 90% |
+| Go critical-path coverage (parser, auth, SQLite store) | >= 90% |
 | Frontend component/hook test coverage | >= 75% |
 | Frontend utility/store coverage | >= 90% |
-| E2E critical path coverage | 100% of US-01 (login), US-04 (upload), US-08 (viewer), US-21 (strat board) |
+| E2E critical path coverage | 100% of US-01 (install), US-04 (import), US-09 (viewer), US-22 (strat board) |
 | CI gate | Zero merge to main without all tests passing |
 
 **Test execution time budgets:**
@@ -472,7 +505,7 @@ The project follows **Test-Driven Development (TDD)**. Every feature is develope
 | Test Tier | Budget |
 |-----------|--------|
 | Unit tests (Go + TS) | < 30 seconds total |
-| Integration tests (testcontainers, MSW) | < 3 minutes total |
+| Integration tests (temp SQLite, MSW) | < 2 minutes total |
 | End-to-end tests (Playwright) | < 10 minutes total |
 
 ---
@@ -485,123 +518,120 @@ The project follows **Test-Driven Development (TDD)**. Every feature is develope
 
 | Field | Type | Notes |
 |-------|------|-------|
-| id | UUID | Primary key |
-| faceit_id | VARCHAR(64) | Unique; from Faceit OAuth |
-| nickname | VARCHAR(64) | Faceit display name |
+| id | INTEGER | Primary key (autoincrement) |
+| faceit_id | TEXT | Unique; from Faceit OAuth |
+| nickname | TEXT | Faceit display name |
 | avatar_url | TEXT | Faceit avatar |
 | faceit_elo | INTEGER | Last known ELO |
-| faceit_level | SMALLINT | 1-10 |
-| country | VARCHAR(2) | ISO country code |
-| created_at | TIMESTAMPTZ | |
-| updated_at | TIMESTAMPTZ | |
+| faceit_level | INTEGER | 1-10 |
+| country | TEXT | ISO country code |
+| created_at | TEXT | ISO 8601 datetime |
+| updated_at | TEXT | ISO 8601 datetime |
 
 #### Demo
 
 | Field | Type | Notes |
 |-------|------|-------|
-| id | UUID | Primary key |
-| user_id | UUID | FK → User |
-| faceit_match_id | VARCHAR(64) | Nullable; for auto-imported demos |
-| map_name | VARCHAR(32) | e.g., "de_dust2" |
-| file_path | TEXT | MinIO object key |
-| file_size | BIGINT | Bytes |
-| status | VARCHAR(16) | uploaded / parsing / ready / error |
+| id | INTEGER | Primary key (autoincrement) |
+| user_id | INTEGER | FK -> User |
+| faceit_match_id | TEXT | Nullable; for auto-imported demos |
+| map_name | TEXT | e.g., "de_dust2" |
+| file_path | TEXT | Absolute path to local `.dem` file |
+| file_size | INTEGER | Bytes |
+| status | TEXT | imported / parsing / ready / error |
 | total_ticks | INTEGER | Set after parsing |
 | tick_rate | REAL | Ticks per second |
 | duration_secs | INTEGER | Match duration |
-| match_date | TIMESTAMPTZ | When the match was played |
-| created_at | TIMESTAMPTZ | |
+| match_date | TEXT | ISO 8601 datetime |
+| created_at | TEXT | ISO 8601 datetime |
 
 #### Round
 
 | Field | Type | Notes |
 |-------|------|-------|
-| id | UUID | Primary key |
-| demo_id | UUID | FK → Demo |
-| round_number | SMALLINT | 1-based |
+| id | INTEGER | Primary key (autoincrement) |
+| demo_id | INTEGER | FK -> Demo |
+| round_number | INTEGER | 1-based |
 | start_tick | INTEGER | |
 | end_tick | INTEGER | |
-| winner_side | VARCHAR(2) | CT / T |
-| win_reason | VARCHAR(32) | elimination / bomb_exploded / defused / time |
-| ct_score | SMALLINT | Score after this round |
-| t_score | SMALLINT | Score after this round |
+| winner_side | TEXT | CT / T |
+| win_reason | TEXT | elimination / bomb_exploded / defused / time |
+| ct_score | INTEGER | Score after this round |
+| t_score | INTEGER | Score after this round |
 
 #### PlayerRound
 
 | Field | Type | Notes |
 |-------|------|-------|
-| id | UUID | Primary key |
-| round_id | UUID | FK → Round |
-| steam_id | VARCHAR(20) | Steam64 ID |
-| player_name | VARCHAR(64) | |
-| team_side | VARCHAR(2) | CT / T |
-| kills | SMALLINT | |
-| deaths | SMALLINT | |
-| assists | SMALLINT | |
+| id | INTEGER | Primary key (autoincrement) |
+| round_id | INTEGER | FK -> Round |
+| steam_id | TEXT | Steam64 ID |
+| player_name | TEXT | |
+| team_side | TEXT | CT / T |
+| kills | INTEGER | |
+| deaths | INTEGER | |
+| assists | INTEGER | |
 | damage | INTEGER | |
-| headshot_kills | SMALLINT | |
-| first_kill | BOOLEAN | Got the opening kill |
-| first_death | BOOLEAN | Died first |
-| clutch_kills | SMALLINT | |
+| headshot_kills | INTEGER | |
+| first_kill | INTEGER | 0/1 boolean |
+| first_death | INTEGER | 0/1 boolean |
+| clutch_kills | INTEGER | |
 
-#### TickData (TimescaleDB Hypertable)
+#### TickData
 
 | Field | Type | Notes |
 |-------|------|-------|
-| time | TIMESTAMPTZ | Hypertable partition key (synthetic: demo timestamp + tick offset) |
-| demo_id | UUID | FK → Demo |
-| tick | INTEGER | |
-| steam_id | VARCHAR(20) | |
+| demo_id | INTEGER | FK -> Demo; part of composite PK |
+| tick | INTEGER | Part of composite PK |
+| steam_id | TEXT | Part of composite PK |
 | x | REAL | World-space X |
 | y | REAL | World-space Y |
 | z | REAL | World-space Z |
 | yaw | REAL | View angle (horizontal) |
-| health | SMALLINT | |
-| armor | SMALLINT | |
-| is_alive | BOOLEAN | |
-| weapon | VARCHAR(32) | Active weapon |
+| health | INTEGER | |
+| armor | INTEGER | |
+| is_alive | INTEGER | 0/1 boolean |
+| weapon | TEXT | Active weapon |
+
+*Index: `(demo_id, tick)` composite index for range scan queries.*
 
 #### GameEvent
 
 | Field | Type | Notes |
 |-------|------|-------|
-| id | UUID | Primary key |
-| demo_id | UUID | FK → Demo |
-| round_id | UUID | FK → Round |
+| id | INTEGER | Primary key (autoincrement) |
+| demo_id | INTEGER | FK -> Demo |
+| round_id | INTEGER | FK -> Round |
 | tick | INTEGER | |
-| event_type | VARCHAR(32) | kill / grenade_throw / grenade_detonate / bomb_plant / bomb_defuse |
-| attacker_steam_id | VARCHAR(20) | Nullable |
-| victim_steam_id | VARCHAR(20) | Nullable |
-| weapon | VARCHAR(32) | Nullable |
+| event_type | TEXT | kill / grenade_throw / grenade_detonate / bomb_plant / bomb_defuse |
+| attacker_steam_id | TEXT | Nullable |
+| victim_steam_id | TEXT | Nullable |
+| weapon | TEXT | Nullable |
 | x | REAL | Event position |
 | y | REAL | |
 | z | REAL | |
-| extra_data | JSONB | Event-specific data (headshot, penetration, flash assist, etc.) |
+| extra_data | TEXT | JSON string for event-specific data (headshot, penetration, flash assist) |
 
 #### StrategyBoard
 
 | Field | Type | Notes |
 |-------|------|-------|
-| id | UUID | Primary key |
-| user_id | UUID | FK → User (owner) |
-| title | VARCHAR(128) | |
-| map_name | VARCHAR(32) | |
-| yjs_state | BYTEA | Serialized Yjs document |
-| share_mode | VARCHAR(16) | private / read_only / editable |
-| share_token | VARCHAR(64) | Unique; for share links |
-| created_at | TIMESTAMPTZ | |
-| updated_at | TIMESTAMPTZ | |
+| id | INTEGER | Primary key (autoincrement) |
+| title | TEXT | |
+| map_name | TEXT | |
+| board_state | TEXT | JSON serialized board state |
+| created_at | TEXT | ISO 8601 datetime |
+| updated_at | TEXT | ISO 8601 datetime |
 
 #### GrenadeLineup
 
 | Field | Type | Notes |
 |-------|------|-------|
-| id | UUID | Primary key |
-| user_id | UUID | FK → User (who saved it) |
-| demo_id | UUID | FK → Demo (source, nullable) |
+| id | INTEGER | Primary key (autoincrement) |
+| demo_id | INTEGER | FK -> Demo (source, nullable) |
 | tick | INTEGER | Source tick in demo |
-| map_name | VARCHAR(32) | |
-| grenade_type | VARCHAR(16) | smoke / flash / he / molotov |
+| map_name | TEXT | |
+| grenade_type | TEXT | smoke / flash / he / molotov |
 | throw_x | REAL | Thrower position |
 | throw_y | REAL | |
 | throw_z | REAL | |
@@ -610,134 +640,128 @@ The project follows **Test-Driven Development (TDD)**. Every feature is develope
 | land_x | REAL | Landing/detonation position |
 | land_y | REAL | |
 | land_z | REAL | |
-| title | VARCHAR(128) | User-provided or auto-generated |
+| title | TEXT | User-provided or auto-generated |
 | description | TEXT | |
-| tags | TEXT[] | Array of tags |
-| is_favorite | BOOLEAN | Default false |
-| created_at | TIMESTAMPTZ | |
+| tags | TEXT | JSON array of tags |
+| is_favorite | INTEGER | 0/1 boolean; default 0 |
+| created_at | TEXT | ISO 8601 datetime |
 
 #### FaceitMatch
 
 | Field | Type | Notes |
 |-------|------|-------|
-| id | UUID | Primary key |
-| user_id | UUID | FK → User |
-| faceit_match_id | VARCHAR(64) | Unique per user |
-| map_name | VARCHAR(32) | |
-| score_team | SMALLINT | User's team score |
-| score_opponent | SMALLINT | Opponent team score |
-| result | VARCHAR(4) | win / loss / draw |
+| id | INTEGER | Primary key (autoincrement) |
+| user_id | INTEGER | FK -> User |
+| faceit_match_id | TEXT | Unique per user |
+| map_name | TEXT | |
+| score_team | INTEGER | User's team score |
+| score_opponent | INTEGER | Opponent team score |
+| result | TEXT | win / loss / draw |
 | elo_before | INTEGER | |
 | elo_after | INTEGER | |
-| kills | SMALLINT | |
-| deaths | SMALLINT | |
-| assists | SMALLINT | |
+| kills | INTEGER | |
+| deaths | INTEGER | |
+| assists | INTEGER | |
 | demo_url | TEXT | Faceit demo download URL |
-| demo_id | UUID | FK → Demo (nullable, if imported) |
-| played_at | TIMESTAMPTZ | |
-| created_at | TIMESTAMPTZ | |
+| demo_id | INTEGER | FK -> Demo (nullable, if imported) |
+| played_at | TEXT | ISO 8601 datetime |
+| created_at | TEXT | ISO 8601 datetime |
 
 ---
 
-## 9. API Design Overview
+## 9. Wails Bindings Overview
 
-### 9.1 REST API Base Path
+Instead of a REST API, the Go backend exposes methods to the frontend via Wails bindings. The frontend calls these as async TypeScript functions.
 
-All API endpoints are served under `/api/v1/`.
+### 9.1 Binding Groups
 
-### 9.2 Endpoint Groups
+#### Auth
 
-#### Authentication
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/v1/auth/faceit` | Initiate Faceit OAuth flow |
-| GET | `/api/v1/auth/faceit/callback` | Handle OAuth callback |
-| POST | `/api/v1/auth/logout` | Invalidate session |
-| GET | `/api/v1/auth/me` | Get current user profile |
+| Method | Signature | Description |
+|--------|----------|-------------|
+| `StartLogin` | `() -> LoginResult` | Start loopback OAuth; opens system browser |
+| `GetCurrentUser` | `() -> User \| null` | Get logged-in user profile |
+| `Logout` | `() -> void` | Clear tokens from keychain |
+| `RefreshProfile` | `() -> User` | Re-fetch Faceit profile data |
 
 #### Demos
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/v1/demos` | List user's demos (paginated) |
-| POST | `/api/v1/demos` | Upload a new demo file |
-| GET | `/api/v1/demos/:id` | Get demo metadata |
-| DELETE | `/api/v1/demos/:id` | Delete a demo |
-| GET | `/api/v1/demos/:id/rounds` | Get round summaries |
-| GET | `/api/v1/demos/:id/rounds/:num` | Get round detail + player stats |
-| GET | `/api/v1/demos/:id/ticks` | Get tick data (paginated by tick range) |
-| GET | `/api/v1/demos/:id/events` | Get game events (filterable) |
-| GET | `/api/v1/demos/:id/heatmap` | Get heatmap data points |
+| Method | Signature | Description |
+|--------|----------|-------------|
+| `ImportDemo` | `(path: string) -> Demo` | Import and parse a single `.dem` file |
+| `ImportFolder` | `(path: string) -> Demo[]` | Recursively import `.dem` files from folder |
+| `ListDemos` | `(opts: ListOpts) -> Demo[]` | List user's demos (sortable, filterable) |
+| `GetDemo` | `(id: number) -> Demo` | Get demo metadata |
+| `DeleteDemo` | `(id: number, deleteFile: bool) -> void` | Delete demo data; optionally remove `.dem` |
+| `GetRounds` | `(demoId: number) -> Round[]` | Get round summaries for a demo |
+| `GetRoundDetail` | `(roundId: number) -> RoundDetail` | Get round detail + player stats |
+| `GetTicks` | `(demoId: number, from: number, to: number) -> TickData[]` | Get tick data for a range |
+| `GetEvents` | `(demoId: number, filters: EventFilter) -> GameEvent[]` | Get filtered game events |
 
-#### Heatmaps (Aggregated)
+#### Heatmaps
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/v1/heatmaps/aggregate` | Generate aggregated heatmap from multiple demos |
+| Method | Signature | Description |
+|--------|----------|-------------|
+| `GetHeatmapData` | `(demoIds: number[], filters: HeatmapFilter) -> HeatmapPoint[]` | Aggregated heatmap data |
 
 #### Strategy Boards
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/v1/strats` | List user's strategy boards |
-| POST | `/api/v1/strats` | Create a new board |
-| GET | `/api/v1/strats/:id` | Get board metadata |
-| PUT | `/api/v1/strats/:id` | Update board settings |
-| DELETE | `/api/v1/strats/:id` | Delete a board |
-| GET | `/api/v1/strats/shared/:token` | Access shared board |
-| POST | `/api/v1/strats/:id/export` | Export board as PNG |
+| Method | Signature | Description |
+|--------|----------|-------------|
+| `ListBoards` | `() -> StrategyBoard[]` | List all strategy boards |
+| `CreateBoard` | `(title: string, mapName: string) -> StrategyBoard` | Create a new board |
+| `GetBoard` | `(id: number) -> StrategyBoard` | Get board with state |
+| `SaveBoard` | `(id: number, state: string) -> void` | Save board state (JSON) |
+| `DeleteBoard` | `(id: number) -> void` | Delete a board |
+| `ExportBoardJSON` | `(id: number) -> string` | Export board as JSON string |
+| `ImportBoardJSON` | `(json: string) -> StrategyBoard` | Import board from JSON |
 
 #### Grenade Lineups
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/v1/lineups` | List/search lineups |
-| POST | `/api/v1/lineups` | Save a lineup |
-| GET | `/api/v1/lineups/:id` | Get lineup detail |
-| PUT | `/api/v1/lineups/:id` | Update lineup |
-| DELETE | `/api/v1/lineups/:id` | Delete a lineup |
-| POST | `/api/v1/lineups/:id/favorite` | Toggle favorite |
+| Method | Signature | Description |
+|--------|----------|-------------|
+| `ListLineups` | `(filters: LineupFilter) -> GrenadeLineup[]` | List/search lineups |
+| `GetLineup` | `(id: number) -> GrenadeLineup` | Get lineup detail |
+| `UpdateLineup` | `(id: number, data: LineupUpdate) -> GrenadeLineup` | Update title, description, tags |
+| `DeleteLineup` | `(id: number) -> void` | Delete a lineup |
+| `ToggleFavorite` | `(id: number) -> void` | Toggle favorite status |
 
 #### Faceit
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/v1/faceit/profile` | Get user's Faceit profile (cached) |
-| GET | `/api/v1/faceit/elo-history` | Get ELO history |
-| GET | `/api/v1/faceit/matches` | Get match history (paginated) |
-| POST | `/api/v1/faceit/sync` | Trigger manual match sync |
-| POST | `/api/v1/faceit/matches/:id/import` | Import demo from a Faceit match |
+| Method | Signature | Description |
+|--------|----------|-------------|
+| `GetFaceitProfile` | `() -> FaceitProfile` | Get user's Faceit profile (cached) |
+| `GetEloHistory` | `(days: number) -> EloPoint[]` | Get ELO history |
+| `GetMatches` | `(opts: MatchListOpts) -> FaceitMatch[]` | Get match history (paginated) |
+| `SyncMatches` | `() -> SyncResult` | Trigger manual match sync |
+| `ImportMatchDemo` | `(matchId: string) -> Demo` | Download and import demo from Faceit match |
 
-### 9.3 WebSocket Endpoints
+#### System
 
-| Path | Purpose |
-|------|---------|
-| `/ws/viewer/:demoId` | Real-time tick data streaming for 2D viewer |
-| `/ws/strat/:stratId` | Yjs sync protocol for strategy board collaboration |
+| Method | Signature | Description |
+|--------|----------|-------------|
+| `OpenFileDialog` | `() -> string` | Native file picker for `.dem` files |
+| `OpenFolderDialog` | `() -> string` | Native folder picker |
+| `GetAppInfo` | `() -> AppInfo` | App version, data dir, DB size |
+| `CheckForUpdates` | `() -> UpdateInfo \| null` | Check if a newer version is available |
 
-### 9.4 Common Response Format
+### 9.2 Frontend Call Pattern
 
-```json
-{
-  "data": { ... },
-  "meta": {
-    "page": 1,
-    "per_page": 20,
-    "total": 142
-  }
-}
+```typescript
+import { ImportDemo, ListDemos } from '../../wailsjs/go/main/App';
+
+// Wails bindings are called as regular async functions
+const demo = await ImportDemo('/path/to/demo.dem');
+const demos = await ListDemos({ sortBy: 'date', order: 'desc' });
 ```
 
-Error responses:
+TanStack Query wraps these bindings for caching and background refetch:
 
-```json
-{
-  "error": {
-    "code": "DEMO_PARSE_FAILED",
-    "message": "Failed to parse demo file: unsupported format"
-  }
-}
+```typescript
+const { data: demos } = useQuery({
+  queryKey: ['demos', filters],
+  queryFn: () => ListDemos(filters),
+});
 ```
 
 ---

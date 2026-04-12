@@ -1,7 +1,7 @@
 # ADR-0002: Use Yjs with a Dumb WebSocket Relay for Strategy Board Collaboration
 
 **Date:** 2026-03-31
-**Status:** Accepted
+**Status:** Deprecated (desktop v1 is single-user; no real-time collaboration)
 
 ## Context
 

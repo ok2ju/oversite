@@ -1,7 +1,7 @@
 # ADR-0003: Use Redis Streams as the Job Queue
 
 **Date:** 2026-03-31
-**Status:** Accepted
+**Status:** Deprecated (desktop app runs parsing in-process; no Redis)
 
 ## Context
 
