@@ -1,0 +1,3 @@
+-- Queries using json_each() with dynamic parameters are implemented manually
+-- in internal/store/heatmaps_custom.go because sqlc's SQLite engine cannot
+-- bind parameters inside table-valued function calls like json_each().

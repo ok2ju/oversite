@@ -1,6 +1,3 @@
-"use client"
-
-import Image from "next/image"
 import { Maximize2 } from "lucide-react"
 import { useViewerStore } from "@/stores/viewer"
 import { computeViewportRect } from "@/lib/pixi/camera"
@@ -40,11 +37,10 @@ export function MiniMap() {
       className="absolute bottom-4 right-4 overflow-hidden rounded-md border border-white/20 bg-black/60 shadow-lg"
       style={{ width: MINIMAP_SIZE, height: MINIMAP_SIZE }}
     >
-      <Image
+      <img
         src={getRadarImagePath(mapName)}
         alt={`${mapName} radar`}
-        fill
-        className="object-cover"
+        className="absolute inset-0 h-full w-full object-cover"
         draggable={false}
       />
       <div

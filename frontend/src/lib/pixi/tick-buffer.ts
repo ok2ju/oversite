@@ -1,4 +1,5 @@
-import type { TickData, TickDataResponse } from "@/types/demo"
+import { GetDemoTicks } from "@wailsjs/go/main/App"
+import type { TickData } from "@/types/demo"
 
 export type FetchTicksFn = (
   demoId: string,
@@ -23,25 +24,11 @@ interface ChunkState {
   lastAccessed: number
 }
 
-// Uses raw fetch instead of TanStack Query because TickBuffer manages its own
-// imperative LRU chunk cache with abort-on-seek — outside React's lifecycle.
-const defaultFetchFn: FetchTicksFn = async (
-  demoId,
-  startTick,
-  endTick,
-  signal,
-) => {
-  const params = new URLSearchParams({
-    start_tick: String(startTick),
-    end_tick: String(endTick),
-  })
-  const res = await fetch(`/api/v1/demos/${demoId}/ticks?${params}`, {
-    credentials: "include",
-    signal,
-  })
-  if (!res.ok) throw new Error(`Failed to fetch ticks: ${res.status}`)
-  const json: TickDataResponse = await res.json()
-  return json.data
+// Uses the Wails binding directly instead of TanStack Query because TickBuffer
+// manages its own imperative LRU chunk cache with abort-on-seek — outside
+// React's lifecycle.
+const defaultFetchFn: FetchTicksFn = async (demoId, startTick, endTick) => {
+  return GetDemoTicks(demoId, startTick, endTick) as Promise<TickData[]>
 }
 
 export class TickBuffer {

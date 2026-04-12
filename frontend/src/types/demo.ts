@@ -1,22 +1,21 @@
+export type DemoStatus = "imported" | "parsing" | "ready" | "failed"
+
 export interface Demo {
-  id: string
-  map_name: string | null
+  id: number
+  map_name: string
+  file_path: string
   file_size: number
-  status: "uploaded" | "parsing" | "ready" | "failed"
-  total_ticks: number | null
-  tick_rate: number | null
-  duration_secs: number | null
-  match_date: string | null
+  status: DemoStatus
+  total_ticks: number
+  tick_rate: number
+  duration_secs: number
+  match_date: string
   created_at: string
 }
 
 export interface DemoListResponse {
   data: Demo[]
   meta: { total: number; page: number; per_page: number }
-}
-
-export interface DemoResponse {
-  data: Demo
 }
 
 export interface TickData {

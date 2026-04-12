@@ -1,6 +1,4 @@
-"use client"
-
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -20,7 +18,7 @@ import type { Demo } from "@/types/demo"
 
 interface DemoCardProps {
   demo: Demo
-  onDelete: (id: string) => void
+  onDelete: (id: number) => void
 }
 
 const statusVariant: Record<
@@ -29,7 +27,7 @@ const statusVariant: Record<
 > = {
   ready: "default",
   parsing: "secondary",
-  uploaded: "outline",
+  imported: "outline",
   failed: "destructive",
 }
 
@@ -54,7 +52,7 @@ export function formatDate(iso: string): string {
 }
 
 export function DemoCard({ demo, onDelete }: DemoCardProps) {
-  const router = useRouter()
+  const navigate = useNavigate()
 
   return (
     <Card
@@ -65,13 +63,13 @@ export function DemoCard({ demo, onDelete }: DemoCardProps) {
       }
       onClick={() => {
         if (demo.status === "ready") {
-          router.push(`/demos/${demo.id}`)
+          navigate(`/demos/${demo.id}`)
         }
       }}
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-base font-medium">
-          {demo.map_name ?? "Unknown Map"}
+          {demo.map_name || "Unknown Map"}
         </CardTitle>
         <Badge
           variant={statusVariant[demo.status]}
@@ -84,11 +82,12 @@ export function DemoCard({ demo, onDelete }: DemoCardProps) {
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <div className="space-y-1">
             <p>{formatFileSize(demo.file_size)}</p>
-            {demo.duration_secs != null && (
+            {demo.duration_secs > 0 && (
               <p>{formatDuration(demo.duration_secs)}</p>
             )}
-            {demo.match_date && <p>{formatDate(demo.match_date)}</p>}
-            {!demo.match_date && demo.created_at && (
+            {demo.match_date ? (
+              <p>{formatDate(demo.match_date)}</p>
+            ) : (
               <p>{formatDate(demo.created_at)}</p>
             )}
           </div>

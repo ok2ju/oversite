@@ -1,11 +1,7 @@
-import { describe, it, expect, vi } from "vitest"
+import { describe, it, expect } from "vitest"
 import { screen } from "@testing-library/react"
 import { renderWithProviders } from "@/test/render"
 import { Sidebar, navItems } from "@/components/layout/sidebar"
-
-vi.mock("next/navigation", () => ({
-  usePathname: vi.fn(() => "/dashboard"),
-}))
 
 describe("Sidebar", () => {
   it("renders all 6 navigation links with correct labels", () => {
@@ -33,5 +29,15 @@ describe("Sidebar", () => {
       const link = screen.getByText(item.label).closest("a")
       expect(link).toHaveAttribute("href", item.href)
     }
+  })
+
+  it("highlights the active route", () => {
+    renderWithProviders(<Sidebar />, { initialRoute: "/demos" })
+
+    const demosLink = screen.getByText("Demos").closest("a")
+    expect(demosLink).toHaveClass("bg-primary")
+
+    const dashboardLink = screen.getByText("Dashboard").closest("a")
+    expect(dashboardLink).not.toHaveClass("bg-primary")
   })
 })

@@ -1,49 +1,56 @@
-import { describe, it, expect } from "vitest"
-import { screen } from "@testing-library/react"
+import { describe, it, expect, vi } from "vitest"
+import { screen, waitFor } from "@testing-library/react"
 import { renderWithProviders, userEvent } from "@/test/render"
+import { mockAppBindings } from "@/test/mocks/bindings"
 import { UploadDialog } from "@/components/demos/upload-dialog"
+
+vi.mock("@wailsjs/go/main/App", () => mockAppBindings)
 
 describe("UploadDialog", () => {
   it("opens dialog when trigger is clicked", async () => {
     const user = userEvent.setup()
     renderWithProviders(<UploadDialog />)
 
-    await user.click(screen.getByRole("button", { name: /upload demo/i }))
+    await user.click(screen.getByRole("button", { name: /import demo/i }))
     expect(screen.getByRole("dialog")).toBeInTheDocument()
   })
 
-  it("file input accepts only .dem files", async () => {
+  it("calls ImportDemoFile binding on import click", async () => {
     const user = userEvent.setup()
     renderWithProviders(<UploadDialog />)
 
-    await user.click(screen.getByRole("button", { name: /upload demo/i }))
-    const input = screen.getByTestId("file-input") as HTMLInputElement
-    expect(input.accept).toBe(".dem")
+    await user.click(screen.getByRole("button", { name: /import demo/i }))
+    await user.click(screen.getByRole("button", { name: /select & import/i }))
+    expect(mockAppBindings.ImportDemoFile).toHaveBeenCalled()
   })
 
-  it("shows filename and size after selecting a file", async () => {
+  it("shows error state on import failure", async () => {
+    mockAppBindings.ImportDemoFile.mockRejectedValueOnce(
+      new Error("No file selected"),
+    )
     const user = userEvent.setup()
     renderWithProviders(<UploadDialog />)
 
-    await user.click(screen.getByRole("button", { name: /upload demo/i }))
+    await user.click(screen.getByRole("button", { name: /import demo/i }))
+    await user.click(screen.getByRole("button", { name: /select & import/i }))
 
-    const file = new File(["x".repeat(1024)], "match.dem", {
-      type: "application/octet-stream",
+    await waitFor(() => {
+      expect(screen.getByText("No file selected")).toBeInTheDocument()
     })
-    const input = screen.getByTestId("file-input")
-    await user.upload(input, file)
-
-    expect(screen.getByText(/match\.dem/)).toBeInTheDocument()
   })
 
-  it("shows error state on upload failure", async () => {
+  it("shows importing state while import is pending", async () => {
+    mockAppBindings.ImportDemoFile.mockImplementationOnce(
+      () => new Promise(() => {}),
+    )
     const user = userEvent.setup()
     renderWithProviders(<UploadDialog />)
 
-    await user.click(screen.getByRole("button", { name: /upload demo/i }))
+    await user.click(screen.getByRole("button", { name: /import demo/i }))
+    await user.click(screen.getByRole("button", { name: /select & import/i }))
 
-    // The error state will be tested when wired with the hook
-    // For now, verify the dialog renders correctly
-    expect(screen.getByRole("dialog")).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText("Importing...")).toBeInTheDocument()
+    })
   })
 })

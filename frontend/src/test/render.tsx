@@ -1,7 +1,7 @@
 import { render, type RenderOptions } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { ThemeProvider } from "next-themes"
-import { AuthProvider } from "@/components/providers/auth-provider"
+import { MemoryRouter } from "react-router-dom"
+import { ThemeProvider } from "@/components/providers/theme-provider"
 
 function createTestQueryClient() {
   return new QueryClient({
@@ -15,42 +15,33 @@ function createTestQueryClient() {
 }
 
 interface ProvidersOptions {
-  withAuth?: boolean
+  initialRoute?: string
 }
 
-function createAllProviders({ withAuth = false }: ProvidersOptions = {}) {
+function createAllProviders({ initialRoute = "/" }: ProvidersOptions = {}) {
   return function AllProviders({ children }: { children: React.ReactNode }) {
     const queryClient = createTestQueryClient()
-    const content = withAuth ? (
-      <AuthProvider>{children}</AuthProvider>
-    ) : (
-      children
-    )
     return (
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem={false}
-        >
-          {content}
-        </ThemeProvider>
+        <MemoryRouter initialEntries={[initialRoute]}>
+          <ThemeProvider defaultTheme="dark">{children}</ThemeProvider>
+        </MemoryRouter>
       </QueryClientProvider>
     )
   }
 }
 
 interface RenderWithProvidersOptions extends Omit<RenderOptions, "wrapper"> {
-  withAuth?: boolean
+  initialRoute?: string
 }
 
 export function renderWithProviders(
   ui: React.ReactElement,
   options?: RenderWithProvidersOptions,
 ) {
-  const { withAuth, ...renderOptions } = options ?? {}
+  const { initialRoute, ...renderOptions } = options ?? {}
   return render(ui, {
-    wrapper: createAllProviders({ withAuth }),
+    wrapper: createAllProviders({ initialRoute }),
     ...renderOptions,
   })
 }

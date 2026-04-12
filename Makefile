@@ -1,103 +1,74 @@
-.PHONY: up down dev logs certs migrate-up migrate-down migrate-create sqlc lint test test-unit test-integration test-e2e build clean hooks hooks-fallback help
+.PHONY: dev build clean sqlc migrate-create lint typecheck test test-go test-fe test-unit test-e2e hooks hooks-fallback help
 
 # ========================
-# Docker
+# Development
 # ========================
 
-up: certs ## Start all services in background
-	docker compose up -d
+dev: ## Start Wails dev mode with hot-reload
+	wails dev
 
-down: ## Stop all services
-	docker compose down
+build: ## Build production binary
+	wails build
 
-dev: certs ## Start with hot-reload (foreground)
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml up
-
-logs: ## Tail logs (use: make logs s=api)
-	docker compose logs -f $(s)
-
-ps: ## Show running services
-	docker compose ps
-
-restart: ## Restart a service (use: make restart s=api)
-	docker compose restart $(s)
+clean: ## Remove build artifacts
+	rm -rf build/bin
+	rm -rf frontend/dist
+	rm -f oversite
 
 # ========================
-# TLS Certs
+# Code Generation
 # ========================
-
-certs: ## Generate local TLS certs (requires mkcert)
-	@if [ ! -f nginx/certs/localhost.pem ]; then \
-		mkdir -p nginx/certs; \
-		mkcert -install 2>/dev/null || true; \
-		mkcert -cert-file nginx/certs/localhost.pem -key-file nginx/certs/localhost-key.pem localhost 127.0.0.1 ::1; \
-		echo "TLS certs generated in nginx/certs/"; \
-	else \
-		echo "TLS certs already exist, skipping."; \
-	fi
-
-# ========================
-# Database
-# ========================
-
-migrate-up: ## Run all pending migrations
-	docker compose exec api /app/oversite migrate up
-
-migrate-down: ## Rollback the last migration
-	docker compose exec api /app/oversite migrate down
-
-migrate-create: ## Create new migration files
-	@read -p "Migration name: " name; \
-	docker compose exec api /app/oversite migrate create $$name
 
 sqlc: ## Regenerate Go code from SQL queries
-	cd backend && go tool sqlc generate
+	go tool sqlc generate
+
+migrate-create: ## Create new migration pair (usage: make migrate-create name=<name>)
+	@test -n "$(name)" || (echo "Usage: make migrate-create name=<migration_name>" && exit 1)
+	@next=$$(printf "%03d" $$(($$(ls migrations/*.up.sql 2>/dev/null | wc -l | tr -d ' ') + 1))); \
+	touch "migrations/$${next}_$(name).up.sql" "migrations/$${next}_$(name).down.sql"; \
+	echo "Created migrations/$${next}_$(name).up.sql"; \
+	echo "Created migrations/$${next}_$(name).down.sql"
 
 # ========================
 # Quality
 # ========================
 
 lint: ## Run all linters
-	cd backend && go tool golangci-lint run ./...
+	golangci-lint run ./...
 	cd frontend && pnpm lint
 
 typecheck: ## Run TypeScript type checking
-	cd frontend && pnpm tsc --noEmit
-
-hooks: ## Install pre-commit hooks
-	go -C backend tool lefthook install
-
-hooks-fallback: ## Install pre-commit hooks (no extra tools)
-	git config core.hooksPath .githooks
-	@echo "Pre-commit hooks activated via core.hooksPath"
+	cd frontend && pnpm typecheck
 
 # ========================
 # Testing
 # ========================
 
-test: test-unit test-integration test-e2e ## Run all tests
+test: test-unit test-e2e ## Run all tests
 
 test-unit: ## Run Go + TS unit tests
-	cd backend && go test -race ./...
+	go test -race ./...
 	cd frontend && pnpm test
 
-test-integration: ## Run Go integration tests (requires Docker)
-	cd backend && go test -race -tags integration -count=1 ./...
+test-go: ## Run Go tests only
+	go test -race ./...
+
+test-fe: ## Run frontend tests only
+	cd frontend && pnpm test
 
 test-e2e: ## Run Playwright E2E tests
 	cd e2e && npx playwright test
 
 # ========================
-# Build
+# Git Hooks
 # ========================
 
-build: ## Build all artifacts
-	cd backend && go build -o bin/oversite ./cmd/oversite
-	cd frontend && pnpm build
+hooks: ## Install pre-commit hooks via lefthook
+	go tool lefthook install
 
-clean: ## Remove build artifacts
-	rm -rf backend/bin backend/tmp
-	rm -rf frontend/.next frontend/out
+hooks-fallback: ## Install pre-commit hooks (no extra tools)
+	git config core.hooksPath .githooks
+	@echo "Pre-commit hooks activated via core.hooksPath"
 
 # ========================
 # Help

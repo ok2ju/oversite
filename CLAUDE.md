@@ -1,61 +1,60 @@
 # Oversite
 
-CS2 2D demo viewer and analytics platform for Faceit players. Upload demos, watch top-down playback, generate heatmaps, collaborate on strategies, and track Faceit stats -- all in the browser.
+CS2 2D demo viewer and analytics platform for Faceit players. Single-binary Wails desktop app -- import local demos, watch top-down playback, generate heatmaps, plan strategies, and track Faceit stats.
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 14+ (App Router), TypeScript, PixiJS v8, shadcn/ui, Tailwind CSS, Zustand, TanStack Query v5 |
-| Backend | Go 1.22+, chi router, gorilla/websocket |
+| Runtime | Wails v2 (Go backend + system WebView frontend) |
+| Frontend | Vite + React, TypeScript, PixiJS v8, shadcn/ui, Tailwind CSS, Zustand, TanStack Query v5, react-router-dom v6 |
+| Backend | Go 1.26+, Wails bindings (no HTTP server) |
 | Demo Parsing | markus-wa/demoinfocs-golang v5 |
-| Database | PostgreSQL 16 + TimescaleDB (hypertable for tick data) |
-| SQL | sqlc (type-safe generated Go) |
-| Cache/Queue | Redis 7 (sessions, cache, Redis Streams job queue) |
-| Object Storage | MinIO (S3-compatible, `.dem` files) |
-| Collaboration | Yjs CRDT (strategy board real-time sync) |
-| Auth | Faceit OAuth 2.0 + PKCE |
-| Infra | Docker Compose, nginx reverse proxy |
+| Database | SQLite (modernc.org/sqlite, pure Go, WAL mode) |
+| SQL | sqlc (type-safe generated Go, SQLite dialect) |
+| Migrations | golang-migrate (embedded via `//go:embed`) |
+| Auth | Faceit OAuth 2.0 + PKCE (loopback redirect), OS keychain (zalando/go-keyring) |
+| Packaging | Single native binary per platform (macOS, Windows, Linux) |
 
-## Monorepo Structure
+## Project Structure
+
+All desktop Go code lives at the **root module level** (`go.mod` = `github.com/ok2ju/oversite`). The `backend/` directory is the web version (legacy) and must NOT be modified for desktop work.
 
 ```
 oversite/
-├── backend/
-│   ├── cmd/oversite/main.go        # CLI: serve, ws, worker, migrate
-│   ├── internal/
-│   │   ├── auth/                   # OAuth, sessions, middleware
-│   │   ├── config/                 # Env-based config
-│   │   ├── demo/                   # Parser, ingest, heatmap
-│   │   ├── faceit/                 # API client, sync
-│   │   ├── handler/                # HTTP handlers (chi)
-│   │   ├── lineup/                 # Grenade lineup service
-│   │   ├── middleware/             # CORS, rate limit, logging
-│   │   ├── model/                  # Domain types
-│   │   ├── store/                  # sqlc generated code
-│   │   ├── strat/                  # Strategy board service
-│   │   ├── testutil/               # Shared test helpers
-│   │   ├── websocket/              # WS hub, Yjs relay
-│   │   └── worker/                 # Job queue consumer
-│   ├── migrations/                 # SQL migration files
-│   ├── queries/                    # sqlc SQL files
-│   ├── testdata/                   # Golden files for parser tests
-│   └── Makefile
+├── main.go                         # Wails entry point
+├── app.go                          # App struct (Startup/Shutdown, Wails bindings)
+├── go.mod                          # Root Go module
+├── wails.json                      # Wails project config
+├── internal/
+│   ├── auth/                       # OAuth loopback, keyring
+│   ├── config/                     # File-based config
+│   ├── database/                   # SQLite connection, migration runner
+│   ├── demo/                       # Parser, import service
+│   ├── faceit/                     # API client, sync
+│   ├── heatmap/                    # KDE generation
+│   ├── lineup/                     # Grenade lineup service
+│   ├── model/                      # Domain types
+│   ├── store/                      # sqlc generated code (SQLite)
+│   ├── strat/                      # Strategy board service
+│   └── testutil/                   # Shared test helpers
+├── migrations/                     # SQLite migration files (embedded in binary)
+├── queries/                        # sqlc SQL files
+├── testdata/                       # Golden files for parser tests
 ├── frontend/
 │   ├── src/
-│   │   ├── app/                    # Next.js App Router pages
+│   │   ├── routes/                 # react-router-dom pages
 │   │   ├── components/             # UI, viewer, strat, layout
 │   │   ├── hooks/                  # Custom React hooks
-│   │   ├── lib/                    # API client, pixi, yjs, maps
+│   │   ├── lib/                    # PixiJS, maps, utils
 │   │   ├── stores/                 # Zustand stores
 │   │   ├── test/                   # Test setup and helpers
 │   │   ├── types/                  # TypeScript types
 │   │   └── utils/
+│   ├── wailsjs/                    # Auto-generated Wails bindings
 │   └── public/maps/                # Radar images
+├── backend/                        # Web version (legacy, do NOT modify)
 ├── e2e/                            # Playwright E2E tests
-├── nginx/nginx.conf
-├── docker-compose.yml
-├── docker-compose.dev.yml
 ├── lefthook.yml                    # Pre-commit hook config
 ├── Makefile                        # Root dev commands
 └── docs/                           # PRD, Architecture, Plans, ADRs
@@ -64,25 +63,15 @@ oversite/
 ## Development Commands
 
 ```bash
-# Docker
-make up                  # Start all services in background
-make down                # Stop all services
-make dev                 # Start with hot-reload (foreground)
-make logs                # Tail all logs
-make logs s=api          # Tail specific service
-make ps                  # Show running services
-make restart s=api       # Restart a specific service
+# Wails
+wails dev                # Dev mode with hot-reload (Go + frontend)
+wails build              # Production build (single binary)
 
-# Database
-make migrate-up          # Run all pending migrations
-make migrate-down        # Rollback last migration
-make migrate-create      # New migration files (interactive prompt)
-make sqlc                # Regenerate Go code from SQL
-
-# Backend (in backend/)
-go build ./cmd/oversite  # Build binary
+# Go (from project root)
+go build ./...           # Build all Go code
 go test -race ./...      # Run unit tests (with race detector)
 go tool golangci-lint run  # Lint
+make sqlc                # Regenerate Go code from SQL
 
 # Frontend (in frontend/)
 pnpm dev                 # Dev server on :3000
@@ -94,7 +83,6 @@ pnpm test                # Vitest
 # Testing
 make test                # Run all tests (unit + integration)
 make test-unit           # Go + TS unit tests only
-make test-integration    # Go integration tests (requires Docker)
 make test-e2e            # Playwright E2E tests (in e2e/)
 
 # Quality
@@ -114,46 +102,21 @@ make hooks-fallback      # Fallback: git core.hooksPath, no extra tools
 
 PixiJS Application is **not** rendered by React. React renders a container `<div>`, PixiJS is instantiated in `useEffect` and manages its own render loop. Zustand `subscribe()` bridges React controls to PixiJS state. This avoids React re-render overhead on every frame.
 
-### Yjs Dumb Relay
+### SQLite with WAL Mode
 
-The Go WebSocket server does **not** parse Yjs messages. It receives binary Yjs updates from one client and broadcasts to all others in the room. State persistence: encode full Yjs doc to binary, store in `strategy_boards.yjs_state` (BYTEA column). This keeps Go simple -- all CRDT logic runs in the browser.
+Single embedded SQLite database using `modernc.org/sqlite` (pure Go, no CGo). WAL mode for concurrent reads, single connection (`SetMaxOpenConns(1)`) to avoid `SQLITE_BUSY`. Migrations embedded in binary via `//go:embed` and run by golang-migrate. Database functions in `internal/database/sqlite.go`.
 
-### Redis Streams Job Queue
+### Wails Bindings (No REST API)
 
-Background jobs (demo parsing, Faceit sync) use Redis Streams with consumer groups. API server produces jobs (`XADD`), worker process consumes (`XREADGROUP`). Jobs acknowledged on success (`XACK`), retried on failure (max 3 attempts), dead-lettered after.
+Go struct methods on the App struct are automatically exposed as TypeScript functions in the frontend. No HTTP server, no REST routes. Long-running operations (demo parsing) report progress via Wails runtime events.
 
-### TimescaleDB for Tick Data
+### Synchronous Processing
 
-Player position data (10 players x 64 ticks/sec x ~2000 seconds = ~1.28M rows per demo) stored in a TimescaleDB hypertable partitioned by synthetic timestamp. Compression policy compresses chunks > 7 days old. Query by `(demo_id, tick range)` for viewer playback.
+Demo parsing and Faceit sync run in-process (no background workers, no Redis). Operations are triggered by Wails binding calls and run synchronously with progress events.
 
 ### Coordinate Calibration
 
 Each CS2 map has calibration data (`origin_x`, `origin_y`, `scale`) mapping game world-space to radar image pixel-space. Stored in `frontend/src/lib/maps/calibration.ts`. Formula: `pixel_x = (world_x - origin_x) / scale`.
-
-## Docker Services
-
-| Service | Port | Network |
-|---------|------|---------|
-| nginx | 80, 443 | frontend |
-| web (Next.js) | 3000 | frontend |
-| api (Go) | 8080 | frontend, backend |
-| ws (Go) | 8081 | frontend, backend |
-| worker (Go) | - | backend |
-| postgres | 5432 | backend |
-| redis | 6379 | backend |
-| minio | 9000, 9001 | backend |
-
-## API Routes
-
-- `/api/v1/auth/*` -- Faceit OAuth (no auth required)
-- `/api/v1/demos/*` -- Demo CRUD, upload, tick data, events
-- `/api/v1/heatmaps/*` -- Aggregated heatmap generation
-- `/api/v1/strats/*` -- Strategy board CRUD + sharing
-- `/api/v1/lineups/*` -- Grenade lineup CRUD
-- `/api/v1/faceit/*` -- Faceit profile, ELO, matches
-- `/ws/viewer/:demoId` -- Demo playback sync
-- `/ws/strat/:stratId` -- Yjs strategy board collaboration
-- `/healthz`, `/readyz` -- Health checks
 
 ## Test-Writing Discipline
 
@@ -162,8 +125,8 @@ Before writing or modifying any test file, you **must**:
 1. **Read an existing test** in the same directory/package to match patterns exactly (imports, wrappers, mock style)
 2. **Use the project's test utilities** — never reinvent wrappers:
    - **Frontend**: Always use `renderWithProviders()` from `src/test/render.tsx` (provides QueryClientProvider, ThemeProvider, AuthProvider). Never create a raw `QueryClientProvider` wrapper in a test file.
-   - **Frontend mocks**: Use MSW handlers from `src/test/msw/handlers.ts` for API mocking. Use PixiJS mock factories from `src/test/mocks/pixi.ts`. Use `vi.mock()` with hoisting only for Next.js navigation (`next/navigation`, `next/router`).
-   - **Go mocks**: Use stub implementations from `internal/testutil/mocks.go` (`StubS3Client`, `StubSessionStore`, `StubJobQueue`, `StubFaceitAPI`). Never create ad-hoc mock structs that duplicate these.
+   - **Frontend mocks**: Use MSW handlers from `src/test/msw/handlers.ts` for Faceit API mocking. Use PixiJS mock factories from `src/test/mocks/pixi.ts`. Mock Wails binding functions from `src/test/mocks/bindings.ts`.
+   - **Go mocks**: Use stub implementations from `internal/testutil/mocks.go` (`MockKeyring`, `MockFaceitClient`). Never create ad-hoc mock structs that duplicate these.
 3. **Run the test immediately** after writing it — do not move to the next file until the test passes (the Stop hook runs tests automatically when your turn ends)
 
 ## Claude Code Automations
@@ -191,4 +154,4 @@ Before writing or modifying any test file, you **must**:
 - `docs/PRD.md` -- Product requirements, user stories, data models
 - `docs/ARCHITECTURE.md` -- System design, DB schema, data flows
 - `docs/IMPLEMENTATION_PLAN.md` -- 6-phase delivery plan
-- `docs/TASK_BREAKDOWN.md` -- 68 granular tasks with acceptance criteria
+- `docs/TASK_BREAKDOWN.md` -- 63 granular tasks with acceptance criteria

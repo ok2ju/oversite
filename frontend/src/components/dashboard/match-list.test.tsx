@@ -1,13 +1,16 @@
 import { vi, describe, it, expect } from "vitest"
 import { screen, waitFor, within } from "@testing-library/react"
 import { renderWithProviders, userEvent } from "@/test/render"
+import { mockAppBindings } from "@/test/mocks/bindings"
 import { MatchList } from "@/components/dashboard/match-list"
 
-vi.mock("next/navigation", () => ({
-  useRouter: vi.fn(() => ({ push: vi.fn() })),
-}))
+vi.mock("@wailsjs/go/main/App", () => mockAppBindings)
 
-const { useRouter } = await import("next/navigation")
+const mockNavigate = vi.fn()
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual("react-router-dom")
+  return { ...actual, useNavigate: () => mockNavigate }
+})
 
 async function waitForMatches() {
   await waitFor(() => {
@@ -94,17 +97,14 @@ describe("MatchList", () => {
   })
 
   it("navigates to demo viewer on click when match has demo", async () => {
-    const push = vi.fn()
-    vi.mocked(useRouter).mockReturnValue({ push } as unknown as ReturnType<
-      typeof useRouter
-    >)
+    mockNavigate.mockClear()
     const user = userEvent.setup()
 
     renderWithProviders(<MatchList />)
     await waitForMatches()
 
     await user.click(screen.getByTestId("match-row-fm-1"))
-    expect(push).toHaveBeenCalledWith("/demos/demo-1")
+    expect(mockNavigate).toHaveBeenCalledWith("/demos/demo-1")
   })
 
   it("shows 'Import Demo' button for matches without demo", async () => {

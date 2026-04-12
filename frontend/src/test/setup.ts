@@ -12,7 +12,7 @@ class ResizeObserverStub {
 globalThis.ResizeObserver =
   ResizeObserverStub as unknown as typeof ResizeObserver
 
-// jsdom doesn't implement matchMedia — stub it for next-themes
+// jsdom doesn't implement matchMedia — stub it for ThemeProvider
 Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: (query: string) => ({

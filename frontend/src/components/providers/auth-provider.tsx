@@ -1,8 +1,7 @@
-"use client"
-
 import { createContext, useContext, useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { useRouter, usePathname } from "next/navigation"
+import { useNavigate, useLocation } from "react-router-dom"
+import { GetCurrentUser } from "@wailsjs/go/main/App"
 
 export interface User {
   user_id: string
@@ -20,18 +19,9 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 
 const PUBLIC_PATHS = ["/login", "/callback"]
 
-async function fetchCurrentUser(): Promise<User> {
-  const res = await fetch("/api/v1/auth/me")
-  if (!res.ok) {
-    throw new Error("Unauthorized")
-  }
-  const json = await res.json()
-  return json
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
-  const pathname = usePathname()
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
 
   const {
     data: user,
@@ -39,18 +29,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isError,
   } = useQuery<User>({
     queryKey: ["auth", "me"],
-    queryFn: fetchCurrentUser,
+    queryFn: () => GetCurrentUser() as Promise<User>,
     retry: false,
   })
 
   const isAuthenticated = !!user && !isError
-  const isPublicPath = PUBLIC_PATHS.some((path) => pathname?.startsWith(path))
+  const isPublicPath = PUBLIC_PATHS.some((path) => pathname.startsWith(path))
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !isPublicPath) {
-      router.push("/login")
+      navigate("/login")
     }
-  }, [isLoading, isAuthenticated, isPublicPath, router])
+  }, [isLoading, isAuthenticated, isPublicPath, navigate])
 
   return (
     <AuthContext.Provider

@@ -14,9 +14,10 @@
 4. [Information Architecture](#4-information-architecture)
 5. [Feature Specifications](#5-feature-specifications)
 6. [User Stories](#6-user-stories)
-7. [Non-Functional Requirements](#7-non-functional-requirements)
-8. [Data Models](#8-data-models)
-9. [Wails Bindings Overview](#9-wails-bindings-overview)
+7. [Empty States, Error States & Onboarding](#7-empty-states-error-states--onboarding)
+8. [Non-Functional Requirements](#8-non-functional-requirements)
+9. [Data Models](#9-data-models)
+10. [Wails Bindings Overview](#10-wails-bindings-overview)
 
 ---
 
@@ -91,12 +92,12 @@ CS2 players on Faceit lack a fast, unified tool to:
 | Layer | Technology | Notes |
 |-------|-----------|-------|
 | **Desktop Framework** | Wails v2 | Go backend + system WebView; single binary output |
-| **Frontend** | Vite + React 18 | SPA with react-router-dom; embedded via `embed.FS` |
+| **Frontend** | Vite + React 19 | SPA with react-router-dom; embedded via `embed.FS` |
 | **UI Components** | shadcn/ui + Tailwind CSS | Accessible, themeable component library |
 | **2D Rendering** | PixiJS v8 | WebGL canvas for performant 2D playback |
 | **State Management** | Zustand | Lightweight stores, selector-based subscriptions |
 | **Data Fetching** | TanStack Query v5 | Caches Wails binding responses; background refetch for Faceit data |
-| **Backend** | Go 1.22+ | Business logic exposed as Wails bindings |
+| **Backend** | Go 1.26+ | Business logic exposed as Wails bindings |
 | **Demo Parser** | markus-wa/demoinfocs-golang v5 | Only mature Go-based CS2 demo parser |
 | **Database** | SQLite (modernc.org/sqlite) | Pure Go, CGo-free; WAL mode; local file |
 | **SQL Generation** | sqlc (SQLite dialect) | Type-safe Go code from SQL queries |
@@ -362,6 +363,31 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 - Delete demos (removes parsed data from SQLite; optionally removes source `.dem` file)
 - Re-parse a demo (useful after parser updates)
 
+### F7: Settings
+
+Application-wide preferences accessible via the `/settings` route.
+
+#### F7.1 Appearance
+
+- Theme toggle: light / dark / system (persisted in `config.json`)
+- Theme applies globally via Tailwind CSS class strategy
+
+#### F7.2 Demo Management Settings
+
+- **Watch folder**: Optional directory path the app scans for new `.dem` files on startup
+- Default to CS2's demo download directory if detectable
+- Browse button opens native folder picker
+
+#### F7.3 Faceit Integration Settings
+
+- **Auto-fetch**: Toggle automatic Faceit match sync on login (default: on)
+- **Sync interval**: How often to check for new matches (manual / on launch / periodic)
+
+#### F7.4 About
+
+- App version, build info, and link to check for updates
+- Link to project repository / issue tracker
+
 ---
 
 ## 6. User Stories
@@ -436,9 +462,47 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 
 ---
 
-## 7. Non-Functional Requirements
+## 7. Empty States, Error States & Onboarding
 
-### 7.1 Performance
+### 7.1 First-Run Onboarding
+
+On first launch (no `config.json` exists):
+
+1. **Welcome screen** with app logo and one-line description
+2. **Faceit login prompt** — "Connect your Faceit account" button (skippable; app works without auth for local demo analysis)
+3. **Import prompt** — "Import your first demo" with drag-drop zone and folder picker
+4. After dismissal, user lands on the Dashboard
+
+The onboarding flow does not reappear after first completion (flag in `config.json`).
+
+### 7.2 Empty States
+
+| Page | Empty State |
+|------|-------------|
+| Dashboard | Illustration + "Import your first demo to get started" CTA |
+| Demo Library | Drag-drop zone prominently displayed + "No demos imported yet" |
+| Viewer | Not reachable without a demo (route guard redirects to library) |
+| Heatmaps | "Import and parse demos to generate heatmaps" message |
+| Strategy Board | "Create your first strategy" CTA button |
+| Faceit Dashboard | "Connect your Faceit account" login CTA (if not authed) or "Sync your matches" button (if authed but no data) |
+| Grenade Lineups | "Parse demos to discover grenade lineups" message |
+
+### 7.3 Error States
+
+| Scenario | Behavior |
+|----------|----------|
+| Faceit OAuth failure (user cancels, timeout, network error) | Toast notification with error message; user stays on login page; retry button available |
+| Demo parse failure (corrupt file, unsupported format) | Demo record marked as `error` status in library; error message shown in toast; other demos in batch continue |
+| Demo parse partial failure (crash mid-parse) | Partial data rolled back (SQLite transaction); demo marked `error`; user can retry |
+| Network offline (Faceit sync) | Toast "No internet connection — Faceit features unavailable"; local features remain fully functional |
+| SQLite error (disk full, permissions) | Modal error with explanation; suggest checking disk space; app remains open for read-only browsing |
+| Invalid .dem file (wrong magic bytes, too small) | Rejected at import with "Not a valid CS2 demo file" message; file skipped in batch import |
+
+---
+
+## 8. Non-Functional Requirements
+
+### 8.1 Performance
 
 | Metric | Target |
 |--------|--------|
@@ -449,7 +513,7 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 | App startup time (cold) | < 3 seconds to interactive UI |
 | Tick data query latency (SQLite) | < 50ms for a 1000-tick range |
 
-### 7.2 Security
+### 8.2 Security
 
 - Faceit OAuth 2.0 with PKCE (loopback redirect, RFC 8252)
 - Refresh tokens stored in OS keychain (encrypted at rest)
@@ -458,7 +522,7 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 - No network listeners except during OAuth callback (temporary, localhost only)
 - SQLite database file permissions: owner read/write only
 
-### 7.3 Accessibility
+### 8.3 Accessibility
 
 - WCAG 2.1 AA compliance for all non-canvas UI
 - Keyboard navigation for all controls (playback, menus, forms)
@@ -466,7 +530,7 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 - Color-blind-friendly palette option for team colors
 - Canvas elements: provide text alternatives where feasible (scoreboard, stats)
 
-### 7.4 Platform Support
+### 8.4 Platform Support
 
 | Platform | Minimum Version | WebView Engine |
 |----------|----------------|---------------|
@@ -477,7 +541,7 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 - WebGL 2.0 required for PixiJS rendering (all supported WebView versions support this)
 - Requires internet access only for Faceit OAuth and API calls
 
-### 7.5 Installation & Distribution
+### 8.5 Installation & Distribution
 
 | Dimension | Target |
 |-----------|--------|
@@ -487,7 +551,7 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 | Installer format (Linux) | `.AppImage` or `.deb` |
 | Auto-update | Built-in update checker + download |
 
-### 7.6 Test Coverage & Quality
+### 8.6 Test Coverage & Quality
 
 The project follows **Test-Driven Development (TDD)**. Every feature is developed using the Red-Green-Refactor cycle: write a failing test first, implement the minimum code to pass, then refactor.
 
@@ -510,9 +574,11 @@ The project follows **Test-Driven Development (TDD)**. Every feature is develope
 
 ---
 
-## 8. Data Models
+## 9. Data Models
 
-### 8.1 Core Entities
+> **Canonical DDL**: The authoritative `CREATE TABLE` statements with constraints and indexes live in [ARCHITECTURE.md Section 7](ARCHITECTURE.md#7-database-schema). The tables below describe entities at a business level — field purposes and types. If they diverge, the DDL in ARCHITECTURE.md is the source of truth.
+
+### 9.1 Core Entities
 
 #### User
 
@@ -669,7 +735,7 @@ The project follows **Test-Driven Development (TDD)**. Every feature is develope
 
 ---
 
-## 9. Wails Bindings Overview
+## 10. Wails Bindings Overview
 
 Instead of a REST API, the Go backend exposes methods to the frontend via Wails bindings. The frontend calls these as async TypeScript functions.
 

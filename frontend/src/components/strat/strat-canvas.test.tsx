@@ -30,37 +30,15 @@ vi.mock("@/lib/pixi/layers/map-layer", () => {
   }
 })
 
-const mockRendererAttach = vi.fn()
-const mockRendererDetach = vi.fn()
 const mockRendererDestroy = vi.fn()
 
 vi.mock("@/lib/strat/renderer", () => {
   return {
     StratRenderer: class MockStratRenderer {
-      attach = mockRendererAttach
-      detach = mockRendererDetach
       destroy = mockRendererDestroy
     },
   }
 })
-
-const mockStratDocDestroy = vi.fn()
-const mockCreateStratDoc = vi
-  .fn()
-  .mockReturnValue({ destroy: mockStratDocDestroy })
-
-vi.mock("@/lib/yjs/doc", () => ({
-  createStratDoc: (...args: unknown[]) => mockCreateStratDoc(...args),
-}))
-
-const mockProviderDestroy = vi.fn()
-const mockCreateStratProvider = vi
-  .fn()
-  .mockReturnValue({ destroy: mockProviderDestroy })
-
-vi.mock("@/lib/yjs/provider", () => ({
-  createStratProvider: (...args: unknown[]) => mockCreateStratProvider(...args),
-}))
 
 const mockCameraDestroy = vi.fn()
 const mockCameraSetScreenSize = vi.fn()
@@ -99,8 +77,6 @@ describe("StratCanvas", () => {
     mockCameraDestroy.mockReset()
     mockCameraSetScreenSize.mockReset()
     mockMapLayerCalibration = null
-    mockCreateStratDoc.mockReturnValue({ destroy: mockStratDocDestroy })
-    mockCreateStratProvider.mockReturnValue({ destroy: mockProviderDestroy })
     useStratStore.getState().reset()
   })
 
@@ -219,48 +195,7 @@ describe("StratCanvas", () => {
     mockMapLayerCalibration = null
   })
 
-  it("creates doc + provider and attaches renderer when boardId is set", async () => {
-    renderWithProviders(<StratCanvas />)
-
-    await vi.waitFor(() => {
-      expect(mockCreateViewerApp).toHaveBeenCalled()
-    })
-
-    useStratStore.getState().setBoard("board-1", "de_mirage")
-
-    await vi.waitFor(() => {
-      expect(mockCreateStratDoc).toHaveBeenCalled()
-    })
-
-    expect(mockCreateStratProvider).toHaveBeenCalledWith(
-      expect.objectContaining({ stratId: "board-1" }),
-    )
-    expect(mockRendererAttach).toHaveBeenCalled()
-  })
-
-  it("destroys previous doc/provider when boardId changes", async () => {
-    renderWithProviders(<StratCanvas />)
-
-    await vi.waitFor(() => {
-      expect(mockCreateViewerApp).toHaveBeenCalled()
-    })
-
-    useStratStore.getState().setBoard("board-1", "de_mirage")
-
-    await vi.waitFor(() => {
-      expect(mockCreateStratDoc).toHaveBeenCalled()
-    })
-
-    mockRendererDetach.mockClear()
-    useStratStore.getState().setBoard("board-2", "de_dust2")
-
-    await vi.waitFor(() => {
-      expect(mockRendererDetach).toHaveBeenCalled()
-    })
-
-    expect(mockProviderDestroy).toHaveBeenCalled()
-    expect(mockStratDocDestroy).toHaveBeenCalled()
-  })
+  // TODO: Test boardId -> load strat data via Wails bindings (P5 tasks)
 
   it("destroys camera on unmount", async () => {
     const { unmount } = renderWithProviders(<StratCanvas />)
