@@ -68,7 +68,7 @@ T01 (Wails init) ──┬── T02 (SQLite) ──┬── T03 (sqlc)
 
 ---
 
-### T03: Configure sqlc for SQLite -- NEEDS SEPARATE PLANNING
+### T03: Configure sqlc for SQLite -- COMPLETED
 
 **Why:** 10 query files need PostgreSQL-to-SQLite translation, with 3-4 complex queries that have no direct SQLite equivalent.
 
@@ -224,7 +224,7 @@ T01 (Wails init) ──┬── T02 (SQLite) ──┬── T03 (sqlc)
 
 ---
 
-### T08: Create Root Makefile
+### T08: Create Root Makefile -- COMPLETED
 
 **Complexity:** S | **Depends on:** T01
 

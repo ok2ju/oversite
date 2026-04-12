@@ -1,4 +1,4 @@
-.PHONY: dev build clean sqlc lint typecheck test test-unit test-e2e hooks hooks-fallback help
+.PHONY: dev build clean sqlc migrate-create lint typecheck test test-go test-fe test-unit test-e2e hooks hooks-fallback help
 
 # ========================
 # Development
@@ -22,6 +22,13 @@ clean: ## Remove build artifacts
 sqlc: ## Regenerate Go code from SQL queries
 	go tool sqlc generate
 
+migrate-create: ## Create new migration pair (usage: make migrate-create name=<name>)
+	@test -n "$(name)" || (echo "Usage: make migrate-create name=<migration_name>" && exit 1)
+	@next=$$(printf "%03d" $$(($$(ls migrations/*.up.sql 2>/dev/null | wc -l | tr -d ' ') + 1))); \
+	touch "migrations/$${next}_$(name).up.sql" "migrations/$${next}_$(name).down.sql"; \
+	echo "Created migrations/$${next}_$(name).up.sql"; \
+	echo "Created migrations/$${next}_$(name).down.sql"
+
 # ========================
 # Quality
 # ========================
@@ -41,6 +48,12 @@ test: test-unit test-e2e ## Run all tests
 
 test-unit: ## Run Go + TS unit tests
 	go test -race ./...
+	cd frontend && pnpm test
+
+test-go: ## Run Go tests only
+	go test -race ./...
+
+test-fe: ## Run frontend tests only
 	cd frontend && pnpm test
 
 test-e2e: ## Run Playwright E2E tests
