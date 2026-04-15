@@ -34,21 +34,21 @@ FAILED=0
 if $HAS_FE; then
   cd "$PROJECT_ROOT/frontend"
   echo "=== TypeScript type check ==="
-  npx tsc --noEmit 2>&1 | head -40 || FAILED=1
+  npx tsc --noEmit 2>&1 | head -40 || { FAILED=1; echo "FAIL: tsc --noEmit"; }
 fi
 
 # --- Go vet (backend/) ---
 if $HAS_BE; then
   cd "$PROJECT_ROOT/backend"
   echo "=== Go vet (backend) ==="
-  go vet ./... 2>&1 | head -40 || FAILED=1
+  go vet ./... 2>&1 | head -40 || { FAILED=1; echo "FAIL: go vet backend"; }
 fi
 
 # --- Go vet (root/internal/) ---
 if $HAS_ROOT_GO; then
   cd "$PROJECT_ROOT"
   echo "=== Go vet (root) ==="
-  GOCACHE="${TMPDIR:-/tmp}/go-build" go vet -buildvcs=false ./... 2>&1 | head -40 || FAILED=1
+  GOCACHE="${TMPDIR:-/tmp}/go-build" go vet -buildvcs=false ./... 2>&1 | head -40 || { FAILED=1; echo "FAIL: go vet root"; }
 fi
 
 exit $FAILED

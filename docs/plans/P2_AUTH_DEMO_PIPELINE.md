@@ -62,7 +62,7 @@ At phase completion, a user can sign in with Faceit, import a demo file (or fold
 | Wave | Tasks | Parallel? | Notes |
 |------|-------|-----------|-------|
 | 0 | P2-S01 (spike) | **COMPLETE** | Done 2026-04-15. Findings in `docs/spike-parser-findings.md`. |
-| 1 | P2-T01 (OAuth), P2-T02 (Keyring), P2-T05 (Demo Import) | All parallel | Three independent work streams |
+| 1 | P2-T01 (OAuth), P2-T02 (Keyring), P2-T05 (Demo Import) | **COMPLETE** | Done 2026-04-15. All three implemented with 65 passing tests. |
 | 2 | P2-T03 (Auth Service), P2-T10 (Demo UI), P2-T11 (Folder Import) | All parallel | T03 needs T01+T02. T10 needs T05. T11 needs T05. |
 | 3 | P2-T04 (AuthProvider), P2-T06 (Parser Core) | Parallel | T04 needs T03. T06 needs T05 + spike output. T06 is the critical path. |
 | 4 | P2-T07 (Ticks), P2-T08 (Events), P2-T09 (Rounds) | All parallel | All need only T06. Independent data pathways. |
@@ -88,7 +88,9 @@ At phase completion, a user can sign in with Faceit, import a demo file (or fold
 
 ---
 
-### P2-T01: Implement Loopback OAuth Flow
+### P2-T01: Implement Loopback OAuth Flow -- COMPLETE
+
+**Status:** Done (2026-04-15). Files: `internal/auth/pkce.go`, `internal/auth/oauth.go` + tests. 32 tests passing.
 
 **Why:** RFC 8252 loopback redirect: start temp HTTP listener on random port, open system browser to Faceit auth URL, capture callback code, exchange for tokens with PKCE.
 
@@ -134,7 +136,9 @@ At phase completion, a user can sign in with Faceit, import a demo file (or fold
 
 ---
 
-### P2-T02: Implement Keychain Token Storage
+### P2-T02: Implement Keychain Token Storage -- COMPLETE
+
+**Status:** Done (2026-04-15). Files: `internal/auth/keyring.go`, `internal/auth/keyring_real.go` + tests. 6 tests passing.
 
 **Why:** Refresh tokens must persist across app restarts in OS-encrypted storage. The `Keyring` interface and `MockKeyring` already exist in `internal/testutil/mocks.go` -- this task implements the real one and wraps it in a `TokenStore`.
 
@@ -243,7 +247,9 @@ At phase completion, a user can sign in with Faceit, import a demo file (or fold
 
 ---
 
-### P2-T05: Implement Demo Import Binding
+### P2-T05: Implement Demo Import Binding -- COMPLETE
+
+**Status:** Done (2026-04-15). Files: `internal/demo/validate.go` (MaxUploadSize raised to 1GB), `internal/demo/import.go` + tests. 33 tests passing.
 
 **Why:** Entry point for all demo data. Validate `.dem` file format, register in SQLite with status `imported`. Web-era `backend/internal/demo/validate.go` (52L) has working validation code that ports directly.
 

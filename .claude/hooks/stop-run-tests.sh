@@ -40,7 +40,7 @@ while IFS= read -r file; do
 done <<< "$CHANGED"
 
 # Deduplicate Go packages
-if [ ${#BE_PACKAGES[@]} -gt 0 ]; then
+if [ "${#BE_PACKAGES[@]}" -gt 0 ]; then
   UNIQUE_PKGS=$(printf '%s\n' "${BE_PACKAGES[@]}" | sort -u)
   BE_PACKAGES=()
   while IFS= read -r pkg; do
@@ -56,12 +56,12 @@ if [ ${#FE_TEST_FILES[@]} -gt 0 ] || [ ${#FE_SOURCE_FILES[@]} -gt 0 ]; then
 
   if [ ${#FE_TEST_FILES[@]} -gt 0 ]; then
     echo "=== Frontend tests (direct) ==="
-    npx vitest run "${FE_TEST_FILES[@]}" --reporter=verbose 2>&1 | tail -40 || FAILED=1
+    npx vitest run "${FE_TEST_FILES[@]}" --reporter=verbose 2>&1 | tail -40 || { FAILED=1; echo "FAIL: frontend direct tests"; }
   fi
 
   if [ ${#FE_SOURCE_FILES[@]} -gt 0 ]; then
     echo "=== Frontend tests (related) ==="
-    npx vitest run --related "${FE_SOURCE_FILES[@]}" --reporter=verbose --passWithNoTests 2>&1 | tail -40 || FAILED=1
+    npx vitest run --related "${FE_SOURCE_FILES[@]}" --reporter=verbose --passWithNoTests 2>&1 | tail -40 || { FAILED=1; echo "FAIL: frontend related tests"; }
   fi
 fi
 
@@ -69,7 +69,7 @@ fi
 if [ ${#BE_PACKAGES[@]} -gt 0 ]; then
   cd "$PROJECT_ROOT/backend"
   echo "=== Backend tests ==="
-  go test -race -count=1 -timeout=60s "${BE_PACKAGES[@]}" 2>&1 | tail -40 || FAILED=1
+  go test -race -count=1 -timeout=60s "${BE_PACKAGES[@]}" 2>&1 | tail -40 || { FAILED=1; echo "FAIL: backend tests"; }
 fi
 
 # --- Root-level Go tests (Wails app, internal/) ---
@@ -82,7 +82,7 @@ if [ ${#ROOT_GO_PACKAGES[@]} -gt 0 ]; then
 
   cd "$PROJECT_ROOT"
   echo "=== Root Go tests ==="
-  GOCACHE="${TMPDIR:-/tmp}/go-build" go test -race -count=1 -timeout=60s -buildvcs=false "${ROOT_GO_PACKAGES[@]}" 2>&1 | tail -40 || FAILED=1
+  GOCACHE="${TMPDIR:-/tmp}/go-build" go test -race -count=1 -timeout=60s -buildvcs=false "${ROOT_GO_PACKAGES[@]}" 2>&1 | tail -40 || { FAILED=1; echo "FAIL: root Go tests"; }
 fi
 
 exit $FAILED

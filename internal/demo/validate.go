@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// MaxUploadSize is the maximum allowed demo file size (500 MB).
-const MaxUploadSize int64 = 500 << 20
+// MaxUploadSize is the maximum allowed demo file size (1 GB).
+const MaxUploadSize int64 = 1 << 30
 
 var (
 	// MagicCS2 is the file magic for CS2 demo files.
