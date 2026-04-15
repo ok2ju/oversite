@@ -32,7 +32,9 @@ while IFS= read -r file; do
     rel="${file#$PROJECT_ROOT/}"
     pkg_dir=$(dirname "$rel")
     if [ "$pkg_dir" = "." ]; then
-      ROOT_GO_PACKAGES+=("./...")
+      # Root main package requires //go:embed frontend/dist (only available
+      # after wails build), so test ./internal/... instead of ./...
+      ROOT_GO_PACKAGES+=("./internal/...")
     else
       ROOT_GO_PACKAGES+=("./$pkg_dir/...")
     fi

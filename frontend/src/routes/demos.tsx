@@ -1,10 +1,13 @@
-import { useDemos, useDeleteDemo } from "@/hooks/use-demos"
+import { useDemos, useDeleteDemo, useImportFolder } from "@/hooks/use-demos"
 import { DemoList } from "@/components/demos/demo-list"
 import { UploadDialog } from "@/components/demos/upload-dialog"
+import { Button } from "@/components/ui/button"
+import { FolderOpen } from "lucide-react"
 
 export default function DemosPage() {
   const { data, isLoading } = useDemos()
   const deleteDemo = useDeleteDemo()
+  const { importFolder, isImporting: isFolderImporting } = useImportFolder()
 
   const demos = data?.data ?? []
 
@@ -17,7 +20,17 @@ export default function DemosPage() {
             Upload and manage your CS2 demo files
           </p>
         </div>
-        <UploadDialog />
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => importFolder()}
+            disabled={isFolderImporting}
+          >
+            <FolderOpen className="mr-2 h-4 w-4" />
+            {isFolderImporting ? "Importing..." : "Import Folder"}
+          </Button>
+          <UploadDialog />
+        </div>
       </div>
 
       {!isLoading && demos.length === 0 ? (

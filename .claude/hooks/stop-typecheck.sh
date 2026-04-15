@@ -45,10 +45,12 @@ if $HAS_BE; then
 fi
 
 # --- Go vet (root/internal/) ---
+# Vet only ./internal/... because the root main package requires frontend/dist
+# from //go:embed which only exists after `wails build` or `wails dev`.
 if $HAS_ROOT_GO; then
   cd "$PROJECT_ROOT"
   echo "=== Go vet (root) ==="
-  GOCACHE="${TMPDIR:-/tmp}/go-build" go vet -buildvcs=false ./... 2>&1 | head -40 || { FAILED=1; echo "FAIL: go vet root"; }
+  GOCACHE="${TMPDIR:-/tmp}/go-build" go vet -buildvcs=false ./internal/... 2>&1 | head -40 || { FAILED=1; echo "FAIL: go vet root"; }
 fi
 
 exit $FAILED

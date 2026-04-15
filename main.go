@@ -8,6 +8,11 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 )
 
+// faceitClientSecret is injected at build time via:
+//
+//	go build -ldflags "-X main.faceitClientSecret=SECRET"
+var faceitClientSecret string
+
 //go:embed all:frontend/dist
 var assets embed.FS
 

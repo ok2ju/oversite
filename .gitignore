@@ -66,5 +66,6 @@ tmp/
 
 # Claude
 .claude/worktrees
+.claude/temp
 
 testdata/demos

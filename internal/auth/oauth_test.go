@@ -14,10 +14,11 @@ import (
 
 func testOAuthConfig(tokenURL string) OAuthConfig {
 	return OAuthConfig{
-		ClientID:        "test-client-id",
-		AuthURL:         "https://cdn.faceit.com/widgets/sso/index.html",
-		TokenURL:        tokenURL,
-		RedirectURIBase: "http://127.0.0.1",
+		ClientID:     "test-client-id",
+		ClientSecret: "test-client-secret",
+		AuthURL:      "https://cdn.faceit.com/widgets/sso/index.html",
+		TokenURL:     tokenURL,
+		RelayURL:     "https://example.com/oauth/callback",
 	}
 }
 
@@ -32,12 +33,24 @@ func TestStartLoopbackFlow_FullFlow(t *testing.T) {
 			t.Errorf("Content-Type = %q, want application/x-www-form-urlencoded", ct)
 		}
 
+		// Verify Basic Auth is used (confidential client).
+		user, pass, ok := r.BasicAuth()
+		if !ok {
+			t.Error("token request missing Basic Auth")
+		}
+		if user != "test-client-id" {
+			t.Errorf("Basic Auth user = %q, want test-client-id", user)
+		}
+		if pass != "test-client-secret" {
+			t.Errorf("Basic Auth pass = %q, want test-client-secret", pass)
+		}
+
 		if err := r.ParseForm(); err != nil {
 			t.Fatalf("ParseForm: %v", err)
 		}
 
-		// Verify all required form params are present.
-		requiredParams := []string{"grant_type", "code", "code_verifier", "redirect_uri", "client_id"}
+		// Verify required form params (client_id no longer sent as form param).
+		requiredParams := []string{"grant_type", "code", "code_verifier", "redirect_uri"}
 		for _, p := range requiredParams {
 			if r.FormValue(p) == "" {
 				t.Errorf("missing form param %q", p)
@@ -50,8 +63,8 @@ func TestStartLoopbackFlow_FullFlow(t *testing.T) {
 		if r.FormValue("code") != "test-auth-code" {
 			t.Errorf("code = %q, want test-auth-code", r.FormValue("code"))
 		}
-		if r.FormValue("client_id") != "test-client-id" {
-			t.Errorf("client_id = %q, want test-client-id", r.FormValue("client_id"))
+		if r.FormValue("redirect_uri") != "https://example.com/oauth/callback" {
+			t.Errorf("redirect_uri = %q, want relay URL", r.FormValue("redirect_uri"))
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -66,8 +79,8 @@ func TestStartLoopbackFlow_FullFlow(t *testing.T) {
 
 	cfg := testOAuthConfig(tokenServer.URL)
 
-	// The openBrowser mock: parse the auth URL to find the redirect_uri,
-	// then simulate the callback by hitting it with ?code=test-auth-code.
+	// The openBrowser mock: parse the auth URL, read the state param (loopback port),
+	// then simulate the relay page by hitting the loopback server with ?code=.
 	openBrowser := func(authURL string) error {
 		parsed, err := url.Parse(authURL)
 		if err != nil {
@@ -79,6 +92,7 @@ func TestStartLoopbackFlow_FullFlow(t *testing.T) {
 		expectedParams := map[string]string{
 			"response_type":         "code",
 			"client_id":             "test-client-id",
+			"redirect_uri":          "https://example.com/oauth/callback",
 			"code_challenge_method": "S256",
 			"scope":                 "openid profile email membership",
 		}
@@ -90,14 +104,14 @@ func TestStartLoopbackFlow_FullFlow(t *testing.T) {
 		if q.Get("code_challenge") == "" {
 			t.Error("auth URL missing code_challenge param")
 		}
-		if q.Get("redirect_uri") == "" {
-			t.Error("auth URL missing redirect_uri param")
+		if q.Get("state") == "" {
+			t.Error("auth URL missing state param (loopback port)")
 		}
 
-		// Simulate the OAuth provider redirecting back with a code.
-		redirectURI := q.Get("redirect_uri")
+		// Simulate the relay page: read port from state, redirect to loopback.
+		port := q.Get("state")
 		go func() {
-			callbackURL := redirectURI + "?code=test-auth-code"
+			callbackURL := fmt.Sprintf("http://127.0.0.1:%s/callback?code=test-auth-code", port)
 			resp, err := http.Get(callbackURL)
 			if err != nil {
 				t.Errorf("callback GET: %v", err)
@@ -167,9 +181,9 @@ func TestStartLoopbackFlow_TokenEndpointError(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		redirectURI := parsed.Query().Get("redirect_uri")
+		port := parsed.Query().Get("state")
 		go func() {
-			resp, err := http.Get(redirectURI + "?code=bad-code")
+			resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%s/callback?code=bad-code", port))
 			if err != nil {
 				t.Errorf("callback GET: %v", err)
 				return
@@ -212,10 +226,10 @@ func TestStartLoopbackFlow_CallbackNoCode(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		redirectURI := parsed.Query().Get("redirect_uri")
+		port := parsed.Query().Get("state")
 		go func() {
 			// Simulate callback with error instead of code.
-			resp, err := http.Get(redirectURI + "?error=access_denied")
+			resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%s/callback?error=access_denied", port))
 			if err != nil {
 				t.Errorf("callback GET: %v", err)
 				return
@@ -236,7 +250,10 @@ func TestStartLoopbackFlow_CallbackNoCode(t *testing.T) {
 
 func TestExchangeCode_FormParams(t *testing.T) {
 	var gotForm url.Values
+	var gotBasicUser, gotBasicPass string
+	var gotBasicOK bool
 	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBasicUser, gotBasicPass, gotBasicOK = r.BasicAuth()
 		if err := r.ParseForm(); err != nil {
 			t.Fatalf("ParseForm: %v", err)
 		}
@@ -253,11 +270,23 @@ func TestExchangeCode_FormParams(t *testing.T) {
 
 	cfg := testOAuthConfig(tokenServer.URL)
 
-	resp, err := exchangeCode(context.Background(), cfg, "my-code", "my-verifier", "http://127.0.0.1:12345/callback")
+	resp, err := exchangeCode(context.Background(), cfg, "my-code", "my-verifier", "https://example.com/oauth/callback")
 	if err != nil {
 		t.Fatalf("exchangeCode: %v", err)
 	}
 
+	// Verify Basic Auth credentials.
+	if !gotBasicOK {
+		t.Error("expected Basic Auth on token request")
+	}
+	if gotBasicUser != "test-client-id" {
+		t.Errorf("Basic Auth user = %q, want test-client-id", gotBasicUser)
+	}
+	if gotBasicPass != "test-client-secret" {
+		t.Errorf("Basic Auth pass = %q, want test-client-secret", gotBasicPass)
+	}
+
+	// Verify form params (client_id is no longer a form param).
 	tests := []struct {
 		param string
 		want  string
@@ -265,8 +294,7 @@ func TestExchangeCode_FormParams(t *testing.T) {
 		{"grant_type", "authorization_code"},
 		{"code", "my-code"},
 		{"code_verifier", "my-verifier"},
-		{"redirect_uri", "http://127.0.0.1:12345/callback"},
-		{"client_id", "test-client-id"},
+		{"redirect_uri", "https://example.com/oauth/callback"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.param, func(t *testing.T) {
@@ -274,6 +302,11 @@ func TestExchangeCode_FormParams(t *testing.T) {
 				t.Errorf("%s = %q, want %q", tt.param, got, tt.want)
 			}
 		})
+	}
+
+	// client_id should NOT be in form body (sent via Basic Auth instead).
+	if got := gotForm.Get("client_id"); got != "" {
+		t.Errorf("client_id should not be in form body, got %q", got)
 	}
 
 	if resp.AccessToken != "tok" {
@@ -289,7 +322,7 @@ func TestExchangeCode_BadJSON(t *testing.T) {
 	defer tokenServer.Close()
 
 	cfg := testOAuthConfig(tokenServer.URL)
-	_, err := exchangeCode(context.Background(), cfg, "code", "verifier", "http://127.0.0.1:1/callback")
+	_, err := exchangeCode(context.Background(), cfg, "code", "verifier", "https://example.com/oauth/callback")
 	if err == nil {
 		t.Fatal("expected error for invalid JSON, got nil")
 	}

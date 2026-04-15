@@ -28,6 +28,8 @@ export const mockAppBindings = {
 
   LoginWithFaceit: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
 
+  Logout: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+
   ListDemos: vi
     .fn<
       (
@@ -48,6 +50,10 @@ export const mockAppBindings = {
     }),
 
   ImportDemoFile: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+
+  ImportDemoFolder: vi
+    .fn<() => Promise<{ imported: typeof mockDemos; errors: string[] }>>()
+    .mockResolvedValue({ imported: [], errors: [] }),
 
   DeleteDemo: vi
     .fn<(id: number) => Promise<void>>()

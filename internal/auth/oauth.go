@@ -14,10 +14,11 @@ import (
 
 // OAuthConfig holds the OAuth 2.0 configuration for the desktop loopback flow.
 type OAuthConfig struct {
-	ClientID        string
-	AuthURL         string
-	TokenURL        string
-	RedirectURIBase string // e.g. "http://127.0.0.1"
+	ClientID     string
+	ClientSecret string // injected at build time via ldflags
+	AuthURL      string
+	TokenURL     string
+	RelayURL     string // HTTPS relay page (e.g. "https://ok2ju.github.io/oversite/oauth/callback")
 }
 
 // TokenResponse represents the token response from the OAuth provider.
@@ -61,13 +62,18 @@ func StartLoopbackFlow(ctx context.Context, cfg OAuthConfig, openBrowser Browser
 	defer listener.Close()
 
 	port := listener.Addr().(*net.TCPAddr).Port
-	redirectURI := fmt.Sprintf("%s:%d/callback", cfg.RedirectURIBase, port)
+
+	// The redirect_uri registered with Faceit is the HTTPS relay page.
+	// The relay page reads the loopback port from the state parameter
+	// and forwards the authorization code to http://127.0.0.1:{port}/callback.
+	redirectURI := cfg.RelayURL
 
 	// 3. Build authorization URL
 	params := url.Values{
 		"response_type":         {"code"},
 		"client_id":             {cfg.ClientID},
 		"redirect_uri":          {redirectURI},
+		"state":                 {fmt.Sprintf("%d", port)},
 		"code_challenge":        {challenge},
 		"code_challenge_method": {"S256"},
 		"scope":                 {"openid profile email membership"},
@@ -130,14 +136,13 @@ func StartLoopbackFlow(ctx context.Context, cfg OAuthConfig, openBrowser Browser
 }
 
 // exchangeCode exchanges an authorization code for tokens via POST to the
-// token endpoint. No client secret is needed (PKCE replaces it for public clients).
+// token endpoint. Uses Basic Auth (client_id:client_secret) for confidential clients.
 func exchangeCode(ctx context.Context, cfg OAuthConfig, code, verifier, redirectURI string) (*TokenResponse, error) {
 	form := url.Values{
 		"grant_type":    {"authorization_code"},
 		"code":          {code},
 		"code_verifier": {verifier},
 		"redirect_uri":  {redirectURI},
-		"client_id":     {cfg.ClientID},
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.TokenURL, strings.NewReader(form.Encode()))
@@ -145,6 +150,7 @@ func exchangeCode(ctx context.Context, cfg OAuthConfig, code, verifier, redirect
 		return nil, fmt.Errorf("creating token request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(cfg.ClientID, cfg.ClientSecret)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

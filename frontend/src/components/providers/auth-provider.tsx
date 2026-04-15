@@ -1,7 +1,7 @@
-import { createContext, useContext, useEffect } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { createContext, useContext, useCallback, useEffect } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate, useLocation } from "react-router-dom"
-import { GetCurrentUser } from "@wailsjs/go/main/App"
+import { GetCurrentUser, Logout } from "@wailsjs/go/main/App"
 
 export interface User {
   user_id: string
@@ -13,6 +13,7 @@ export interface AuthContextValue {
   user: User | null
   isLoading: boolean
   isAuthenticated: boolean
+  logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -22,6 +23,7 @@ const PUBLIC_PATHS = ["/login", "/callback"]
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate()
   const { pathname } = useLocation()
+  const queryClient = useQueryClient()
 
   const {
     data: user,
@@ -42,9 +44,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isLoading, isAuthenticated, isPublicPath, navigate])
 
+  const logout = useCallback(async () => {
+    await Logout()
+    queryClient.invalidateQueries({ queryKey: ["auth", "me"] })
+    navigate("/login")
+  }, [queryClient, navigate])
+
   return (
     <AuthContext.Provider
-      value={{ user: user ?? null, isLoading, isAuthenticated }}
+      value={{ user: user ?? null, isLoading, isAuthenticated, logout }}
     >
       {children}
     </AuthContext.Provider>

@@ -46,10 +46,18 @@ export function ImportDemoFile() {
   return window['go']['main']['App']['ImportDemoFile']();
 }
 
+export function ImportDemoFolder() {
+  return window['go']['main']['App']['ImportDemoFolder']();
+}
+
 export function ListDemos(arg1, arg2) {
   return window['go']['main']['App']['ListDemos'](arg1, arg2);
 }
 
 export function LoginWithFaceit() {
   return window['go']['main']['App']['LoginWithFaceit']();
+}
+
+export function Logout() {
+  return window['go']['main']['App']['Logout']();
 }

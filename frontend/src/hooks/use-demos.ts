@@ -1,5 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { ListDemos, ImportDemoFile, DeleteDemo } from "@wailsjs/go/main/App"
+import {
+  ListDemos,
+  ImportDemoFile,
+  ImportDemoFolder,
+  DeleteDemo,
+} from "@wailsjs/go/main/App"
 import type { DemoListResponse } from "@/types/demo"
 
 export function useDemos(page = 1, perPage = 20) {
@@ -32,6 +37,25 @@ export function useImportDemo() {
     isImporting: mutation.isPending,
     error: mutation.error,
     isSuccess: mutation.isSuccess,
+    reset: mutation.reset,
+  }
+}
+
+export function useImportFolder() {
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: () => ImportDemoFolder(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["demos"] })
+    },
+  })
+
+  return {
+    importFolder: mutation.mutate,
+    isImporting: mutation.isPending,
+    error: mutation.error,
+    result: mutation.data,
     reset: mutation.reset,
   }
 }

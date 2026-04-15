@@ -131,6 +131,12 @@ type FaceitMatch struct {
 	PlayedAt      string  `json:"played_at"`
 }
 
+// FolderImportResult is the response from importing a folder of demos.
+type FolderImportResult struct {
+	Imported []Demo   `json:"imported"`
+	Errors   []string `json:"errors"`
+}
+
 // FaceitMatchListResult is the paginated response for Faceit match listing.
 type FaceitMatchListResult struct {
 	Data []FaceitMatch  `json:"data"`

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oversite - Completing Sign In</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #0a0a0a;
+      color: #e0e0e0;
+    }
+    .container {
+      text-align: center;
+      max-width: 420px;
+      padding: 2rem;
+    }
+    h1 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    p { color: #999; font-size: 0.9rem; }
+    .error { color: #ef4444; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 id="heading">Redirecting to Oversite...</h1>
+    <p id="message">Completing sign-in. This page will close automatically.</p>
+  </div>
+  <script>
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var code = params.get('code');
+      var state = params.get('state');
+      var error = params.get('error');
+
+      var heading = document.getElementById('heading');
+      var message = document.getElementById('message');
+
+      if (error) {
+        heading.textContent = 'Sign-in failed';
+        message.textContent = 'Error: ' + error;
+        message.className = 'error';
+        return;
+      }
+
+      if (!code || !state) {
+        heading.textContent = 'Sign-in failed';
+        message.textContent = 'Missing authorization parameters.';
+        message.className = 'error';
+        return;
+      }
+
+      // State encodes the loopback port.
+      var port = parseInt(state, 10);
+      if (!port || port < 1024 || port > 65535) {
+        heading.textContent = 'Sign-in failed';
+        message.textContent = 'Invalid callback parameters.';
+        message.className = 'error';
+        return;
+      }
+
+      var target = 'http://127.0.0.1:' + port + '/callback?code=' + encodeURIComponent(code);
+      window.location.replace(target);
+    })();
+  </script>
+</body>
+</html>
