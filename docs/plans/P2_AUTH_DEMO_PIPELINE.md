@@ -65,7 +65,7 @@ At phase completion, a user can sign in with Faceit, import a demo file (or fold
 | 1 | P2-T01 (OAuth), P2-T02 (Keyring), P2-T05 (Demo Import) | **COMPLETE** | Done 2026-04-15. All three implemented with 65 passing tests. |
 | 2 | P2-T03 (Auth Service), P2-T10 (Demo UI), P2-T11 (Folder Import) | **COMPLETE** | Done 2026-04-15. All three implemented with full test coverage. |
 | 3 | P2-T04 (AuthProvider), P2-T06 (Parser Core) | **COMPLETE** | Done 2026-04-15. T04 was completed in W2. T06: parser ported with incendiary fix + progress callback, 138 tests passing. |
-| 4 | P2-T07 (Ticks), P2-T08 (Events), P2-T09 (Rounds) | All parallel | All need only T06. Independent data pathways. |
+| 4 | P2-T07 (Ticks), P2-T08 (Events), P2-T09 (Rounds) | **COMPLETE** | Done 2026-04-15. All three implemented in parallel with 166 tests passing across the demo package. |
 
 **Critical path:** S01 -> T05 -> T06 -> T07/T08/T09 (demo pipeline).
 
@@ -376,7 +376,9 @@ Findings that inform implementation:
 
 ---
 
-### P2-T07: Batch Insert Ticks into SQLite
+### P2-T07: Batch Insert Ticks into SQLite -- COMPLETE
+
+**Status:** Done (2026-04-15). Files: `internal/demo/ingest.go`, `internal/demo/ingest_test.go`, `internal/demo/convert.go` (shared helpers). TickIngester with 10K batch size, idempotent delete-then-insert in single tx. 5 tests (basic ingestion, idempotent, empty, bool conversion, chunk logic).
 
 **Why:** ~1.28M tick rows per demo. One-at-a-time inserts take minutes; batched transactions (10K rows/tx) bring this to seconds. **Reference:** `backend/internal/demo/ingest.go` (309L) `TickIngester` pattern, adapted from PostgreSQL COPY to SQLite INSERT.
 
@@ -406,7 +408,9 @@ Findings that inform implementation:
 
 ---
 
-### P2-T08: Insert Game Events into SQLite
+### P2-T08: Insert Game Events into SQLite -- COMPLETE
+
+**Status:** Done (2026-04-15). Files: `internal/demo/events.go`, `internal/demo/events_test.go`. IngestGameEvents with single tx, roundMap FK resolution, JSON ExtraData serialization, nullable string handling. 7 tests (basic, idempotent, empty, extra_data JSON, nullable fields, resolveRoundID, marshalExtraData).
 
 **Why:** Kills, grenades, bombs drive the viewer event layer, heatmaps, and per-round stats. **Reference:** `IngestGameEvents()` from `backend/internal/demo/ingest.go`, adapted from PostgreSQL UUIDs to int64 IDs.
 
@@ -431,7 +435,9 @@ Findings that inform implementation:
 
 ---
 
-### P2-T09: Insert Rounds + Player Rounds into SQLite
+### P2-T09: Insert Rounds + Player Rounds into SQLite -- COMPLETE
+
+**Status:** Done (2026-04-15). Files: `internal/demo/rounds.go`, `internal/demo/rounds_test.go`. IngestRounds calculates player stats before tx, inserts rounds + player_rounds in single tx, returns roundMap for T08. 5 tests (basic, player rounds with stats verification, idempotent, empty, roundMap keys).
 
 **Why:** Rounds provide structural backbone for the viewer (round selector, scoreboard) and per-player stats. **Reference:** `IngestRounds()` from `backend/internal/demo/ingest.go` + `CalculatePlayerRoundStats()` from `stats.go`.
 
