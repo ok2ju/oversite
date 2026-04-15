@@ -22,6 +22,8 @@ export function GetRoundRoster(arg1:string,arg2:number):Promise<Array<main.Playe
 
 export function Greet(arg1:string):Promise<string>;
 
+export function ImportDemoByPath(arg1:string):Promise<void>;
+
 export function ImportDemoFile():Promise<void>;
 
 export function ImportDemoFolder():Promise<main.FolderImportResult>;

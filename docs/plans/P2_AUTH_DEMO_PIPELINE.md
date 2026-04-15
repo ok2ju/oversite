@@ -63,7 +63,7 @@ At phase completion, a user can sign in with Faceit, import a demo file (or fold
 |------|-------|-----------|-------|
 | 0 | P2-S01 (spike) | **COMPLETE** | Done 2026-04-15. Findings in `docs/spike-parser-findings.md`. |
 | 1 | P2-T01 (OAuth), P2-T02 (Keyring), P2-T05 (Demo Import) | **COMPLETE** | Done 2026-04-15. All three implemented with 65 passing tests. |
-| 2 | P2-T03 (Auth Service), P2-T10 (Demo UI), P2-T11 (Folder Import) | All parallel | T03 needs T01+T02. T10 needs T05. T11 needs T05. |
+| 2 | P2-T03 (Auth Service), P2-T10 (Demo UI), P2-T11 (Folder Import) | **COMPLETE** | Done 2026-04-15. All three implemented with full test coverage. |
 | 3 | P2-T04 (AuthProvider), P2-T06 (Parser Core) | Parallel | T04 needs T03. T06 needs T05 + spike output. T06 is the critical path. |
 | 4 | P2-T07 (Ticks), P2-T08 (Events), P2-T09 (Rounds) | All parallel | All need only T06. Independent data pathways. |
 
@@ -166,7 +166,9 @@ At phase completion, a user can sign in with Faceit, import a demo file (or fold
 
 ---
 
-### P2-T03: Create Auth Service
+### P2-T03: Create Auth Service -- COMPLETE
+
+**Status:** Done (2026-04-15). Files: `internal/auth/faceit.go`, `internal/auth/service.go`, `internal/auth/service_test.go`, `app.go` wiring. 7 tests passing.
 
 **Why:** Orchestration layer tying OAuth, keychain, Faceit API, and SQLite. Login flow: OAuth -> token exchange -> fetch Faceit profile -> upsert user -> store refresh token. Startup flow: check keychain -> lookup user in SQLite -> refresh access token.
 
@@ -452,7 +454,9 @@ Findings that inform implementation:
 
 ---
 
-### P2-T10: Wire Demo Library UI to Real Backend
+### P2-T10: Wire Demo Library UI to Real Backend -- COMPLETE
+
+**Status:** Done (2026-04-15). DropZone integrated, folder import button wired, parse progress hook + DemoCard progress bar implemented, `ImportDemoByPath` binding added for drag-and-drop. 4 new tests added.
 
 **Why:** `DemoList`, `DemoCard`, `UploadDialog` exist from P1 with mock data. This task wires to real bindings, adds drag-and-drop, folder import, and parse progress UI.
 
@@ -480,7 +484,9 @@ Findings that inform implementation:
 
 ---
 
-### P2-T11: Implement Folder Import Binding
+### P2-T11: Implement Folder Import Binding -- COMPLETE
+
+**Status:** Done (2026-04-15). Files: `internal/demo/folder.go` with `FolderProgressFunc` callback, `app.go` wiring with Wails event emission. 6 tests passing.
 
 **Why:** Users have replay folders with many `.dem` files. Folder import recursively scans and imports all valid demos.
 

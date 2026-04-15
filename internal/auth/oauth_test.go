@@ -94,7 +94,7 @@ func TestStartLoopbackFlow_FullFlow(t *testing.T) {
 			"client_id":             "test-client-id",
 			"redirect_uri":          "https://example.com/oauth/callback",
 			"code_challenge_method": "S256",
-			"scope":                 "openid profile email membership",
+			"scope":                 "openid profile email",
 		}
 		for k, want := range expectedParams {
 			if got := q.Get(k); got != want {

@@ -26,10 +26,14 @@ type FolderImportResult struct {
 	Errors   []FolderImportError
 }
 
+// FolderProgressFunc is called after each file is processed during folder import.
+type FolderProgressFunc func(current, total int, fileName string)
+
 // ImportFolder recursively scans dirPath for .dem files and imports each one.
 // Valid demos are returned in Imported; files that fail validation are collected
-// in Errors rather than aborting the entire operation.
-func (s *ImportService) ImportFolder(ctx context.Context, dirPath string, userID int64) (*FolderImportResult, error) {
+// in Errors rather than aborting the entire operation. If onProgress is non-nil,
+// it is called after each file is processed.
+func (s *ImportService) ImportFolder(ctx context.Context, dirPath string, userID int64, onProgress FolderProgressFunc) (*FolderImportResult, error) {
 	var demPaths []string
 
 	err := filepath.WalkDir(dirPath, func(path string, d os.DirEntry, err error) error {
@@ -50,7 +54,7 @@ func (s *ImportService) ImportFolder(ctx context.Context, dirPath string, userID
 
 	result := &FolderImportResult{}
 
-	for _, path := range demPaths {
+	for i, path := range demPaths {
 		if ctx.Err() != nil {
 			return result, ctx.Err()
 		}
@@ -61,9 +65,13 @@ func (s *ImportService) ImportFolder(ctx context.Context, dirPath string, userID
 				FilePath: path,
 				Err:      err,
 			})
-			continue
+		} else {
+			result.Imported = append(result.Imported, demo)
 		}
-		result.Imported = append(result.Imported, demo)
+
+		if onProgress != nil {
+			onProgress(i+1, len(demPaths), filepath.Base(path))
+		}
 	}
 
 	return result, nil

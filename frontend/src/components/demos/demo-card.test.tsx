@@ -1,4 +1,4 @@
-import { vi, describe, it, expect } from "vitest"
+import { vi, describe, it, expect, afterEach } from "vitest"
 import { screen } from "@testing-library/react"
 import { renderWithProviders, userEvent } from "@/test/render"
 import {
@@ -8,11 +8,16 @@ import {
 } from "@/components/demos/demo-card"
 import type { Demo } from "@/types/demo"
 import { mockDemos } from "@/test/msw/handlers"
+import { useDemoStore } from "@/stores/demo"
 
 const mockNavigate = vi.fn()
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual("react-router-dom")
   return { ...actual, useNavigate: () => mockNavigate }
+})
+
+afterEach(() => {
+  useDemoStore.getState().reset()
 })
 
 function readyDemo(): Demo {
@@ -67,5 +72,33 @@ describe("DemoCard", () => {
 
     await user.click(screen.getByText("de_mirage"))
     expect(mockNavigate).not.toHaveBeenCalled()
+  })
+
+  it("shows progress bar when demo is parsing with matching store progress", () => {
+    const parsingDemo = mockDemos.find((d) => d.status === "parsing")!
+
+    useDemoStore.getState().updateImportProgress({
+      demoId: parsingDemo.id,
+      fileName: "match2.dem",
+      percent: 42,
+      stage: "parsing",
+    })
+
+    renderWithProviders(<DemoCard demo={parsingDemo} onDelete={vi.fn()} />)
+
+    expect(screen.getByRole("progressbar")).toBeInTheDocument()
+  })
+
+  it("does not show progress bar for ready demos", () => {
+    useDemoStore.getState().updateImportProgress({
+      demoId: readyDemo().id,
+      fileName: "match1.dem",
+      percent: 100,
+      stage: "parsing",
+    })
+
+    renderWithProviders(<DemoCard demo={readyDemo()} onDelete={vi.fn()} />)
+
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument()
   })
 })

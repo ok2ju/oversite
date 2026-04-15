@@ -3,15 +3,15 @@ package main
 import (
 	"embed"
 
+	"github.com/joho/godotenv"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 )
 
-// faceitClientSecret is injected at build time via:
-//
-//	go build -ldflags "-X main.faceitClientSecret=SECRET"
-var faceitClientSecret string
+func init() {
+	_ = godotenv.Load() // .env is optional; no error if missing
+}
 
 //go:embed all:frontend/dist
 var assets embed.FS

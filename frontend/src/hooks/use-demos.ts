@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   ListDemos,
   ImportDemoFile,
+  ImportDemoByPath,
   ImportDemoFolder,
   DeleteDemo,
 } from "@wailsjs/go/main/App"
@@ -38,6 +39,22 @@ export function useImportDemo() {
     error: mutation.error,
     isSuccess: mutation.isSuccess,
     reset: mutation.reset,
+  }
+}
+
+export function useImportDemoByPath() {
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: (filePath: string) => ImportDemoByPath(filePath),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["demos"] })
+    },
+  })
+
+  return {
+    importByPath: mutation.mutateAsync,
+    isImporting: mutation.isPending,
   }
 }
 

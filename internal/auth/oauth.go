@@ -76,7 +76,8 @@ func StartLoopbackFlow(ctx context.Context, cfg OAuthConfig, openBrowser Browser
 		"state":                 {fmt.Sprintf("%d", port)},
 		"code_challenge":        {challenge},
 		"code_challenge_method": {"S256"},
-		"scope":                 {"openid profile email membership"},
+		"scope":                 {"openid profile email"},
+		"redirect_popup":        {"true"},
 	}
 	authURL := cfg.AuthURL + "?" + params.Encode()
 

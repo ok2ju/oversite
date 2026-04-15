@@ -1,10 +1,11 @@
 import { vi, describe, it, expect } from "vitest"
 import { screen, waitFor } from "@testing-library/react"
 import { renderWithProviders, userEvent } from "@/test/render"
-import { mockAppBindings } from "@/test/mocks/bindings"
+import { mockAppBindings, mockRuntime } from "@/test/mocks/bindings"
 import DemosPage from "@/routes/demos"
 
 vi.mock("@wailsjs/go/main/App", () => mockAppBindings)
+vi.mock("@wailsjs/runtime/runtime", () => mockRuntime)
 
 const mockNavigate = vi.fn()
 vi.mock("react-router-dom", async () => {
@@ -20,6 +21,25 @@ describe("DemosPage", () => {
     expect(
       screen.getByRole("button", { name: /import demo/i }),
     ).toBeInTheDocument()
+  })
+
+  it("renders folder import button", async () => {
+    renderWithProviders(<DemosPage />)
+
+    expect(
+      screen.getByRole("button", { name: /import folder/i }),
+    ).toBeInTheDocument()
+  })
+
+  it("calls ImportDemoFolder when folder button is clicked", async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<DemosPage />)
+
+    await user.click(screen.getByRole("button", { name: /import folder/i }))
+
+    await waitFor(() => {
+      expect(mockAppBindings.ImportDemoFolder).toHaveBeenCalled()
+    })
   })
 
   it("shows empty state when no demos exist", async () => {

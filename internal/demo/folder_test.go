@@ -24,7 +24,7 @@ func TestImportFolder_ImportsOnlyDemFiles(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "replay.DEM"), cs2Header()) // uppercase extension
 	writeFile(t, filepath.Join(dir, "image.png"), []byte{0x89, 0x50, 0x4E, 0x47})
 
-	result, err := svc.ImportFolder(ctx, dir, user.ID)
+	result, err := svc.ImportFolder(ctx, dir, user.ID, nil)
 	if err != nil {
 		t.Fatalf("ImportFolder: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestImportFolder_RecursiveSubdirectories(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "top.dem"), cs2Header())
 	writeFile(t, filepath.Join(subDir, "deep.dem"), cs2Header())
 
-	result, err := svc.ImportFolder(ctx, dir, user.ID)
+	result, err := svc.ImportFolder(ctx, dir, user.ID, nil)
 	if err != nil {
 		t.Fatalf("ImportFolder: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestImportFolder_EmptyDirectory(t *testing.T) {
 
 	dir := t.TempDir()
 
-	result, err := svc.ImportFolder(ctx, dir, user.ID)
+	result, err := svc.ImportFolder(ctx, dir, user.ID, nil)
 	if err != nil {
 		t.Fatalf("ImportFolder: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestImportFolder_InvalidFilesCapturedAsErrors(t *testing.T) {
 	// Invalid demo (bad magic bytes).
 	writeFile(t, filepath.Join(dir, "bad.dem"), []byte{0xFF, 0xFE, 0xFD, 0xFC, 0xFB, 0xFA, 0xF9, 0xF8})
 
-	result, err := svc.ImportFolder(ctx, dir, user.ID)
+	result, err := svc.ImportFolder(ctx, dir, user.ID, nil)
 	if err != nil {
 		t.Fatalf("ImportFolder: %v", err)
 	}
@@ -121,7 +121,7 @@ func TestImportFolder_CancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately.
 
-	result, err := svc.ImportFolder(ctx, dir, user.ID)
+	result, err := svc.ImportFolder(ctx, dir, user.ID, nil)
 	if err == nil {
 		t.Fatal("expected context error, got nil")
 	}
@@ -135,7 +135,7 @@ func TestImportFolder_NonexistentDirectory(t *testing.T) {
 	ctx := context.Background()
 	user := createTestUser(t, q)
 
-	_, err := svc.ImportFolder(ctx, "/nonexistent/directory/path", user.ID)
+	_, err := svc.ImportFolder(ctx, "/nonexistent/directory/path", user.ID, nil)
 	if err == nil {
 		t.Fatal("expected error for non-existent directory, got nil")
 	}

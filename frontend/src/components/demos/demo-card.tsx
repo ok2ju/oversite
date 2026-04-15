@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Progress } from "@/components/ui/progress"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Trash2 } from "lucide-react"
 import type { Demo } from "@/types/demo"
+import { useDemoStore } from "@/stores/demo"
 
 interface DemoCardProps {
   demo: Demo
@@ -53,6 +55,12 @@ export function formatDate(iso: string): string {
 
 export function DemoCard({ demo, onDelete }: DemoCardProps) {
   const navigate = useNavigate()
+  const importProgress = useDemoStore((s) => s.importProgress)
+
+  const showProgress =
+    demo.status === "parsing" &&
+    importProgress?.demoId === demo.id &&
+    importProgress.stage === "parsing"
 
   return (
     <Card
@@ -79,6 +87,9 @@ export function DemoCard({ demo, onDelete }: DemoCardProps) {
         </Badge>
       </CardHeader>
       <CardContent>
+        {showProgress && (
+          <Progress value={importProgress.percent} className="mb-3 h-2" />
+        )}
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <div className="space-y-1">
             <p>{formatFileSize(demo.file_size)}</p>

@@ -49,6 +49,10 @@ export const mockAppBindings = {
       })
     }),
 
+  ImportDemoByPath: vi
+    .fn<(path: string) => Promise<void>>()
+    .mockResolvedValue(undefined),
+
   ImportDemoFile: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
 
   ImportDemoFolder: vi

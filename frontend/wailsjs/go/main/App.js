@@ -42,6 +42,10 @@ export function Greet(arg1) {
   return window['go']['main']['App']['Greet'](arg1);
 }
 
+export function ImportDemoByPath(arg1) {
+  return window['go']['main']['App']['ImportDemoByPath'](arg1);
+}
+
 export function ImportDemoFile() {
   return window['go']['main']['App']['ImportDemoFile']();
 }

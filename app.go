@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 
 	"github.com/ok2ju/oversite/internal/auth"
@@ -56,11 +57,11 @@ func (a *App) Startup(ctx context.Context) {
 	faceitClient := auth.NewHTTPFaceitClient()
 
 	oauthCfg := auth.OAuthConfig{
-		ClientID:     "5765e820-0e1e-4dd9-9ea7-7a264010e816",
-		ClientSecret: faceitClientSecret,
-		AuthURL:      "https://accounts.faceit.com/accounts",
-		TokenURL:     "https://api.faceit.com/auth/v1/oauth/token",
-		RelayURL:     "https://ok2ju.github.io/oversite/oauth/callback",
+		ClientID:     os.Getenv("FACEIT_CLIENT_ID"),
+		ClientSecret: os.Getenv("FACEIT_CLIENT_SECRET"),
+		AuthURL:      os.Getenv("FACEIT_AUTH_URL"),
+		TokenURL:     os.Getenv("FACEIT_TOKEN_URL"),
+		RelayURL:     os.Getenv("FACEIT_RELAY_URL"),
 	}
 
 	a.authService = auth.NewAuthService(
@@ -213,7 +214,13 @@ func (a *App) ImportDemoFolder() (*FolderImportResult, error) {
 		return nil, nil // User cancelled.
 	}
 
-	result, err := a.importService.ImportFolder(a.ctx, dirPath, u.ID)
+	result, err := a.importService.ImportFolder(a.ctx, dirPath, u.ID, func(current, total int, fileName string) {
+		wailsRuntime.EventsEmit(a.ctx, "demo:folder:progress", map[string]interface{}{
+			"current":  current,
+			"total":    total,
+			"fileName": fileName,
+		})
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -232,6 +239,20 @@ func (a *App) ImportDemoFolder() (*FolderImportResult, error) {
 		Imported: imported,
 		Errors:   importErrors,
 	}, nil
+}
+
+// ImportDemoByPath imports a .dem file at the given path (used for drag-and-drop).
+func (a *App) ImportDemoByPath(filePath string) error {
+	u, err := a.authService.GetCurrentUser(a.ctx)
+	if err != nil {
+		return err
+	}
+	if u == nil {
+		return errors.New("not logged in")
+	}
+
+	_, err = a.importService.ImportFile(a.ctx, filePath, u.ID)
+	return err
 }
 
 // DeleteDemo removes a demo by ID.
