@@ -57,3 +57,6 @@ lefthook-local.yml
 # Temporary
 tmp/
 *.tmp
+
+# Claude
+.claude/worktrees
