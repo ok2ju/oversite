@@ -56,13 +56,17 @@ type TickSnapshot struct {
 type GameEvent struct {
 	Tick            int
 	RoundNumber     int
-	Type            string // "kill", "player_hurt", "grenade_throw", "grenade_detonate", "smoke_start", "smoke_expired", "decoy_start", "bomb_plant", "bomb_defuse", "bomb_explode"
+	Type            string // "kill", "player_hurt", "grenade_throw", "grenade_detonate", "smoke_start", "smoke_expired", "decoy_start", "fire_start", "bomb_plant", "bomb_defuse", "bomb_explode"
 	AttackerSteamID string
 	VictimSteamID   string
 	Weapon          string
 	X, Y, Z         float64
 	ExtraData       map[string]interface{}
 }
+
+// ProgressFunc is called during parsing to report progress.
+// stage is a human-readable label (e.g. "parsing"), percent is 0-100.
+type ProgressFunc func(stage string, percent float64)
 
 // Option configures the DemoParser.
 type Option func(*DemoParser)
@@ -91,11 +95,19 @@ func WithIncludeBots(include bool) Option {
 	}
 }
 
+// WithProgressFunc sets a callback for parsing progress updates.
+func WithProgressFunc(fn ProgressFunc) Option {
+	return func(dp *DemoParser) {
+		dp.progressFunc = fn
+	}
+}
+
 // DemoParser extracts structured data from CS2 .dem files.
 type DemoParser struct {
 	tickInterval int
 	skipWarmup   bool
 	includeBots  bool
+	progressFunc ProgressFunc
 }
 
 // NewDemoParser creates a parser with the given options.
@@ -144,6 +156,8 @@ func (dp *DemoParser) Parse(r io.Reader) (result *ParseResult, err error) {
 
 	dp.registerHandlers(p, state)
 
+	dp.reportProgress("parsing", 0)
+
 	if parseErr := p.ParseToEnd(); parseErr != nil {
 		// demoinfocs returns ErrUnexpectedEndOfDemo for truncated demos;
 		// treat as fatal only if we got zero data.
@@ -151,6 +165,8 @@ func (dp *DemoParser) Parse(r io.Reader) (result *ParseResult, err error) {
 			return nil, fmt.Errorf("parsing demo: %w", parseErr)
 		}
 	}
+
+	dp.reportProgress("parsing", 90)
 
 	tickRate := p.TickRate()
 	totalTicks := p.GameState().IngameTick()
@@ -161,6 +177,8 @@ func (dp *DemoParser) Parse(r io.Reader) (result *ParseResult, err error) {
 	}
 
 	lineups := ExtractGrenadeLineups(state.mapName, state.events)
+
+	dp.reportProgress("parsing", 100)
 
 	return &ParseResult{
 		Header: MatchHeader{
@@ -174,6 +192,12 @@ func (dp *DemoParser) Parse(r io.Reader) (result *ParseResult, err error) {
 		Events:  state.events,
 		Lineups: lineups,
 	}, nil
+}
+
+func (dp *DemoParser) reportProgress(stage string, percent float64) {
+	if dp.progressFunc != nil {
+		dp.progressFunc(stage, percent)
+	}
 }
 
 func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
@@ -242,6 +266,14 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			TScore:     tScore,
 			IsOvertime: isOvertime(state.currentRound),
 		})
+
+		// Report progress proportional to rounds parsed.
+		// Rough estimate: most Faceit demos have 24-30 rounds.
+		pct := float64(state.currentRound) / 30.0 * 80.0
+		if pct > 80 {
+			pct = 80
+		}
+		dp.reportProgress("parsing", pct)
 	})
 
 	// Score tracking for accuracy.
@@ -489,6 +521,12 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 	})
 	p.RegisterEventHandler(func(e events.DecoyStart) {
 		registerGrenadeDetonate("decoy_start")(e.GrenadeEvent)
+	})
+
+	// Incendiary/Molotov detonation — missed in web-era parser.
+	// Spike identified ~25% orphaned grenade throws due to this gap.
+	p.RegisterEventHandler(func(e events.FireGrenadeStart) {
+		registerGrenadeDetonate("fire_start")(e.GrenadeEvent)
 	})
 
 	// Bomb events.

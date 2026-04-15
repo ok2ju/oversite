@@ -64,7 +64,7 @@ At phase completion, a user can sign in with Faceit, import a demo file (or fold
 | 0 | P2-S01 (spike) | **COMPLETE** | Done 2026-04-15. Findings in `docs/spike-parser-findings.md`. |
 | 1 | P2-T01 (OAuth), P2-T02 (Keyring), P2-T05 (Demo Import) | **COMPLETE** | Done 2026-04-15. All three implemented with 65 passing tests. |
 | 2 | P2-T03 (Auth Service), P2-T10 (Demo UI), P2-T11 (Folder Import) | **COMPLETE** | Done 2026-04-15. All three implemented with full test coverage. |
-| 3 | P2-T04 (AuthProvider), P2-T06 (Parser Core) | Parallel | T04 needs T03. T06 needs T05 + spike output. T06 is the critical path. |
+| 3 | P2-T04 (AuthProvider), P2-T06 (Parser Core) | **COMPLETE** | Done 2026-04-15. T04 was completed in W2. T06: parser ported with incendiary fix + progress callback, 138 tests passing. |
 | 4 | P2-T07 (Ticks), P2-T08 (Events), P2-T09 (Rounds) | All parallel | All need only T06. Independent data pathways. |
 
 **Critical path:** S01 -> T05 -> T06 -> T07/T08/T09 (demo pipeline).
@@ -222,7 +222,9 @@ At phase completion, a user can sign in with Faceit, import a demo file (or fold
 
 ---
 
-### P2-T04: Wire AuthProvider + Login Page to Real Backend
+### P2-T04: Wire AuthProvider + Login Page to Real Backend -- COMPLETE
+
+**Status:** Done (2026-04-15). Implemented during Wave 2. AuthProvider wraps all routes, login page has loading/error states, header has logout button with user nickname display. 16 auth-related tests passing (auth-provider, login, header).
 
 **Why:** `AuthProvider` and login page already exist from P1 and call `GetCurrentUser()`/`LoginWithFaceit()`. This task wires them to real bindings, adds logout support, and handles edge cases (loading during OAuth, errors, token refresh).
 
@@ -288,7 +290,9 @@ At phase completion, a user can sign in with Faceit, import a demo file (or fold
 
 ---
 
-### P2-T06: Implement Demo Parser Core (XL)
+### P2-T06: Implement Demo Parser Core (XL) -- COMPLETE
+
+**Status:** Done (2026-04-15). Files: `internal/demo/parser.go` (ported with FireGrenadeStart handler + ProgressFunc callback), `internal/demo/stats.go` (direct copy), `internal/demo/grenade_extractor.go` (added `fire_start` to detonationTypes). 99 new tests (48 parser + 32 stats + 19 grenade extractor), 138 total in demo package.
 
 **Why:** Highest-complexity task -- foundation for every data-dependent feature. Reads `.dem` and extracts: match metadata, player positions (sampled), kills, grenades, bombs, rounds.
 

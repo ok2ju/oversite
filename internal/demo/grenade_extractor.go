@@ -36,10 +36,12 @@ type pendingThrow struct {
 }
 
 // detonationTypes lists the event types that represent grenade detonation.
+// "fire_start" was added to correlate incendiary/molotov throws (spike finding).
 var detonationTypes = map[string]bool{
 	"grenade_detonate": true,
 	"smoke_start":      true,
 	"decoy_start":      true,
+	"fire_start":       true,
 }
 
 // ExtractGrenadeLineups correlates grenade throw and detonate events into lineup entries.

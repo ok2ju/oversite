@@ -4,6 +4,7 @@ go 1.26
 
 require (
 	github.com/golang-migrate/migrate/v4 v4.19.1
+	github.com/joho/godotenv v1.5.1
 	github.com/markus-wa/demoinfocs-golang/v5 v5.1.2
 	github.com/wailsapp/wails/v2 v2.12.0
 	github.com/zalando/go-keyring v0.2.8
@@ -36,7 +37,6 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jchv/go-winloader v0.0.0-20210711035445-715c2860da7e // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
-	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/labstack/echo/v4 v4.13.3 // indirect
 	github.com/labstack/gommon v0.4.2 // indirect
 	github.com/leaanthony/go-ansi-parser v1.6.1 // indirect
