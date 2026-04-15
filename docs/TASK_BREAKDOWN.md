@@ -317,6 +317,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Bot players are handled gracefully |
 | | - Memory usage stays < 500 MB for 100 MB demo files |
 | | - Parse time < 10 seconds for average demo on modern hardware |
+| **Spike Findings** | **Validated (2026-04-15):** Parser from `backend/internal/demo/` compiles and runs against 3 real CS2 demos with zero code changes. demoinfocs-golang v5.1.2 API is stable. Performance: 6.5s / +118 MB heap (862 MB demo, 54 rounds, 30 OT), 3.1s / -68 MB heap (394 MB demo, 25 rounds), 3.8s / +12 MB heap (454 MB demo, 30 rounds). All well within targets. Full details in `docs/spike-parser-findings.md`. **Known gaps to fix during implementation:** (1) Incendiary/Molotov grenades are not tracked -- `parser.go` registers no handler for `events.FireGrenadeStart` or equivalent, and `grenade_extractor.go` `detonationTypes` omits them. This causes ~25% of grenade throws to be orphaned (no matching detonation). Must add incendiary/molotov event handlers. (2) `MaxUploadSize` (500 MB) is too low for decompressed CS2 demos -- Faceit `.dem.zst` files decompress to 400-860+ MB. Raise to 1 GB or remove for local-only desktop use. (3) Decoy destruction events (`DecoyExpired`) are not correlated, contributing a small number of additional orphans. |
 
 ### P2-T07: Parse ticks -> batch insert into SQLite
 

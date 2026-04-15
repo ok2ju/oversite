@@ -12,6 +12,9 @@ vendor/
 oversite
 build/bin/
 
+# Spike binaries
+spike-parser
+
 # Node / Frontend
 node_modules/
 .pnpm-store/
@@ -58,5 +61,10 @@ lefthook-local.yml
 tmp/
 *.tmp
 
+# Demo files (large binary)
+*.dem
+
 # Claude
 .claude/worktrees
+
+testdata/demos

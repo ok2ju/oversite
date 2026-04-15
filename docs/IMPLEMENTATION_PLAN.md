@@ -204,13 +204,13 @@ CI pipeline      Demo library UI     Scoreboard         Dashboard UI     Board m
 
 | Task | Description | Complexity |
 |------|-------------|-----------|
-| P2-S01 | **Demo parser spike** (1-day prototype: parse real .dem, extract positions + kills, validate demoinfocs-golang v5 compatibility with CS2 demos) | M |
+| P2-S01 | **Demo parser spike** -- **COMPLETE** (2026-04-15). 3/3 demos pass. Findings: `docs/spike-parser-findings.md` | M |
 
-**Purpose**: De-risk P2-T06 (XL) before committing to the full parser implementation. Run after P1 completes. Output: working prototype, list of CS2-specific edge cases, memory/performance baseline.
+**Status**: Complete. De-risked P2-T06 successfully. Output: working prototype (`cmd/spike-parser/`), edge case inventory, performance baselines (3-7s parse, <120 MB heap for demos up to 862 MB). Identified incendiary/molotov handler gap and MaxUploadSize limit to fix in P2-T05/T06.
 
 ### Critical Path Note
 
-**P2-T06 (Demo Parser Core)** is the highest-risk, highest-complexity task. The `demoinfocs-golang` library requires careful integration. This task carries over from the web version -- the parser logic is identical, only the output target changes (SQLite transactions instead of PostgreSQL via worker). **P2-S01 (spike) should complete before starting P2-T06.**
+**P2-T06 (Demo Parser Core)** is the highest-risk, highest-complexity task. The `demoinfocs-golang` library requires careful integration. This task carries over from the web version -- the parser logic is identical, only the output target changes (SQLite transactions instead of PostgreSQL via worker). **P2-S01 (spike) is complete -- T06 is unblocked.**
 
 ---
 
