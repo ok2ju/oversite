@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useParams } from "react-router-dom"
 import { Loader2 } from "lucide-react"
 import { useDemo } from "@/hooks/use-demo"
+import { useViewerKeyboard } from "@/hooks/use-viewer-keyboard"
 import { useViewerStore } from "@/stores/viewer"
 import { ViewerCanvas } from "@/components/viewer/viewer-canvas"
 import { PlaybackControls } from "@/components/viewer/playback-controls"
@@ -17,6 +18,11 @@ export default function DemoViewerPage() {
   const setTotalTicks = useViewerStore((s) => s.setTotalTicks)
   const reset = useViewerStore((s) => s.reset)
   const [scoreboardVisible, setScoreboardVisible] = useState(false)
+  const handleToggleScoreboard = useCallback(
+    () => setScoreboardVisible((v) => !v),
+    [],
+  )
+  useViewerKeyboard({ onToggleScoreboard: handleToggleScoreboard })
 
   useEffect(() => {
     if (!demo) return
