@@ -629,6 +629,191 @@ func (a *App) ImportMatchDemo(faceitMatchID string) error {
 }
 
 // ---------------------------------------------------------------------------
+// Heatmap bindings
+// ---------------------------------------------------------------------------
+
+// GetHeatmapData returns aggregated kill positions for the given demos and filters.
+func (a *App) GetHeatmapData(demoIDs []int64, weapons []string, playerSteamID string, side string) ([]HeatmapPoint, error) {
+	u, err := a.authService.GetCurrentUser(a.ctx)
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return nil, errors.New("not logged in")
+	}
+
+	demoIDsJSON, err := json.Marshal(demoIDs)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling demo ids: %w", err)
+	}
+
+	// Verify user owns all requested demos.
+	demos, err := a.queries.GetDemosByIDs(a.ctx, string(demoIDsJSON))
+	if err != nil {
+		return nil, fmt.Errorf("getting demos: %w", err)
+	}
+	for _, d := range demos {
+		if d.UserID != u.ID {
+			return nil, errors.New("unauthorized: demo does not belong to user")
+		}
+	}
+
+	weaponsJSON, err := json.Marshal(weapons)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling weapons: %w", err)
+	}
+
+	params := store.GetHeatmapAggregationParams{
+		DemoIDs: string(demoIDsJSON),
+		Weapons: string(weaponsJSON),
+	}
+	if playerSteamID != "" {
+		params.PlayerSteamID = &playerSteamID
+	}
+	if side != "" {
+		params.Side = &side
+	}
+
+	rows, err := a.queries.GetHeatmapAggregation(a.ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("getting heatmap data: %w", err)
+	}
+
+	result := make([]HeatmapPoint, len(rows))
+	for i, r := range rows {
+		result[i] = HeatmapPoint{
+			X:         r.X,
+			Y:         r.Y,
+			KillCount: int(r.KillCount),
+		}
+	}
+	return result, nil
+}
+
+// GetUniqueWeapons returns distinct weapons from kill events for the given demos.
+func (a *App) GetUniqueWeapons(demoIDs []int64) ([]string, error) {
+	u, err := a.authService.GetCurrentUser(a.ctx)
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return nil, errors.New("not logged in")
+	}
+
+	demoIDsJSON, err := json.Marshal(demoIDs)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling demo ids: %w", err)
+	}
+
+	// Verify user owns all requested demos.
+	demos, err := a.queries.GetDemosByIDs(a.ctx, string(demoIDsJSON))
+	if err != nil {
+		return nil, fmt.Errorf("getting demos: %w", err)
+	}
+	for _, d := range demos {
+		if d.UserID != u.ID {
+			return nil, errors.New("unauthorized: demo does not belong to user")
+		}
+	}
+
+	weapons, err := a.queries.GetDistinctWeapons(a.ctx, string(demoIDsJSON))
+	if err != nil {
+		return nil, fmt.Errorf("getting weapons: %w", err)
+	}
+	if weapons == nil {
+		return []string{}, nil
+	}
+	return weapons, nil
+}
+
+// GetUniquePlayers returns distinct players from kill events for the given demos.
+func (a *App) GetUniquePlayers(demoIDs []int64) ([]PlayerInfo, error) {
+	u, err := a.authService.GetCurrentUser(a.ctx)
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return nil, errors.New("not logged in")
+	}
+
+	demoIDsJSON, err := json.Marshal(demoIDs)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling demo ids: %w", err)
+	}
+
+	// Verify user owns all requested demos.
+	demos, err := a.queries.GetDemosByIDs(a.ctx, string(demoIDsJSON))
+	if err != nil {
+		return nil, fmt.Errorf("getting demos: %w", err)
+	}
+	for _, d := range demos {
+		if d.UserID != u.ID {
+			return nil, errors.New("unauthorized: demo does not belong to user")
+		}
+	}
+
+	rows, err := a.queries.GetDistinctPlayers(a.ctx, string(demoIDsJSON))
+	if err != nil {
+		return nil, fmt.Errorf("getting players: %w", err)
+	}
+
+	result := make([]PlayerInfo, len(rows))
+	for i, r := range rows {
+		result[i] = PlayerInfo{
+			SteamID:    r.SteamID,
+			PlayerName: r.PlayerName,
+		}
+	}
+	return result, nil
+}
+
+// GetWeaponStats returns weapon kill stats for a demo.
+func (a *App) GetWeaponStats(demoID string) ([]WeaponStat, error) {
+	u, err := a.authService.GetCurrentUser(a.ctx)
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return nil, errors.New("not logged in")
+	}
+
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid demo id: %w", err)
+	}
+
+	// Verify user owns the requested demo.
+	demoIDsJSON, err := json.Marshal([]int64{id})
+	if err != nil {
+		return nil, fmt.Errorf("marshaling demo ids: %w", err)
+	}
+	demos, err := a.queries.GetDemosByIDs(a.ctx, string(demoIDsJSON))
+	if err != nil {
+		return nil, fmt.Errorf("getting demos: %w", err)
+	}
+	for _, d := range demos {
+		if d.UserID != u.ID {
+			return nil, errors.New("unauthorized: demo does not belong to user")
+		}
+	}
+
+	rows, err := a.queries.GetWeaponStatsByDemoID(a.ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting weapon stats: %w", err)
+	}
+
+	result := make([]WeaponStat, len(rows))
+	for i, r := range rows {
+		result[i] = WeaponStat{
+			Weapon:    r.Weapon,
+			KillCount: int(r.KillCount),
+			HSCount:   int(r.HSCount),
+		}
+	}
+	return result, nil
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 

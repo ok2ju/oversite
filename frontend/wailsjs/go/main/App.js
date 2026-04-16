@@ -38,12 +38,28 @@ export function GetFaceitProfile() {
   return window['go']['main']['App']['GetFaceitProfile']();
 }
 
+export function GetHeatmapData(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['GetHeatmapData'](arg1, arg2, arg3, arg4);
+}
+
 export function GetRoundRoster(arg1, arg2) {
   return window['go']['main']['App']['GetRoundRoster'](arg1, arg2);
 }
 
 export function GetScoreboard(arg1) {
   return window['go']['main']['App']['GetScoreboard'](arg1);
+}
+
+export function GetUniquePlayers(arg1) {
+  return window['go']['main']['App']['GetUniquePlayers'](arg1);
+}
+
+export function GetUniqueWeapons(arg1) {
+  return window['go']['main']['App']['GetUniqueWeapons'](arg1);
+}
+
+export function GetWeaponStats(arg1) {
+  return window['go']['main']['App']['GetWeaponStats'](arg1);
 }
 
 export function Greet(arg1) {

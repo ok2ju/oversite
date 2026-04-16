@@ -20,9 +20,17 @@ export function GetFaceitMatches(arg1:number,arg2:number,arg3:string,arg4:string
 
 export function GetFaceitProfile():Promise<main.FaceitProfile>;
 
+export function GetHeatmapData(arg1:Array<number>,arg2:Array<string>,arg3:string,arg4:string):Promise<Array<main.HeatmapPoint>>;
+
 export function GetRoundRoster(arg1:string,arg2:number):Promise<Array<main.PlayerRosterEntry>>;
 
 export function GetScoreboard(arg1:string):Promise<Array<main.ScoreboardEntry>>;
+
+export function GetUniquePlayers(arg1:Array<number>):Promise<Array<main.PlayerInfo>>;
+
+export function GetUniqueWeapons(arg1:Array<number>):Promise<Array<string>>;
+
+export function GetWeaponStats(arg1:string):Promise<Array<main.WeaponStat>>;
 
 export function Greet(arg1:string):Promise<string>;
 

@@ -270,15 +270,15 @@ TRACK B: Heatmaps (W5 → W6 → W7)
 
 | Task ID | Description | Wave(s) | Status |
 |---------|-------------|---------|--------|
-| P4-T01 | Faceit API client | W1, W2 | ~80% done (client exists, needs rate limiting in sync) |
-| P4-T02 | Faceit sync service | W2 | New (`internal/faceit/sync.go`) |
-| P4-T03 | Faceit dashboard page | W1, W3 | ~90% done (components exist, wire bindings + sync) |
-| P4-T04 | Match history list | W1, W3 | ~95% done (`match-list.tsx` exists, needs real data) |
-| P4-T05 | Demo download | W4 | New (`internal/faceit/download.go`) |
-| P4-T06 | Heatmap data binding | W5 | ~60% done (query exists, needs Wails binding + supporting queries) |
-| P4-T07 | KDE rendering | W6 | New (`kde.ts` + `heatmap-layer.ts`) |
-| P4-T08 | Heatmap filter controls | W7 | New (`filter-panel.tsx` + heatmap page) |
-| P4-T09 | Per-demo stats view | W5, W7 | New (`stats-panel.tsx` + weapon stats query) |
+| P4-T01 | Faceit API client | W1, W2 | COMPLETE |
+| P4-T02 | Faceit sync service | W2 | COMPLETE |
+| P4-T03 | Faceit dashboard page | W1, W3 | COMPLETE |
+| P4-T04 | Match history list | W1, W3 | COMPLETE |
+| P4-T05 | Demo download | W4 | COMPLETE |
+| P4-T06 | Heatmap data binding | W5 | COMPLETE |
+| P4-T07 | KDE rendering | W6 | COMPLETE |
+| P4-T08 | Heatmap filter controls | W7 | COMPLETE |
+| P4-T09 | Per-demo stats view | W5, W7 | COMPLETE |
 
 ---
 

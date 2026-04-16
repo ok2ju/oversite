@@ -768,3 +768,450 @@ func TestGetFaceitMatches(t *testing.T) {
 		}
 	})
 }
+
+// ---------------------------------------------------------------------------
+// Heatmap helpers
+// ---------------------------------------------------------------------------
+
+// seedKillEvents creates game events with kills for heatmap testing.
+func seedKillEvents(t *testing.T, q *store.Queries, demoID int64, rounds []store.Round) {
+	t.Helper()
+	ctx := context.Background()
+
+	// Also seed player_rounds so heatmap side-filtering can join.
+	_, err := q.CreatePlayerRound(ctx, store.CreatePlayerRoundParams{
+		RoundID: rounds[0].ID, SteamID: "STEAM_A", PlayerName: "Player1",
+		TeamSide: "CT", Kills: 2, Deaths: 0, Assists: 0, Damage: 200, HeadshotKills: 1,
+	})
+	if err != nil {
+		t.Fatalf("CreatePlayerRound: %v", err)
+	}
+	_, err = q.CreatePlayerRound(ctx, store.CreatePlayerRoundParams{
+		RoundID: rounds[0].ID, SteamID: "STEAM_B", PlayerName: "Player2",
+		TeamSide: "T", Kills: 1, Deaths: 1, Assists: 0, Damage: 100,
+	})
+	if err != nil {
+		t.Fatalf("CreatePlayerRound: %v", err)
+	}
+
+	events := []store.CreateGameEventParams{
+		{DemoID: demoID, RoundID: rounds[0].ID, Tick: 100, EventType: "kill",
+			AttackerSteamID: sql.NullString{String: "STEAM_A", Valid: true},
+			VictimSteamID:   sql.NullString{String: "STEAM_B", Valid: true},
+			Weapon:          sql.NullString{String: "AK-47", Valid: true},
+			X:               100.5, Y: 200.5, Z: 10.0, ExtraData: `{"headshot":true}`},
+		{DemoID: demoID, RoundID: rounds[0].ID, Tick: 200, EventType: "kill",
+			AttackerSteamID: sql.NullString{String: "STEAM_A", Valid: true},
+			VictimSteamID:   sql.NullString{String: "STEAM_B", Valid: true},
+			Weapon:          sql.NullString{String: "AK-47", Valid: true},
+			X:               100.5, Y: 200.5, Z: 10.0, ExtraData: `{"headshot":false}`},
+		{DemoID: demoID, RoundID: rounds[0].ID, Tick: 300, EventType: "kill",
+			AttackerSteamID: sql.NullString{String: "STEAM_B", Valid: true},
+			VictimSteamID:   sql.NullString{String: "STEAM_A", Valid: true},
+			Weapon:          sql.NullString{String: "AWP", Valid: true},
+			X:               300.0, Y: 400.0, Z: 5.0, ExtraData: `{"headshot":true}`},
+	}
+	for _, ep := range events {
+		if _, err := q.CreateGameEvent(ctx, ep); err != nil {
+			t.Fatalf("CreateGameEvent: %v", err)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GetHeatmapData
+// ---------------------------------------------------------------------------
+
+func TestGetHeatmapData(t *testing.T) {
+	app, q, user := newTestAppWithUser(t)
+	ctx := context.Background()
+
+	demo, err := q.CreateDemo(ctx, store.CreateDemoParams{
+		UserID: user.ID, MapName: "de_dust2",
+		FilePath: "/demos/heatmap.dem", FileSize: 100_000_000, Status: "imported",
+	})
+	if err != nil {
+		t.Fatalf("CreateDemo: %v", err)
+	}
+	demo, err = q.UpdateDemoAfterParse(ctx, store.UpdateDemoAfterParseParams{
+		ID: demo.ID, MapName: "de_dust2", TotalTicks: 128000, TickRate: 128.0, DurationSecs: 2400,
+	})
+	if err != nil {
+		t.Fatalf("UpdateDemoAfterParse: %v", err)
+	}
+	rounds := seedRounds(t, q, demo.ID)
+	seedKillEvents(t, q, demo.ID, rounds)
+
+	t.Run("all kills", func(t *testing.T) {
+		points, err := app.GetHeatmapData([]int64{demo.ID}, []string{}, "", "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(points) != 2 {
+			t.Fatalf("len = %d, want 2 (two distinct positions)", len(points))
+		}
+		// Position (100.5, 200.5) has 2 kills.
+		found := false
+		for _, p := range points {
+			if p.X == 100.5 && p.Y == 200.5 {
+				if p.KillCount != 2 {
+					t.Errorf("KillCount = %d, want 2", p.KillCount)
+				}
+				found = true
+			}
+		}
+		if !found {
+			t.Error("expected point at (100.5, 200.5)")
+		}
+	})
+
+	t.Run("filter by weapon", func(t *testing.T) {
+		points, err := app.GetHeatmapData([]int64{demo.ID}, []string{"AWP"}, "", "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(points) != 1 {
+			t.Fatalf("len = %d, want 1", len(points))
+		}
+		if points[0].X != 300.0 {
+			t.Errorf("X = %f, want 300.0", points[0].X)
+		}
+	})
+
+	t.Run("filter by player", func(t *testing.T) {
+		points, err := app.GetHeatmapData([]int64{demo.ID}, []string{}, "STEAM_A", "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(points) != 1 {
+			t.Fatalf("len = %d, want 1 (only STEAM_A kills at one position)", len(points))
+		}
+		if points[0].KillCount != 2 {
+			t.Errorf("KillCount = %d, want 2", points[0].KillCount)
+		}
+	})
+
+	t.Run("filter by side", func(t *testing.T) {
+		points, err := app.GetHeatmapData([]int64{demo.ID}, []string{}, "", "CT")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// Only STEAM_A is CT, so only their 2 kills at (100.5, 200.5).
+		if len(points) != 1 {
+			t.Fatalf("len = %d, want 1", len(points))
+		}
+		if points[0].KillCount != 2 {
+			t.Errorf("KillCount = %d, want 2", points[0].KillCount)
+		}
+	})
+
+	t.Run("empty for nonexistent demo", func(t *testing.T) {
+		points, err := app.GetHeatmapData([]int64{9999}, []string{}, "", "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(points) != 0 {
+			t.Errorf("len = %d, want 0", len(points))
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// GetUniqueWeapons
+// ---------------------------------------------------------------------------
+
+func TestGetUniqueWeapons(t *testing.T) {
+	app, q, user := newTestAppWithUser(t)
+	ctx := context.Background()
+
+	demo, err := q.CreateDemo(ctx, store.CreateDemoParams{
+		UserID: user.ID, MapName: "de_dust2",
+		FilePath: "/demos/weapons.dem", FileSize: 100_000_000, Status: "imported",
+	})
+	if err != nil {
+		t.Fatalf("CreateDemo: %v", err)
+	}
+	demo, err = q.UpdateDemoAfterParse(ctx, store.UpdateDemoAfterParseParams{
+		ID: demo.ID, MapName: "de_dust2", TotalTicks: 128000, TickRate: 128.0, DurationSecs: 2400,
+	})
+	if err != nil {
+		t.Fatalf("UpdateDemoAfterParse: %v", err)
+	}
+	rounds := seedRounds(t, q, demo.ID)
+	seedKillEvents(t, q, demo.ID, rounds)
+
+	t.Run("returns distinct weapons", func(t *testing.T) {
+		weapons, err := app.GetUniqueWeapons([]int64{demo.ID})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(weapons) != 2 {
+			t.Fatalf("len = %d, want 2 (AK-47, AWP)", len(weapons))
+		}
+	})
+
+	t.Run("empty for no demos", func(t *testing.T) {
+		weapons, err := app.GetUniqueWeapons([]int64{9999})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(weapons) != 0 {
+			t.Errorf("len = %d, want 0", len(weapons))
+		}
+	})
+
+	t.Run("not logged in", func(t *testing.T) {
+		q2, db2 := testutil.NewTestQueries(t)
+		kr := testutil.NewMockKeyring()
+		tokens := auth.NewTokenStore(kr)
+		noAuthApp := &App{
+			ctx: context.Background(), db: db2, queries: q2,
+			authService: auth.NewAuthService(auth.OAuthConfig{}, tokens, &faceit.MockFaceitClient{}, q2, func(string) error { return nil }),
+		}
+		_, err := noAuthApp.GetUniqueWeapons([]int64{demo.ID})
+		if err == nil {
+			t.Fatal("expected error for unauthenticated call")
+		}
+	})
+
+	t.Run("unauthorized demo", func(t *testing.T) {
+		otherUser, err := q.CreateUser(ctx, store.CreateUserParams{
+			FaceitID: "other-faceit-w", Nickname: "other",
+			AvatarUrl: "", FaceitElo: 1500, FaceitLevel: 5, Country: "DE",
+		})
+		if err != nil {
+			t.Fatalf("CreateUser: %v", err)
+		}
+		otherDemo, err := q.CreateDemo(ctx, store.CreateDemoParams{
+			UserID: otherUser.ID, MapName: "de_mirage",
+			FilePath: "/demos/other-w.dem", FileSize: 50_000_000, Status: "imported",
+		})
+		if err != nil {
+			t.Fatalf("CreateDemo: %v", err)
+		}
+		_, err = app.GetUniqueWeapons([]int64{otherDemo.ID})
+		if err == nil {
+			t.Fatal("expected unauthorized error")
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// GetUniquePlayers
+// ---------------------------------------------------------------------------
+
+func TestGetUniquePlayers(t *testing.T) {
+	app, q, user := newTestAppWithUser(t)
+	ctx := context.Background()
+
+	demo, err := q.CreateDemo(ctx, store.CreateDemoParams{
+		UserID: user.ID, MapName: "de_dust2",
+		FilePath: "/demos/players.dem", FileSize: 100_000_000, Status: "imported",
+	})
+	if err != nil {
+		t.Fatalf("CreateDemo: %v", err)
+	}
+	demo, err = q.UpdateDemoAfterParse(ctx, store.UpdateDemoAfterParseParams{
+		ID: demo.ID, MapName: "de_dust2", TotalTicks: 128000, TickRate: 128.0, DurationSecs: 2400,
+	})
+	if err != nil {
+		t.Fatalf("UpdateDemoAfterParse: %v", err)
+	}
+	rounds := seedRounds(t, q, demo.ID)
+	seedKillEvents(t, q, demo.ID, rounds)
+
+	t.Run("returns distinct players", func(t *testing.T) {
+		players, err := app.GetUniquePlayers([]int64{demo.ID})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(players) != 2 {
+			t.Fatalf("len = %d, want 2", len(players))
+		}
+		// Check that we get real player info.
+		found := false
+		for _, p := range players {
+			if p.SteamID == "STEAM_A" && p.PlayerName == "Player1" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("expected player STEAM_A / Player1")
+		}
+	})
+
+	t.Run("not logged in", func(t *testing.T) {
+		q2, db2 := testutil.NewTestQueries(t)
+		kr := testutil.NewMockKeyring()
+		tokens := auth.NewTokenStore(kr)
+		noAuthApp := &App{
+			ctx: context.Background(), db: db2, queries: q2,
+			authService: auth.NewAuthService(auth.OAuthConfig{}, tokens, &faceit.MockFaceitClient{}, q2, func(string) error { return nil }),
+		}
+		_, err := noAuthApp.GetUniquePlayers([]int64{demo.ID})
+		if err == nil {
+			t.Fatal("expected error for unauthenticated call")
+		}
+	})
+
+	t.Run("unauthorized demo", func(t *testing.T) {
+		otherUser, err := q.CreateUser(ctx, store.CreateUserParams{
+			FaceitID: "other-faceit-p", Nickname: "other",
+			AvatarUrl: "", FaceitElo: 1500, FaceitLevel: 5, Country: "DE",
+		})
+		if err != nil {
+			t.Fatalf("CreateUser: %v", err)
+		}
+		otherDemo, err := q.CreateDemo(ctx, store.CreateDemoParams{
+			UserID: otherUser.ID, MapName: "de_mirage",
+			FilePath: "/demos/other-p.dem", FileSize: 50_000_000, Status: "imported",
+		})
+		if err != nil {
+			t.Fatalf("CreateDemo: %v", err)
+		}
+		_, err = app.GetUniquePlayers([]int64{otherDemo.ID})
+		if err == nil {
+			t.Fatal("expected unauthorized error")
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// GetWeaponStats
+// ---------------------------------------------------------------------------
+
+func TestGetWeaponStats(t *testing.T) {
+	app, q, user := newTestAppWithUser(t)
+	ctx := context.Background()
+
+	demo, err := q.CreateDemo(ctx, store.CreateDemoParams{
+		UserID: user.ID, MapName: "de_dust2",
+		FilePath: "/demos/weaponstats.dem", FileSize: 100_000_000, Status: "imported",
+	})
+	if err != nil {
+		t.Fatalf("CreateDemo: %v", err)
+	}
+	demo, err = q.UpdateDemoAfterParse(ctx, store.UpdateDemoAfterParseParams{
+		ID: demo.ID, MapName: "de_dust2", TotalTicks: 128000, TickRate: 128.0, DurationSecs: 2400,
+	})
+	if err != nil {
+		t.Fatalf("UpdateDemoAfterParse: %v", err)
+	}
+	rounds := seedRounds(t, q, demo.ID)
+
+	// Seed player_rounds for the join.
+	_, err = q.CreatePlayerRound(ctx, store.CreatePlayerRoundParams{
+		RoundID: rounds[0].ID, SteamID: "STEAM_A", PlayerName: "Player1",
+		TeamSide: "CT", Kills: 2, Deaths: 0, Assists: 0, Damage: 200, HeadshotKills: 1,
+	})
+	if err != nil {
+		t.Fatalf("CreatePlayerRound: %v", err)
+	}
+
+	events := []store.CreateGameEventParams{
+		{DemoID: demo.ID, RoundID: rounds[0].ID, Tick: 100, EventType: "kill",
+			AttackerSteamID: sql.NullString{String: "STEAM_A", Valid: true},
+			Weapon:          sql.NullString{String: "AK-47", Valid: true},
+			X:               100, Y: 200, Z: 10, ExtraData: `{"headshot":true}`},
+		{DemoID: demo.ID, RoundID: rounds[0].ID, Tick: 200, EventType: "kill",
+			AttackerSteamID: sql.NullString{String: "STEAM_A", Valid: true},
+			Weapon:          sql.NullString{String: "AK-47", Valid: true},
+			X:               100, Y: 200, Z: 10, ExtraData: `{"headshot":false}`},
+		{DemoID: demo.ID, RoundID: rounds[0].ID, Tick: 300, EventType: "kill",
+			AttackerSteamID: sql.NullString{String: "STEAM_A", Valid: true},
+			Weapon:          sql.NullString{String: "AWP", Valid: true},
+			X:               300, Y: 400, Z: 5, ExtraData: `{"headshot":true}`},
+	}
+	for _, ep := range events {
+		if _, err := q.CreateGameEvent(ctx, ep); err != nil {
+			t.Fatalf("CreateGameEvent: %v", err)
+		}
+	}
+
+	tests := []struct {
+		name    string
+		demoID  string
+		wantLen int
+		wantErr bool
+	}{
+		{"valid", strconv.FormatInt(demo.ID, 10), 2, false},
+		{"invalid id", "abc", 0, true},
+		{"empty demo", "9999", 0, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := app.GetWeaponStats(tt.demoID)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(got) != tt.wantLen {
+				t.Fatalf("len = %d, want %d", len(got), tt.wantLen)
+			}
+		})
+	}
+
+	// Verify stats ordering and HS counts.
+	stats, _ := app.GetWeaponStats(strconv.FormatInt(demo.ID, 10))
+	// AK-47 has 2 kills (1 HS), should be first (ordered by kill_count DESC).
+	if stats[0].Weapon != "AK-47" {
+		t.Errorf("Weapon[0] = %q, want AK-47", stats[0].Weapon)
+	}
+	if stats[0].KillCount != 2 {
+		t.Errorf("KillCount[0] = %d, want 2", stats[0].KillCount)
+	}
+	if stats[0].HSCount != 1 {
+		t.Errorf("HSCount[0] = %d, want 1", stats[0].HSCount)
+	}
+	// AWP has 1 kill (1 HS).
+	if stats[1].Weapon != "AWP" {
+		t.Errorf("Weapon[1] = %q, want AWP", stats[1].Weapon)
+	}
+	if stats[1].KillCount != 1 {
+		t.Errorf("KillCount[1] = %d, want 1", stats[1].KillCount)
+	}
+	if stats[1].HSCount != 1 {
+		t.Errorf("HSCount[1] = %d, want 1", stats[1].HSCount)
+	}
+
+	t.Run("not logged in", func(t *testing.T) {
+		q2, db2 := testutil.NewTestQueries(t)
+		kr := testutil.NewMockKeyring()
+		tokens := auth.NewTokenStore(kr)
+		noAuthApp := &App{
+			ctx: context.Background(), db: db2, queries: q2,
+			authService: auth.NewAuthService(auth.OAuthConfig{}, tokens, &faceit.MockFaceitClient{}, q2, func(string) error { return nil }),
+		}
+		_, err := noAuthApp.GetWeaponStats(strconv.FormatInt(demo.ID, 10))
+		if err == nil {
+			t.Fatal("expected error for unauthenticated call")
+		}
+	})
+
+	t.Run("unauthorized demo", func(t *testing.T) {
+		// Create a demo owned by a different user.
+		otherUser, err := q.CreateUser(ctx, store.CreateUserParams{
+			FaceitID: "other-faceit", Nickname: "other",
+			AvatarUrl: "", FaceitElo: 1500, FaceitLevel: 5, Country: "DE",
+		})
+		if err != nil {
+			t.Fatalf("CreateUser: %v", err)
+		}
+		otherDemo, err := q.CreateDemo(ctx, store.CreateDemoParams{
+			UserID: otherUser.ID, MapName: "de_mirage",
+			FilePath: "/demos/other.dem", FileSize: 50_000_000, Status: "imported",
+		})
+		if err != nil {
+			t.Fatalf("CreateDemo: %v", err)
+		}
+		_, err = app.GetWeaponStats(strconv.FormatInt(otherDemo.ID, 10))
+		if err == nil {
+			t.Fatal("expected unauthorized error")
+		}
+	})
+}

@@ -9,8 +9,8 @@ TRACKING_FILE="$PROJECT_ROOT/.claude/.edited-files"
 # Nothing edited this turn → skip
 [ ! -f "$TRACKING_FILE" ] && exit 0
 
-# Read unique file paths
-CHANGED=$(sort -u "$TRACKING_FILE")
+# Read unique file paths (file may be deleted by another stop hook)
+CHANGED=$(sort -u "$TRACKING_FILE" 2>/dev/null || true)
 [ -z "$CHANGED" ] && exit 0
 
 # Categorize changed files

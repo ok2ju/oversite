@@ -590,7 +590,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ## 5. Phase 4: Faceit & Heatmaps
 
-### P4-T01: Implement Faceit API client
+### P4-T01: Implement Faceit API client [COMPLETE]
 
 | | |
 |---|---|
@@ -606,7 +606,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Rate limiting handled with backoff |
 | | - Unit tests pass with mock HTTP responses |
 
-### P4-T02: Implement Faceit sync service
+### P4-T02: Implement Faceit sync service [COMPLETE]
 
 | | |
 |---|---|
@@ -622,7 +622,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Progress events emitted during sync |
 | | - Tests pass with mock Faceit client + temp SQLite |
 
-### P4-T03: Build Faceit dashboard page
+### P4-T03: Build Faceit dashboard page [COMPLETE]
 
 | | |
 |---|---|
@@ -637,7 +637,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Win/loss streak displayed |
 | | - Component tests pass with mock bindings |
 
-### P4-T04: Build match history list
+### P4-T04: Build match history list [COMPLETE]
 
 | | |
 |---|---|
@@ -652,7 +652,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - ELO change shows +/- delta |
 | | - Click opens demo viewer (if available) |
 
-### P4-T05: Implement demo download from Faceit
+### P4-T05: Implement demo download from Faceit [COMPLETE]
 
 | | |
 |---|---|
@@ -667,7 +667,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Import triggered automatically after download |
 | | - Retry on transient failures |
 
-### P4-T06: Implement heatmap data binding
+### P4-T06: Implement heatmap data binding [COMPLETE]
 
 | | |
 |---|---|
@@ -682,7 +682,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Query performance < 500ms for 10-demo aggregate |
 | | - Integration test verifies against known demo data |
 
-### P4-T07: Implement client-side KDE rendering
+### P4-T07: Implement client-side KDE rendering [COMPLETE]
 
 | | |
 |---|---|
@@ -697,7 +697,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Performance acceptable (< 2s render for single demo) |
 | | - Unit test verifies KDE algorithm correctness |
 
-### P4-T08: Build heatmap filter controls
+### P4-T08: Build heatmap filter controls [COMPLETE]
 
 | | |
 |---|---|
@@ -712,7 +712,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Heatmap overlay updates after re-fetch |
 | | - Demo multi-select allows aggregation |
 
-### P4-T09: Build per-demo stats view
+### P4-T09: Build per-demo stats view [COMPLETE]
 
 | | |
 |---|---|
