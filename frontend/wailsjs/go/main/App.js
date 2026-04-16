@@ -10,6 +10,10 @@ export function GetCurrentUser() {
   return window['go']['main']['App']['GetCurrentUser']();
 }
 
+export function GetDemoByID(arg1) {
+  return window['go']['main']['App']['GetDemoByID'](arg1);
+}
+
 export function GetDemoEvents(arg1) {
   return window['go']['main']['App']['GetDemoEvents'](arg1);
 }

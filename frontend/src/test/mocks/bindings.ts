@@ -63,6 +63,14 @@ export const mockAppBindings = {
     .fn<(id: number) => Promise<void>>()
     .mockResolvedValue(undefined),
 
+  GetDemoByID: vi
+    .fn<(id: string) => Promise<(typeof mockDemos)[0]>>()
+    .mockImplementation((id: string) => {
+      const demo = mockDemos.find((d) => String(d.id) === id)
+      if (!demo) return Promise.reject(new Error("demo not found"))
+      return Promise.resolve(demo)
+    }),
+
   GetDemoRounds: vi
     .fn<(demoId: string) => Promise<typeof mockRounds>>()
     .mockResolvedValue(mockRounds),
