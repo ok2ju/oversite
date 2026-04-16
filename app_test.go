@@ -60,7 +60,7 @@ func seedRounds(t *testing.T, q *store.Queries, demoID int64) []store.Round {
 	rounds := []store.CreateRoundParams{
 		{DemoID: demoID, RoundNumber: 1, StartTick: 0, EndTick: 3000, WinnerSide: "CT", WinReason: "CTWin", CtScore: 1, TScore: 0},
 		{DemoID: demoID, RoundNumber: 2, StartTick: 3001, EndTick: 6000, WinnerSide: "T", WinReason: "TWin", CtScore: 1, TScore: 1},
-		{DemoID: demoID, RoundNumber: 25, StartTick: 60000, EndTick: 63000, WinnerSide: "CT", WinReason: "CTWin", CtScore: 13, TScore: 12},
+		{DemoID: demoID, RoundNumber: 25, StartTick: 60000, EndTick: 63000, WinnerSide: "CT", WinReason: "CTWin", CtScore: 13, TScore: 12, IsOvertime: 1},
 	}
 	var result []store.Round
 	for _, rp := range rounds {
@@ -565,13 +565,10 @@ func TestComputeStreak(t *testing.T) {
 
 func TestGetFaceitProfile(t *testing.T) {
 	t.Run("not logged in", func(t *testing.T) {
-		app, _ := newTestApp(t)
-		// No authService means GetCurrentUser would panic, so use a proper
-		// app with no stored user.
 		q, db := testutil.NewTestQueries(t)
 		kr := testutil.NewMockKeyring()
 		tokens := auth.NewTokenStore(kr)
-		app = &App{
+		app := &App{
 			ctx: context.Background(), db: db, queries: q,
 			authService: auth.NewAuthService(auth.OAuthConfig{}, tokens, &faceit.MockFaceitClient{}, q, func(string) error { return nil }),
 		}
