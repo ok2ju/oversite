@@ -14,6 +14,7 @@ import (
 	"github.com/ok2ju/oversite/internal/auth"
 	"github.com/ok2ju/oversite/internal/database"
 	"github.com/ok2ju/oversite/internal/demo"
+	"github.com/ok2ju/oversite/internal/faceit"
 	"github.com/ok2ju/oversite/internal/store"
 	"github.com/ok2ju/oversite/migrations"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -26,6 +27,7 @@ type App struct {
 	queries       *store.Queries
 	authService   *auth.AuthService
 	importService *demo.ImportService
+	syncService   *faceit.SyncService
 }
 
 // NewApp creates a new App instance.
@@ -76,6 +78,8 @@ func (a *App) Startup(ctx context.Context) {
 			return nil
 		},
 	)
+
+	a.syncService = faceit.NewSyncService(faceitClient, a.queries)
 }
 
 // Shutdown is called when the app is closing.
@@ -559,6 +563,33 @@ func (a *App) GetFaceitMatches(page, perPage int, mapName, result string) (*Face
 			PerPage: perPage,
 		},
 	}, nil
+}
+
+// SyncFaceitMatches fetches match history from Faceit and stores new matches.
+// Returns the number of newly inserted matches. Progress events are emitted
+// via the Wails runtime under "faceit:sync:progress".
+func (a *App) SyncFaceitMatches() (int, error) {
+	u, err := a.authService.GetCurrentUser(a.ctx)
+	if err != nil {
+		return 0, err
+	}
+	if u == nil {
+		return 0, errors.New("not logged in")
+	}
+
+	token := a.authService.GetAccessToken()
+	ctx := auth.WithAccessToken(a.ctx, token)
+
+	inserted, err := a.syncService.SyncMatches(ctx, u.ID, u.FaceitID, func(current, total int) {
+		wailsRuntime.EventsEmit(a.ctx, "faceit:sync:progress", map[string]interface{}{
+			"current": current,
+			"total":   total,
+		})
+	})
+	if err != nil {
+		return inserted, fmt.Errorf("syncing matches: %w", err)
+	}
+	return inserted, nil
 }
 
 // ---------------------------------------------------------------------------
