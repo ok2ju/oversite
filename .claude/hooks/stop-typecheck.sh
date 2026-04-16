@@ -10,7 +10,7 @@ TRACKING_FILE="$PROJECT_ROOT/.claude/.edited-files"
 [ ! -f "$TRACKING_FILE" ] && exit 0
 
 # Read tracked files and clean up (this is the last Stop hook)
-CHANGED=$(sort -u "$TRACKING_FILE")
+CHANGED=$(sort -u "$TRACKING_FILE" 2>/dev/null || true)
 rm -f "$TRACKING_FILE"
 [ -z "$CHANGED" ] && exit 0
 

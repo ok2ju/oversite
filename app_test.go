@@ -959,6 +959,41 @@ func TestGetUniqueWeapons(t *testing.T) {
 			t.Errorf("len = %d, want 0", len(weapons))
 		}
 	})
+
+	t.Run("not logged in", func(t *testing.T) {
+		q2, db2 := testutil.NewTestQueries(t)
+		kr := testutil.NewMockKeyring()
+		tokens := auth.NewTokenStore(kr)
+		noAuthApp := &App{
+			ctx: context.Background(), db: db2, queries: q2,
+			authService: auth.NewAuthService(auth.OAuthConfig{}, tokens, &faceit.MockFaceitClient{}, q2, func(string) error { return nil }),
+		}
+		_, err := noAuthApp.GetUniqueWeapons([]int64{demo.ID})
+		if err == nil {
+			t.Fatal("expected error for unauthenticated call")
+		}
+	})
+
+	t.Run("unauthorized demo", func(t *testing.T) {
+		otherUser, err := q.CreateUser(ctx, store.CreateUserParams{
+			FaceitID: "other-faceit-w", Nickname: "other",
+			AvatarUrl: "", FaceitElo: 1500, FaceitLevel: 5, Country: "DE",
+		})
+		if err != nil {
+			t.Fatalf("CreateUser: %v", err)
+		}
+		otherDemo, err := q.CreateDemo(ctx, store.CreateDemoParams{
+			UserID: otherUser.ID, MapName: "de_mirage",
+			FilePath: "/demos/other-w.dem", FileSize: 50_000_000, Status: "imported",
+		})
+		if err != nil {
+			t.Fatalf("CreateDemo: %v", err)
+		}
+		_, err = app.GetUniqueWeapons([]int64{otherDemo.ID})
+		if err == nil {
+			t.Fatal("expected unauthorized error")
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -1004,6 +1039,41 @@ func TestGetUniquePlayers(t *testing.T) {
 			t.Error("expected player STEAM_A / Player1")
 		}
 	})
+
+	t.Run("not logged in", func(t *testing.T) {
+		q2, db2 := testutil.NewTestQueries(t)
+		kr := testutil.NewMockKeyring()
+		tokens := auth.NewTokenStore(kr)
+		noAuthApp := &App{
+			ctx: context.Background(), db: db2, queries: q2,
+			authService: auth.NewAuthService(auth.OAuthConfig{}, tokens, &faceit.MockFaceitClient{}, q2, func(string) error { return nil }),
+		}
+		_, err := noAuthApp.GetUniquePlayers([]int64{demo.ID})
+		if err == nil {
+			t.Fatal("expected error for unauthenticated call")
+		}
+	})
+
+	t.Run("unauthorized demo", func(t *testing.T) {
+		otherUser, err := q.CreateUser(ctx, store.CreateUserParams{
+			FaceitID: "other-faceit-p", Nickname: "other",
+			AvatarUrl: "", FaceitElo: 1500, FaceitLevel: 5, Country: "DE",
+		})
+		if err != nil {
+			t.Fatalf("CreateUser: %v", err)
+		}
+		otherDemo, err := q.CreateDemo(ctx, store.CreateDemoParams{
+			UserID: otherUser.ID, MapName: "de_mirage",
+			FilePath: "/demos/other-p.dem", FileSize: 50_000_000, Status: "imported",
+		})
+		if err != nil {
+			t.Fatalf("CreateDemo: %v", err)
+		}
+		_, err = app.GetUniquePlayers([]int64{otherDemo.ID})
+		if err == nil {
+			t.Fatal("expected unauthorized error")
+		}
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -1011,13 +1081,26 @@ func TestGetUniquePlayers(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGetWeaponStats(t *testing.T) {
-	app, q := newTestApp(t)
-	demo := seedDemo(t, q)
-	rounds := seedRounds(t, q, demo.ID)
+	app, q, user := newTestAppWithUser(t)
 	ctx := context.Background()
 
+	demo, err := q.CreateDemo(ctx, store.CreateDemoParams{
+		UserID: user.ID, MapName: "de_dust2",
+		FilePath: "/demos/weaponstats.dem", FileSize: 100_000_000, Status: "imported",
+	})
+	if err != nil {
+		t.Fatalf("CreateDemo: %v", err)
+	}
+	demo, err = q.UpdateDemoAfterParse(ctx, store.UpdateDemoAfterParseParams{
+		ID: demo.ID, MapName: "de_dust2", TotalTicks: 128000, TickRate: 128.0, DurationSecs: 2400,
+	})
+	if err != nil {
+		t.Fatalf("UpdateDemoAfterParse: %v", err)
+	}
+	rounds := seedRounds(t, q, demo.ID)
+
 	// Seed player_rounds for the join.
-	_, err := q.CreatePlayerRound(ctx, store.CreatePlayerRoundParams{
+	_, err = q.CreatePlayerRound(ctx, store.CreatePlayerRoundParams{
 		RoundID: rounds[0].ID, SteamID: "STEAM_A", PlayerName: "Player1",
 		TeamSide: "CT", Kills: 2, Deaths: 0, Assists: 0, Damage: 200, HeadshotKills: 1,
 	})
@@ -1095,4 +1178,40 @@ func TestGetWeaponStats(t *testing.T) {
 	if stats[1].HSCount != 1 {
 		t.Errorf("HSCount[1] = %d, want 1", stats[1].HSCount)
 	}
+
+	t.Run("not logged in", func(t *testing.T) {
+		q2, db2 := testutil.NewTestQueries(t)
+		kr := testutil.NewMockKeyring()
+		tokens := auth.NewTokenStore(kr)
+		noAuthApp := &App{
+			ctx: context.Background(), db: db2, queries: q2,
+			authService: auth.NewAuthService(auth.OAuthConfig{}, tokens, &faceit.MockFaceitClient{}, q2, func(string) error { return nil }),
+		}
+		_, err := noAuthApp.GetWeaponStats(strconv.FormatInt(demo.ID, 10))
+		if err == nil {
+			t.Fatal("expected error for unauthenticated call")
+		}
+	})
+
+	t.Run("unauthorized demo", func(t *testing.T) {
+		// Create a demo owned by a different user.
+		otherUser, err := q.CreateUser(ctx, store.CreateUserParams{
+			FaceitID: "other-faceit", Nickname: "other",
+			AvatarUrl: "", FaceitElo: 1500, FaceitLevel: 5, Country: "DE",
+		})
+		if err != nil {
+			t.Fatalf("CreateUser: %v", err)
+		}
+		otherDemo, err := q.CreateDemo(ctx, store.CreateDemoParams{
+			UserID: otherUser.ID, MapName: "de_mirage",
+			FilePath: "/demos/other.dem", FileSize: 50_000_000, Status: "imported",
+		})
+		if err != nil {
+			t.Fatalf("CreateDemo: %v", err)
+		}
+		_, err = app.GetWeaponStats(strconv.FormatInt(otherDemo.ID, 10))
+		if err == nil {
+			t.Fatal("expected unauthorized error")
+		}
+	})
 }

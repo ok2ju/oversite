@@ -70,7 +70,7 @@ describe("HeatmapLayer", () => {
 
     // Provide a fake canvas 2d context for jsdom
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
-      createFake2DContext() as unknown as CanvasRenderingContext2D,
+      createFake2DContext() as unknown as GPUCanvasContext,
     )
   })
 

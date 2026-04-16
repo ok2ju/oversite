@@ -705,6 +705,17 @@ func (a *App) GetUniqueWeapons(demoIDs []int64) ([]string, error) {
 		return nil, fmt.Errorf("marshaling demo ids: %w", err)
 	}
 
+	// Verify user owns all requested demos.
+	demos, err := a.queries.GetDemosByIDs(a.ctx, string(demoIDsJSON))
+	if err != nil {
+		return nil, fmt.Errorf("getting demos: %w", err)
+	}
+	for _, d := range demos {
+		if d.UserID != u.ID {
+			return nil, errors.New("unauthorized: demo does not belong to user")
+		}
+	}
+
 	weapons, err := a.queries.GetDistinctWeapons(a.ctx, string(demoIDsJSON))
 	if err != nil {
 		return nil, fmt.Errorf("getting weapons: %w", err)
@@ -730,6 +741,17 @@ func (a *App) GetUniquePlayers(demoIDs []int64) ([]PlayerInfo, error) {
 		return nil, fmt.Errorf("marshaling demo ids: %w", err)
 	}
 
+	// Verify user owns all requested demos.
+	demos, err := a.queries.GetDemosByIDs(a.ctx, string(demoIDsJSON))
+	if err != nil {
+		return nil, fmt.Errorf("getting demos: %w", err)
+	}
+	for _, d := range demos {
+		if d.UserID != u.ID {
+			return nil, errors.New("unauthorized: demo does not belong to user")
+		}
+	}
+
 	rows, err := a.queries.GetDistinctPlayers(a.ctx, string(demoIDsJSON))
 	if err != nil {
 		return nil, fmt.Errorf("getting players: %w", err)
@@ -747,9 +769,32 @@ func (a *App) GetUniquePlayers(demoIDs []int64) ([]PlayerInfo, error) {
 
 // GetWeaponStats returns weapon kill stats for a demo.
 func (a *App) GetWeaponStats(demoID string) ([]WeaponStat, error) {
+	u, err := a.authService.GetCurrentUser(a.ctx)
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return nil, errors.New("not logged in")
+	}
+
 	id, err := strconv.ParseInt(demoID, 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("invalid demo id: %w", err)
+	}
+
+	// Verify user owns the requested demo.
+	demoIDsJSON, err := json.Marshal([]int64{id})
+	if err != nil {
+		return nil, fmt.Errorf("marshaling demo ids: %w", err)
+	}
+	demos, err := a.queries.GetDemosByIDs(a.ctx, string(demoIDsJSON))
+	if err != nil {
+		return nil, fmt.Errorf("getting demos: %w", err)
+	}
+	for _, d := range demos {
+		if d.UserID != u.ID {
+			return nil, errors.New("unauthorized: demo does not belong to user")
+		}
 	}
 
 	rows, err := a.queries.GetWeaponStatsByDemoID(a.ctx, id)
