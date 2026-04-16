@@ -202,7 +202,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ## Pre-Phase 2: Demo Parser Spike
 
-### P2-S01: Demo parser spike
+### P2-S01: Demo parser spike [COMPLETE]
 
 | | |
 |---|---|
@@ -222,7 +222,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ## 3. Phase 2: Auth & Demo Pipeline
 
-### P2-T01: Implement loopback OAuth flow
+### P2-T01: Implement loopback OAuth flow [COMPLETE]
 
 | | |
 |---|---|
@@ -238,7 +238,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Listener shuts down after callback or timeout (30s) |
 | | - Unit tests pass for PKCE generation and callback capture |
 
-### P2-T02: Implement keychain token storage
+### P2-T02: Implement keychain token storage [COMPLETE]
 
 | | |
 |---|---|
@@ -253,7 +253,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - `TokenStore` interface allows mock substitution |
 | | - Unit tests pass with mock keyring |
 
-### P2-T03: Create auth service
+### P2-T03: Create auth service [COMPLETE]
 
 | | |
 |---|---|
@@ -269,7 +269,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - getCurrentUser returns nil when not logged in |
 | | - All tests pass with mock keyring and mock Faceit client |
 
-### P2-T04: Create AuthProvider + login page
+### P2-T04: Create AuthProvider + login page [COMPLETE]
 
 | | |
 |---|---|
@@ -285,7 +285,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Protected routes redirect to login when unauthenticated |
 | | - Component tests pass with mock bindings |
 
-### P2-T05: Implement demo import binding
+### P2-T05: Implement demo import binding [COMPLETE]
 
 | | |
 |---|---|
@@ -301,7 +301,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - File picker dialogs work on all platforms |
 | | - Unit tests pass for validation; integration tests pass for import |
 
-### P2-T06: Implement demo parser core
+### P2-T06: Implement demo parser core [COMPLETE]
 
 | | |
 |---|---|
@@ -319,7 +319,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Parse time < 10 seconds for average demo on modern hardware |
 | **Spike Findings** | **Validated (2026-04-15):** Parser from `backend/internal/demo/` compiles and runs against 3 real CS2 demos with zero code changes. demoinfocs-golang v5.1.2 API is stable. Performance: 6.5s / +118 MB heap (862 MB demo, 54 rounds, 30 OT), 3.1s / -68 MB heap (394 MB demo, 25 rounds), 3.8s / +12 MB heap (454 MB demo, 30 rounds). All well within targets. Full details in `docs/spike-parser-findings.md`. **Known gaps to fix during implementation:** (1) Incendiary/Molotov grenades are not tracked -- `parser.go` registers no handler for `events.FireGrenadeStart` or equivalent, and `grenade_extractor.go` `detonationTypes` omits them. This causes ~25% of grenade throws to be orphaned (no matching detonation). Must add incendiary/molotov event handlers. (2) `MaxUploadSize` (500 MB) is too low for decompressed CS2 demos -- Faceit `.dem.zst` files decompress to 400-860+ MB. Raise to 1 GB or remove for local-only desktop use. (3) Decoy destruction events (`DecoyExpired`) are not correlated, contributing a small number of additional orphans. |
 
-### P2-T07: Parse ticks -> batch insert into SQLite
+### P2-T07: Parse ticks -> batch insert into SQLite [COMPLETE]
 
 | | |
 |---|---|
@@ -335,7 +335,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Range query `WHERE demo_id = ? AND tick BETWEEN ? AND ?` returns in < 50ms |
 | | - Integration test verifies row count and sample data accuracy |
 
-### P2-T08: Parse events -> insert game_events
+### P2-T08: Parse events -> insert game_events [COMPLETE]
 
 | | |
 |---|---|
@@ -351,7 +351,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Event timestamps (ticks) are accurate |
 | | - Integration test verifies event counts and sample data |
 
-### P2-T09: Parse rounds -> insert rounds + player_rounds
+### P2-T09: Parse rounds -> insert rounds + player_rounds [COMPLETE]
 
 | | |
 |---|---|
@@ -367,7 +367,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Overtime rounds handled correctly |
 | | - Integration test verifies against known demo data |
 
-### P2-T10: Build demo library UI
+### P2-T10: Build demo library UI [COMPLETE]
 
 | | |
 |---|---|
@@ -384,7 +384,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Status badges show correct parse state |
 | | - Component tests pass with mock bindings |
 
-### P2-T11: Implement folder import binding
+### P2-T11: Implement folder import binding [COMPLETE]
 
 | | |
 |---|---|
