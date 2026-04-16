@@ -21,6 +21,9 @@ vi.mock("@/components/viewer/playback-controls", () => ({
 vi.mock("@/components/viewer/mini-map", () => ({
   MiniMap: () => <div data-testid="mini-map" />,
 }))
+vi.mock("@/components/viewer/round-selector", () => ({
+  RoundSelector: () => <div data-testid="round-selector" />,
+}))
 
 function renderViewerPage(demoId = "1") {
   return renderWithProviders(

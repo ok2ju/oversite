@@ -6,6 +6,7 @@ import { useViewerStore } from "@/stores/viewer"
 import { ViewerCanvas } from "@/components/viewer/viewer-canvas"
 import { PlaybackControls } from "@/components/viewer/playback-controls"
 import { MiniMap } from "@/components/viewer/mini-map"
+import { RoundSelector } from "@/components/viewer/round-selector"
 
 export default function DemoViewerPage() {
   const { id } = useParams<{ id: string }>()
@@ -64,6 +65,7 @@ export default function DemoViewerPage() {
       <ViewerCanvas />
       <PlaybackControls />
       <MiniMap />
+      <RoundSelector />
     </div>
   )
 }
