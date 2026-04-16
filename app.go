@@ -353,9 +353,11 @@ func (a *App) GetRoundRoster(demoID string, roundNumber int) ([]PlayerRosterEntr
 		DemoID:      id,
 		RoundNumber: int64(roundNumber),
 	})
-	if err != nil {
-		// Return empty slice if round not found.
+	if errors.Is(err, sql.ErrNoRows) {
 		return []PlayerRosterEntry{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("getting round: %w", err)
 	}
 
 	players, err := a.queries.GetPlayerRoundsByRoundID(a.ctx, round.ID)
@@ -475,14 +477,15 @@ func storeRoundToBinding(r store.Round) Round {
 }
 
 func storeGameEventToBinding(e store.GameEvent) GameEvent {
+	x, y, z := e.X, e.Y, e.Z
 	ge := GameEvent{
 		ID:        strconv.FormatInt(e.ID, 10),
 		DemoID:    strconv.FormatInt(e.DemoID, 10),
 		Tick:      int(e.Tick),
 		EventType: e.EventType,
-		X:         &e.X,
-		Y:         &e.Y,
-		Z:         &e.Z,
+		X:         &x,
+		Y:         &y,
+		Z:         &z,
 	}
 	if e.RoundID != 0 {
 		rid := strconv.FormatInt(e.RoundID, 10)

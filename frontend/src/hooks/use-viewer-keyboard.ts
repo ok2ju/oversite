@@ -2,7 +2,7 @@ import { useEffect } from "react"
 import { useViewerStore } from "@/stores/viewer"
 
 const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 4] as const
-const SEEK_TICKS = 320 // 5 seconds at 64 tick rate
+const SEEK_SECONDS = 5
 
 interface UseViewerKeyboardOptions {
   onToggleScoreboard: () => void
@@ -17,6 +17,7 @@ export function useViewerKeyboard({
       if (tag === "INPUT" || tag === "TEXTAREA") return
 
       const state = useViewerStore.getState()
+      const seekTicks = state.tickRate * SEEK_SECONDS
 
       switch (e.key) {
         case " ": {
@@ -26,7 +27,7 @@ export function useViewerKeyboard({
         }
         case "ArrowLeft": {
           e.preventDefault()
-          const newTick = Math.max(0, state.currentTick - SEEK_TICKS)
+          const newTick = Math.max(0, state.currentTick - seekTicks)
           state.setTick(newTick)
           break
         }
@@ -34,7 +35,7 @@ export function useViewerKeyboard({
           e.preventDefault()
           const newTick = Math.min(
             state.totalTicks,
-            state.currentTick + SEEK_TICKS,
+            state.currentTick + seekTicks,
           )
           state.setTick(newTick)
           break

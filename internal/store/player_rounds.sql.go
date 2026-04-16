@@ -158,14 +158,18 @@ func (q *Queries) GetPlayerRoundsBySteamID(ctx context.Context, steamID string) 
 }
 
 const getPlayerStatsByDemoID = `-- name: GetPlayerStatsByDemoID :many
-SELECT pr.steam_id, pr.player_name, pr.team_side,
+SELECT pr.steam_id, pr.player_name,
+       (SELECT pr2.team_side FROM player_rounds pr2
+        JOIN rounds r2 ON pr2.round_id = r2.id
+        WHERE r2.demo_id = ?1 AND pr2.steam_id = pr.steam_id
+        ORDER BY r2.round_number ASC LIMIT 1) as team_side,
        SUM(pr.kills) as total_kills, SUM(pr.deaths) as total_deaths,
        SUM(pr.assists) as total_assists, SUM(pr.damage) as total_damage,
        SUM(pr.headshot_kills) as total_headshot_kills, COUNT(*) as rounds_played
 FROM player_rounds pr
 JOIN rounds r ON pr.round_id = r.id
 WHERE r.demo_id = ?1
-GROUP BY pr.steam_id ORDER BY pr.team_side, total_kills DESC
+GROUP BY pr.steam_id, pr.player_name ORDER BY team_side, total_kills DESC
 `
 
 type GetPlayerStatsByDemoIDRow struct {

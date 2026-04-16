@@ -2,13 +2,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 import { screen, cleanup } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useViewerStore } from "@/stores/viewer"
-import { mockScoreboardEntries } from "@/test/fixtures/demos"
 import { renderWithProviders } from "@/test/render"
+import { mockAppBindings } from "@/test/mocks/bindings"
 import { Scoreboard } from "./scoreboard"
 
-vi.mock("@wailsjs/go/main/App", () => ({
-  GetScoreboard: vi.fn().mockResolvedValue(mockScoreboardEntries),
-}))
+vi.mock("@wailsjs/go/main/App", () => mockAppBindings)
 
 describe("Scoreboard", () => {
   beforeEach(() => {

@@ -4,11 +4,10 @@ import userEvent from "@testing-library/user-event"
 import { useViewerStore } from "@/stores/viewer"
 import { mockRounds } from "@/test/fixtures/demos"
 import { renderWithProviders } from "@/test/render"
+import { mockAppBindings } from "@/test/mocks/bindings"
 import { RoundSelector } from "./round-selector"
 
-vi.mock("@wailsjs/go/main/App", () => ({
-  GetDemoRounds: vi.fn().mockResolvedValue(mockRounds),
-}))
+vi.mock("@wailsjs/go/main/App", () => mockAppBindings)
 
 describe("RoundSelector", () => {
   beforeEach(() => {

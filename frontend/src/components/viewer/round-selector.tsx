@@ -22,12 +22,6 @@ function getCurrentRound(
   return rounds[0]?.round_number
 }
 
-function winnerColor(side: string): string {
-  if (side === "CT") return "text-sky-400"
-  if (side === "T") return "text-amber-400"
-  return "text-muted-foreground"
-}
-
 export function RoundSelector() {
   const demoId = useViewerStore((s) => s.demoId)
   const currentTick = useViewerStore((s) => s.currentTick)
@@ -82,13 +76,8 @@ export function RoundSelector() {
                 />
                 <span>
                   Round {round.round_number}:{" "}
-                  <span className={winnerColor(round.winner_side)}>
-                    {round.ct_score}
-                  </span>
-                  -
-                  <span className={winnerColor(round.winner_side)}>
-                    {round.t_score}
-                  </span>
+                  <span className="text-sky-400">{round.ct_score}</span>-
+                  <span className="text-amber-400">{round.t_score}</span>
                 </span>
                 {round.is_overtime && (
                   <span className="text-xs text-purple-400">OT</span>

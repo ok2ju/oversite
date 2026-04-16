@@ -10,6 +10,7 @@ interface ViewerState {
   currentRound: number
   demoId: string | null
   mapName: string | null
+  tickRate: number
   selectedPlayerSteamId: string | null
   viewport: Viewport
   screenWidth: number
@@ -22,6 +23,12 @@ interface ViewerState {
   setRound: (round: number) => void
   setDemoId: (id: string | null) => void
   setMapName: (name: string | null) => void
+  initDemo: (opts: {
+    id: string
+    mapName: string
+    totalTicks: number
+    tickRate: number
+  }) => void
   pause: () => void
   setSelectedPlayer: (steamId: string | null) => void
   setViewport: (v: Viewport) => void
@@ -38,6 +45,7 @@ const initialState = {
   currentRound: 1,
   demoId: null as string | null,
   mapName: null as string | null,
+  tickRate: 64,
   selectedPlayerSteamId: null as string | null,
   viewport: { ...DEFAULT_VIEWPORT },
   screenWidth: 0,
@@ -64,6 +72,16 @@ export const useViewerStore = create<ViewerState>()(
         viewport: { ...DEFAULT_VIEWPORT },
       }),
     setMapName: (name) => set({ mapName: name }),
+    initDemo: (opts) =>
+      set({
+        demoId: opts.id,
+        mapName: opts.mapName,
+        totalTicks: opts.totalTicks,
+        tickRate: opts.tickRate,
+        currentTick: 0,
+        selectedPlayerSteamId: null,
+        viewport: { ...DEFAULT_VIEWPORT },
+      }),
     setSelectedPlayer: (steamId) => set({ selectedPlayerSteamId: steamId }),
     setViewport: (v) => set({ viewport: v }),
     setScreenSize: (w, h) => set({ screenWidth: w, screenHeight: h }),

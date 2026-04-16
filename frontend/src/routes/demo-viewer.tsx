@@ -13,9 +13,7 @@ import { Scoreboard } from "@/components/viewer/scoreboard"
 export default function DemoViewerPage() {
   const { id } = useParams<{ id: string }>()
   const { data: demo, isLoading, isError } = useDemo(id)
-  const setDemoId = useViewerStore((s) => s.setDemoId)
-  const setMapName = useViewerStore((s) => s.setMapName)
-  const setTotalTicks = useViewerStore((s) => s.setTotalTicks)
+  const initDemo = useViewerStore((s) => s.initDemo)
   const reset = useViewerStore((s) => s.reset)
   const [scoreboardVisible, setScoreboardVisible] = useState(false)
   const handleToggleScoreboard = useCallback(
@@ -26,10 +24,13 @@ export default function DemoViewerPage() {
 
   useEffect(() => {
     if (!demo) return
-    setDemoId(String(demo.id))
-    setMapName(demo.map_name)
-    setTotalTicks(demo.total_ticks)
-  }, [demo, setDemoId, setMapName, setTotalTicks])
+    initDemo({
+      id: String(demo.id),
+      mapName: demo.map_name,
+      totalTicks: demo.total_ticks,
+      tickRate: demo.tick_rate,
+    })
+  }, [demo, initDemo])
 
   useEffect(() => {
     return () => {
