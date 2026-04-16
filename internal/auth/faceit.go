@@ -7,14 +7,14 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/ok2ju/oversite/internal/testutil"
+	"github.com/ok2ju/oversite/internal/faceit"
 )
 
 // UserInfoURL is the Faceit OpenID Connect userinfo endpoint.
 const UserInfoURL = "https://api.faceit.com/auth/v1/resources/userinfo"
 
-// HTTPFaceitClient implements testutil.FaceitClient using real HTTP calls
-// to the Faceit Data API.
+// HTTPFaceitClient implements faceit.FaceitClient using real HTTP calls to
+// the Faceit Data API.
 type HTTPFaceitClient struct {
 	httpClient  *http.Client
 	userInfoURL string
@@ -40,7 +40,7 @@ type faceitUserInfo struct {
 
 // GetPlayer fetches a player profile. When playerID is "me", it uses the
 // userinfo endpoint with the given access token context (set via WithAccessToken).
-func (c *HTTPFaceitClient) GetPlayer(ctx context.Context, playerID string) (*testutil.FaceitPlayer, error) {
+func (c *HTTPFaceitClient) GetPlayer(ctx context.Context, playerID string) (*faceit.FaceitPlayer, error) {
 	var url string
 	if playerID == "me" {
 		url = c.userInfoURL
@@ -78,7 +78,7 @@ func (c *HTTPFaceitClient) GetPlayer(ctx context.Context, playerID string) (*tes
 		return nil, fmt.Errorf("decoding player response: %w", err)
 	}
 
-	return &testutil.FaceitPlayer{
+	return &faceit.FaceitPlayer{
 		PlayerID:   info.PlayerID,
 		Nickname:   info.Nickname,
 		Avatar:     info.Avatar,
@@ -89,7 +89,7 @@ func (c *HTTPFaceitClient) GetPlayer(ctx context.Context, playerID string) (*tes
 }
 
 // GetPlayerHistory fetches match history for a player.
-func (c *HTTPFaceitClient) GetPlayerHistory(ctx context.Context, playerID string, offset, limit int) (*testutil.FaceitMatchHistory, error) {
+func (c *HTTPFaceitClient) GetPlayerHistory(ctx context.Context, playerID string, offset, limit int) (*faceit.FaceitMatchHistory, error) {
 	url := fmt.Sprintf("https://open.faceit.com/data/v4/players/%s/history?game=cs2&offset=%d&limit=%d", playerID, offset, limit)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -117,7 +117,7 @@ func (c *HTTPFaceitClient) GetPlayerHistory(ctx context.Context, playerID string
 		return nil, fmt.Errorf("history request failed (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	var result testutil.FaceitMatchHistory
+	var result faceit.FaceitMatchHistory
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, fmt.Errorf("decoding history response: %w", err)
 	}
@@ -126,7 +126,7 @@ func (c *HTTPFaceitClient) GetPlayerHistory(ctx context.Context, playerID string
 }
 
 // GetMatchDetails fetches full details for a specific match.
-func (c *HTTPFaceitClient) GetMatchDetails(ctx context.Context, matchID string) (*testutil.FaceitMatchDetails, error) {
+func (c *HTTPFaceitClient) GetMatchDetails(ctx context.Context, matchID string) (*faceit.FaceitMatchDetails, error) {
 	url := fmt.Sprintf("https://open.faceit.com/data/v4/matches/%s", matchID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -154,7 +154,7 @@ func (c *HTTPFaceitClient) GetMatchDetails(ctx context.Context, matchID string) 
 		return nil, fmt.Errorf("match request failed (status %d): %s", resp.StatusCode, string(body))
 	}
 
-	var result testutil.FaceitMatchDetails
+	var result faceit.FaceitMatchDetails
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, fmt.Errorf("decoding match response: %w", err)
 	}

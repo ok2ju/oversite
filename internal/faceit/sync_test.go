@@ -9,7 +9,17 @@ import (
 	"github.com/ok2ju/oversite/internal/testutil"
 )
 
-func newTestSyncService(t *testing.T, mock *testutil.MockFaceitClient) (*SyncService, *store.Queries, store.User) {
+// resultOf returns the Result stored in the DB for a given match (by faceit_match_id).
+func resultOf(matches []store.FaceitMatch, faceitMatchID string) string {
+	for _, m := range matches {
+		if m.FaceitMatchID == faceitMatchID {
+			return m.Result
+		}
+	}
+	return ""
+}
+
+func newTestSyncService(t *testing.T, mock *MockFaceitClient) (*SyncService, *store.Queries, store.User) {
 	t.Helper()
 	q, _ := testutil.NewTestQueries(t)
 	ctx := context.Background()
@@ -26,7 +36,7 @@ func newTestSyncService(t *testing.T, mock *testutil.MockFaceitClient) (*SyncSer
 
 func TestSyncMatches(t *testing.T) {
 	t.Run("empty history", func(t *testing.T) {
-		mock := &testutil.MockFaceitClient{}
+		mock := &MockFaceitClient{}
 		svc, _, user := newTestSyncService(t, mock)
 
 		inserted, err := svc.SyncMatches(context.Background(), user.ID, "faceit-123", nil)
@@ -39,20 +49,20 @@ func TestSyncMatches(t *testing.T) {
 	})
 
 	t.Run("new matches", func(t *testing.T) {
-		mock := &testutil.MockFaceitClient{
-			GetPlayerHistoryFn: func(_ context.Context, _ string, offset, limit int) (*testutil.FaceitMatchHistory, error) {
+		mock := &MockFaceitClient{
+			GetPlayerHistoryFn: func(_ context.Context, _ string, offset, limit int) (*FaceitMatchHistory, error) {
 				if offset > 0 {
-					return &testutil.FaceitMatchHistory{}, nil
+					return &FaceitMatchHistory{}, nil
 				}
-				return &testutil.FaceitMatchHistory{
-					Items: []testutil.FaceitMatchSummary{
+				return &FaceitMatchHistory{
+					Items: []FaceitMatchSummary{
 						{MatchID: "m1", Map: "de_dust2", StartedAt: 1712700000, Winner: "win", Score: map[string]int{"team": 16, "opponent": 10}},
 						{MatchID: "m2", Map: "de_mirage", StartedAt: 1712786400, Winner: "loss", Score: map[string]int{"team": 14, "opponent": 16}},
 					},
 				}, nil
 			},
-			GetMatchDetailsFn: func(_ context.Context, matchID string) (*testutil.FaceitMatchDetails, error) {
-				return &testutil.FaceitMatchDetails{
+			GetMatchDetailsFn: func(_ context.Context, matchID string) (*FaceitMatchDetails, error) {
+				return &FaceitMatchDetails{
 					MatchID: matchID,
 					DemoURL: []string{"https://example.com/" + matchID + ".dem.gz"},
 				}, nil
@@ -82,13 +92,20 @@ func TestSyncMatches(t *testing.T) {
 		if matches[0].DemoUrl == "" {
 			t.Error("expected demo URL to be set")
 		}
+		// Verify result is stored as "W"/"L" (not raw "win"/"loss").
+		if r := resultOf(matches, "m1"); r != "W" {
+			t.Errorf("m1 result = %q, want %q", r, "W")
+		}
+		if r := resultOf(matches, "m2"); r != "L" {
+			t.Errorf("m2 result = %q, want %q", r, "L")
+		}
 	})
 
 	t.Run("skip existing", func(t *testing.T) {
-		mock := &testutil.MockFaceitClient{
-			GetPlayerHistoryFn: func(_ context.Context, _ string, _, _ int) (*testutil.FaceitMatchHistory, error) {
-				return &testutil.FaceitMatchHistory{
-					Items: []testutil.FaceitMatchSummary{
+		mock := &MockFaceitClient{
+			GetPlayerHistoryFn: func(_ context.Context, _ string, _, _ int) (*FaceitMatchHistory, error) {
+				return &FaceitMatchHistory{
+					Items: []FaceitMatchSummary{
 						{MatchID: "existing-1", Map: "de_dust2", StartedAt: 1712700000, Winner: "win", Score: map[string]int{"team": 16, "opponent": 10}},
 						{MatchID: "new-1", Map: "de_mirage", StartedAt: 1712786400, Winner: "loss", Score: map[string]int{"team": 14, "opponent": 16}},
 					},
@@ -102,7 +119,7 @@ func TestSyncMatches(t *testing.T) {
 		// Pre-insert one match.
 		_, err := q.CreateFaceitMatch(ctx, store.CreateFaceitMatchParams{
 			UserID: user.ID, FaceitMatchID: "existing-1", MapName: "de_dust2",
-			ScoreTeam: 16, ScoreOpponent: 10, Result: "win",
+			ScoreTeam: 16, ScoreOpponent: 10, Result: "W",
 			PlayedAt: "2024-04-10T10:00:00Z",
 		})
 		if err != nil {
@@ -119,10 +136,10 @@ func TestSyncMatches(t *testing.T) {
 	})
 
 	t.Run("progress callback", func(t *testing.T) {
-		mock := &testutil.MockFaceitClient{
-			GetPlayerHistoryFn: func(_ context.Context, _ string, _, _ int) (*testutil.FaceitMatchHistory, error) {
-				return &testutil.FaceitMatchHistory{
-					Items: []testutil.FaceitMatchSummary{
+		mock := &MockFaceitClient{
+			GetPlayerHistoryFn: func(_ context.Context, _ string, _, _ int) (*FaceitMatchHistory, error) {
+				return &FaceitMatchHistory{
+					Items: []FaceitMatchSummary{
 						{MatchID: "m1", Map: "de_dust2", StartedAt: 1712700000, Winner: "win", Score: map[string]int{"team": 16, "opponent": 10}},
 					},
 				}, nil
@@ -143,8 +160,8 @@ func TestSyncMatches(t *testing.T) {
 	})
 
 	t.Run("API error", func(t *testing.T) {
-		mock := &testutil.MockFaceitClient{
-			GetPlayerHistoryFn: func(_ context.Context, _ string, _, _ int) (*testutil.FaceitMatchHistory, error) {
+		mock := &MockFaceitClient{
+			GetPlayerHistoryFn: func(_ context.Context, _ string, _, _ int) (*FaceitMatchHistory, error) {
 				return nil, fmt.Errorf("API unavailable")
 			},
 		}

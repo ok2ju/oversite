@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/ok2ju/oversite/internal/faceit"
 	"github.com/ok2ju/oversite/internal/store"
 	"github.com/ok2ju/oversite/internal/testutil"
 )
@@ -17,7 +18,7 @@ import (
 type AuthService struct {
 	oauth       OAuthConfig
 	tokens      *TokenStore
-	faceit      testutil.FaceitClient
+	faceit      faceit.FaceitClient
 	queries     *store.Queries
 	openBrowser BrowserOpener
 
@@ -30,7 +31,7 @@ type AuthService struct {
 func NewAuthService(
 	oauth OAuthConfig,
 	tokens *TokenStore,
-	faceit testutil.FaceitClient,
+	faceit faceit.FaceitClient,
 	queries *store.Queries,
 	openBrowser BrowserOpener,
 ) *AuthService {
@@ -149,7 +150,7 @@ func (s *AuthService) Logout() error {
 }
 
 // upsertUser creates or updates a user based on the Faceit player profile.
-func (s *AuthService) upsertUser(ctx context.Context, player *testutil.FaceitPlayer) (store.User, error) {
+func (s *AuthService) upsertUser(ctx context.Context, player *faceit.FaceitPlayer) (store.User, error) {
 	existing, err := s.queries.GetUserByFaceitID(ctx, player.PlayerID)
 	if err == nil {
 		// User exists -- update profile fields.

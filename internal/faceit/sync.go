@@ -6,17 +6,16 @@ import (
 	"time"
 
 	"github.com/ok2ju/oversite/internal/store"
-	"github.com/ok2ju/oversite/internal/testutil"
 )
 
 // SyncService fetches Faceit match history and upserts it into the local database.
 type SyncService struct {
-	faceit  testutil.FaceitClient
+	faceit  FaceitClient
 	queries *store.Queries
 }
 
 // NewSyncService creates a new SyncService.
-func NewSyncService(faceit testutil.FaceitClient, queries *store.Queries) *SyncService {
+func NewSyncService(faceit FaceitClient, queries *store.Queries) *SyncService {
 	return &SyncService{faceit: faceit, queries: queries}
 }
 
@@ -62,13 +61,18 @@ func (s *SyncService) SyncMatches(ctx context.Context, userID int64, faceitID st
 
 			playedAt := time.Unix(item.StartedAt, 0).UTC().Format(time.RFC3339)
 
+			result := "L"
+			if item.Winner == "win" {
+				result = "W"
+			}
+
 			_, err = s.queries.UpsertFaceitMatch(ctx, store.UpsertFaceitMatchParams{
 				UserID:        userID,
 				FaceitMatchID: item.MatchID,
 				MapName:       item.Map,
 				ScoreTeam:     int64(item.Score["team"]),
 				ScoreOpponent: int64(item.Score["opponent"]),
-				Result:        item.Winner,
+				Result:        result,
 				DemoUrl:       demoURL,
 				PlayedAt:      playedAt,
 			})

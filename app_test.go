@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ok2ju/oversite/internal/auth"
+	"github.com/ok2ju/oversite/internal/faceit"
 	"github.com/ok2ju/oversite/internal/store"
 	"github.com/ok2ju/oversite/internal/testutil"
 )
@@ -97,7 +98,7 @@ func newTestAppWithUser(t *testing.T) (*App, *store.Queries, store.User) {
 	authSvc := auth.NewAuthService(
 		auth.OAuthConfig{},
 		tokens,
-		&testutil.MockFaceitClient{},
+		&faceit.MockFaceitClient{},
 		q,
 		func(string) error { return nil },
 	)
@@ -572,7 +573,7 @@ func TestGetFaceitProfile(t *testing.T) {
 		tokens := auth.NewTokenStore(kr)
 		app = &App{
 			ctx: context.Background(), db: db, queries: q,
-			authService: auth.NewAuthService(auth.OAuthConfig{}, tokens, &testutil.MockFaceitClient{}, q, func(string) error { return nil }),
+			authService: auth.NewAuthService(auth.OAuthConfig{}, tokens, &faceit.MockFaceitClient{}, q, func(string) error { return nil }),
 		}
 		_, err := app.GetFaceitProfile()
 		if err == nil {
