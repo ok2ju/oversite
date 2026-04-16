@@ -10,4 +10,4 @@ make test-e2e            # From repo root
 
 - Tests live in `e2e/` directory
 - Used for PixiJS visual regression (screenshot comparison)
-- Full-stack tests require Docker services running (`make up`)
+- Full-stack tests require `wails dev` running

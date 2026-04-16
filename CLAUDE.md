@@ -40,6 +40,12 @@ oversite/
 │   ├── src/
 │   │   ├── routes/                 # react-router-dom pages
 │   │   ├── components/             # UI, viewer, strat, layout
+│   │   │   ├── dashboard/          # Faceit profile, elo chart, match list
+│   │   │   ├── demos/              # Demo cards, list, drop zone, upload
+│   │   │   ├── providers/          # Auth, Query, Theme providers
+│   │   │   ├── ui/                 # shadcn/ui primitives
+│   │   │   ├── viewer/             # 2D viewer canvas, controls, scoreboard
+│   │   │   └── strat/              # Strategy board canvas
 │   │   ├── hooks/                  # Custom React hooks
 │   │   ├── lib/                    # PixiJS, maps, utils
 │   │   ├── stores/                 # Zustand stores
@@ -65,7 +71,7 @@ wails build              # Production build (single binary)
 go build ./...           # Build all Go code
 go test -race ./...      # Run unit tests (with race detector)
 golangci-lint run ./...    # Lint (installed separately, not a go tool)
-make sqlc                # Regenerate Go code from SQL
+make sqlc                # Regenerate Go code from SQL (uses `go tool sqlc generate`)
 
 # Frontend (in frontend/)
 pnpm dev                 # Dev server on :3000
@@ -123,6 +129,8 @@ Before writing or modifying any test file, you **must**:
    - **Frontend**: Always use `renderWithProviders()` from `src/test/render.tsx` (provides QueryClientProvider, ThemeProvider, AuthProvider). Never create a raw `QueryClientProvider` wrapper in a test file.
    - **Frontend mocks**: Use MSW handlers from `src/test/msw/handlers.ts` for Faceit API mocking. Use PixiJS mock factories from `src/test/mocks/pixi.ts`. Mock Wails binding functions from `src/test/mocks/bindings.ts`.
    - **Go mocks**: Use stub implementations from `internal/testutil/mocks.go` (`MockKeyring`, `MockFaceitClient`). Never create ad-hoc mock structs that duplicate these.
+   - **Go database tests**: Use `testutil.NewTestDB(t)` or `testutil.NewTestQueries(t)` from `internal/testutil/db.go` for in-memory SQLite with migrations applied. Never open a test database manually.
+   - **Go golden files**: Use `testutil.CompareGolden(t, name, got)` and `testutil.LoadFixture(t, name, &v)` from `internal/testutil/golden.go`. Update goldens with `go test -update`. Fixtures live in `testdata/`.
 3. **Run the test immediately** after writing it — do not move to the next file until the test passes (the Stop hook runs tests automatically when your turn ends)
 
 ## Claude Code Automations
