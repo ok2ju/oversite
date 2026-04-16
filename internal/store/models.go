@@ -104,6 +104,7 @@ type Round struct {
 	WinReason   string
 	CtScore     int64
 	TScore      int64
+	IsOvertime  int64
 }
 
 type StrategyBoard struct {

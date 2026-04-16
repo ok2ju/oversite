@@ -1,6 +1,6 @@
 -- name: CreateRound :one
-INSERT INTO rounds (demo_id, round_number, start_tick, end_tick, winner_side, win_reason, ct_score, t_score)
-VALUES (@demo_id, @round_number, @start_tick, @end_tick, @winner_side, @win_reason, @ct_score, @t_score)
+INSERT INTO rounds (demo_id, round_number, start_tick, end_tick, winner_side, win_reason, ct_score, t_score, is_overtime)
+VALUES (@demo_id, @round_number, @start_tick, @end_tick, @winner_side, @win_reason, @ct_score, @t_score, @is_overtime)
 RETURNING *;
 
 -- name: GetRoundsByDemoID :many

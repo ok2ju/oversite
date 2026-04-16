@@ -10,9 +10,9 @@ import (
 )
 
 const createRound = `-- name: CreateRound :one
-INSERT INTO rounds (demo_id, round_number, start_tick, end_tick, winner_side, win_reason, ct_score, t_score)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-RETURNING id, demo_id, round_number, start_tick, end_tick, winner_side, win_reason, ct_score, t_score
+INSERT INTO rounds (demo_id, round_number, start_tick, end_tick, winner_side, win_reason, ct_score, t_score, is_overtime)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+RETURNING id, demo_id, round_number, start_tick, end_tick, winner_side, win_reason, ct_score, t_score, is_overtime
 `
 
 type CreateRoundParams struct {
@@ -24,6 +24,7 @@ type CreateRoundParams struct {
 	WinReason   string
 	CtScore     int64
 	TScore      int64
+	IsOvertime  int64
 }
 
 func (q *Queries) CreateRound(ctx context.Context, arg CreateRoundParams) (Round, error) {
@@ -36,6 +37,7 @@ func (q *Queries) CreateRound(ctx context.Context, arg CreateRoundParams) (Round
 		arg.WinReason,
 		arg.CtScore,
 		arg.TScore,
+		arg.IsOvertime,
 	)
 	var i Round
 	err := row.Scan(
@@ -48,6 +50,7 @@ func (q *Queries) CreateRound(ctx context.Context, arg CreateRoundParams) (Round
 		&i.WinReason,
 		&i.CtScore,
 		&i.TScore,
+		&i.IsOvertime,
 	)
 	return i, err
 }
@@ -62,7 +65,7 @@ func (q *Queries) DeleteRoundsByDemoID(ctx context.Context, demoID int64) error 
 }
 
 const getRoundByDemoAndNumber = `-- name: GetRoundByDemoAndNumber :one
-SELECT id, demo_id, round_number, start_tick, end_tick, winner_side, win_reason, ct_score, t_score FROM rounds WHERE demo_id = ?1 AND round_number = ?2
+SELECT id, demo_id, round_number, start_tick, end_tick, winner_side, win_reason, ct_score, t_score, is_overtime FROM rounds WHERE demo_id = ?1 AND round_number = ?2
 `
 
 type GetRoundByDemoAndNumberParams struct {
@@ -83,12 +86,13 @@ func (q *Queries) GetRoundByDemoAndNumber(ctx context.Context, arg GetRoundByDem
 		&i.WinReason,
 		&i.CtScore,
 		&i.TScore,
+		&i.IsOvertime,
 	)
 	return i, err
 }
 
 const getRoundsByDemoID = `-- name: GetRoundsByDemoID :many
-SELECT id, demo_id, round_number, start_tick, end_tick, winner_side, win_reason, ct_score, t_score FROM rounds WHERE demo_id = ?1 ORDER BY round_number
+SELECT id, demo_id, round_number, start_tick, end_tick, winner_side, win_reason, ct_score, t_score, is_overtime FROM rounds WHERE demo_id = ?1 ORDER BY round_number
 `
 
 func (q *Queries) GetRoundsByDemoID(ctx context.Context, demoID int64) ([]Round, error) {
@@ -110,6 +114,7 @@ func (q *Queries) GetRoundsByDemoID(ctx context.Context, demoID int64) ([]Round,
 			&i.WinReason,
 			&i.CtScore,
 			&i.TScore,
+			&i.IsOvertime,
 		); err != nil {
 			return nil, err
 		}

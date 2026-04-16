@@ -47,6 +47,7 @@ func IngestRounds(ctx context.Context, db *sql.DB, demoID int64, result *ParseRe
 			WinReason:   rd.WinReason,
 			CtScore:     int64(rd.CTScore),
 			TScore:      int64(rd.TScore),
+			IsOvertime:  boolToInt64(rd.IsOvertime),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("insert round %d: %w", rd.Number, err)

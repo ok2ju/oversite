@@ -18,7 +18,7 @@ CS2 2D demo viewer and analytics platform for Faceit players. Single-binary Wail
 
 ## Project Structure
 
-All desktop Go code lives at the **root module level** (`go.mod` = `github.com/ok2ju/oversite`). The `backend/` directory is the web version (legacy) and must NOT be modified for desktop work.
+All desktop Go code lives at the **root module level** (`go.mod` = `github.com/ok2ju/oversite`).
 
 ```
 oversite/
@@ -48,7 +48,6 @@ oversite/
 │   │   └── utils/
 │   ├── wailsjs/                    # Auto-generated Wails bindings
 │   └── public/maps/                # Radar images
-├── backend/                        # Web version (legacy, do NOT modify)
 ├── e2e/                            # Playwright E2E tests
 ├── lefthook.yml                    # Pre-commit hook config
 ├── Makefile                        # Root dev commands

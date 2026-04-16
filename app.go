@@ -472,7 +472,7 @@ func storeRoundToBinding(r store.Round) Round {
 		WinReason:   r.WinReason,
 		CTScore:     int(r.CtScore),
 		TScore:      int(r.TScore),
-		IsOvertime:  r.RoundNumber > 24,
+		IsOvertime:  r.IsOvertime != 0,
 	}
 }
 
