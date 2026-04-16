@@ -7,6 +7,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 )
 
 const createPlayerRound = `-- name: CreatePlayerRound :one
@@ -142,6 +143,62 @@ func (q *Queries) GetPlayerRoundsBySteamID(ctx context.Context, steamID string) 
 			&i.FirstKill,
 			&i.FirstDeath,
 			&i.ClutchKills,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPlayerStatsByDemoID = `-- name: GetPlayerStatsByDemoID :many
+SELECT pr.steam_id, pr.player_name, pr.team_side,
+       SUM(pr.kills) as total_kills, SUM(pr.deaths) as total_deaths,
+       SUM(pr.assists) as total_assists, SUM(pr.damage) as total_damage,
+       SUM(pr.headshot_kills) as total_headshot_kills, COUNT(*) as rounds_played
+FROM player_rounds pr
+JOIN rounds r ON pr.round_id = r.id
+WHERE r.demo_id = ?1
+GROUP BY pr.steam_id ORDER BY pr.team_side, total_kills DESC
+`
+
+type GetPlayerStatsByDemoIDRow struct {
+	SteamID            string
+	PlayerName         string
+	TeamSide           string
+	TotalKills         sql.NullFloat64
+	TotalDeaths        sql.NullFloat64
+	TotalAssists       sql.NullFloat64
+	TotalDamage        sql.NullFloat64
+	TotalHeadshotKills sql.NullFloat64
+	RoundsPlayed       int64
+}
+
+func (q *Queries) GetPlayerStatsByDemoID(ctx context.Context, demoID int64) ([]GetPlayerStatsByDemoIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPlayerStatsByDemoID, demoID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPlayerStatsByDemoIDRow
+	for rows.Next() {
+		var i GetPlayerStatsByDemoIDRow
+		if err := rows.Scan(
+			&i.SteamID,
+			&i.PlayerName,
+			&i.TeamSide,
+			&i.TotalKills,
+			&i.TotalDeaths,
+			&i.TotalAssists,
+			&i.TotalDamage,
+			&i.TotalHeadshotKills,
+			&i.RoundsPlayed,
 		); err != nil {
 			return nil, err
 		}

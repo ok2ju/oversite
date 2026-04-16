@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -261,30 +262,169 @@ func (a *App) DeleteDemo(id int64) error {
 }
 
 // ---------------------------------------------------------------------------
-// Stub bindings — implemented in later phases
+// Viewer bindings
 // ---------------------------------------------------------------------------
 
-var errNotImplemented = errors.New("not implemented")
+// GetDemoByID returns a single demo by its ID.
+func (a *App) GetDemoByID(id string) (*Demo, error) {
+	demoID, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid demo id: %w", err)
+	}
+
+	d, err := a.queries.GetDemoByID(a.ctx, demoID)
+	if err != nil {
+		return nil, fmt.Errorf("getting demo: %w", err)
+	}
+
+	result := storeDemoToBinding(d)
+	return &result, nil
+}
 
 // GetDemoRounds returns all rounds for a demo.
 func (a *App) GetDemoRounds(demoID string) ([]Round, error) {
-	return nil, errNotImplemented
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid demo id: %w", err)
+	}
+
+	rounds, err := a.queries.GetRoundsByDemoID(a.ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting rounds: %w", err)
+	}
+
+	result := make([]Round, len(rounds))
+	for i, r := range rounds {
+		result[i] = storeRoundToBinding(r)
+	}
+	return result, nil
 }
 
 // GetDemoEvents returns all game events for a demo.
 func (a *App) GetDemoEvents(demoID string) ([]GameEvent, error) {
-	return nil, errNotImplemented
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid demo id: %w", err)
+	}
+
+	events, err := a.queries.GetGameEventsByDemoID(a.ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting events: %w", err)
+	}
+
+	result := make([]GameEvent, len(events))
+	for i, e := range events {
+		result[i] = storeGameEventToBinding(e)
+	}
+	return result, nil
 }
 
 // GetDemoTicks returns player tick data for a range of ticks within a demo.
 func (a *App) GetDemoTicks(demoID string, startTick, endTick int) ([]TickData, error) {
-	return nil, errNotImplemented
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid demo id: %w", err)
+	}
+
+	ticks, err := a.queries.GetTickDataByRange(a.ctx, store.GetTickDataByRangeParams{
+		DemoID:    id,
+		StartTick: int64(startTick),
+		EndTick:   int64(endTick),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("getting ticks: %w", err)
+	}
+
+	result := make([]TickData, len(ticks))
+	for i, d := range ticks {
+		result[i] = storeTickDatumToBinding(d)
+	}
+	return result, nil
 }
 
 // GetRoundRoster returns the player roster for a specific round.
 func (a *App) GetRoundRoster(demoID string, roundNumber int) ([]PlayerRosterEntry, error) {
-	return nil, errNotImplemented
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid demo id: %w", err)
+	}
+
+	round, err := a.queries.GetRoundByDemoAndNumber(a.ctx, store.GetRoundByDemoAndNumberParams{
+		DemoID:      id,
+		RoundNumber: int64(roundNumber),
+	})
+	if err != nil {
+		// Return empty slice if round not found.
+		return []PlayerRosterEntry{}, nil
+	}
+
+	players, err := a.queries.GetPlayerRoundsByRoundID(a.ctx, round.ID)
+	if err != nil {
+		return nil, fmt.Errorf("getting roster: %w", err)
+	}
+
+	result := make([]PlayerRosterEntry, len(players))
+	for i, p := range players {
+		result[i] = PlayerRosterEntry{
+			SteamID:    p.SteamID,
+			PlayerName: p.PlayerName,
+			TeamSide:   p.TeamSide,
+		}
+	}
+	return result, nil
 }
+
+// GetScoreboard returns aggregated player stats for a demo.
+func (a *App) GetScoreboard(demoID string) ([]ScoreboardEntry, error) {
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid demo id: %w", err)
+	}
+
+	rows, err := a.queries.GetPlayerStatsByDemoID(a.ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting scoreboard: %w", err)
+	}
+
+	result := make([]ScoreboardEntry, len(rows))
+	for i, r := range rows {
+		kills := int(r.TotalKills.Float64)
+		deaths := int(r.TotalDeaths.Float64)
+		assists := int(r.TotalAssists.Float64)
+		damage := int(r.TotalDamage.Float64)
+		hsKills := int(r.TotalHeadshotKills.Float64)
+		roundsPlayed := int(r.RoundsPlayed)
+
+		var hsPercent float64
+		if kills > 0 {
+			hsPercent = float64(hsKills) / float64(kills) * 100
+		}
+		var adr float64
+		if roundsPlayed > 0 {
+			adr = float64(damage) / float64(roundsPlayed)
+		}
+		result[i] = ScoreboardEntry{
+			SteamID:      r.SteamID,
+			PlayerName:   r.PlayerName,
+			TeamSide:     r.TeamSide,
+			Kills:        kills,
+			Deaths:       deaths,
+			Assists:      assists,
+			Damage:       damage,
+			HSKills:      hsKills,
+			RoundsPlayed: roundsPlayed,
+			HSPercent:    hsPercent,
+			ADR:          adr,
+		}
+	}
+	return result, nil
+}
+
+// ---------------------------------------------------------------------------
+// Stub bindings — implemented in later phases
+// ---------------------------------------------------------------------------
+
+var errNotImplemented = errors.New("not implemented")
 
 // GetFaceitProfile returns the current user's Faceit profile.
 func (a *App) GetFaceitProfile() (*FaceitProfile, error) {
@@ -318,4 +458,68 @@ func storeDemoToBinding(d store.Demo) Demo {
 		MatchDate:    d.MatchDate,
 		CreatedAt:    d.CreatedAt,
 	}
+}
+
+func storeRoundToBinding(r store.Round) Round {
+	return Round{
+		ID:          strconv.FormatInt(r.ID, 10),
+		RoundNumber: int(r.RoundNumber),
+		StartTick:   int(r.StartTick),
+		EndTick:     int(r.EndTick),
+		WinnerSide:  r.WinnerSide,
+		WinReason:   r.WinReason,
+		CTScore:     int(r.CtScore),
+		TScore:      int(r.TScore),
+		IsOvertime:  r.RoundNumber > 24,
+	}
+}
+
+func storeGameEventToBinding(e store.GameEvent) GameEvent {
+	ge := GameEvent{
+		ID:        strconv.FormatInt(e.ID, 10),
+		DemoID:    strconv.FormatInt(e.DemoID, 10),
+		Tick:      int(e.Tick),
+		EventType: e.EventType,
+		X:         &e.X,
+		Y:         &e.Y,
+		Z:         &e.Z,
+	}
+	if e.RoundID != 0 {
+		rid := strconv.FormatInt(e.RoundID, 10)
+		ge.RoundID = &rid
+	}
+	if e.AttackerSteamID.Valid {
+		ge.AttackerSteamID = &e.AttackerSteamID.String
+	}
+	if e.VictimSteamID.Valid {
+		ge.VictimSteamID = &e.VictimSteamID.String
+	}
+	if e.Weapon.Valid {
+		ge.Weapon = &e.Weapon.String
+	}
+	if e.ExtraData != "" {
+		var m map[string]any
+		if err := json.Unmarshal([]byte(e.ExtraData), &m); err == nil {
+			ge.ExtraData = m
+		}
+	}
+	return ge
+}
+
+func storeTickDatumToBinding(d store.TickDatum) TickData {
+	td := TickData{
+		Tick:    int(d.Tick),
+		SteamID: d.SteamID,
+		X:       d.X,
+		Y:       d.Y,
+		Z:       d.Z,
+		Yaw:     d.Yaw,
+		Health:  int(d.Health),
+		Armor:   int(d.Armor),
+		IsAlive: d.IsAlive != 0,
+	}
+	if d.Weapon != "" {
+		td.Weapon = &d.Weapon
+	}
+	return td
 }
