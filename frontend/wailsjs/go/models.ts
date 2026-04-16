@@ -291,6 +291,38 @@ export namespace main {
 	    }
 	}
 	
+	export class ScoreboardEntry {
+	    steam_id: string;
+	    player_name: string;
+	    team_side: string;
+	    kills: number;
+	    deaths: number;
+	    assists: number;
+	    damage: number;
+	    hs_kills: number;
+	    rounds_played: number;
+	    hs_percent: number;
+	    adr: number;
+
+	    static createFrom(source: any = {}) {
+	        return new ScoreboardEntry(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.steam_id = source["steam_id"];
+	        this.player_name = source["player_name"];
+	        this.team_side = source["team_side"];
+	        this.kills = source["kills"];
+	        this.deaths = source["deaths"];
+	        this.assists = source["assists"];
+	        this.damage = source["damage"];
+	        this.hs_kills = source["hs_kills"];
+	        this.rounds_played = source["rounds_played"];
+	        this.hs_percent = source["hs_percent"];
+	        this.adr = source["adr"];
+	    }
+	}
 	export class PlayerRosterEntry {
 	    steam_id: string;
 	    player_name: string;

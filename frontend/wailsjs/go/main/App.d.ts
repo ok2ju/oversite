@@ -22,6 +22,8 @@ export function GetFaceitProfile():Promise<main.FaceitProfile>;
 
 export function GetRoundRoster(arg1:string,arg2:number):Promise<Array<main.PlayerRosterEntry>>;
 
+export function GetScoreboard(arg1:string):Promise<Array<main.ScoreboardEntry>>;
+
 export function Greet(arg1:string):Promise<string>;
 
 export function ImportDemoByPath(arg1:string):Promise<void>;

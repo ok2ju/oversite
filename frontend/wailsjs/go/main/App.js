@@ -42,6 +42,10 @@ export function GetRoundRoster(arg1, arg2) {
   return window['go']['main']['App']['GetRoundRoster'](arg1, arg2);
 }
 
+export function GetScoreboard(arg1) {
+  return window['go']['main']['App']['GetScoreboard'](arg1);
+}
+
 export function Greet(arg1) {
   return window['go']['main']['App']['Greet'](arg1);
 }

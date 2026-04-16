@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useParams } from "react-router-dom"
 import { Loader2 } from "lucide-react"
 import { useDemo } from "@/hooks/use-demo"
@@ -7,6 +7,7 @@ import { ViewerCanvas } from "@/components/viewer/viewer-canvas"
 import { PlaybackControls } from "@/components/viewer/playback-controls"
 import { MiniMap } from "@/components/viewer/mini-map"
 import { RoundSelector } from "@/components/viewer/round-selector"
+import { Scoreboard } from "@/components/viewer/scoreboard"
 
 export default function DemoViewerPage() {
   const { id } = useParams<{ id: string }>()
@@ -15,6 +16,7 @@ export default function DemoViewerPage() {
   const setMapName = useViewerStore((s) => s.setMapName)
   const setTotalTicks = useViewerStore((s) => s.setTotalTicks)
   const reset = useViewerStore((s) => s.reset)
+  const [scoreboardVisible, setScoreboardVisible] = useState(false)
 
   useEffect(() => {
     if (!demo) return
@@ -66,6 +68,7 @@ export default function DemoViewerPage() {
       <PlaybackControls />
       <MiniMap />
       <RoundSelector />
+      <Scoreboard visible={scoreboardVisible} />
     </div>
   )
 }

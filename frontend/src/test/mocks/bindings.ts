@@ -3,6 +3,7 @@ import {
   mockDemos,
   createMockEvents,
   mockRounds,
+  mockScoreboardEntries,
   mockFaceitMatches,
   mockFaceitProfile,
   mockEloHistory,
@@ -90,6 +91,10 @@ export const mockAppBindings = {
   GetRoundRoster: vi
     .fn<(demoId: string, roundNumber: number) => Promise<never[]>>()
     .mockResolvedValue([]),
+
+  GetScoreboard: vi
+    .fn<(demoId: string) => Promise<typeof mockScoreboardEntries>>()
+    .mockResolvedValue(mockScoreboardEntries),
 
   GetFaceitProfile: vi
     .fn<() => Promise<typeof mockFaceitProfile>>()
