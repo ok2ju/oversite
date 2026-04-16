@@ -188,26 +188,22 @@ Wire the stub `demo-viewer.tsx` into the full viewer by composing existing compo
 |---|---|---|---|
 | P3-T01 PixiJS setup | Done | — | `lib/pixi/app.ts` |
 | P3-T02 Map layer | Done | — | `lib/pixi/layers/map-layer.ts`, `calibration.ts` |
-| P3-T03 Tick data fetching | Frontend done, **Go stub** | W1-D | Implement `GetDemoTicks` binding |
+| P3-T03 Tick data fetching | Done | W1-D | `GetDemoTicks` binding implemented |
 | P3-T04 Player layer | Done | — | `lib/pixi/layers/player-layer.ts` |
 | P3-T05 Event layer | Done | — | `lib/pixi/layers/event-layer.ts` |
 | P3-T06 Playback engine | Done | — | `lib/pixi/playback-engine.ts` |
 | P3-T07 Playback controls | Done | — | `components/viewer/playback-controls.tsx` |
-| P3-T08 Round selector | **Not started** | W3 | New component |
+| P3-T08 Round selector | Done | W3 | `components/viewer/round-selector.tsx` |
 | P3-T09 Zoom & pan | Done | — | `lib/pixi/camera.ts`, `mini-map.tsx` |
-| P3-T10 Scoreboard | **Not started** | W1-F + W4 | Needs new SQL query + Go binding + component |
-| P3-T11 Keyboard shortcuts | **Not started** | W5 | New hook |
+| P3-T10 Scoreboard | Done | W1-F + W4 | SQL query + Go binding + `scoreboard.tsx` |
+| P3-T11 Keyboard shortcuts | Done | W5 | `hooks/use-viewer-keyboard.ts` |
 | P3-T12 Store bridge | Done | — | `viewer-canvas.tsx` subscriptions |
 
 ---
 
 ## Tasks Needing Additional Planning
 
-### P3-T10 Scoreboard — Needs design review
-The scoreboard needs a new SQL aggregation query (`GetPlayerStatsByDemoID`) that joins `player_rounds` with `rounds`. The `sqlc` codegen for aggregate queries with `SUM()` may produce `interface{}` or `int64` return types that need careful handling. Need to verify after `make sqlc` that the generated types are usable. If sqlc struggles with the aggregate, fallback: fetch raw `PlayerRound` rows in Go and aggregate in-memory.
-
-### Viewer page layout — Minor design decision
-The viewer must fill available height within the root layout (sidebar + header). Using `h-[calc(100vh-4rem)]` with `overflow-hidden` is the straightforward approach. If the header height is not exactly `4rem`, measure it during W2 implementation.
+None — all tasks complete.
 
 ---
 
