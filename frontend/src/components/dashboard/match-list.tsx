@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useFaceitMatches } from "@/hooks/use-faceit-matches"
+import { useDemoDownload } from "@/hooks/use-demo-download"
 import type { FaceitMatch } from "@/types/faceit"
 
 const CS2_MAPS = [
@@ -32,6 +33,7 @@ export function MatchList() {
   const [mapFilter, setMapFilter] = useState("")
   const [resultFilter, setResultFilter] = useState("")
   const perPage = 20
+  const download = useDemoDownload()
 
   const { data, isLoading } = useFaceitMatches(page, perPage, {
     map: mapFilter || undefined,
@@ -160,14 +162,18 @@ export function MatchList() {
                 <span className="text-sm text-muted-foreground">
                   {formatDate(match.played_at)}
                 </span>
-                {!match.has_demo && (
+                {!match.has_demo && match.demo_url && (
                   <Button
                     size="sm"
                     variant="outline"
                     data-testid="import-demo-btn"
-                    onClick={(e) => e.stopPropagation()}
+                    disabled={download.isPending}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      download.mutate(match.id)
+                    }}
                   >
-                    Import Demo
+                    {download.isPending ? "Importing..." : "Import Demo"}
                   </Button>
                 )}
               </div>

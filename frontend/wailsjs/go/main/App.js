@@ -62,6 +62,10 @@ export function ImportDemoFolder() {
   return window['go']['main']['App']['ImportDemoFolder']();
 }
 
+export function ImportMatchDemo(arg1) {
+  return window['go']['main']['App']['ImportMatchDemo'](arg1);
+}
+
 export function ListDemos(arg1, arg2) {
   return window['go']['main']['App']['ListDemos'](arg1, arg2);
 }
@@ -72,4 +76,8 @@ export function LoginWithFaceit() {
 
 export function Logout() {
   return window['go']['main']['App']['Logout']();
+}
+
+export function SyncFaceitMatches() {
+  return window['go']['main']['App']['SyncFaceitMatches']();
 }
