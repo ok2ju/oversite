@@ -157,7 +157,7 @@ func exchangeCode(ctx context.Context, cfg OAuthConfig, code, verifier, redirect
 	if err != nil {
 		return nil, fmt.Errorf("sending token request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

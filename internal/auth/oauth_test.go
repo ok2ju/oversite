@@ -117,7 +117,7 @@ func TestStartLoopbackFlow_FullFlow(t *testing.T) {
 				t.Errorf("callback GET: %v", err)
 				return
 			}
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			if resp.StatusCode != http.StatusOK {
 				t.Errorf("callback status = %d, want 200", resp.StatusCode)
 			}
@@ -188,7 +188,7 @@ func TestStartLoopbackFlow_TokenEndpointError(t *testing.T) {
 				t.Errorf("callback GET: %v", err)
 				return
 			}
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}()
 		return nil
 	}
@@ -234,7 +234,7 @@ func TestStartLoopbackFlow_CallbackNoCode(t *testing.T) {
 				t.Errorf("callback GET: %v", err)
 				return
 			}
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}()
 		return nil
 	}

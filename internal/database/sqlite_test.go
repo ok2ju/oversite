@@ -17,7 +17,7 @@ func openTestDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	return db
 }
 
@@ -28,7 +28,7 @@ func openTestDBWithMigrations(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("OpenWithMigrations: %v", err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	return db
 }
 
@@ -105,7 +105,7 @@ func TestMigrations_DownRemovesTables(t *testing.T) {
 	if count != 0 {
 		t.Errorf("tables remaining after down = %d, want 0", count)
 	}
-	db.Close()
+	_ = db.Close()
 }
 
 func TestMigrations_IdempotentUp(t *testing.T) {
