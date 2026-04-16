@@ -1,0 +1,30 @@
+version: "2"
+
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - ineffassign
+    - unused
+    - copyloopvar
+
+  settings:
+    govet:
+      enable:
+        - copylocks
+        - loopclosure
+        - lostcancel
+        - atomic
+
+run:
+  timeout: 3m
+  tests: true
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-dirs:
+    - backend
+  exclude-files:
+    - ".*\\.sql\\.go$"

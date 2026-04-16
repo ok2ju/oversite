@@ -115,13 +115,13 @@ func TestMigrations_IdempotentUp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first OpenWithMigrations: %v", err)
 	}
-	db.Close()
+	_ = db.Close()
 
 	db, err = OpenWithMigrations(dbPath, migrations.FS)
 	if err != nil {
 		t.Fatalf("second OpenWithMigrations: %v", err)
 	}
-	db.Close()
+	_ = db.Close()
 }
 
 func TestAppDataDir(t *testing.T) {
