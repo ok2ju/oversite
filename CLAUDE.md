@@ -28,7 +28,9 @@ oversite/
 ├── go.mod                          # Root Go module
 ├── wails.json                      # Wails project config
 ├── internal/
+│   ├── auth/                       # Faceit OAuth, PKCE, keyring, auth service
 │   ├── database/                   # SQLite connection, migration runner
+│   ├── demo/                       # Demo parser, importer, stats, events, rounds
 │   ├── store/                      # sqlc generated code (SQLite)
 │   └── testutil/                   # Shared test helpers
 ├── migrations/                     # SQLite migration files (embedded in binary)
@@ -103,7 +105,7 @@ Single embedded SQLite database using `modernc.org/sqlite` (pure Go, no CGo). WA
 
 Go struct methods on the App struct are automatically exposed as TypeScript functions in the frontend. No HTTP server, no REST routes. Long-running operations (demo parsing) report progress via Wails runtime events.
 
-**Current status**: All binding methods in `app.go` are stubs returning `errNotImplemented`. Domain types live in `types.go` at the root package level. The frontend uses mock/placeholder data via Zustand stores. Implementing a binding means: (1) write the Go logic, (2) update the frontend to use real data instead of mocks.
+**Current status**: Most binding methods in `app.go` are implemented (auth, demo import/parsing, stats, viewer data). A few stubs remain for later phases. Domain types live in `types.go` at the root package level. To implement a remaining stub: (1) write the Go logic in the appropriate `internal/` package, (2) wire it in `app.go`, (3) update the frontend to use real data instead of mocks.
 
 ### Synchronous Processing
 
@@ -150,3 +152,5 @@ Before writing or modifying any test file, you **must**:
 - `docs/ARCHITECTURE.md` -- System design, DB schema, data flows
 - `docs/IMPLEMENTATION_PLAN.md` -- 6-phase delivery plan
 - `docs/TASK_BREAKDOWN.md` -- 63 granular tasks with acceptance criteria
+- `docs/adr/` -- Architecture Decision Records
+- `docs/plans/` -- Phase implementation plans

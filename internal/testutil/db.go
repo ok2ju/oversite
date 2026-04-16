@@ -26,16 +26,16 @@ func NewTestDB(t *testing.T) *sql.DB {
 	db.SetMaxOpenConns(1)
 
 	if _, err := db.Exec("PRAGMA foreign_keys=ON"); err != nil {
-		db.Close()
+		_ = db.Close()
 		t.Fatalf("testutil.NewTestDB: PRAGMA foreign_keys=ON: %v", err)
 	}
 
 	if err := database.RunMigrations(db, migrations.FS); err != nil {
-		db.Close()
+		_ = db.Close()
 		t.Fatalf("testutil.NewTestDB: RunMigrations: %v", err)
 	}
 
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	return db
 }
 

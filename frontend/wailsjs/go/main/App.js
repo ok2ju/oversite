@@ -10,6 +10,10 @@ export function GetCurrentUser() {
   return window['go']['main']['App']['GetCurrentUser']();
 }
 
+export function GetDemoByID(arg1) {
+  return window['go']['main']['App']['GetDemoByID'](arg1);
+}
+
 export function GetDemoEvents(arg1) {
   return window['go']['main']['App']['GetDemoEvents'](arg1);
 }
@@ -36,6 +40,10 @@ export function GetFaceitProfile() {
 
 export function GetRoundRoster(arg1, arg2) {
   return window['go']['main']['App']['GetRoundRoster'](arg1, arg2);
+}
+
+export function GetScoreboard(arg1) {
+  return window['go']['main']['App']['GetScoreboard'](arg1);
 }
 
 export function Greet(arg1) {

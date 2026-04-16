@@ -3,6 +3,14 @@ import { cleanup } from "@testing-library/react"
 import { afterAll, afterEach, beforeAll } from "vitest"
 import { server } from "./msw/server"
 
+// jsdom doesn't implement pointer capture — stub for Radix UI
+window.HTMLElement.prototype.hasPointerCapture = () => false
+window.HTMLElement.prototype.setPointerCapture = () => {}
+window.HTMLElement.prototype.releasePointerCapture = () => {}
+
+// jsdom doesn't implement scrollIntoView — stub for Radix Select
+window.HTMLElement.prototype.scrollIntoView = () => {}
+
 // jsdom doesn't implement ResizeObserver — stub it
 class ResizeObserverStub {
   observe() {}

@@ -3,6 +3,7 @@ export {
   createMockEvents,
   mockRounds,
   createMockTickData,
+  mockScoreboardEntries,
 } from "./demos"
 
 export { mockFaceitMatches, mockFaceitProfile, mockEloHistory } from "./faceit"

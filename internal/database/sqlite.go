@@ -28,17 +28,17 @@ func Open(dbPath string) (*sql.DB, error) {
 	// Enable WAL mode for concurrent reads.
 	var mode string
 	if err := db.QueryRow("PRAGMA journal_mode=WAL").Scan(&mode); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("PRAGMA journal_mode=WAL: %w", err)
 	}
 	if mode != "wal" {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("expected journal_mode=wal, got %q", mode)
 	}
 
 	// Enable foreign key enforcement.
 	if _, err := db.Exec("PRAGMA foreign_keys=ON"); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("PRAGMA foreign_keys=ON: %w", err)
 	}
 
@@ -96,7 +96,7 @@ func OpenWithMigrations(dbPath string, fs embed.FS) (*sql.DB, error) {
 		return nil, err
 	}
 	if err := RunMigrations(db, fs); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("RunMigrations: %w", err)
 	}
 	return db, nil

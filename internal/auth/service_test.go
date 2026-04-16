@@ -36,7 +36,7 @@ func newTestAuthService(t *testing.T, faceit testutil.FaceitClient) (*auth.AuthS
 	// Fake token endpoint that always returns valid tokens.
 	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(auth.TokenResponse{
+		_ = json.NewEncoder(w).Encode(auth.TokenResponse{
 			AccessToken:  "at_test_access",
 			RefreshToken: "rt_test_refresh",
 			ExpiresIn:    3600,
@@ -304,7 +304,7 @@ func TestHTTPFaceitClient_GetPlayer(t *testing.T) {
 			t.Errorf("Authorization = %q, want %q", r.Header.Get("Authorization"), "Bearer test-token")
 		}
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"guid":"g-123","nickname":"TestPlayer","picture":"https://img.jpg","locale":"US","skill_level":9,"elo":2000}`)
+		_, _ = fmt.Fprint(w, `{"guid":"g-123","nickname":"TestPlayer","picture":"https://img.jpg","locale":"US","skill_level":9,"elo":2000}`)
 	}))
 	t.Cleanup(server.Close)
 
@@ -332,7 +332,7 @@ func TestHTTPFaceitClient_GetPlayer(t *testing.T) {
 func TestHTTPFaceitClient_GetPlayer_ServerError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprint(w, "internal error")
+		_, _ = fmt.Fprint(w, "internal error")
 	}))
 	t.Cleanup(server.Close)
 

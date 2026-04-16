@@ -62,7 +62,7 @@ func (c *HTTPFaceitClient) GetPlayer(ctx context.Context, playerID string) (*tes
 	if err != nil {
 		return nil, fmt.Errorf("fetching player: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -106,7 +106,7 @@ func (c *HTTPFaceitClient) GetPlayerHistory(ctx context.Context, playerID string
 	if err != nil {
 		return nil, fmt.Errorf("fetching history: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -143,7 +143,7 @@ func (c *HTTPFaceitClient) GetMatchDetails(ctx context.Context, matchID string) 
 	if err != nil {
 		return nil, fmt.Errorf("fetching match: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

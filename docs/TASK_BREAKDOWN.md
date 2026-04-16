@@ -403,7 +403,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ## 4. Phase 3: Core 2D Viewer
 
-### P3-T01: Set up PixiJS Application + canvas container
+### P3-T01: Set up PixiJS Application + canvas container [COMPLETE]
 
 | | |
 |---|---|
@@ -418,7 +418,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Cleanup destroys PixiJS Application on unmount |
 | | - No React re-renders during PixiJS render loop |
 
-### P3-T02: Implement map layer
+### P3-T02: Implement map layer [COMPLETE]
 
 | | |
 |---|---|
@@ -433,7 +433,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Unit tests pass for all supported maps |
 | | - Map fills canvas at default zoom level |
 
-### P3-T03: Implement tick data fetching
+### P3-T03: Implement tick data fetching [COMPLETE]
 
 | | |
 |---|---|
@@ -449,7 +449,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - No dropped frames due to data fetching latency |
 | | - Unit tests pass for buffer logic |
 
-### P3-T04: Implement player layer
+### P3-T04: Implement player layer [COMPLETE]
 
 | | |
 |---|---|
@@ -465,7 +465,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Dead players dimmed with death X marker |
 | | - Unit tests pass for position calculations |
 
-### P3-T05: Implement event layer
+### P3-T05: Implement event layer [COMPLETE]
 
 | | |
 |---|---|
@@ -482,7 +482,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Molotov shows orange fill |
 | | - Bomb plant/defuse icons render correctly |
 
-### P3-T06: Implement playback engine
+### P3-T06: Implement playback engine [COMPLETE]
 
 | | |
 |---|---|
@@ -498,7 +498,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Pause stops tick advancement |
 | | - Frame rate stays at 60 FPS |
 
-### P3-T07: Build playback controls UI
+### P3-T07: Build playback controls UI [COMPLETE]
 
 | | |
 |---|---|
@@ -514,7 +514,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Round boundaries visible on timeline |
 | | - Tick counter shows current/total ticks |
 
-### P3-T08: Implement round selector
+### P3-T08: Implement round selector [COMPLETE]
 
 | | |
 |---|---|
@@ -528,7 +528,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Clicking round jumps to correct start tick |
 | | - Current round highlighted during playback |
 
-### P3-T09: Implement zoom and pan
+### P3-T09: Implement zoom and pan [COMPLETE]
 
 | | |
 |---|---|
@@ -543,7 +543,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Mini-map shows current viewport position |
 | | - Reset-view button restores default zoom and position |
 
-### P3-T10: Build scoreboard overlay
+### P3-T10: Build scoreboard overlay [COMPLETE]
 
 | | |
 |---|---|
@@ -558,7 +558,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Current round highlighted |
 | | - Stats update when round changes |
 
-### P3-T11: Implement keyboard shortcuts
+### P3-T11: Implement keyboard shortcuts [COMPLETE]
 
 | | |
 |---|---|
@@ -572,7 +572,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Shortcuts don't fire when typing in input fields |
 | | - Unit tests verify key bindings |
 
-### P3-T12: Connect viewer Zustand store to PixiJS
+### P3-T12: Connect viewer Zustand store to PixiJS [COMPLETE]
 
 | | |
 |---|---|

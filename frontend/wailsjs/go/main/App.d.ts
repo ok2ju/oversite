@@ -6,6 +6,8 @@ export function DeleteDemo(arg1:number):Promise<void>;
 
 export function GetCurrentUser():Promise<main.User>;
 
+export function GetDemoByID(arg1:string):Promise<main.Demo>;
+
 export function GetDemoEvents(arg1:string):Promise<Array<main.GameEvent>>;
 
 export function GetDemoRounds(arg1:string):Promise<Array<main.Round>>;
@@ -19,6 +21,8 @@ export function GetFaceitMatches(arg1:number,arg2:number,arg3:string,arg4:string
 export function GetFaceitProfile():Promise<main.FaceitProfile>;
 
 export function GetRoundRoster(arg1:string,arg2:number):Promise<Array<main.PlayerRosterEntry>>;
+
+export function GetScoreboard(arg1:string):Promise<Array<main.ScoreboardEntry>>;
 
 export function Greet(arg1:string):Promise<string>;
 

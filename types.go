@@ -87,6 +87,21 @@ type PlayerRosterEntry struct {
 	TeamSide   string `json:"team_side"`
 }
 
+// ScoreboardEntry represents aggregated player stats for a demo.
+type ScoreboardEntry struct {
+	SteamID      string  `json:"steam_id"`
+	PlayerName   string  `json:"player_name"`
+	TeamSide     string  `json:"team_side"`
+	Kills        int     `json:"kills"`
+	Deaths       int     `json:"deaths"`
+	Assists      int     `json:"assists"`
+	Damage       int     `json:"damage"`
+	HSKills      int     `json:"hs_kills"`
+	RoundsPlayed int     `json:"rounds_played"`
+	HSPercent    float64 `json:"hs_percent"`
+	ADR          float64 `json:"adr"`
+}
+
 // FaceitProfile represents a user's Faceit profile.
 type FaceitProfile struct {
 	Nickname      string        `json:"nickname"`

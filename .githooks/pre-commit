@@ -19,14 +19,13 @@ if [ -n "$FRONTEND_FILES" ]; then
   cd "$ROOT"
 fi
 
-# --- Backend ---
-GO_FILES=$(git diff --cached --name-only --diff-filter=d -- 'backend/**/*.go' || true)
+# --- Go (root-level) ---
+GO_FILES=$(git diff --cached --name-only --diff-filter=d -- '*.go' 'internal/**/*.go' \
+  ':!backend/**' || true)
 
 if [ -n "$GO_FILES" ]; then
   echo "[pre-commit] golangci-lint..."
-  cd "$ROOT/backend"
-  PACKAGES=$(echo "$GO_FILES" | sed 's|^backend/||' | xargs -n1 dirname | sort -u | sed 's|^|./|')
+  PACKAGES=$(echo "$GO_FILES" | xargs -n1 dirname | sort -u | sed 's|^|./|')
   # shellcheck disable=SC2086
   go tool golangci-lint run $PACKAGES
-  cd "$ROOT"
 fi

@@ -1,5 +1,6 @@
 import type { Demo, GameEvent, TickData } from "@/types/demo"
 import type { Round } from "@/types/round"
+import type { ScoreboardEntry } from "@/types/scoreboard"
 
 export const mockDemos: Demo[] = [
   {
@@ -215,3 +216,58 @@ export function createMockTickData(
   }
   return data
 }
+
+export const mockScoreboardEntries: ScoreboardEntry[] = [
+  {
+    steam_id: "76561198000000001",
+    player_name: "PlayerOne",
+    team_side: "CT",
+    kills: 20,
+    deaths: 12,
+    assists: 5,
+    damage: 2400,
+    hs_kills: 10,
+    rounds_played: 15,
+    hs_percent: 50,
+    adr: 160,
+  },
+  {
+    steam_id: "76561198000000002",
+    player_name: "PlayerTwo",
+    team_side: "CT",
+    kills: 15,
+    deaths: 14,
+    assists: 3,
+    damage: 1800,
+    hs_kills: 6,
+    rounds_played: 15,
+    hs_percent: 40,
+    adr: 120,
+  },
+  {
+    steam_id: "76561198000000003",
+    player_name: "PlayerThree",
+    team_side: "T",
+    kills: 18,
+    deaths: 10,
+    assists: 7,
+    damage: 2100,
+    hs_kills: 9,
+    rounds_played: 15,
+    hs_percent: 50,
+    adr: 140,
+  },
+  {
+    steam_id: "76561198000000004",
+    player_name: "PlayerFour",
+    team_side: "T",
+    kills: 10,
+    deaths: 16,
+    assists: 2,
+    damage: 1200,
+    hs_kills: 3,
+    rounds_played: 15,
+    hs_percent: 30,
+    adr: 80,
+  },
+]
