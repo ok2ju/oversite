@@ -17,6 +17,11 @@ linters:
         - lostcancel
         - atomic
 
+  exclusions:
+    paths:
+      - backend
+      - ".*\\.sql\\.go$"
+
 run:
   timeout: 3m
   tests: true
@@ -24,7 +29,3 @@ run:
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-dirs:
-    - backend
-  exclude-files:
-    - ".*\\.sql\\.go$"
