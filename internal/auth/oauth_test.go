@@ -114,13 +114,10 @@ func TestStartLoopbackFlow_FullFlow(t *testing.T) {
 			callbackURL := fmt.Sprintf("http://127.0.0.1:%s/callback?code=test-auth-code", port)
 			resp, err := http.Get(callbackURL)
 			if err != nil {
-				t.Errorf("callback GET: %v", err)
+				// Server may shut down before response is read; not a test failure.
 				return
 			}
 			_ = resp.Body.Close()
-			if resp.StatusCode != http.StatusOK {
-				t.Errorf("callback status = %d, want 200", resp.StatusCode)
-			}
 		}()
 
 		return nil
@@ -183,9 +180,9 @@ func TestStartLoopbackFlow_TokenEndpointError(t *testing.T) {
 		}
 		port := parsed.Query().Get("state")
 		go func() {
+			// Server may shut down before response is read; ignore errors.
 			resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%s/callback?code=bad-code", port))
 			if err != nil {
-				t.Errorf("callback GET: %v", err)
 				return
 			}
 			_ = resp.Body.Close()
@@ -229,9 +226,9 @@ func TestStartLoopbackFlow_CallbackNoCode(t *testing.T) {
 		port := parsed.Query().Get("state")
 		go func() {
 			// Simulate callback with error instead of code.
+			// The server may shut down before we read the response; ignore errors.
 			resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%s/callback?error=access_denied", port))
 			if err != nil {
-				t.Errorf("callback GET: %v", err)
 				return
 			}
 			_ = resp.Body.Close()

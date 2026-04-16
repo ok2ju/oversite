@@ -7,7 +7,7 @@ pre-commit:
       exclude: "frontend/wailsjs/**"
       run: npx eslint --no-warn-ignored {staged_files}
 
-    backend-lint:
-      root: "backend/"
-      glob: "backend/**/*.go"
-      run: bash ../.githooks/go-lint-staged.sh {staged_files}
+    go-lint:
+      glob: "*.go|internal/**/*.go"
+      exclude: "backend/**"
+      run: bash .githooks/go-lint-staged.sh {staged_files}

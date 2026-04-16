@@ -64,7 +64,7 @@ test-e2e: ## Run Playwright E2E tests
 # ========================
 
 hooks: ## Install pre-commit hooks via lefthook
-	go tool lefthook install
+	lefthook install
 
 hooks-fallback: ## Install pre-commit hooks (no extra tools)
 	git config core.hooksPath .githooks
