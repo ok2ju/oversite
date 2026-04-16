@@ -10,12 +10,13 @@ import (
 	"testing"
 
 	"github.com/ok2ju/oversite/internal/auth"
+	"github.com/ok2ju/oversite/internal/faceit"
 	"github.com/ok2ju/oversite/internal/store"
 	"github.com/ok2ju/oversite/internal/testutil"
 )
 
 // testPlayer is a reusable Faceit player profile for tests.
-var testPlayer = &testutil.FaceitPlayer{
+var testPlayer = &faceit.FaceitPlayer{
 	PlayerID:   "faceit-guid-123",
 	Nickname:   "TestNinja",
 	Avatar:     "https://cdn.faceit.com/avatar.png",
@@ -26,7 +27,7 @@ var testPlayer = &testutil.FaceitPlayer{
 
 // newTestAuthService creates an AuthService with mock dependencies and a fake
 // token server. It returns the service and mock keyring for assertions.
-func newTestAuthService(t *testing.T, faceit testutil.FaceitClient) (*auth.AuthService, *testutil.MockKeyring, *store.Queries) {
+func newTestAuthService(t *testing.T, faceit faceit.FaceitClient) (*auth.AuthService, *testutil.MockKeyring, *store.Queries) {
 	t.Helper()
 
 	q, _ := testutil.NewTestQueries(t)
@@ -62,8 +63,8 @@ func newTestAuthService(t *testing.T, faceit testutil.FaceitClient) (*auth.AuthS
 }
 
 func TestAuthService_Login(t *testing.T) {
-	mockFaceit := &testutil.MockFaceitClient{
-		GetPlayerFn: func(ctx context.Context, playerID string) (*testutil.FaceitPlayer, error) {
+	mockFaceit := &faceit.MockFaceitClient{
+		GetPlayerFn: func(ctx context.Context, playerID string) (*faceit.FaceitPlayer, error) {
 			if playerID != "me" {
 				t.Errorf("GetPlayer called with %q, want %q", playerID, "me")
 			}
@@ -121,7 +122,7 @@ func TestAuthService_Login(t *testing.T) {
 }
 
 func TestAuthService_GetCurrentUser_NoSession(t *testing.T) {
-	svc, _, _ := newTestAuthService(t, &testutil.MockFaceitClient{})
+	svc, _, _ := newTestAuthService(t, &faceit.MockFaceitClient{})
 	ctx := context.Background()
 
 	user, err := svc.GetCurrentUser(ctx)
@@ -134,7 +135,7 @@ func TestAuthService_GetCurrentUser_NoSession(t *testing.T) {
 }
 
 func TestAuthService_GetCurrentUser_CachedInMemory(t *testing.T) {
-	svc, kr, q := newTestAuthService(t, &testutil.MockFaceitClient{})
+	svc, kr, q := newTestAuthService(t, &faceit.MockFaceitClient{})
 	ctx := context.Background()
 
 	// Create user and populate keychain.
@@ -175,7 +176,7 @@ func TestAuthService_GetCurrentUser_CachedInMemory(t *testing.T) {
 }
 
 func TestAuthService_GetCurrentUser_StaleSession(t *testing.T) {
-	svc, kr, _ := newTestAuthService(t, &testutil.MockFaceitClient{})
+	svc, kr, _ := newTestAuthService(t, &faceit.MockFaceitClient{})
 	ctx := context.Background()
 
 	// Store a user ID in keychain that doesn't exist in DB.
@@ -199,7 +200,7 @@ func TestAuthService_GetCurrentUser_StaleSession(t *testing.T) {
 }
 
 func TestAuthService_Logout(t *testing.T) {
-	svc, kr, q := newTestAuthService(t, &testutil.MockFaceitClient{})
+	svc, kr, q := newTestAuthService(t, &faceit.MockFaceitClient{})
 	ctx := context.Background()
 
 	// Set up a logged-in session.
@@ -247,8 +248,8 @@ func TestAuthService_Logout(t *testing.T) {
 }
 
 func TestAuthService_UpsertUser_CreatesNewUser(t *testing.T) {
-	svc, kr, q := newTestAuthService(t, &testutil.MockFaceitClient{
-		GetPlayerFn: func(ctx context.Context, playerID string) (*testutil.FaceitPlayer, error) {
+	svc, kr, q := newTestAuthService(t, &faceit.MockFaceitClient{
+		GetPlayerFn: func(ctx context.Context, playerID string) (*faceit.FaceitPlayer, error) {
 			return testPlayer, nil
 		},
 	})
@@ -326,7 +327,7 @@ func TestHTTPFaceitClient_GetPlayer(t *testing.T) {
 	_ = server
 
 	// Validate the mock client satisfies the interface.
-	var _ testutil.FaceitClient = &auth.HTTPFaceitClient{}
+	var _ faceit.FaceitClient = &auth.HTTPFaceitClient{}
 }
 
 func TestHTTPFaceitClient_GetPlayer_ServerError(t *testing.T) {
@@ -337,5 +338,5 @@ func TestHTTPFaceitClient_GetPlayer_ServerError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	// We can verify that HTTPFaceitClient implements the interface.
-	var _ testutil.FaceitClient = &auth.HTTPFaceitClient{}
+	var _ faceit.FaceitClient = &auth.HTTPFaceitClient{}
 }

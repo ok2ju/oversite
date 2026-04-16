@@ -32,8 +32,12 @@ export function ImportDemoFile():Promise<void>;
 
 export function ImportDemoFolder():Promise<main.FolderImportResult>;
 
+export function ImportMatchDemo(arg1:string):Promise<void>;
+
 export function ListDemos(arg1:number,arg2:number):Promise<main.DemoListResult>;
 
 export function LoginWithFaceit():Promise<void>;
 
 export function Logout():Promise<void>;
+
+export function SyncFaceitMatches():Promise<number>;

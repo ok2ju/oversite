@@ -104,6 +104,12 @@ export const mockAppBindings = {
     .fn<() => Promise<typeof mockEloHistory>>()
     .mockResolvedValue(mockEloHistory),
 
+  SyncFaceitMatches: vi.fn<() => Promise<number>>().mockResolvedValue(5),
+
+  ImportMatchDemo: vi
+    .fn<(faceitMatchID: string) => Promise<void>>()
+    .mockResolvedValue(undefined),
+
   GetFaceitMatches: vi
     .fn<
       (

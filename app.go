@@ -7,12 +7,16 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/ok2ju/oversite/internal/auth"
 	"github.com/ok2ju/oversite/internal/database"
 	"github.com/ok2ju/oversite/internal/demo"
+	"github.com/ok2ju/oversite/internal/faceit"
 	"github.com/ok2ju/oversite/internal/store"
 	"github.com/ok2ju/oversite/migrations"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -20,11 +24,13 @@ import (
 
 // App struct holds application state and is bound to the frontend.
 type App struct {
-	ctx           context.Context
-	db            *sql.DB
-	queries       *store.Queries
-	authService   *auth.AuthService
-	importService *demo.ImportService
+	ctx             context.Context
+	db              *sql.DB
+	queries         *store.Queries
+	authService     *auth.AuthService
+	importService   *demo.ImportService
+	syncService     *faceit.SyncService
+	downloadService *faceit.DownloadService
 }
 
 // NewApp creates a new App instance.
@@ -74,6 +80,16 @@ func (a *App) Startup(ctx context.Context) {
 			wailsRuntime.BrowserOpenURL(a.ctx, url)
 			return nil
 		},
+	)
+
+	a.syncService = faceit.NewSyncService(faceitClient, a.queries)
+
+	downloadDir := filepath.Join(filepath.Dir(dbPath), "demos")
+	a.downloadService = faceit.NewDownloadService(
+		&http.Client{},
+		a.importService,
+		a.queries,
+		downloadDir,
 	)
 }
 
@@ -423,24 +439,193 @@ func (a *App) GetScoreboard(demoID string) ([]ScoreboardEntry, error) {
 }
 
 // ---------------------------------------------------------------------------
-// Stub bindings — implemented in later phases
+// Faceit bindings
 // ---------------------------------------------------------------------------
-
-var errNotImplemented = errors.New("not implemented")
 
 // GetFaceitProfile returns the current user's Faceit profile.
 func (a *App) GetFaceitProfile() (*FaceitProfile, error) {
-	return nil, errNotImplemented
+	u, err := a.authService.GetCurrentUser(a.ctx)
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return nil, errors.New("not logged in")
+	}
+
+	matchesPlayed, err := a.queries.CountFaceitMatchesByUserID(a.ctx, u.ID)
+	if err != nil {
+		return nil, fmt.Errorf("counting matches: %w", err)
+	}
+
+	results, err := a.queries.GetCurrentStreak(a.ctx, u.ID)
+	if err != nil {
+		return nil, fmt.Errorf("getting streak: %w", err)
+	}
+
+	profile := &FaceitProfile{
+		Nickname:      u.Nickname,
+		MatchesPlayed: int(matchesPlayed),
+		CurrentStreak: computeStreak(results),
+	}
+	if u.AvatarUrl != "" {
+		profile.AvatarURL = &u.AvatarUrl
+	}
+	if u.FaceitElo != 0 {
+		elo := int(u.FaceitElo)
+		profile.Elo = &elo
+	}
+	if u.FaceitLevel != 0 {
+		level := int(u.FaceitLevel)
+		profile.Level = &level
+	}
+	if u.Country != "" {
+		profile.Country = &u.Country
+	}
+	return profile, nil
 }
 
 // GetEloHistory returns elo history for the given number of days.
 func (a *App) GetEloHistory(days int) ([]EloHistoryPoint, error) {
-	return nil, errNotImplemented
+	u, err := a.authService.GetCurrentUser(a.ctx)
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return nil, errors.New("not logged in")
+	}
+
+	var since string
+	if days > 0 {
+		since = time.Now().AddDate(0, 0, -days).Format(time.RFC3339)
+	} else {
+		since = "0001-01-01T00:00:00Z"
+	}
+
+	rows, err := a.queries.GetEloHistory(a.ctx, store.GetEloHistoryParams{
+		UserID: u.ID,
+		Since:  since,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("getting elo history: %w", err)
+	}
+
+	result := make([]EloHistoryPoint, len(rows))
+	for i, r := range rows {
+		elo := int(r.EloAfter)
+		result[i] = EloHistoryPoint{
+			Elo:      &elo,
+			MapName:  r.MapName,
+			PlayedAt: r.PlayedAt,
+		}
+	}
+	return result, nil
 }
 
 // GetFaceitMatches returns a paginated, filtered list of Faceit matches.
 func (a *App) GetFaceitMatches(page, perPage int, mapName, result string) (*FaceitMatchListResult, error) {
-	return nil, errNotImplemented
+	u, err := a.authService.GetCurrentUser(a.ctx)
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return nil, errors.New("not logged in")
+	}
+
+	offset := int64((page - 1) * perPage)
+
+	var mapFilter, resultFilter interface{}
+	if mapName != "" {
+		mapFilter = mapName
+	}
+	if result != "" {
+		resultFilter = result
+	}
+
+	matches, err := a.queries.GetFaceitMatchesFiltered(a.ctx, store.GetFaceitMatchesFilteredParams{
+		UserID:    u.ID,
+		MapName:   mapFilter,
+		Result:    resultFilter,
+		OffsetVal: offset,
+		LimitVal:  int64(perPage),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("listing faceit matches: %w", err)
+	}
+
+	total, err := a.queries.CountFaceitMatchesFiltered(a.ctx, store.CountFaceitMatchesFilteredParams{
+		UserID:  u.ID,
+		MapName: mapFilter,
+		Result:  resultFilter,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("counting faceit matches: %w", err)
+	}
+
+	data := make([]FaceitMatch, len(matches))
+	for i, m := range matches {
+		data[i] = storeFaceitMatchToBinding(m)
+	}
+
+	return &FaceitMatchListResult{
+		Data: data,
+		Meta: PaginationMeta{
+			Total:   int(total),
+			Page:    page,
+			PerPage: perPage,
+		},
+	}, nil
+}
+
+// SyncFaceitMatches fetches match history from Faceit and stores new matches.
+// Returns the number of newly inserted matches. Progress events are emitted
+// via the Wails runtime under "faceit:sync:progress".
+func (a *App) SyncFaceitMatches() (int, error) {
+	u, err := a.authService.GetCurrentUser(a.ctx)
+	if err != nil {
+		return 0, err
+	}
+	if u == nil {
+		return 0, errors.New("not logged in")
+	}
+
+	token := a.authService.GetAccessToken()
+	ctx := auth.WithAccessToken(a.ctx, token)
+
+	inserted, err := a.syncService.SyncMatches(ctx, u.ID, u.FaceitID, func(current, total int) {
+		wailsRuntime.EventsEmit(a.ctx, "faceit:sync:progress", map[string]interface{}{
+			"current": current,
+			"total":   total,
+		})
+	})
+	if err != nil {
+		return inserted, fmt.Errorf("syncing matches: %w", err)
+	}
+	return inserted, nil
+}
+
+// ImportMatchDemo downloads and imports a demo from a Faceit match.
+// Progress events are emitted via "faceit:demo:download:progress".
+func (a *App) ImportMatchDemo(faceitMatchID string) error {
+	u, err := a.authService.GetCurrentUser(a.ctx)
+	if err != nil {
+		return err
+	}
+	if u == nil {
+		return errors.New("not logged in")
+	}
+
+	id, err := strconv.ParseInt(faceitMatchID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid match id: %w", err)
+	}
+
+	_, err = a.downloadService.DownloadAndImport(a.ctx, id, u.ID, func(bytesDownloaded, totalBytes int64) {
+		wailsRuntime.EventsEmit(a.ctx, "faceit:demo:download:progress", map[string]interface{}{
+			"bytesDownloaded": bytesDownloaded,
+			"totalBytes":      totalBytes,
+		})
+	})
+	return err
 }
 
 // ---------------------------------------------------------------------------
@@ -507,6 +692,66 @@ func storeGameEventToBinding(e store.GameEvent) GameEvent {
 		}
 	}
 	return ge
+}
+
+func storeFaceitMatchToBinding(m store.FaceitMatch) FaceitMatch {
+	fm := FaceitMatch{
+		ID:            strconv.FormatInt(m.ID, 10),
+		FaceitMatchID: m.FaceitMatchID,
+		MapName:       m.MapName,
+		ScoreTeam:     int(m.ScoreTeam),
+		ScoreOpponent: int(m.ScoreOpponent),
+		Result:        m.Result,
+		PlayedAt:      m.PlayedAt,
+		HasDemo:       m.DemoID.Valid,
+	}
+	if m.EloBefore != 0 {
+		v := int(m.EloBefore)
+		fm.EloBefore = &v
+	}
+	if m.EloAfter != 0 {
+		v := int(m.EloAfter)
+		fm.EloAfter = &v
+	}
+	if m.EloBefore != 0 && m.EloAfter != 0 {
+		v := int(m.EloAfter - m.EloBefore)
+		fm.EloChange = &v
+	}
+	if m.Kills != 0 {
+		v := int(m.Kills)
+		fm.Kills = &v
+	}
+	if m.Deaths != 0 {
+		v := int(m.Deaths)
+		fm.Deaths = &v
+	}
+	if m.Assists != 0 {
+		v := int(m.Assists)
+		fm.Assists = &v
+	}
+	if m.DemoUrl != "" {
+		fm.DemoURL = &m.DemoUrl
+	}
+	if m.DemoID.Valid {
+		v := strconv.FormatInt(m.DemoID.Int64, 10)
+		fm.DemoID = &v
+	}
+	return fm
+}
+
+func computeStreak(results []string) CurrentStreak {
+	if len(results) == 0 {
+		return CurrentStreak{Type: "none", Count: 0}
+	}
+	streakType := results[0]
+	count := 1
+	for i := 1; i < len(results); i++ {
+		if results[i] != streakType {
+			break
+		}
+		count++
+	}
+	return CurrentStreak{Type: streakType, Count: count}
 }
 
 func storeTickDatumToBinding(d store.TickDatum) TickData {

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ok2ju/oversite/internal/faceit"
 	"github.com/ok2ju/oversite/internal/store"
 	"github.com/ok2ju/oversite/internal/testutil"
 )
@@ -105,9 +106,9 @@ func TestMockKeyring_RoundTrip(t *testing.T) {
 }
 
 func TestMockFaceitClient_Configurable(t *testing.T) {
-	client := &testutil.MockFaceitClient{
-		GetPlayerFn: func(_ context.Context, playerID string) (*testutil.FaceitPlayer, error) {
-			return &testutil.FaceitPlayer{
+	client := &faceit.MockFaceitClient{
+		GetPlayerFn: func(_ context.Context, playerID string) (*faceit.FaceitPlayer, error) {
+			return &faceit.FaceitPlayer{
 				PlayerID:  playerID,
 				Nickname:  "s1mple",
 				FaceitElo: 3000,

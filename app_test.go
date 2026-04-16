@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 	"database/sql"
+	"strconv"
 	"testing"
 
+	"github.com/ok2ju/oversite/internal/auth"
+	"github.com/ok2ju/oversite/internal/faceit"
 	"github.com/ok2ju/oversite/internal/store"
 	"github.com/ok2ju/oversite/internal/testutil"
 )
@@ -57,7 +60,7 @@ func seedRounds(t *testing.T, q *store.Queries, demoID int64) []store.Round {
 	rounds := []store.CreateRoundParams{
 		{DemoID: demoID, RoundNumber: 1, StartTick: 0, EndTick: 3000, WinnerSide: "CT", WinReason: "CTWin", CtScore: 1, TScore: 0},
 		{DemoID: demoID, RoundNumber: 2, StartTick: 3001, EndTick: 6000, WinnerSide: "T", WinReason: "TWin", CtScore: 1, TScore: 1},
-		{DemoID: demoID, RoundNumber: 25, StartTick: 60000, EndTick: 63000, WinnerSide: "CT", WinReason: "CTWin", CtScore: 13, TScore: 12},
+		{DemoID: demoID, RoundNumber: 25, StartTick: 60000, EndTick: 63000, WinnerSide: "CT", WinReason: "CTWin", CtScore: 13, TScore: 12, IsOvertime: 1},
 	}
 	var result []store.Round
 	for _, rp := range rounds {
@@ -68,6 +71,67 @@ func seedRounds(t *testing.T, q *store.Queries, demoID int64) []store.Round {
 		result = append(result, r)
 	}
 	return result
+}
+
+// newTestAppWithUser returns an App with an AuthService wired to a real user.
+// The returned user has: Nickname="tester", FaceitElo=2000, Level=10, Country="US".
+func newTestAppWithUser(t *testing.T) (*App, *store.Queries, store.User) {
+	t.Helper()
+	q, db := testutil.NewTestQueries(t)
+	ctx := context.Background()
+
+	user, err := q.CreateUser(ctx, store.CreateUserParams{
+		FaceitID: "test-faceit-id", Nickname: "tester",
+		AvatarUrl: "https://example.com/avatar.png", FaceitElo: 2000,
+		FaceitLevel: 10, Country: "US",
+	})
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+
+	kr := testutil.NewMockKeyring()
+	tokens := auth.NewTokenStore(kr)
+	if err := tokens.SaveUserID(strconv.FormatInt(user.ID, 10)); err != nil {
+		t.Fatalf("SaveUserID: %v", err)
+	}
+
+	authSvc := auth.NewAuthService(
+		auth.OAuthConfig{},
+		tokens,
+		&faceit.MockFaceitClient{},
+		q,
+		func(string) error { return nil },
+	)
+
+	app := &App{
+		ctx:         ctx,
+		db:          db,
+		queries:     q,
+		authService: authSvc,
+	}
+	return app, q, user
+}
+
+// seedFaceitMatches inserts 5 Faceit matches with varied results/elos/maps.
+func seedFaceitMatches(t *testing.T, q *store.Queries, userID int64) []store.FaceitMatch {
+	t.Helper()
+	ctx := context.Background()
+	params := []store.CreateFaceitMatchParams{
+		{UserID: userID, FaceitMatchID: "match-1", MapName: "de_dust2", ScoreTeam: 16, ScoreOpponent: 10, Result: "win", EloBefore: 1980, EloAfter: 2000, Kills: 20, Deaths: 15, Assists: 5, DemoUrl: "https://example.com/demo1.dem.gz", PlayedAt: "2026-04-10T10:00:00Z"},
+		{UserID: userID, FaceitMatchID: "match-2", MapName: "de_mirage", ScoreTeam: 14, ScoreOpponent: 16, Result: "loss", EloBefore: 2000, EloAfter: 1975, Kills: 18, Deaths: 20, Assists: 3, PlayedAt: "2026-04-11T10:00:00Z"},
+		{UserID: userID, FaceitMatchID: "match-3", MapName: "de_dust2", ScoreTeam: 16, ScoreOpponent: 8, Result: "win", EloBefore: 1975, EloAfter: 2005, Kills: 25, Deaths: 10, Assists: 7, PlayedAt: "2026-04-12T10:00:00Z"},
+		{UserID: userID, FaceitMatchID: "match-4", MapName: "de_inferno", ScoreTeam: 16, ScoreOpponent: 14, Result: "win", EloBefore: 2005, EloAfter: 2020, Kills: 22, Deaths: 18, Assists: 4, PlayedAt: "2026-04-13T10:00:00Z"},
+		{UserID: userID, FaceitMatchID: "match-5", MapName: "de_dust2", ScoreTeam: 10, ScoreOpponent: 16, Result: "loss", EloBefore: 2020, EloAfter: 1995, Kills: 12, Deaths: 19, Assists: 2, PlayedAt: "2026-04-14T10:00:00Z"},
+	}
+	var matches []store.FaceitMatch
+	for _, p := range params {
+		m, err := q.CreateFaceitMatch(ctx, p)
+		if err != nil {
+			t.Fatalf("CreateFaceitMatch: %v", err)
+		}
+		matches = append(matches, m)
+	}
+	return matches
 }
 
 // ---------------------------------------------------------------------------
@@ -462,4 +526,245 @@ func TestGetScoreboard(t *testing.T) {
 	if entry.ADR != 150 {
 		t.Errorf("ADR = %f, want 150", entry.ADR)
 	}
+}
+
+// ---------------------------------------------------------------------------
+// computeStreak
+// ---------------------------------------------------------------------------
+
+func TestComputeStreak(t *testing.T) {
+	tests := []struct {
+		name      string
+		results   []string
+		wantType  string
+		wantCount int
+	}{
+		{"empty", nil, "none", 0},
+		{"single win", []string{"win"}, "win", 1},
+		{"single loss", []string{"loss"}, "loss", 1},
+		{"win streak", []string{"win", "win", "win", "loss"}, "win", 3},
+		{"loss streak", []string{"loss", "loss", "win"}, "loss", 2},
+		{"alternating", []string{"win", "loss", "win"}, "win", 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := computeStreak(tt.results)
+			if got.Type != tt.wantType {
+				t.Errorf("Type = %q, want %q", got.Type, tt.wantType)
+			}
+			if got.Count != tt.wantCount {
+				t.Errorf("Count = %d, want %d", got.Count, tt.wantCount)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GetFaceitProfile
+// ---------------------------------------------------------------------------
+
+func TestGetFaceitProfile(t *testing.T) {
+	t.Run("not logged in", func(t *testing.T) {
+		q, db := testutil.NewTestQueries(t)
+		kr := testutil.NewMockKeyring()
+		tokens := auth.NewTokenStore(kr)
+		app := &App{
+			ctx: context.Background(), db: db, queries: q,
+			authService: auth.NewAuthService(auth.OAuthConfig{}, tokens, &faceit.MockFaceitClient{}, q, func(string) error { return nil }),
+		}
+		_, err := app.GetFaceitProfile()
+		if err == nil {
+			t.Fatal("expected error for unauthenticated user")
+		}
+	})
+
+	t.Run("no matches", func(t *testing.T) {
+		app, _, _ := newTestAppWithUser(t)
+		profile, err := app.GetFaceitProfile()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if profile.Nickname != "tester" {
+			t.Errorf("Nickname = %q, want %q", profile.Nickname, "tester")
+		}
+		if profile.Elo == nil || *profile.Elo != 2000 {
+			t.Errorf("Elo = %v, want 2000", profile.Elo)
+		}
+		if profile.Level == nil || *profile.Level != 10 {
+			t.Errorf("Level = %v, want 10", profile.Level)
+		}
+		if profile.MatchesPlayed != 0 {
+			t.Errorf("MatchesPlayed = %d, want 0", profile.MatchesPlayed)
+		}
+		if profile.CurrentStreak.Type != "none" {
+			t.Errorf("Streak.Type = %q, want %q", profile.CurrentStreak.Type, "none")
+		}
+	})
+
+	t.Run("with matches and streak", func(t *testing.T) {
+		app, q, user := newTestAppWithUser(t)
+		seedFaceitMatches(t, q, user.ID)
+
+		profile, err := app.GetFaceitProfile()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if profile.MatchesPlayed != 5 {
+			t.Errorf("MatchesPlayed = %d, want 5", profile.MatchesPlayed)
+		}
+		// Matches ordered by played_at DESC: match-5 (loss), match-4 (win), ...
+		// So streak should be "loss", count=1.
+		if profile.CurrentStreak.Type != "loss" {
+			t.Errorf("Streak.Type = %q, want %q", profile.CurrentStreak.Type, "loss")
+		}
+		if profile.CurrentStreak.Count != 1 {
+			t.Errorf("Streak.Count = %d, want 1", profile.CurrentStreak.Count)
+		}
+		if profile.AvatarURL == nil || *profile.AvatarURL != "https://example.com/avatar.png" {
+			t.Errorf("AvatarURL = %v, want avatar URL", profile.AvatarURL)
+		}
+		if profile.Country == nil || *profile.Country != "US" {
+			t.Errorf("Country = %v, want US", profile.Country)
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// GetEloHistory
+// ---------------------------------------------------------------------------
+
+func TestGetEloHistory(t *testing.T) {
+	t.Run("all time", func(t *testing.T) {
+		app, q, user := newTestAppWithUser(t)
+		seedFaceitMatches(t, q, user.ID)
+
+		points, err := app.GetEloHistory(0)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(points) != 5 {
+			t.Fatalf("len = %d, want 5", len(points))
+		}
+		// Ordered ASC by played_at. First match: elo_after=2000.
+		if points[0].Elo == nil || *points[0].Elo != 2000 {
+			t.Errorf("points[0].Elo = %v, want 2000", points[0].Elo)
+		}
+		if points[0].MapName != "de_dust2" {
+			t.Errorf("points[0].MapName = %q, want de_dust2", points[0].MapName)
+		}
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		app, _, _ := newTestAppWithUser(t)
+		points, err := app.GetEloHistory(30)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(points) != 0 {
+			t.Errorf("len = %d, want 0", len(points))
+		}
+	})
+
+	t.Run("filtered by days", func(t *testing.T) {
+		app, q, user := newTestAppWithUser(t)
+		seedFaceitMatches(t, q, user.ID)
+
+		// All test matches are in Apr 2026 — 1 day window won't include them.
+		points, err := app.GetEloHistory(1)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(points) != 0 {
+			t.Errorf("len = %d, want 0 (all matches are in the past)", len(points))
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
+// GetFaceitMatches
+// ---------------------------------------------------------------------------
+
+func TestGetFaceitMatches(t *testing.T) {
+	app, q, user := newTestAppWithUser(t)
+	seedFaceitMatches(t, q, user.ID)
+
+	t.Run("unfiltered", func(t *testing.T) {
+		result, err := app.GetFaceitMatches(1, 10, "", "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Meta.Total != 5 {
+			t.Errorf("Total = %d, want 5", result.Meta.Total)
+		}
+		if len(result.Data) != 5 {
+			t.Fatalf("len = %d, want 5", len(result.Data))
+		}
+		// Ordered DESC by played_at, first should be match-5.
+		if result.Data[0].FaceitMatchID != "match-5" {
+			t.Errorf("first match = %q, want match-5", result.Data[0].FaceitMatchID)
+		}
+	})
+
+	t.Run("filter by map", func(t *testing.T) {
+		result, err := app.GetFaceitMatches(1, 10, "de_dust2", "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Meta.Total != 3 {
+			t.Errorf("Total = %d, want 3", result.Meta.Total)
+		}
+	})
+
+	t.Run("filter by result", func(t *testing.T) {
+		result, err := app.GetFaceitMatches(1, 10, "", "win")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Meta.Total != 3 {
+			t.Errorf("Total = %d, want 3", result.Meta.Total)
+		}
+	})
+
+	t.Run("pagination", func(t *testing.T) {
+		result, err := app.GetFaceitMatches(1, 2, "", "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result.Data) != 2 {
+			t.Fatalf("len = %d, want 2", len(result.Data))
+		}
+		if result.Meta.Total != 5 {
+			t.Errorf("Total = %d, want 5", result.Meta.Total)
+		}
+		if result.Meta.Page != 1 {
+			t.Errorf("Page = %d, want 1", result.Meta.Page)
+		}
+	})
+
+	t.Run("type mapping", func(t *testing.T) {
+		result, err := app.GetFaceitMatches(1, 1, "de_dust2", "win")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result.Data) == 0 {
+			t.Fatal("expected at least 1 match")
+		}
+		m := result.Data[0]
+		// Match-3: EloBefore=1975, EloAfter=2005, EloChange=+30.
+		if m.EloBefore == nil || *m.EloBefore != 1975 {
+			t.Errorf("EloBefore = %v, want 1975", m.EloBefore)
+		}
+		if m.EloAfter == nil || *m.EloAfter != 2005 {
+			t.Errorf("EloAfter = %v, want 2005", m.EloAfter)
+		}
+		if m.EloChange == nil || *m.EloChange != 30 {
+			t.Errorf("EloChange = %v, want 30", m.EloChange)
+		}
+		if m.DemoURL != nil {
+			t.Errorf("DemoURL = %v, want nil (match-3 has no demo_url)", m.DemoURL)
+		}
+		if m.HasDemo {
+			t.Error("HasDemo should be false")
+		}
+	})
 }
