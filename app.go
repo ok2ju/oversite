@@ -80,7 +80,7 @@ func (a *App) Startup(ctx context.Context) {
 // Shutdown is called when the app is closing.
 func (a *App) Shutdown(_ context.Context) {
 	if a.db != nil {
-		a.db.Close()
+		_ = a.db.Close()
 	}
 }
 

@@ -43,7 +43,7 @@ func (s *ImportService) ValidateFile(filePath string) error {
 	if err != nil {
 		return fmt.Errorf("open file: %w", err)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	header := make([]byte, 8)
 	n, err := f.Read(header)
@@ -78,7 +78,7 @@ func (s *ImportService) ImportFile(ctx context.Context, filePath string, userID 
 	if err != nil {
 		return nil, fmt.Errorf("open file: %w", err)
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	header := make([]byte, 8)
 	n, err := f.Read(header)

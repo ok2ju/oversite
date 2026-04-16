@@ -59,7 +59,7 @@ func StartLoopbackFlow(ctx context.Context, cfg OAuthConfig, openBrowser Browser
 	if err != nil {
 		return nil, fmt.Errorf("starting loopback listener: %w", err)
 	}
-	defer listener.Close()
+	defer listener.Close() //nolint:errcheck
 
 	port := listener.Addr().(*net.TCPAddr).Port
 
@@ -99,7 +99,7 @@ func StartLoopbackFlow(ctx context.Context, cfg OAuthConfig, openBrowser Browser
 			return
 		}
 		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprint(w, successHTML)
+		_, _ = fmt.Fprint(w, successHTML)
 		codeCh <- code
 	})
 
@@ -111,7 +111,7 @@ func StartLoopbackFlow(ctx context.Context, cfg OAuthConfig, openBrowser Browser
 			errCh <- fmt.Errorf("loopback server error: %w", serveErr)
 		}
 	}()
-	defer server.Close()
+	defer server.Close() //nolint:errcheck
 
 	// 4. Open browser
 	if err := openBrowser(authURL); err != nil {

@@ -25,7 +25,7 @@ func (q *Queries) GetDemosByIDs(ctx context.Context, demoIDs string) ([]GetDemos
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck
 	var items []GetDemosByIDsRow
 	for rows.Next() {
 		var i GetDemosByIDsRow
@@ -83,7 +83,7 @@ func (q *Queries) GetHeatmapAggregation(ctx context.Context, arg GetHeatmapAggre
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck
 	var items []GetHeatmapAggregationRow
 	for rows.Next() {
 		var i GetHeatmapAggregationRow

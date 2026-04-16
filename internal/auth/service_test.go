@@ -36,7 +36,7 @@ func newTestAuthService(t *testing.T, faceit testutil.FaceitClient) (*auth.AuthS
 	// Fake token endpoint that always returns valid tokens.
 	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(auth.TokenResponse{
+		_ = json.NewEncoder(w).Encode(auth.TokenResponse{
 			AccessToken:  "at_test_access",
 			RefreshToken: "rt_test_refresh",
 			ExpiresIn:    3600,

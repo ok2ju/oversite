@@ -68,7 +68,7 @@ func TestStartLoopbackFlow_FullFlow(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(TokenResponse{
+		_ = json.NewEncoder(w).Encode(TokenResponse{
 			AccessToken:  "access-token-123",
 			RefreshToken: "refresh-token-456",
 			ExpiresIn:    3600,
@@ -170,7 +170,7 @@ func TestStartLoopbackFlow_TokenEndpointError(t *testing.T) {
 	// Token endpoint that returns a 400 error.
 	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprint(w, `{"error":"invalid_grant","error_description":"code expired"}`)
+		_, _ = fmt.Fprint(w, `{"error":"invalid_grant","error_description":"code expired"}`)
 	}))
 	defer tokenServer.Close()
 
@@ -259,7 +259,7 @@ func TestExchangeCode_FormParams(t *testing.T) {
 		}
 		gotForm = r.PostForm
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(TokenResponse{
+		_ = json.NewEncoder(w).Encode(TokenResponse{
 			AccessToken:  "tok",
 			RefreshToken: "ref",
 			ExpiresIn:    1800,
@@ -317,7 +317,7 @@ func TestExchangeCode_FormParams(t *testing.T) {
 func TestExchangeCode_BadJSON(t *testing.T) {
 	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, "not json")
+		_, _ = fmt.Fprint(w, "not json")
 	}))
 	defer tokenServer.Close()
 

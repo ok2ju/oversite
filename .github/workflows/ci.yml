@@ -138,7 +138,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build
-        run: wails build
+        run: wails build ${{ matrix.os == 'linux' && '-tags webkit2_41' || '' }}
 
       - name: Upload binary
         uses: actions/upload-artifact@v4
