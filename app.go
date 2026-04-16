@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -22,12 +24,13 @@ import (
 
 // App struct holds application state and is bound to the frontend.
 type App struct {
-	ctx           context.Context
-	db            *sql.DB
-	queries       *store.Queries
-	authService   *auth.AuthService
-	importService *demo.ImportService
-	syncService   *faceit.SyncService
+	ctx             context.Context
+	db              *sql.DB
+	queries         *store.Queries
+	authService     *auth.AuthService
+	importService   *demo.ImportService
+	syncService     *faceit.SyncService
+	downloadService *faceit.DownloadService
 }
 
 // NewApp creates a new App instance.
@@ -80,6 +83,14 @@ func (a *App) Startup(ctx context.Context) {
 	)
 
 	a.syncService = faceit.NewSyncService(faceitClient, a.queries)
+
+	downloadDir := filepath.Join(filepath.Dir(dbPath), "demos")
+	a.downloadService = faceit.NewDownloadService(
+		&http.Client{},
+		a.importService,
+		a.queries,
+		downloadDir,
+	)
 }
 
 // Shutdown is called when the app is closing.
@@ -590,6 +601,31 @@ func (a *App) SyncFaceitMatches() (int, error) {
 		return inserted, fmt.Errorf("syncing matches: %w", err)
 	}
 	return inserted, nil
+}
+
+// ImportMatchDemo downloads and imports a demo from a Faceit match.
+// Progress events are emitted via "faceit:demo:download:progress".
+func (a *App) ImportMatchDemo(faceitMatchID string) error {
+	u, err := a.authService.GetCurrentUser(a.ctx)
+	if err != nil {
+		return err
+	}
+	if u == nil {
+		return errors.New("not logged in")
+	}
+
+	id, err := strconv.ParseInt(faceitMatchID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid match id: %w", err)
+	}
+
+	_, err = a.downloadService.DownloadAndImport(a.ctx, id, u.ID, func(bytesDownloaded, totalBytes int64) {
+		wailsRuntime.EventsEmit(a.ctx, "faceit:demo:download:progress", map[string]interface{}{
+			"bytesDownloaded": bytesDownloaded,
+			"totalBytes":      totalBytes,
+		})
+	})
+	return err
 }
 
 // ---------------------------------------------------------------------------
