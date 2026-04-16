@@ -110,6 +110,49 @@ export const mockAppBindings = {
     .fn<(faceitMatchID: string) => Promise<void>>()
     .mockResolvedValue(undefined),
 
+  GetHeatmapData: vi
+    .fn<
+      (
+        demoIDs: number[],
+        weapons: string[],
+        playerSteamID: string,
+        side: string,
+      ) => Promise<Array<{ x: number; y: number; kill_count: number }>>
+    >()
+    .mockResolvedValue([
+      { x: 100.5, y: 200.5, kill_count: 3 },
+      { x: 300.0, y: 400.0, kill_count: 1 },
+    ]),
+
+  GetUniqueWeapons: vi
+    .fn<(demoIDs: number[]) => Promise<string[]>>()
+    .mockResolvedValue(["AK-47", "M4A1", "AWP"]),
+
+  GetUniquePlayers: vi
+    .fn<
+      (
+        demoIDs: number[],
+      ) => Promise<Array<{ steam_id: string; player_name: string }>>
+    >()
+    .mockResolvedValue([
+      { steam_id: "STEAM_A", player_name: "Player1" },
+      { steam_id: "STEAM_B", player_name: "Player2" },
+    ]),
+
+  GetWeaponStats: vi
+    .fn<
+      (
+        demoID: string,
+      ) => Promise<
+        Array<{ weapon: string; kill_count: number; hs_count: number }>
+      >
+    >()
+    .mockResolvedValue([
+      { weapon: "AK-47", kill_count: 10, hs_count: 5 },
+      { weapon: "M4A1", kill_count: 7, hs_count: 3 },
+      { weapon: "AWP", kill_count: 4, hs_count: 0 },
+    ]),
+
   GetFaceitMatches: vi
     .fn<
       (

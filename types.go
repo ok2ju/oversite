@@ -157,3 +157,23 @@ type FaceitMatchListResult struct {
 	Data []FaceitMatch  `json:"data"`
 	Meta PaginationMeta `json:"meta"`
 }
+
+// HeatmapPoint represents a single aggregated kill position.
+type HeatmapPoint struct {
+	X         float64 `json:"x"`
+	Y         float64 `json:"y"`
+	KillCount int     `json:"kill_count"`
+}
+
+// PlayerInfo identifies a player by Steam ID and name.
+type PlayerInfo struct {
+	SteamID    string `json:"steam_id"`
+	PlayerName string `json:"player_name"`
+}
+
+// WeaponStat represents aggregated weapon kill stats for a demo.
+type WeaponStat struct {
+	Weapon    string `json:"weapon"`
+	KillCount int    `json:"kill_count"`
+	HSCount   int    `json:"hs_count"`
+}

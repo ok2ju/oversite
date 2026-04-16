@@ -290,7 +290,37 @@ export namespace main {
 	        this.extra_data = source["extra_data"];
 	    }
 	}
+	export class HeatmapPoint {
+	    x: number;
+	    y: number;
+	    kill_count: number;
 	
+	    static createFrom(source: any = {}) {
+	        return new HeatmapPoint(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.x = source["x"];
+	        this.y = source["y"];
+	        this.kill_count = source["kill_count"];
+	    }
+	}
+	
+	export class PlayerInfo {
+	    steam_id: string;
+	    player_name: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PlayerInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.steam_id = source["steam_id"];
+	        this.player_name = source["player_name"];
+	    }
+	}
 	export class PlayerRosterEntry {
 	    steam_id: string;
 	    player_name: string;
@@ -411,6 +441,22 @@ export namespace main {
 	        this.user_id = source["user_id"];
 	        this.faceit_id = source["faceit_id"];
 	        this.nickname = source["nickname"];
+	    }
+	}
+	export class WeaponStat {
+	    weapon: string;
+	    kill_count: number;
+	    hs_count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new WeaponStat(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.weapon = source["weapon"];
+	        this.kill_count = source["kill_count"];
+	        this.hs_count = source["hs_count"];
 	    }
 	}
 
