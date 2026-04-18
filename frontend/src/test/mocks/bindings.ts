@@ -6,7 +6,6 @@ import {
   mockScoreboardEntries,
   mockFaceitMatches,
   mockFaceitProfile,
-  mockEloHistory,
   mockUser,
 } from "@/test/fixtures"
 
@@ -99,10 +98,6 @@ export const mockAppBindings = {
   GetFaceitProfile: vi
     .fn<() => Promise<typeof mockFaceitProfile>>()
     .mockResolvedValue(mockFaceitProfile),
-
-  GetEloHistory: vi
-    .fn<() => Promise<typeof mockEloHistory>>()
-    .mockResolvedValue(mockEloHistory),
 
   SyncFaceitMatches: vi.fn<() => Promise<number>>().mockResolvedValue(5),
 

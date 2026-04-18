@@ -14,8 +14,6 @@ export function GetDemoRounds(arg1:string):Promise<Array<main.Round>>;
 
 export function GetDemoTicks(arg1:string,arg2:number,arg3:number):Promise<Array<main.TickData>>;
 
-export function GetEloHistory(arg1:number):Promise<Array<main.EloHistoryPoint>>;
-
 export function GetFaceitMatches(arg1:number,arg2:number,arg3:string,arg4:string):Promise<main.FaceitMatchListResult>;
 
 export function GetFaceitProfile():Promise<main.FaceitProfile>;

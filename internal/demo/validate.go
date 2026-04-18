@@ -3,7 +3,6 @@ package demo
 import (
 	"bytes"
 	"errors"
-	"path/filepath"
 	"strings"
 )
 
@@ -18,17 +17,28 @@ var (
 )
 
 var (
-	ErrInvalidExtension  = errors.New("invalid file extension: must be .dem")
+	ErrInvalidExtension  = errors.New("invalid file extension: must be .dem or .dem.zst")
 	ErrFileTooLarge      = errors.New("file exceeds maximum upload size")
 	ErrInvalidMagicBytes = errors.New("invalid file format: not a valid demo file")
 )
 
-// ValidateExtension checks that the filename ends with .dem (case-insensitive).
+// ValidateExtension checks that the filename ends with .dem or .dem.zst (case-insensitive).
 func ValidateExtension(filename string) error {
-	if strings.EqualFold(filepath.Ext(filename), ".dem") {
+	lower := strings.ToLower(filename)
+	if strings.HasSuffix(lower, ".dem.zst") || strings.HasSuffix(lower, ".dem") {
 		return nil
 	}
 	return ErrInvalidExtension
+}
+
+// IsCompressedDemo returns true if the filename ends with .dem.zst (case-insensitive).
+func IsCompressedDemo(filename string) bool {
+	return strings.HasSuffix(strings.ToLower(filename), ".dem.zst")
+}
+
+// IsDemoFile returns true if the filename is a demo file (.dem or .dem.zst).
+func IsDemoFile(filename string) bool {
+	return ValidateExtension(filename) == nil
 }
 
 // ValidateSize checks that the file size does not exceed MaxUploadSize.

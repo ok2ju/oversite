@@ -16,6 +16,7 @@ export default function LoginPage() {
     try {
       await LoginWithFaceit()
       await queryClient.invalidateQueries({ queryKey: ["auth", "me"] })
+      await queryClient.invalidateQueries({ queryKey: ["faceit"] })
       navigate("/dashboard")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed")

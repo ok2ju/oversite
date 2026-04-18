@@ -51,11 +51,13 @@ describe("DropZone", () => {
       "/demos/match1.dem",
       "/demos/notes.txt",
       "/demos/match2.DEM",
+      "/demos/faceit.dem.zst",
     ])
 
     expect(onFilesDropped).toHaveBeenCalledWith([
       "/demos/match1.dem",
       "/demos/match2.DEM",
+      "/demos/faceit.dem.zst",
     ])
   })
 

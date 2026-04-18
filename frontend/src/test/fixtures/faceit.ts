@@ -1,8 +1,4 @@
-import type {
-  FaceitMatch,
-  FaceitProfile,
-  EloHistoryPoint,
-} from "@/types/faceit"
+import type { FaceitMatch, FaceitProfile } from "@/types/faceit"
 
 export const mockFaceitMatches: FaceitMatch[] = [
   {
@@ -12,9 +8,6 @@ export const mockFaceitMatches: FaceitMatch[] = [
     score_team: 16,
     score_opponent: 10,
     result: "W",
-    elo_before: 2000,
-    elo_after: 2025,
-    elo_change: 25,
     kills: 22,
     deaths: 15,
     assists: 5,
@@ -30,9 +23,6 @@ export const mockFaceitMatches: FaceitMatch[] = [
     score_team: 12,
     score_opponent: 16,
     result: "L",
-    elo_before: 2025,
-    elo_after: 2005,
-    elo_change: -20,
     kills: 18,
     deaths: 20,
     assists: 3,
@@ -48,9 +38,6 @@ export const mockFaceitMatches: FaceitMatch[] = [
     score_team: 16,
     score_opponent: 14,
     result: "W",
-    elo_before: null,
-    elo_after: null,
-    elo_change: null,
     kills: 25,
     deaths: 18,
     assists: 7,
@@ -66,9 +53,6 @@ export const mockFaceitMatches: FaceitMatch[] = [
     score_team: 10,
     score_opponent: 16,
     result: "L",
-    elo_before: 2050,
-    elo_after: 2030,
-    elo_change: -20,
     kills: 14,
     deaths: 19,
     assists: 2,
@@ -88,10 +72,3 @@ export const mockFaceitProfile: FaceitProfile = {
   matches_played: 142,
   current_streak: { type: "win", count: 3 },
 }
-
-export const mockEloHistory: EloHistoryPoint[] = [
-  { elo: 1800, map_name: "de_dust2", played_at: "2026-03-01T12:00:00Z" },
-  { elo: 1820, map_name: "de_mirage", played_at: "2026-03-05T14:00:00Z" },
-  { elo: 1810, map_name: "de_inferno", played_at: "2026-03-10T16:00:00Z" },
-  { elo: 1850, map_name: "de_dust2", played_at: "2026-03-15T18:00:00Z" },
-]

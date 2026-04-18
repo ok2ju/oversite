@@ -34,30 +34,6 @@ describe("MatchList", () => {
     expect(screen.getByTestId("match-row-fm-3")).toBeInTheDocument()
   })
 
-  it("renders positive ELO change in green", async () => {
-    renderWithProviders(<MatchList />)
-    await waitForMatches()
-
-    expect(screen.getByText("+25")).toBeInTheDocument()
-    expect(screen.getByText("+25").className).toMatch(/text-green/)
-  })
-
-  it("renders negative ELO change in red", async () => {
-    renderWithProviders(<MatchList />)
-    await waitForMatches()
-
-    const elements = screen.getAllByText("-20")
-    expect(elements[0].className).toMatch(/text-red/)
-  })
-
-  it("shows '--' for null ELO", async () => {
-    renderWithProviders(<MatchList />)
-    await waitForMatches()
-
-    const row3 = screen.getByTestId("match-row-fm-3")
-    expect(within(row3).getByText("--")).toBeInTheDocument()
-  })
-
   it("filters by map", async () => {
     const user = userEvent.setup()
     renderWithProviders(<MatchList />)

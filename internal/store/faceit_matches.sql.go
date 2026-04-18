@@ -24,18 +24,25 @@ func (q *Queries) CountFaceitMatchesByUserID(ctx context.Context, userID int64) 
 const countFaceitMatchesFiltered = `-- name: CountFaceitMatchesFiltered :one
 SELECT COUNT(*) FROM faceit_matches
 WHERE user_id = ?1
-  AND (?2 IS NULL OR map_name = ?2)
-  AND (?3 IS NULL OR result = ?3)
+  AND played_at >= ?2
+  AND (?3 IS NULL OR map_name = ?3)
+  AND (?4 IS NULL OR result = ?4)
 `
 
 type CountFaceitMatchesFilteredParams struct {
-	UserID  int64
-	MapName interface{}
-	Result  interface{}
+	UserID    int64
+	SinceDate string
+	MapName   interface{}
+	Result    interface{}
 }
 
 func (q *Queries) CountFaceitMatchesFiltered(ctx context.Context, arg CountFaceitMatchesFilteredParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countFaceitMatchesFiltered, arg.UserID, arg.MapName, arg.Result)
+	row := q.db.QueryRowContext(ctx, countFaceitMatchesFiltered,
+		arg.UserID,
+		arg.SinceDate,
+		arg.MapName,
+		arg.Result,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -132,55 +139,6 @@ func (q *Queries) GetCurrentStreak(ctx context.Context, userID int64) ([]string,
 			return nil, err
 		}
 		items = append(items, result)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getEloHistory = `-- name: GetEloHistory :many
-SELECT id, faceit_match_id, map_name, elo_after, played_at
-FROM faceit_matches
-WHERE user_id = ?1 AND played_at >= ?2
-ORDER BY played_at ASC
-`
-
-type GetEloHistoryParams struct {
-	UserID int64
-	Since  string
-}
-
-type GetEloHistoryRow struct {
-	ID            int64
-	FaceitMatchID string
-	MapName       string
-	EloAfter      int64
-	PlayedAt      string
-}
-
-func (q *Queries) GetEloHistory(ctx context.Context, arg GetEloHistoryParams) ([]GetEloHistoryRow, error) {
-	rows, err := q.db.QueryContext(ctx, getEloHistory, arg.UserID, arg.Since)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetEloHistoryRow
-	for rows.Next() {
-		var i GetEloHistoryRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.FaceitMatchID,
-			&i.MapName,
-			&i.EloAfter,
-			&i.PlayedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -302,14 +260,16 @@ func (q *Queries) GetFaceitMatchesByUserID(ctx context.Context, arg GetFaceitMat
 const getFaceitMatchesFiltered = `-- name: GetFaceitMatchesFiltered :many
 SELECT id, user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at, created_at FROM faceit_matches
 WHERE user_id = ?1
-  AND (?2 IS NULL OR map_name = ?2)
-  AND (?3 IS NULL OR result = ?3)
+  AND played_at >= ?2
+  AND (?3 IS NULL OR map_name = ?3)
+  AND (?4 IS NULL OR result = ?4)
 ORDER BY played_at DESC
-LIMIT ?5 OFFSET ?4
+LIMIT ?6 OFFSET ?5
 `
 
 type GetFaceitMatchesFilteredParams struct {
 	UserID    int64
+	SinceDate string
 	MapName   interface{}
 	Result    interface{}
 	OffsetVal int64
@@ -319,6 +279,7 @@ type GetFaceitMatchesFilteredParams struct {
 func (q *Queries) GetFaceitMatchesFiltered(ctx context.Context, arg GetFaceitMatchesFilteredParams) ([]FaceitMatch, error) {
 	rows, err := q.db.QueryContext(ctx, getFaceitMatchesFiltered,
 		arg.UserID,
+		arg.SinceDate,
 		arg.MapName,
 		arg.Result,
 		arg.OffsetVal,
@@ -394,6 +355,58 @@ func (q *Queries) LinkFaceitMatchToDemo(ctx context.Context, arg LinkFaceitMatch
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const updateMatchScoreResult = `-- name: UpdateMatchScoreResult :exec
+UPDATE faceit_matches
+SET score_team = ?1, score_opponent = ?2, result = ?3,
+    elo_before = 0, elo_after = 0
+WHERE user_id = ?4 AND faceit_match_id = ?5
+  AND (score_team != ?1 OR score_opponent != ?2 OR result != ?3)
+`
+
+type UpdateMatchScoreResultParams struct {
+	ScoreTeam     int64
+	ScoreOpponent int64
+	Result        string
+	UserID        int64
+	FaceitMatchID string
+}
+
+func (q *Queries) UpdateMatchScoreResult(ctx context.Context, arg UpdateMatchScoreResultParams) error {
+	_, err := q.db.ExecContext(ctx, updateMatchScoreResult,
+		arg.ScoreTeam,
+		arg.ScoreOpponent,
+		arg.Result,
+		arg.UserID,
+		arg.FaceitMatchID,
+	)
+	return err
+}
+
+const updateMatchStats = `-- name: UpdateMatchStats :exec
+UPDATE faceit_matches
+SET kills = ?1, deaths = ?2, assists = ?3
+WHERE user_id = ?4 AND faceit_match_id = ?5
+`
+
+type UpdateMatchStatsParams struct {
+	Kills         int64
+	Deaths        int64
+	Assists       int64
+	UserID        int64
+	FaceitMatchID string
+}
+
+func (q *Queries) UpdateMatchStats(ctx context.Context, arg UpdateMatchStatsParams) error {
+	_, err := q.db.ExecContext(ctx, updateMatchStats,
+		arg.Kills,
+		arg.Deaths,
+		arg.Assists,
+		arg.UserID,
+		arg.FaceitMatchID,
+	)
+	return err
 }
 
 const upsertFaceitMatch = `-- name: UpsertFaceitMatch :one

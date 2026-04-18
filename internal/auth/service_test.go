@@ -299,6 +299,118 @@ func TestAuthService_UpsertUser_CreatesNewUser(t *testing.T) {
 	_ = svc // ensure svc is used
 }
 
+func TestAuthService_TryRestoreSession_Success(t *testing.T) {
+	mockFaceit := &faceit.MockFaceitClient{
+		GetPlayerFn: func(ctx context.Context, playerID string) (*faceit.FaceitPlayer, error) {
+			return testPlayer, nil
+		},
+	}
+
+	svc, kr, q := newTestAuthService(t, mockFaceit)
+	ctx := context.Background()
+
+	// Simulate a previous session: user in DB + refresh token in keychain.
+	user, err := q.CreateUser(ctx, store.CreateUserParams{
+		FaceitID:    testPlayer.PlayerID,
+		Nickname:    "OldNickname",
+		FaceitElo:   1500,
+		FaceitLevel: 6,
+		Country:     "UK",
+	})
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	if err := kr.Set(auth.ServiceName, "user-id", strconv.FormatInt(user.ID, 10)); err != nil {
+		t.Fatalf("Set user-id: %v", err)
+	}
+	if err := kr.Set(auth.ServiceName, "refresh-token", "rt_old_refresh"); err != nil {
+		t.Fatalf("Set refresh-token: %v", err)
+	}
+
+	// Restore should succeed and update the access token + profile.
+	if err := svc.TryRestoreSession(ctx); err != nil {
+		t.Fatalf("TryRestoreSession: %v", err)
+	}
+
+	// Access token should be populated.
+	if token := svc.GetAccessToken(); token == "" {
+		t.Error("access token empty after TryRestoreSession")
+	}
+
+	// GetCurrentUser should return updated profile.
+	got, err := svc.GetCurrentUser(ctx)
+	if err != nil {
+		t.Fatalf("GetCurrentUser: %v", err)
+	}
+	if got == nil {
+		t.Fatal("GetCurrentUser returned nil after restore")
+	}
+	if got.Nickname != testPlayer.Nickname {
+		t.Errorf("Nickname = %q, want %q (profile should be updated)", got.Nickname, testPlayer.Nickname)
+	}
+	if got.FaceitElo != int64(testPlayer.FaceitElo) {
+		t.Errorf("FaceitElo = %d, want %d", got.FaceitElo, testPlayer.FaceitElo)
+	}
+}
+
+func TestAuthService_TryRestoreSession_NoRefreshToken(t *testing.T) {
+	svc, _, _ := newTestAuthService(t, &faceit.MockFaceitClient{})
+	ctx := context.Background()
+
+	// No refresh token in keychain → should return nil (no-op).
+	if err := svc.TryRestoreSession(ctx); err != nil {
+		t.Fatalf("TryRestoreSession with no refresh token: %v", err)
+	}
+
+	// Access token should remain empty.
+	if token := svc.GetAccessToken(); token != "" {
+		t.Errorf("access token = %q, want empty", token)
+	}
+}
+
+func TestAuthService_TryRestoreSession_RefreshFails(t *testing.T) {
+	svc, kr, _ := newTestAuthService(t, &faceit.MockFaceitClient{})
+	ctx := context.Background()
+
+	// Override the token server URL to simulate failure by creating a new service
+	// with a bad token URL.
+	badTokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = fmt.Fprint(w, `{"error":"invalid_grant"}`)
+	}))
+	t.Cleanup(badTokenServer.Close)
+
+	badQ, _ := testutil.NewTestQueries(t)
+	tokens := auth.NewTokenStore(kr)
+	badCfg := auth.OAuthConfig{
+		ClientID:     "test",
+		ClientSecret: "test",
+		TokenURL:     badTokenServer.URL,
+	}
+	badSvc := auth.NewAuthService(badCfg, tokens, &faceit.MockFaceitClient{}, badQ, func(url string) error { return nil })
+
+	// Store a refresh token so TryRestoreSession attempts to refresh.
+	if err := kr.Set(auth.ServiceName, "refresh-token", "rt_expired"); err != nil {
+		t.Fatalf("Set refresh-token: %v", err)
+	}
+	if err := kr.Set(auth.ServiceName, "user-id", "123"); err != nil {
+		t.Fatalf("Set user-id: %v", err)
+	}
+
+	// Refresh should fail and clear keychain.
+	err := badSvc.TryRestoreSession(ctx)
+	if err == nil {
+		t.Fatal("TryRestoreSession should return error when refresh fails")
+	}
+
+	// Keychain should be cleared.
+	if _, err := kr.Get(auth.ServiceName, "refresh-token"); err != testutil.ErrKeyNotFound {
+		t.Errorf("refresh-token after failed restore: err = %v, want ErrKeyNotFound", err)
+	}
+
+	_ = svc // avoid unused
+}
+
 func TestHTTPFaceitClient_GetPlayer(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer test-token" {

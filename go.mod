@@ -5,6 +5,7 @@ go 1.26
 require (
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/joho/godotenv v1.5.1
+	github.com/klauspost/compress v1.15.11
 	github.com/markus-wa/demoinfocs-golang/v5 v5.1.2
 	github.com/wailsapp/wails/v2 v2.12.0
 	github.com/zalando/go-keyring v0.2.8

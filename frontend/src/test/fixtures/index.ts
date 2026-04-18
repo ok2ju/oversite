@@ -6,6 +6,6 @@ export {
   mockScoreboardEntries,
 } from "./demos"
 
-export { mockFaceitMatches, mockFaceitProfile, mockEloHistory } from "./faceit"
+export { mockFaceitMatches, mockFaceitProfile } from "./faceit"
 
 export { mockUser } from "./auth"

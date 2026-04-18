@@ -149,6 +149,59 @@ func (s *AuthService) Logout() error {
 	return nil
 }
 
+// TryRestoreSession attempts to restore a previous session on app startup.
+// If a refresh token exists in the keychain, it exchanges it for a new access
+// token, re-fetches the Faceit profile (to update ELO/level), and caches the
+// user in memory. Errors are non-fatal: a failed refresh simply means the
+// user will need to log in again.
+func (s *AuthService) TryRestoreSession(ctx context.Context) error {
+	refreshToken, err := s.tokens.GetRefreshToken()
+	if err != nil {
+		return nil // No refresh token → not logged in, nothing to restore.
+	}
+
+	tokenResp, err := RefreshTokens(ctx, s.oauth, refreshToken)
+	if err != nil {
+		// Refresh failed (expired, revoked, etc.) — clear stale keychain data
+		// so GetCurrentUser returns nil instead of a stale user.
+		_ = s.tokens.Clear()
+		s.mu.Lock()
+		s.currentUser = nil
+		s.accessToken = ""
+		s.mu.Unlock()
+		return fmt.Errorf("refreshing access token: %w", err)
+	}
+
+	// Store new access token in memory.
+	s.mu.Lock()
+	s.accessToken = tokenResp.AccessToken
+	s.mu.Unlock()
+
+	// Persist rotated refresh token if the server issued one.
+	if tokenResp.RefreshToken != "" && tokenResp.RefreshToken != refreshToken {
+		_ = s.tokens.SaveRefreshToken(tokenResp.RefreshToken)
+	}
+
+	// Re-fetch profile from Faceit to keep ELO/level up-to-date.
+	profileCtx := WithAccessToken(ctx, tokenResp.AccessToken)
+	player, err := s.faceit.GetPlayer(profileCtx, "me")
+	if err != nil {
+		// Token is valid but profile fetch failed — still usable for syncing.
+		return nil
+	}
+
+	user, err := s.upsertUser(ctx, player)
+	if err != nil {
+		return nil
+	}
+
+	s.mu.Lock()
+	s.currentUser = &user
+	s.mu.Unlock()
+
+	return nil
+}
+
 // upsertUser creates or updates a user based on the Faceit player profile.
 func (s *AuthService) upsertUser(ctx context.Context, player *faceit.FaceitPlayer) (store.User, error) {
 	existing, err := s.queries.GetUserByFaceitID(ctx, player.PlayerID)

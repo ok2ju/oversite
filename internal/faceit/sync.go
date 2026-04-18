@@ -3,6 +3,7 @@ package faceit
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/ok2ju/oversite/internal/store"
@@ -48,31 +49,72 @@ func (s *SyncService) SyncMatches(ctx context.Context, userID int64, faceitID st
 		}
 
 		for _, item := range history.Items {
+			// Determine win/loss by finding the user's faction.
+			userFaction := findUserFaction(item.Teams, faceitID)
+			result := "L"
+			if userFaction != "" && item.Winner == userFaction {
+				result = "W"
+			}
+
+			// Extract scores relative to the user's faction.
+			var scoreTeam, scoreOpponent int64
+			if userFaction != "" && item.Score != nil {
+				scoreTeam = int64(item.Score[userFaction])
+				for faction, score := range item.Score {
+					if faction != userFaction {
+						scoreOpponent = int64(score)
+						break
+					}
+				}
+			}
+
 			if _, ok := existing[item.MatchID]; ok {
+				// Repair existing matches that may have bad data from
+				// a previous sync (e.g. wrong scores or results).
+				_ = s.queries.UpdateMatchScoreResult(ctx, store.UpdateMatchScoreResultParams{
+					UserID:        userID,
+					FaceitMatchID: item.MatchID,
+					ScoreTeam:     scoreTeam,
+					ScoreOpponent: scoreOpponent,
+					Result:        result,
+				})
 				continue
 			}
 
-			// Optionally fetch match details for demo URL.
+			// Fetch match details for demo URL and map name.
 			var demoURL string
-			details, err := s.faceit.GetMatchDetails(ctx, item.MatchID)
-			if err == nil && details != nil && len(details.DemoURL) > 0 {
-				demoURL = details.DemoURL[0]
+			var mapName string
+			details, detailsErr := s.faceit.GetMatchDetails(ctx, item.MatchID)
+			if detailsErr == nil && details != nil {
+				if len(details.DemoURL) > 0 {
+					demoURL = details.DemoURL[0]
+				}
+				mapName = details.Map
 			}
 
 			playedAt := time.Unix(item.StartedAt, 0).UTC().Format(time.RFC3339)
 
-			result := "L"
-			if item.Winner == "win" {
-				result = "W"
+			// Fetch per-player match stats (kills/deaths/assists).
+			var kills, deaths, assists int64
+			stats, statsErr := s.faceit.GetMatchStats(ctx, item.MatchID, faceitID)
+			if statsErr == nil && stats != nil {
+				kills = int64(stats.Kills)
+				deaths = int64(stats.Deaths)
+				assists = int64(stats.Assists)
+			} else if statsErr != nil {
+				log.Printf("sync: match %s stats unavailable: %v", item.MatchID, statsErr)
 			}
 
 			_, err = s.queries.UpsertFaceitMatch(ctx, store.UpsertFaceitMatchParams{
 				UserID:        userID,
 				FaceitMatchID: item.MatchID,
-				MapName:       item.Map,
-				ScoreTeam:     int64(item.Score["team"]),
-				ScoreOpponent: int64(item.Score["opponent"]),
+				MapName:       mapName,
+				ScoreTeam:     scoreTeam,
+				ScoreOpponent: scoreOpponent,
 				Result:        result,
+				Kills:         kills,
+				Deaths:        deaths,
+				Assists:       assists,
 				DemoUrl:       demoURL,
 				PlayedAt:      playedAt,
 			})
@@ -100,4 +142,17 @@ func (s *SyncService) SyncMatches(ctx context.Context, userID int64, faceitID st
 	}
 
 	return inserted, nil
+}
+
+// findUserFaction returns the faction ID (e.g., "faction1") that the given
+// player belongs to, or "" if not found.
+func findUserFaction(teams map[string][]string, faceitID string) string {
+	for faction, playerIDs := range teams {
+		for _, pid := range playerIDs {
+			if pid == faceitID {
+				return faction
+			}
+		}
+	}
+	return ""
 }

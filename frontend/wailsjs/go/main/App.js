@@ -26,10 +26,6 @@ export function GetDemoTicks(arg1, arg2, arg3) {
   return window['go']['main']['App']['GetDemoTicks'](arg1, arg2, arg3);
 }
 
-export function GetEloHistory(arg1) {
-  return window['go']['main']['App']['GetEloHistory'](arg1);
-}
-
 export function GetFaceitMatches(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['GetFaceitMatches'](arg1, arg2, arg3, arg4);
 }

@@ -136,6 +136,45 @@ func StartLoopbackFlow(ctx context.Context, cfg OAuthConfig, openBrowser Browser
 	return exchangeCode(timeoutCtx, cfg, code, verifier, redirectURI)
 }
 
+// RefreshTokens exchanges a refresh token for a new access token via the
+// OAuth token endpoint. Returns a fresh TokenResponse (which may include a
+// rotated refresh token).
+func RefreshTokens(ctx context.Context, cfg OAuthConfig, refreshToken string) (*TokenResponse, error) {
+	form := url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {refreshToken},
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.TokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("creating refresh request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(cfg.ClientID, cfg.ClientSecret)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("sending refresh request: %w", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading refresh response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("refresh endpoint returned %d: %s", resp.StatusCode, string(body))
+	}
+
+	var tokenResp TokenResponse
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return nil, fmt.Errorf("parsing refresh response: %w", err)
+	}
+
+	return &tokenResp, nil
+}
+
 // exchangeCode exchanges an authorization code for tokens via POST to the
 // token endpoint. Uses Basic Auth (client_id:client_secret) for confidential clients.
 func exchangeCode(ctx context.Context, cfg OAuthConfig, code, verifier, redirectURI string) (*TokenResponse, error) {

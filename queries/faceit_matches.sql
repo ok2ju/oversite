@@ -16,12 +16,6 @@ SELECT * FROM faceit_matches WHERE id = @id;
 UPDATE faceit_matches SET demo_id = @demo_id WHERE id = @id
 RETURNING *;
 
--- name: GetEloHistory :many
-SELECT id, faceit_match_id, map_name, elo_after, played_at
-FROM faceit_matches
-WHERE user_id = @user_id AND played_at >= @since
-ORDER BY played_at ASC;
-
 -- name: GetExistingFaceitMatchIDs :many
 SELECT faceit_match_id FROM faceit_matches WHERE user_id = @user_id;
 
@@ -43,15 +37,29 @@ LIMIT 30;
 -- name: DeleteFaceitMatchesByUserID :exec
 DELETE FROM faceit_matches WHERE user_id = @user_id;
 
+-- name: UpdateMatchStats :exec
+UPDATE faceit_matches
+SET kills = @kills, deaths = @deaths, assists = @assists
+WHERE user_id = @user_id AND faceit_match_id = @faceit_match_id;
+
+-- name: UpdateMatchScoreResult :exec
+UPDATE faceit_matches
+SET score_team = @score_team, score_opponent = @score_opponent, result = @result,
+    elo_before = 0, elo_after = 0
+WHERE user_id = @user_id AND faceit_match_id = @faceit_match_id
+  AND (score_team != @score_team OR score_opponent != @score_opponent OR result != @result);
+
 -- name: CountFaceitMatchesFiltered :one
 SELECT COUNT(*) FROM faceit_matches
 WHERE user_id = @user_id
+  AND played_at >= @since_date
   AND (sqlc.narg('map_name') IS NULL OR map_name = sqlc.narg('map_name'))
   AND (sqlc.narg('result') IS NULL OR result = sqlc.narg('result'));
 
 -- name: GetFaceitMatchesFiltered :many
 SELECT * FROM faceit_matches
 WHERE user_id = @user_id
+  AND played_at >= @since_date
   AND (sqlc.narg('map_name') IS NULL OR map_name = sqlc.narg('map_name'))
   AND (sqlc.narg('result') IS NULL OR result = sqlc.narg('result'))
 ORDER BY played_at DESC

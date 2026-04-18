@@ -2,7 +2,7 @@
 
 ## Context
 
-Phase 4 delivers two independent feature tracks: (A) the Faceit integration pipeline — sync matches from the Faceit API to SQLite, display a stats dashboard with ELO history, and download demos from match rooms; (B) interactive KDE heatmaps — aggregate kill positions across one or many demos and render them as a density overlay on the map.
+Phase 4 delivers two independent feature tracks: (A) the Faceit integration pipeline — sync matches from the Faceit API to SQLite, display a stats dashboard with recent matches, and download demos from match rooms; (B) interactive KDE heatmaps — aggregate kill positions across one or many demos and render them as a density overlay on the map.
 
 **Critical finding**: ~70% of the infrastructure is already built. The Faceit HTTP client (`internal/auth/faceit.go`) has `GetPlayer`, `GetPlayerHistory`, `GetMatchDetails`. The DB schema, SQL queries (UpsertFaceitMatch, GetFaceitMatchesFiltered, GetEloHistory, GetCurrentStreak), domain types (`types.go`), TypeScript interfaces (`types/faceit.ts`), TanStack Query hooks (`use-faceit.ts`, `use-faceit-matches.ts`), and dashboard UI components (`profile-card.tsx`, `elo-chart.tsx`, `match-list.tsx`) are implemented. The heatmap aggregation query (`GetHeatmapAggregation` in `internal/store/heatmaps_custom.go`) is also written. Three binding stubs in `app.go:431-444` return `errNotImplemented`.
 
@@ -44,14 +44,10 @@ TRACK B: Heatmaps (W5 → W6 → W7)
 - **Logic**: Get current user from `a.authService.GetCurrentUser(ctx)` → query `CountFaceitMatchesByUserID` for matches_played → query `GetCurrentStreak` for streak → build `FaceitProfile` from user table fields (nickname, avatar_url, faceit_elo, faceit_level, country)
 - **Edge cases**: Not logged in → return error. Zero matches → streak `{Type: "none", Count: 0}`. Empty avatar_url → nil pointer.
 
-### W1-B: `GetEloHistory` binding
-- **File**: `app.go` (replace stub at line 437)
-- **Logic**: Get current user → compute `since` from `days` param (`time.Now().AddDate(0, 0, -days)`, 0 = epoch) → call `a.queries.GetEloHistory(ctx, ...)` → convert `[]store.GetEloHistoryRow` → `[]EloHistoryPoint`
-
 ### W1-C: `GetFaceitMatches` binding
 - **File**: `app.go` (replace stub at line 442)
-- **Logic**: Get current user → call `GetFaceitMatchesFiltered` + `CountFaceitMatchesFiltered` → convert `[]store.FaceitMatch` → `[]FaceitMatch`
-- **Type mapping**: `ID` int64→string, `EloBefore/EloAfter` int64→`*int` (nil if 0), `EloChange` computed, `DemoUrl` string→`*string` (nil if empty), `DemoID` NullInt64→`*string`, `HasDemo` = DemoID.Valid
+- **Logic**: Get current user → call `GetFaceitMatchesFiltered` + `CountFaceitMatchesFiltered` with a `since_date = now - 30 days` filter → convert `[]store.FaceitMatch` → `[]FaceitMatch`
+- **Type mapping**: `ID` int64→string, `DemoUrl` string→`*string` (nil if empty), `DemoID` NullInt64→`*string`, `HasDemo` = DemoID.Valid
 
 ### W1-D: Helpers
 - `computeStreak(results []string) CurrentStreak` — iterate from index 0, count consecutive same-result
@@ -61,7 +57,7 @@ TRACK B: Heatmaps (W5 → W6 → W7)
 - **File**: `app_test.go` (extend)
 - **New helper**: `seedFaceitMatches(t, q, userID)` — inserts 3-5 matches with varied results/elos/maps
 - **Challenge**: `newTestApp` doesn't set `authService`. Create `newTestAppWithUser(t)` returning `(*App, *store.Queries, store.User)` that creates a user, seeds a MockKeyring, and initializes AuthService.
-- **Tests**: `TestGetFaceitProfile` (not logged in, no matches, with streak), `TestGetEloHistory` (30d, all, empty), `TestGetFaceitMatches` (unfiltered, map filter, result filter, pagination), `TestComputeStreak` (win/loss/mixed/empty)
+- **Tests**: `TestGetFaceitProfile` (not logged in, no matches, with streak), `TestGetFaceitMatches` (unfiltered, map filter, result filter, pagination, 30-day filter), `TestComputeStreak` (win/loss/mixed/empty)
 
 ### Verification
 - `go test -race ./...` passes, `go vet ./...` clean, `wails dev` builds
@@ -346,8 +342,7 @@ After all waves:
 4. `wails dev` full integration:
    - Login with Faceit → "Sync Matches" → matches populate in dashboard
    - Profile card: correct ELO, level, streak
-   - ELO chart: history with 30d/90d/180d/all selector
-   - Match list: filter by map + result, pagination works
+   - Match list: filter by map + result, pagination works (last 30 days only)
    - Import Demo: downloads from Faceit, appears in library
    - Heatmaps page: select map + demos → KDE overlay renders
    - Adjust filters (weapon/side/player) → heatmap updates

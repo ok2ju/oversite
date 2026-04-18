@@ -62,6 +62,12 @@ export function DemoCard({ demo, onDelete }: DemoCardProps) {
     importProgress?.demoId === demo.id &&
     importProgress.stage === "parsing"
 
+  const showError =
+    demo.status === "failed" &&
+    importProgress?.demoId === demo.id &&
+    importProgress.stage === "error" &&
+    importProgress.error
+
   return (
     <Card
       className={
@@ -89,6 +95,11 @@ export function DemoCard({ demo, onDelete }: DemoCardProps) {
       <CardContent>
         {showProgress && (
           <Progress value={importProgress.percent} className="mb-3 h-2" />
+        )}
+        {showError && (
+          <p className="mb-3 text-xs text-destructive">
+            {importProgress.error}
+          </p>
         )}
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <div className="space-y-1">

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/ok2ju/oversite/internal/auth"
 	"github.com/ok2ju/oversite/internal/faceit"
@@ -103,11 +104,13 @@ func newTestAppWithUser(t *testing.T) (*App, *store.Queries, store.User) {
 		func(string) error { return nil },
 	)
 
+	mockFaceit := &faceit.MockFaceitClient{}
 	app := &App{
-		ctx:         ctx,
-		db:          db,
-		queries:     q,
-		authService: authSvc,
+		ctx:          ctx,
+		db:           db,
+		queries:      q,
+		authService:  authSvc,
+		faceitClient: mockFaceit,
 	}
 	return app, q, user
 }
@@ -117,11 +120,11 @@ func seedFaceitMatches(t *testing.T, q *store.Queries, userID int64) []store.Fac
 	t.Helper()
 	ctx := context.Background()
 	params := []store.CreateFaceitMatchParams{
-		{UserID: userID, FaceitMatchID: "match-1", MapName: "de_dust2", ScoreTeam: 16, ScoreOpponent: 10, Result: "win", EloBefore: 1980, EloAfter: 2000, Kills: 20, Deaths: 15, Assists: 5, DemoUrl: "https://example.com/demo1.dem.gz", PlayedAt: "2026-04-10T10:00:00Z"},
-		{UserID: userID, FaceitMatchID: "match-2", MapName: "de_mirage", ScoreTeam: 14, ScoreOpponent: 16, Result: "loss", EloBefore: 2000, EloAfter: 1975, Kills: 18, Deaths: 20, Assists: 3, PlayedAt: "2026-04-11T10:00:00Z"},
-		{UserID: userID, FaceitMatchID: "match-3", MapName: "de_dust2", ScoreTeam: 16, ScoreOpponent: 8, Result: "win", EloBefore: 1975, EloAfter: 2005, Kills: 25, Deaths: 10, Assists: 7, PlayedAt: "2026-04-12T10:00:00Z"},
-		{UserID: userID, FaceitMatchID: "match-4", MapName: "de_inferno", ScoreTeam: 16, ScoreOpponent: 14, Result: "win", EloBefore: 2005, EloAfter: 2020, Kills: 22, Deaths: 18, Assists: 4, PlayedAt: "2026-04-13T10:00:00Z"},
-		{UserID: userID, FaceitMatchID: "match-5", MapName: "de_dust2", ScoreTeam: 10, ScoreOpponent: 16, Result: "loss", EloBefore: 2020, EloAfter: 1995, Kills: 12, Deaths: 19, Assists: 2, PlayedAt: "2026-04-14T10:00:00Z"},
+		{UserID: userID, FaceitMatchID: "match-1", MapName: "de_dust2", ScoreTeam: 16, ScoreOpponent: 10, Result: "W", EloBefore: 1980, EloAfter: 2000, Kills: 20, Deaths: 15, Assists: 5, DemoUrl: "https://example.com/demo1.dem.gz", PlayedAt: "2026-04-10T10:00:00Z"},
+		{UserID: userID, FaceitMatchID: "match-2", MapName: "de_mirage", ScoreTeam: 14, ScoreOpponent: 16, Result: "L", EloBefore: 2000, EloAfter: 1975, Kills: 18, Deaths: 20, Assists: 3, PlayedAt: "2026-04-11T10:00:00Z"},
+		{UserID: userID, FaceitMatchID: "match-3", MapName: "de_dust2", ScoreTeam: 16, ScoreOpponent: 8, Result: "W", EloBefore: 1975, EloAfter: 2005, Kills: 25, Deaths: 10, Assists: 7, PlayedAt: "2026-04-12T10:00:00Z"},
+		{UserID: userID, FaceitMatchID: "match-4", MapName: "de_inferno", ScoreTeam: 16, ScoreOpponent: 14, Result: "W", EloBefore: 2005, EloAfter: 2020, Kills: 22, Deaths: 18, Assists: 4, PlayedAt: "2026-04-13T10:00:00Z"},
+		{UserID: userID, FaceitMatchID: "match-5", MapName: "de_dust2", ScoreTeam: 10, ScoreOpponent: 16, Result: "L", EloBefore: 2020, EloAfter: 1995, Kills: 12, Deaths: 19, Assists: 2, PlayedAt: "2026-04-14T10:00:00Z"},
 	}
 	var matches []store.FaceitMatch
 	for _, p := range params {
@@ -540,11 +543,11 @@ func TestComputeStreak(t *testing.T) {
 		wantCount int
 	}{
 		{"empty", nil, "none", 0},
-		{"single win", []string{"win"}, "win", 1},
-		{"single loss", []string{"loss"}, "loss", 1},
-		{"win streak", []string{"win", "win", "win", "loss"}, "win", 3},
-		{"loss streak", []string{"loss", "loss", "win"}, "loss", 2},
-		{"alternating", []string{"win", "loss", "win"}, "win", 1},
+		{"single win", []string{"W"}, "win", 1},
+		{"single loss", []string{"L"}, "loss", 1},
+		{"win streak", []string{"W", "W", "W", "L"}, "win", 3},
+		{"loss streak", []string{"L", "L", "W"}, "loss", 2},
+		{"alternating", []string{"W", "L", "W"}, "win", 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -630,57 +633,6 @@ func TestGetFaceitProfile(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// GetEloHistory
-// ---------------------------------------------------------------------------
-
-func TestGetEloHistory(t *testing.T) {
-	t.Run("all time", func(t *testing.T) {
-		app, q, user := newTestAppWithUser(t)
-		seedFaceitMatches(t, q, user.ID)
-
-		points, err := app.GetEloHistory(0)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(points) != 5 {
-			t.Fatalf("len = %d, want 5", len(points))
-		}
-		// Ordered ASC by played_at. First match: elo_after=2000.
-		if points[0].Elo == nil || *points[0].Elo != 2000 {
-			t.Errorf("points[0].Elo = %v, want 2000", points[0].Elo)
-		}
-		if points[0].MapName != "de_dust2" {
-			t.Errorf("points[0].MapName = %q, want de_dust2", points[0].MapName)
-		}
-	})
-
-	t.Run("empty", func(t *testing.T) {
-		app, _, _ := newTestAppWithUser(t)
-		points, err := app.GetEloHistory(30)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(points) != 0 {
-			t.Errorf("len = %d, want 0", len(points))
-		}
-	})
-
-	t.Run("filtered by days", func(t *testing.T) {
-		app, q, user := newTestAppWithUser(t)
-		seedFaceitMatches(t, q, user.ID)
-
-		// All test matches are in Apr 2026 — 1 day window won't include them.
-		points, err := app.GetEloHistory(1)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(points) != 0 {
-			t.Errorf("len = %d, want 0 (all matches are in the past)", len(points))
-		}
-	})
-}
-
-// ---------------------------------------------------------------------------
 // GetFaceitMatches
 // ---------------------------------------------------------------------------
 
@@ -716,7 +668,7 @@ func TestGetFaceitMatches(t *testing.T) {
 	})
 
 	t.Run("filter by result", func(t *testing.T) {
-		result, err := app.GetFaceitMatches(1, 10, "", "win")
+		result, err := app.GetFaceitMatches(1, 10, "", "W")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -742,7 +694,7 @@ func TestGetFaceitMatches(t *testing.T) {
 	})
 
 	t.Run("type mapping", func(t *testing.T) {
-		result, err := app.GetFaceitMatches(1, 1, "de_dust2", "win")
+		result, err := app.GetFaceitMatches(1, 1, "de_dust2", "W")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -750,21 +702,56 @@ func TestGetFaceitMatches(t *testing.T) {
 			t.Fatal("expected at least 1 match")
 		}
 		m := result.Data[0]
-		// Match-3: EloBefore=1975, EloAfter=2005, EloChange=+30.
-		if m.EloBefore == nil || *m.EloBefore != 1975 {
-			t.Errorf("EloBefore = %v, want 1975", m.EloBefore)
+		// Match-3: Kills=25, Deaths=10, Assists=7, no demo URL.
+		if m.Kills == nil || *m.Kills != 25 {
+			t.Errorf("Kills = %v, want 25", m.Kills)
 		}
-		if m.EloAfter == nil || *m.EloAfter != 2005 {
-			t.Errorf("EloAfter = %v, want 2005", m.EloAfter)
+		if m.Deaths == nil || *m.Deaths != 10 {
+			t.Errorf("Deaths = %v, want 10", m.Deaths)
 		}
-		if m.EloChange == nil || *m.EloChange != 30 {
-			t.Errorf("EloChange = %v, want 30", m.EloChange)
+		if m.Assists == nil || *m.Assists != 7 {
+			t.Errorf("Assists = %v, want 7", m.Assists)
 		}
 		if m.DemoURL != nil {
 			t.Errorf("DemoURL = %v, want nil (match-3 has no demo_url)", m.DemoURL)
 		}
 		if m.HasDemo {
 			t.Error("HasDemo should be false")
+		}
+	})
+
+	t.Run("filters out matches older than 30 days", func(t *testing.T) {
+		app2, q2, user2 := newTestAppWithUser(t)
+		ctx := context.Background()
+		oldDate := time.Now().AddDate(0, 0, -45).Format(time.RFC3339)
+		recentDate := time.Now().AddDate(0, 0, -5).Format(time.RFC3339)
+
+		_, err := q2.CreateFaceitMatch(ctx, store.CreateFaceitMatchParams{
+			UserID: user2.ID, FaceitMatchID: "old-1", MapName: "de_dust2",
+			ScoreTeam: 16, ScoreOpponent: 10, Result: "W",
+			PlayedAt: oldDate,
+		})
+		if err != nil {
+			t.Fatalf("CreateFaceitMatch (old): %v", err)
+		}
+		_, err = q2.CreateFaceitMatch(ctx, store.CreateFaceitMatchParams{
+			UserID: user2.ID, FaceitMatchID: "recent-1", MapName: "de_dust2",
+			ScoreTeam: 16, ScoreOpponent: 10, Result: "W",
+			PlayedAt: recentDate,
+		})
+		if err != nil {
+			t.Fatalf("CreateFaceitMatch (recent): %v", err)
+		}
+
+		res, err := app2.GetFaceitMatches(1, 20, "", "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if res.Meta.Total != 1 {
+			t.Errorf("Total = %d, want 1 (old match filtered out)", res.Meta.Total)
+		}
+		if len(res.Data) != 1 || res.Data[0].FaceitMatchID != "recent-1" {
+			t.Errorf("Data = %+v, want only recent-1", res.Data)
 		}
 	})
 }

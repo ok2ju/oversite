@@ -92,22 +92,6 @@ export namespace main {
 		    return a;
 		}
 	}
-	export class EloHistoryPoint {
-	    elo?: number;
-	    map_name: string;
-	    played_at: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new EloHistoryPoint(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.elo = source["elo"];
-	        this.map_name = source["map_name"];
-	        this.played_at = source["played_at"];
-	    }
-	}
 	export class FaceitMatch {
 	    id: string;
 	    faceit_match_id: string;
@@ -115,9 +99,6 @@ export namespace main {
 	    score_team: number;
 	    score_opponent: number;
 	    result: string;
-	    elo_before?: number;
-	    elo_after?: number;
-	    elo_change?: number;
 	    kills?: number;
 	    deaths?: number;
 	    assists?: number;
@@ -138,9 +119,6 @@ export namespace main {
 	        this.score_team = source["score_team"];
 	        this.score_opponent = source["score_opponent"];
 	        this.result = source["result"];
-	        this.elo_before = source["elo_before"];
-	        this.elo_after = source["elo_after"];
-	        this.elo_change = source["elo_change"];
 	        this.kills = source["kills"];
 	        this.deaths = source["deaths"];
 	        this.assists = source["assists"];

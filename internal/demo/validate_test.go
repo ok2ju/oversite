@@ -46,6 +46,26 @@ func TestValidateExtension(t *testing.T) {
 			filename: "/home/user/demos/match.dem",
 			wantErr:  nil,
 		},
+		{
+			name:     "valid .dem.zst extension",
+			filename: "match.dem.zst",
+			wantErr:  nil,
+		},
+		{
+			name:     "valid .DEM.ZST uppercase",
+			filename: "match.DEM.ZST",
+			wantErr:  nil,
+		},
+		{
+			name:     "full path with .dem.zst",
+			filename: "/home/user/demos/match.dem.zst",
+			wantErr:  nil,
+		},
+		{
+			name:     "just .zst without .dem prefix",
+			filename: "match.zst",
+			wantErr:  ErrInvalidExtension,
+		},
 	}
 
 	for _, tt := range tests {
@@ -154,6 +174,51 @@ func TestValidateMagicBytes(t *testing.T) {
 			err := ValidateMagicBytes(tt.header)
 			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("ValidateMagicBytes(%v) = %v, want %v", tt.header, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestIsCompressedDemo(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		want     bool
+	}{
+		{"zst compressed", "match.dem.zst", true},
+		{"uppercase ZST", "match.DEM.ZST", true},
+		{"plain dem", "match.dem", false},
+		{"just zst", "match.zst", false},
+		{"empty", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsCompressedDemo(tt.filename)
+			if got != tt.want {
+				t.Errorf("IsCompressedDemo(%q) = %v, want %v", tt.filename, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsDemoFile(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		want     bool
+	}{
+		{"plain dem", "match.dem", true},
+		{"zst compressed", "match.dem.zst", true},
+		{"txt file", "match.txt", false},
+		{"just zst", "match.zst", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsDemoFile(tt.filename)
+			if got != tt.want {
+				t.Errorf("IsDemoFile(%q) = %v, want %v", tt.filename, got, tt.want)
 			}
 		})
 	}

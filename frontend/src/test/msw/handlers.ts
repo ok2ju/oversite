@@ -6,7 +6,6 @@ import {
   createMockTickData,
   mockFaceitMatches,
   mockFaceitProfile,
-  mockEloHistory,
   mockUser,
 } from "@/test/fixtures"
 
@@ -97,10 +96,6 @@ export const handlers = [
 
   http.get("/api/v1/faceit/profile", () => {
     return HttpResponse.json({ data: mockFaceitProfile })
-  }),
-
-  http.get("/api/v1/faceit/elo-history", () => {
-    return HttpResponse.json({ data: mockEloHistory })
   }),
 
   http.get("/api/v1/faceit/matches", ({ request }) => {

@@ -104,7 +104,9 @@ describe("MapLayer", () => {
     it("loads texture from correct path", async () => {
       await layer.setMap("de_dust2")
 
-      expect(mockAssets.load).toHaveBeenCalledWith("/maps/de_dust2.png")
+      expect(mockAssets.load).toHaveBeenCalledWith(
+        expect.stringContaining("/maps/de_dust2.png"),
+      )
     })
 
     it("creates sprite and adds to container", async () => {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/ok2ju/oversite/internal/store"
 )
@@ -43,7 +42,7 @@ func (s *ImportService) ImportFolder(ctx context.Context, dirPath string, userID
 		if d.IsDir() {
 			return nil
 		}
-		if strings.EqualFold(filepath.Ext(path), ".dem") {
+		if IsDemoFile(path) {
 			demPaths = append(demPaths, path)
 		}
 		return nil

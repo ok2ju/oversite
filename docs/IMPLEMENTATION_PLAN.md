@@ -250,13 +250,13 @@ CI pipeline      Demo library UI     Scoreboard         Dashboard UI     Board m
 
 ## 7. Phase 4: Faceit & Heatmaps
 
-**Goal**: Faceit stats dashboard with ELO history + interactive KDE heatmaps. Faceit sync runs in-process (no worker/queue).
+**Goal**: Faceit stats dashboard with recent match history + interactive KDE heatmaps. Faceit sync runs in-process (no worker/queue).
 
 ### Milestones
 
 | ID | Milestone | Done When |
 |----|-----------|-----------|
-| P4-M1 | Faceit profile + ELO chart | Dashboard shows profile, ELO line chart |
+| P4-M1 | Faceit profile + recent matches | Dashboard shows profile, recent matches |
 | P4-M2 | Match history | Paginated match list with links to demos |
 | P4-M3 | Match sync | In-process sync fetches Faceit matches on demand |
 | P4-M4 | Kill heatmap | KDE overlay renders correctly for a demo |
@@ -269,7 +269,7 @@ CI pipeline      Demo library UI     Scoreboard         Dashboard UI     Board m
 |------|-------------|-----------|
 | P4-T01 | Implement Faceit API client (Go HTTP client) | M |
 | P4-T02 | Implement Faceit sync service (in-process, no worker) | M |
-| P4-T03 | Build Faceit dashboard page (profile, ELO chart) | M |
+| P4-T03 | Build Faceit dashboard page (profile, match list) | M |
 | P4-T04 | Build match history list (pagination, filters) | M |
 | P4-T05 | Implement demo download from Faceit matches | L |
 | P4-T06 | Implement heatmap data binding (aggregation query) | M |

@@ -35,7 +35,11 @@ export class MapLayer {
     const loadId = ++this._loadId
     const calibration = getMapCalibration(mapName)!
     const imagePath = getRadarImagePath(mapName)
-    const texture: Texture = await Assets.load(imagePath)
+    // Resolve to a full URL so PixiJS doesn't mangle the path by prepending
+    // its basePath ("/"), which turns "/maps/x.png" into "//maps/x.png"
+    // (a protocol-relative URL where "maps" becomes the hostname).
+    const resolvedUrl = new URL(imagePath, globalThis.location.href).href
+    const texture: Texture = await Assets.load(resolvedUrl)
 
     if (loadId !== this._loadId) return
 

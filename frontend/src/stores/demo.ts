@@ -6,6 +6,7 @@ export interface ImportProgress {
   fileName: string
   percent: number
   stage: "importing" | "parsing" | "complete" | "error"
+  error?: string
 }
 
 export interface DemoFilters {

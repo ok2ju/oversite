@@ -12,7 +12,10 @@ export function DropZone({ onFilesDropped, children }: DropZoneProps) {
   const handleDrop = useCallback(
     (_x: number, _y: number, paths: string[]) => {
       setIsDragging(false)
-      const demFiles = paths.filter((p) => p.toLowerCase().endsWith(".dem"))
+      const demFiles = paths.filter((p) => {
+        const lower = p.toLowerCase()
+        return lower.endsWith(".dem") || lower.endsWith(".dem.zst")
+      })
       if (demFiles.length > 0) {
         onFilesDropped(demFiles)
       }

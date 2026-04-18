@@ -12,16 +12,6 @@ export interface FaceitProfileResponse {
   data: FaceitProfile
 }
 
-export interface EloHistoryPoint {
-  elo: number | null
-  map_name: string
-  played_at: string
-}
-
-export interface EloHistoryResponse {
-  data: EloHistoryPoint[]
-}
-
 export interface FaceitMatch {
   id: string
   faceit_match_id: string
@@ -29,9 +19,6 @@ export interface FaceitMatch {
   score_team: number
   score_opponent: number
   result: "W" | "L"
-  elo_before: number | null
-  elo_after: number | null
-  elo_change: number | null
   kills: number | null
   deaths: number | null
   assists: number | null

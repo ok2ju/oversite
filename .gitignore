@@ -70,3 +70,4 @@ tmp/
 .claude/temp
 
 testdata/demos
+docs/design-handoff

@@ -49,7 +49,7 @@ CS2 players on Faceit lack a fast, unified tool to:
 | G2 | Cross-demo analytics | Heatmaps aggregating 10+ demos render in < 5s |
 | G3 | Local strategy planning | Drawing tools responsive at 60 FPS on the map canvas |
 | G4 | Grenade knowledge base | Users can browse, save, tag, and filter lineups |
-| G5 | Faceit integration | Auto-fetch recent matches, display ELO history |
+| G5 | Faceit integration | Auto-fetch recent matches, display recent match history |
 
 ---
 
@@ -60,7 +60,7 @@ CS2 players on Faceit lack a fast, unified tool to:
 | Attribute | Detail |
 |-----------|--------|
 | Role | Faceit Level 7-10 player, solo queue |
-| Goal | Identify personal mistakes, track ELO trends |
+| Goal | Identify personal mistakes, track recent performance |
 | Pain Point | Rewatching full demos in-game is slow; no easy cross-demo stats |
 | Key Features | 2D Viewer, Heatmaps, Faceit Stats Dashboard |
 | Technical Level | Comfortable installing desktop apps; not a developer |
@@ -288,26 +288,20 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 - Current win streak / loss streak
 - Membership info (Faceit Premium/Free)
 
-#### F4.2 ELO History
+#### F4.2 Match History
 
-- Line chart of ELO over time (last 30, 90, 180 days, all time)
-- Annotate significant gains/losses
-- Compare with average ELO for current level
-
-#### F4.3 Match History
-
-- Paginated list of recent Faceit matches
-- Each entry: map, score, K/D/A, ELO change, date
+- Paginated list of Faceit matches from the last 30 days
+- Each entry: map, score, K/D/A, date
 - Click to open demo (if available locally) in 2D Viewer
-- Filter by map, result (W/L), date range
+- Filter by map, result (W/L)
 
-#### F4.4 Performance Trends
+#### F4.3 Performance Trends
 
 - Rolling averages for K/D ratio, win rate, ADR
 - Map-specific stats breakdown
 - Best/worst maps identification
 
-#### F4.5 Auto-Fetch
+#### F4.4 Auto-Fetch
 
 - On login, automatically fetch the user's recent Faceit match history
 - In-process sync (no background worker -- runs in the Go backend directly)
@@ -447,8 +441,7 @@ Application-wide preferences accessible via the `/settings` route.
 | ID | Story | Acceptance Criteria |
 |----|-------|-------------------|
 | US-26 | As a player, I want to see my Faceit profile and ELO | Dashboard shows current ELO, level, avatar; data matches Faceit |
-| US-27 | As a player, I want to see my ELO history as a chart | Line chart with selectable time ranges; hover shows exact values |
-| US-28 | As a player, I want to browse my recent Faceit matches | Paginated list; each entry shows map, score, K/D, ELO delta |
+| US-28 | As a player, I want to browse my recent Faceit matches | Paginated list of matches from the last 30 days; each entry shows map, score, K/D |
 | US-29 | As a player, I want to open a Faceit match demo in the viewer | Click-through from match history to 2D viewer works seamlessly |
 
 ### Grenade Lineups
@@ -723,8 +716,8 @@ The project follows **Test-Driven Development (TDD)**. Every feature is develope
 | score_team | INTEGER | User's team score |
 | score_opponent | INTEGER | Opponent team score |
 | result | TEXT | win / loss / draw |
-| elo_before | INTEGER | |
-| elo_after | INTEGER | |
+| elo_before | INTEGER | Retained for potential future use; not surfaced in the UI |
+| elo_after | INTEGER | Retained for potential future use; not surfaced in the UI |
 | kills | INTEGER | |
 | deaths | INTEGER | |
 | assists | INTEGER | |
@@ -797,7 +790,6 @@ Instead of a REST API, the Go backend exposes methods to the frontend via Wails 
 | Method | Signature | Description |
 |--------|----------|-------------|
 | `GetFaceitProfile` | `() -> FaceitProfile` | Get user's Faceit profile (cached) |
-| `GetEloHistory` | `(days: number) -> EloPoint[]` | Get ELO history |
 | `GetMatches` | `(opts: MatchListOpts) -> FaceitMatch[]` | Get match history (paginated) |
 | `SyncMatches` | `() -> SyncResult` | Trigger manual match sync |
 | `ImportMatchDemo` | `(matchId: string) -> Demo` | Download and import demo from Faceit match |

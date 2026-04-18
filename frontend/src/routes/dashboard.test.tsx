@@ -18,9 +18,7 @@ describe("DashboardPage", () => {
     renderWithProviders(<DashboardPage />)
 
     expect(screen.getByText("Dashboard")).toBeInTheDocument()
-    expect(
-      screen.getByText("Your Faceit stats and ELO history"),
-    ).toBeInTheDocument()
+    expect(screen.getByText("Your recent Faceit matches")).toBeInTheDocument()
   })
 
   it("shows loading states initially then renders profile data", async () => {
@@ -34,17 +32,5 @@ describe("DashboardPage", () => {
 
     expect(screen.getByText("1850")).toBeInTheDocument()
     expect(screen.getByText("Level 8")).toBeInTheDocument()
-  })
-
-  it("renders ELO chart section with time range buttons", async () => {
-    renderWithProviders(<DashboardPage />)
-
-    expect(screen.getByText("ELO History")).toBeInTheDocument()
-    expect(screen.getByText("30d")).toBeInTheDocument()
-    expect(screen.getByText("90d")).toBeInTheDocument()
-
-    await waitFor(() => {
-      expect(screen.queryByTestId("elo-chart-skeleton")).not.toBeInTheDocument()
-    })
   })
 })

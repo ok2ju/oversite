@@ -100,14 +100,20 @@ func (d *DownloadService) DownloadAndImport(
 	}
 	_ = tmpFile.Close()
 
-	// Decompress .gz if needed.
+	// Decompress if needed (.gz or .zst).
 	demPath := tmpPath
 	if strings.HasSuffix(match.DemoUrl, ".gz") {
 		demPath, err = decompressGzip(tmpPath, d.downloadDir)
 		if err != nil {
-			return nil, fmt.Errorf("decompressing demo: %w", err)
+			return nil, fmt.Errorf("decompressing gzip demo: %w", err)
 		}
-		_ = os.Remove(tmpPath) // Remove compressed file.
+		_ = os.Remove(tmpPath)
+	} else if strings.HasSuffix(match.DemoUrl, ".zst") || strings.HasSuffix(match.DemoUrl, ".dem.zst") {
+		demPath, err = demo.DecompressZstdTo(tmpPath, d.downloadDir)
+		if err != nil {
+			return nil, fmt.Errorf("decompressing zstd demo: %w", err)
+		}
+		_ = os.Remove(tmpPath)
 	}
 
 	// Rename to final .dem file.

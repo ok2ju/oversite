@@ -1,16 +1,12 @@
-import { useState } from "react"
-import { useFaceitProfile, useEloHistory } from "@/hooks/use-faceit"
+import { useFaceitProfile } from "@/hooks/use-faceit"
 import { useFaceitSync } from "@/hooks/use-faceit-sync"
 import { useFaceitSyncProgress } from "@/hooks/use-faceit-sync-progress"
 import { ProfileCard } from "@/components/dashboard/profile-card"
-import { EloChart } from "@/components/dashboard/elo-chart"
 import { MatchList } from "@/components/dashboard/match-list"
 import { Button } from "@/components/ui/button"
 
 export default function DashboardPage() {
   const { data: profile, isLoading: profileLoading } = useFaceitProfile()
-  const [days, setDays] = useState(30)
-  const { data: eloHistory, isLoading: eloLoading } = useEloHistory(days)
   const sync = useFaceitSync()
   const { progress, reset: resetProgress } = useFaceitSyncProgress()
 
@@ -29,7 +25,7 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="mt-1 text-muted-foreground">
-            Your Faceit stats and ELO history
+            Your recent Faceit matches
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -49,12 +45,6 @@ export default function DashboardPage() {
       </div>
 
       <ProfileCard profile={profile} isLoading={profileLoading} />
-      <EloChart
-        data={eloHistory}
-        isLoading={eloLoading}
-        days={days}
-        onDaysChange={setDays}
-      />
       <MatchList />
     </div>
   )

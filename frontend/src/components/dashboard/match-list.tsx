@@ -136,21 +136,6 @@ export function MatchList() {
                 >
                   {match.result === "W" ? "WIN" : "LOSS"}
                 </Badge>
-                <span
-                  className={
-                    match.elo_change === null
-                      ? "text-sm text-muted-foreground"
-                      : match.elo_change > 0
-                        ? "text-sm font-medium text-green-500"
-                        : "text-sm font-medium text-red-500"
-                  }
-                >
-                  {match.elo_change === null
-                    ? "--"
-                    : match.elo_change > 0
-                      ? `+${match.elo_change}`
-                      : `${match.elo_change}`}
-                </span>
               </div>
 
               <div className="flex items-center gap-4">

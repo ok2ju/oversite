@@ -597,12 +597,11 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Complexity** | M |
 | **Deps** | P2-T03, P1-T09 |
 | **Test Types** | unit |
-| **TDD Workflow** | 1. RED: Write tests for GetProfile, GetMatches, GetEloHistory with mock HTTP responses. 2. GREEN: Implement HTTP client with auth header injection. 3. REFACTOR: Add rate limiting; extract response types. |
-| **Description** | Go HTTP client for Faceit Data API: get player profile, match history (paginated), ELO history. Inject access token from auth service. Handle rate limiting (429) with exponential backoff. |
+| **TDD Workflow** | 1. RED: Write tests for GetProfile, GetMatches with mock HTTP responses. 2. GREEN: Implement HTTP client with auth header injection. 3. REFACTOR: Add rate limiting; extract response types. |
+| **Description** | Go HTTP client for Faceit Data API: get player profile and match history (paginated). Inject access token from auth service. Handle rate limiting (429) with exponential backoff. |
 | **Key Files** | `internal/faceit/client.go`, `internal/faceit/client_test.go`, `internal/faceit/types.go` |
 | **Acceptance Criteria** | - GetProfile returns typed Faceit profile |
 | | - GetMatches returns paginated match list |
-| | - GetEloHistory returns ELO data points |
 | | - Rate limiting handled with backoff |
 | | - Unit tests pass with mock HTTP responses |
 
@@ -618,7 +617,6 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Key Files** | `internal/faceit/sync.go`, `internal/faceit/sync_test.go` |
 | **Acceptance Criteria** | - New matches inserted into SQLite |
 | | - Existing matches skipped (no duplicates) |
-| | - ELO before/after calculated correctly |
 | | - Progress events emitted during sync |
 | | - Tests pass with mock Faceit client + temp SQLite |
 
@@ -629,11 +627,11 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Complexity** | M |
 | **Deps** | P4-T01, P1-T10 |
 | **Test Types** | component |
-| **TDD Workflow** | 1. RED: Write test: dashboard renders profile card, ELO chart, win/loss streak. 2. GREEN: Implement page with TanStack Query wrapping Wails bindings. 3. REFACTOR: Extract chart component; add time range selector. |
-| **Description** | Faceit dashboard showing: profile card (avatar, nickname, level, ELO, country), ELO history line chart (30/90/180/all time), win/loss streak indicator. |
-| **Key Files** | `frontend/src/routes/dashboard.tsx`, `frontend/src/components/faceit/profile-card.tsx`, `frontend/src/components/faceit/elo-chart.tsx`, `frontend/src/routes/dashboard.test.tsx` |
+| **TDD Workflow** | 1. RED: Write test: dashboard renders profile card, match list, win/loss streak. 2. GREEN: Implement page with TanStack Query wrapping Wails bindings. 3. REFACTOR: Extract components. Task amended post-completion: the ELO chart was removed. |
+| **Description** | Faceit dashboard showing: profile card (avatar, nickname, level, ELO, country), recent match list (last 30 days), win/loss streak indicator. |
+| **Key Files** | `frontend/src/routes/dashboard.tsx`, `frontend/src/components/dashboard/profile-card.tsx`, `frontend/src/components/dashboard/match-list.tsx`, `frontend/src/routes/dashboard.test.tsx` |
 | **Acceptance Criteria** | - Profile card shows correct Faceit data |
-| | - ELO chart renders with selectable time ranges |
+| | - Match list renders recent matches |
 | | - Win/loss streak displayed |
 | | - Component tests pass with mock bindings |
 
@@ -645,11 +643,10 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Deps** | P4-T02, P1-T10 |
 | **Test Types** | component |
 | **TDD Workflow** | 1. RED: Write test: match list renders paginated entries; clicking match opens demo if available. 2. GREEN: Implement match list with filters. 3. REFACTOR: Extract match card; add infinite scroll. |
-| **Description** | Paginated list of Faceit matches: map, score, K/D/A, ELO change, date. Filters: map, result (W/L), date range. Click to open demo in viewer (if imported). |
+| **Description** | Paginated list of Faceit matches from the last 30 days: map, score, K/D/A, date. Filters: map, result (W/L). Click to open demo in viewer (if imported). |
 | **Key Files** | `frontend/src/components/faceit/match-list.tsx`, `frontend/src/components/faceit/match-card.tsx`, `frontend/src/components/faceit/match-list.test.tsx` |
-| **Acceptance Criteria** | - Match list renders with pagination |
-| | - Filters work (map, result, date range) |
-| | - ELO change shows +/- delta |
+| **Acceptance Criteria** | - Match list renders with pagination (last 30 days only) |
+| | - Filters work (map, result) |
 | | - Click opens demo viewer (if available) |
 
 ### P4-T05: Implement demo download from Faceit [COMPLETE]

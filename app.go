@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -28,6 +27,7 @@ type App struct {
 	db              *sql.DB
 	queries         *store.Queries
 	authService     *auth.AuthService
+	faceitClient    faceit.FaceitClient
 	importService   *demo.ImportService
 	syncService     *faceit.SyncService
 	downloadService *faceit.DownloadService
@@ -61,7 +61,7 @@ func (a *App) Startup(ctx context.Context) {
 	// Auth service with OS keychain and real Faceit client.
 	kr := &auth.RealKeyring{}
 	tokens := auth.NewTokenStore(kr)
-	faceitClient := auth.NewHTTPFaceitClient()
+	faceitClient := auth.NewHTTPFaceitClient(os.Getenv("FACEIT_API_KEY"))
 
 	oauthCfg := auth.OAuthConfig{
 		ClientID:     os.Getenv("FACEIT_CLIENT_ID"),
@@ -82,11 +82,18 @@ func (a *App) Startup(ctx context.Context) {
 		},
 	)
 
+	a.faceitClient = faceitClient
 	a.syncService = faceit.NewSyncService(faceitClient, a.queries)
+
+	// Try to restore a previous session (refresh access token from keychain).
+	// Non-fatal: if refresh fails the user simply needs to log in again.
+	if err := a.authService.TryRestoreSession(ctx); err != nil {
+		log.Printf("session restore: %v", err)
+	}
 
 	downloadDir := filepath.Join(filepath.Dir(dbPath), "demos")
 	a.downloadService = faceit.NewDownloadService(
-		&http.Client{},
+		auth.NewDebugHTTPClient(),
 		a.importService,
 		a.queries,
 		downloadDir,
@@ -197,7 +204,7 @@ func (a *App) ImportDemoFile() error {
 	filePath, err := wailsRuntime.OpenFileDialog(a.ctx, wailsRuntime.OpenDialogOptions{
 		Title: "Select CS2 Demo File",
 		Filters: []wailsRuntime.FileFilter{
-			{DisplayName: "CS2 Demo Files (*.dem)", Pattern: "*.dem"},
+			{DisplayName: "CS2 Demo Files (*.dem, *.dem.zst)", Pattern: "*.dem;*.zst"},
 		},
 	})
 	if err != nil {
@@ -207,8 +214,12 @@ func (a *App) ImportDemoFile() error {
 		return nil // User cancelled.
 	}
 
-	_, err = a.importService.ImportFile(a.ctx, filePath, u.ID)
-	return err
+	d, err := a.importService.ImportFile(a.ctx, filePath, u.ID)
+	if err != nil {
+		return err
+	}
+	go a.parseDemo(d.ID, d.FilePath)
+	return nil
 }
 
 // ImportDemoFolder opens a native directory dialog and imports all .dem files.
@@ -245,6 +256,7 @@ func (a *App) ImportDemoFolder() (*FolderImportResult, error) {
 	imported := make([]Demo, len(result.Imported))
 	for i, d := range result.Imported {
 		imported[i] = storeDemoToBinding(*d)
+		go a.parseDemo(d.ID, d.FilePath)
 	}
 
 	importErrors := make([]string, len(result.Errors))
@@ -268,13 +280,114 @@ func (a *App) ImportDemoByPath(filePath string) error {
 		return errors.New("not logged in")
 	}
 
-	_, err = a.importService.ImportFile(a.ctx, filePath, u.ID)
-	return err
+	d, err := a.importService.ImportFile(a.ctx, filePath, u.ID)
+	if err != nil {
+		return err
+	}
+	go a.parseDemo(d.ID, d.FilePath)
+	return nil
 }
 
 // DeleteDemo removes a demo by ID.
 func (a *App) DeleteDemo(id int64) error {
 	return a.queries.DeleteDemo(a.ctx, id)
+}
+
+// parseDemo runs the full parse-and-ingest pipeline for a demo in the background.
+// It transitions the demo through imported → parsing → ready (or failed).
+func (a *App) parseDemo(demoID int64, filePath string) {
+	fileName := filepath.Base(filePath)
+
+	emitProgress := func(stage string, percent float64, errMsg ...string) {
+		payload := map[string]interface{}{
+			"demoId":   demoID,
+			"fileName": fileName,
+			"percent":  percent,
+			"stage":    stage,
+		}
+		if len(errMsg) > 0 && errMsg[0] != "" {
+			payload["error"] = errMsg[0]
+		}
+		wailsRuntime.EventsEmit(a.ctx, "demo:parse:progress", payload)
+	}
+
+	// Mark as parsing.
+	if _, err := a.queries.UpdateDemoStatus(a.ctx, store.UpdateDemoStatusParams{
+		Status: "parsing",
+		ID:     demoID,
+	}); err != nil {
+		log.Printf("parseDemo(%d): update status to parsing: %v", demoID, err)
+		return
+	}
+
+	emitProgress("parsing", 0)
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		log.Printf("parseDemo(%d): open file: %v", demoID, err)
+		a.failDemo(demoID, fmt.Sprintf("open file: %v", err), emitProgress)
+		return
+	}
+	defer f.Close() //nolint:errcheck
+
+	parser := demo.NewDemoParser(demo.WithProgressFunc(func(stage string, percent float64) {
+		emitProgress(stage, percent)
+	}))
+
+	result, err := parser.Parse(f)
+	if err != nil {
+		log.Printf("parseDemo(%d): parse: %v", demoID, err)
+		a.failDemo(demoID, fmt.Sprintf("parse failed: %v", err), emitProgress)
+		return
+	}
+
+	// Ingest rounds + player stats.
+	roundMap, err := demo.IngestRounds(a.ctx, a.db, demoID, result)
+	if err != nil {
+		log.Printf("parseDemo(%d): ingest rounds: %v", demoID, err)
+		a.failDemo(demoID, fmt.Sprintf("ingest rounds: %v", err), emitProgress)
+		return
+	}
+
+	// Ingest game events.
+	if _, err := demo.IngestGameEvents(a.ctx, a.db, demoID, result.Events, roundMap); err != nil {
+		log.Printf("parseDemo(%d): ingest events: %v", demoID, err)
+		a.failDemo(demoID, fmt.Sprintf("ingest events: %v", err), emitProgress)
+		return
+	}
+
+	// Ingest tick data.
+	ingester := demo.NewTickIngester(a.db, 0)
+	if _, err := ingester.Ingest(a.ctx, demoID, result.Ticks); err != nil {
+		log.Printf("parseDemo(%d): ingest ticks: %v", demoID, err)
+		a.failDemo(demoID, fmt.Sprintf("ingest ticks: %v", err), emitProgress)
+		return
+	}
+
+	// Mark demo as ready with parsed metadata.
+	if _, err := a.queries.UpdateDemoAfterParse(a.ctx, store.UpdateDemoAfterParseParams{
+		MapName:      result.Header.MapName,
+		TotalTicks:   int64(result.Header.TotalTicks),
+		TickRate:     result.Header.TickRate,
+		DurationSecs: int64(result.Header.DurationSecs),
+		ID:           demoID,
+	}); err != nil {
+		log.Printf("parseDemo(%d): update after parse: %v", demoID, err)
+		a.failDemo(demoID, fmt.Sprintf("save metadata: %v", err), emitProgress)
+		return
+	}
+
+	emitProgress("complete", 100)
+}
+
+// failDemo marks a demo as failed and emits an error progress event with
+// the error message so the frontend can display what went wrong.
+func (a *App) failDemo(demoID int64, errMsg string, emitProgress func(string, float64, ...string)) {
+	_, _ = a.queries.UpdateDemoStatus(a.ctx, store.UpdateDemoStatusParams{
+		Status: "failed",
+		ID:     demoID,
+	})
+	emitProgress("error", 0, errMsg)
 }
 
 // ---------------------------------------------------------------------------
@@ -452,9 +565,23 @@ func (a *App) GetFaceitProfile() (*FaceitProfile, error) {
 		return nil, errors.New("not logged in")
 	}
 
-	matchesPlayed, err := a.queries.CountFaceitMatchesByUserID(a.ctx, u.ID)
-	if err != nil {
-		return nil, fmt.Errorf("counting matches: %w", err)
+	// Fetch live match count from Faceit API; fall back to local DB count.
+	token := a.authService.GetAccessToken()
+	ctx := auth.WithAccessToken(a.ctx, token)
+
+	var matchesPlayed int
+	stats, statsErr := a.faceitClient.GetPlayerLifetimeStats(ctx, u.FaceitID)
+	if statsErr == nil && stats != nil && stats.Matches > 0 {
+		matchesPlayed = stats.Matches
+	} else {
+		if statsErr != nil {
+			log.Printf("faceit: lifetime stats unavailable, using local count: %v", statsErr)
+		}
+		localCount, err := a.queries.CountFaceitMatchesByUserID(a.ctx, u.ID)
+		if err != nil {
+			return nil, fmt.Errorf("counting matches: %w", err)
+		}
+		matchesPlayed = int(localCount)
 	}
 
 	results, err := a.queries.GetCurrentStreak(a.ctx, u.ID)
@@ -464,7 +591,7 @@ func (a *App) GetFaceitProfile() (*FaceitProfile, error) {
 
 	profile := &FaceitProfile{
 		Nickname:      u.Nickname,
-		MatchesPlayed: int(matchesPlayed),
+		MatchesPlayed: matchesPlayed,
 		CurrentStreak: computeStreak(results),
 	}
 	if u.AvatarUrl != "" {
@@ -484,44 +611,8 @@ func (a *App) GetFaceitProfile() (*FaceitProfile, error) {
 	return profile, nil
 }
 
-// GetEloHistory returns elo history for the given number of days.
-func (a *App) GetEloHistory(days int) ([]EloHistoryPoint, error) {
-	u, err := a.authService.GetCurrentUser(a.ctx)
-	if err != nil {
-		return nil, err
-	}
-	if u == nil {
-		return nil, errors.New("not logged in")
-	}
-
-	var since string
-	if days > 0 {
-		since = time.Now().AddDate(0, 0, -days).Format(time.RFC3339)
-	} else {
-		since = "0001-01-01T00:00:00Z"
-	}
-
-	rows, err := a.queries.GetEloHistory(a.ctx, store.GetEloHistoryParams{
-		UserID: u.ID,
-		Since:  since,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("getting elo history: %w", err)
-	}
-
-	result := make([]EloHistoryPoint, len(rows))
-	for i, r := range rows {
-		elo := int(r.EloAfter)
-		result[i] = EloHistoryPoint{
-			Elo:      &elo,
-			MapName:  r.MapName,
-			PlayedAt: r.PlayedAt,
-		}
-	}
-	return result, nil
-}
-
-// GetFaceitMatches returns a paginated, filtered list of Faceit matches.
+// GetFaceitMatches returns a paginated, filtered list of Faceit matches from
+// the last 30 days.
 func (a *App) GetFaceitMatches(page, perPage int, mapName, result string) (*FaceitMatchListResult, error) {
 	u, err := a.authService.GetCurrentUser(a.ctx)
 	if err != nil {
@@ -532,6 +623,7 @@ func (a *App) GetFaceitMatches(page, perPage int, mapName, result string) (*Face
 	}
 
 	offset := int64((page - 1) * perPage)
+	since := time.Now().AddDate(0, 0, -30).Format(time.RFC3339)
 
 	var mapFilter, resultFilter interface{}
 	if mapName != "" {
@@ -543,6 +635,7 @@ func (a *App) GetFaceitMatches(page, perPage int, mapName, result string) (*Face
 
 	matches, err := a.queries.GetFaceitMatchesFiltered(a.ctx, store.GetFaceitMatchesFilteredParams{
 		UserID:    u.ID,
+		SinceDate: since,
 		MapName:   mapFilter,
 		Result:    resultFilter,
 		OffsetVal: offset,
@@ -553,9 +646,10 @@ func (a *App) GetFaceitMatches(page, perPage int, mapName, result string) (*Face
 	}
 
 	total, err := a.queries.CountFaceitMatchesFiltered(a.ctx, store.CountFaceitMatchesFilteredParams{
-		UserID:  u.ID,
-		MapName: mapFilter,
-		Result:  resultFilter,
+		UserID:    u.ID,
+		SinceDate: since,
+		MapName:   mapFilter,
+		Result:    resultFilter,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("counting faceit matches: %w", err)
@@ -890,18 +984,6 @@ func storeFaceitMatchToBinding(m store.FaceitMatch) FaceitMatch {
 		PlayedAt:      m.PlayedAt,
 		HasDemo:       m.DemoID.Valid,
 	}
-	if m.EloBefore != 0 {
-		v := int(m.EloBefore)
-		fm.EloBefore = &v
-	}
-	if m.EloAfter != 0 {
-		v := int(m.EloAfter)
-		fm.EloAfter = &v
-	}
-	if m.EloBefore != 0 && m.EloAfter != 0 {
-		v := int(m.EloAfter - m.EloBefore)
-		fm.EloChange = &v
-	}
 	if m.Kills != 0 {
 		v := int(m.Kills)
 		fm.Kills = &v
@@ -936,7 +1018,15 @@ func computeStreak(results []string) CurrentStreak {
 		}
 		count++
 	}
-	return CurrentStreak{Type: streakType, Count: count}
+	// Map DB values to frontend-expected types.
+	typeLabel := "draw"
+	switch streakType {
+	case "W":
+		typeLabel = "win"
+	case "L":
+		typeLabel = "loss"
+	}
+	return CurrentStreak{Type: typeLabel, Count: count}
 }
 
 func storeTickDatumToBinding(d store.TickDatum) TickData {

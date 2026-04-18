@@ -119,13 +119,6 @@ type CurrentStreak struct {
 	Count int    `json:"count"`
 }
 
-// EloHistoryPoint represents a single elo data point.
-type EloHistoryPoint struct {
-	Elo      *int   `json:"elo"`
-	MapName  string `json:"map_name"`
-	PlayedAt string `json:"played_at"`
-}
-
 // FaceitMatch represents a Faceit match.
 type FaceitMatch struct {
 	ID            string  `json:"id"`
@@ -134,9 +127,6 @@ type FaceitMatch struct {
 	ScoreTeam     int     `json:"score_team"`
 	ScoreOpponent int     `json:"score_opponent"`
 	Result        string  `json:"result"`
-	EloBefore     *int    `json:"elo_before"`
-	EloAfter      *int    `json:"elo_after"`
-	EloChange     *int    `json:"elo_change"`
 	Kills         *int    `json:"kills"`
 	Deaths        *int    `json:"deaths"`
 	Assists       *int    `json:"assists"`

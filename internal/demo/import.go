@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/ok2ju/oversite/internal/store"
 )
@@ -58,11 +59,21 @@ func (s *ImportService) ValidateFile(filePath string) error {
 }
 
 // ImportFile validates a demo file and creates a database record for it.
+// Compressed .dem.zst files are decompressed in-place before validation.
 // The returned Demo has Status "imported" with MapName and MatchDate empty,
 // to be populated after parsing.
 func (s *ImportService) ImportFile(ctx context.Context, filePath string, userID int64) (*store.Demo, error) {
 	if err := ValidateExtension(filePath); err != nil {
 		return nil, err
+	}
+
+	// Decompress .dem.zst files before validation.
+	if strings.HasSuffix(strings.ToLower(filePath), ".dem.zst") {
+		demPath, err := DecompressZstd(filePath)
+		if err != nil {
+			return nil, fmt.Errorf("decompressing demo: %w", err)
+		}
+		filePath = demPath
 	}
 
 	info, err := os.Stat(filePath)

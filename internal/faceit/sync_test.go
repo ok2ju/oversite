@@ -19,6 +19,16 @@ func resultOf(matches []store.FaceitMatch, faceitMatchID string) string {
 	return ""
 }
 
+// matchByID finds a match by faceit_match_id in a slice.
+func matchByID(matches []store.FaceitMatch, faceitMatchID string) *store.FaceitMatch {
+	for i := range matches {
+		if matches[i].FaceitMatchID == faceitMatchID {
+			return &matches[i]
+		}
+	}
+	return nil
+}
+
 func newTestSyncService(t *testing.T, mock *MockFaceitClient) (*SyncService, *store.Queries, store.User) {
 	t.Helper()
 	q, _ := testutil.NewTestQueries(t)
@@ -48,7 +58,8 @@ func TestSyncMatches(t *testing.T) {
 		}
 	})
 
-	t.Run("new matches", func(t *testing.T) {
+	t.Run("new matches with stats", func(t *testing.T) {
+		const playerID = "player-abc"
 		mock := &MockFaceitClient{
 			GetPlayerHistoryFn: func(_ context.Context, _ string, offset, limit int) (*FaceitMatchHistory, error) {
 				if offset > 0 {
@@ -56,21 +67,41 @@ func TestSyncMatches(t *testing.T) {
 				}
 				return &FaceitMatchHistory{
 					Items: []FaceitMatchSummary{
-						{MatchID: "m1", Map: "de_dust2", StartedAt: 1712700000, Winner: "win", Score: map[string]int{"team": 16, "opponent": 10}},
-						{MatchID: "m2", Map: "de_mirage", StartedAt: 1712786400, Winner: "loss", Score: map[string]int{"team": 14, "opponent": 16}},
+						{
+							MatchID: "m1", StartedAt: 1712700000,
+							Winner: "faction1",
+							Score:  map[string]int{"faction1": 16, "faction2": 10},
+							Teams:  map[string][]string{"faction1": {playerID, "other-1"}, "faction2": {"opp-1", "opp-2"}},
+						},
+						{
+							MatchID: "m2", StartedAt: 1712786400,
+							Winner: "faction2",
+							Score:  map[string]int{"faction1": 14, "faction2": 16},
+							Teams:  map[string][]string{"faction1": {playerID, "other-1"}, "faction2": {"opp-1", "opp-2"}},
+						},
 					},
 				}, nil
 			},
 			GetMatchDetailsFn: func(_ context.Context, matchID string) (*FaceitMatchDetails, error) {
 				return &FaceitMatchDetails{
 					MatchID: matchID,
+					Map:     "de_dust2",
 					DemoURL: []string{"https://example.com/" + matchID + ".dem.gz"},
 				}, nil
+			},
+			GetMatchStatsFn: func(_ context.Context, matchID string, _ string) (*FaceitPlayerMatchStats, error) {
+				switch matchID {
+				case "m1":
+					return &FaceitPlayerMatchStats{Kills: 25, Deaths: 15, Assists: 5, Headshots: 10}, nil
+				case "m2":
+					return &FaceitPlayerMatchStats{Kills: 18, Deaths: 20, Assists: 3, Headshots: 7}, nil
+				}
+				return nil, fmt.Errorf("unknown match")
 			},
 		}
 
 		svc, q, user := newTestSyncService(t, mock)
-		inserted, err := svc.SyncMatches(context.Background(), user.ID, "faceit-123", nil)
+		inserted, err := svc.SyncMatches(context.Background(), user.ID, playerID, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -88,26 +119,62 @@ func TestSyncMatches(t *testing.T) {
 		if len(matches) != 2 {
 			t.Fatalf("len(matches) = %d, want 2", len(matches))
 		}
+
 		// Verify demo URL was fetched.
 		if matches[0].DemoUrl == "" {
 			t.Error("expected demo URL to be set")
 		}
-		// Verify result is stored as "W"/"L" (not raw "win"/"loss").
+		// Verify map name comes from match details.
+		if matches[0].MapName != "de_dust2" {
+			t.Errorf("map = %q, want %q", matches[0].MapName, "de_dust2")
+		}
+		// Verify result is stored as "W"/"L" based on faction comparison.
 		if r := resultOf(matches, "m1"); r != "W" {
 			t.Errorf("m1 result = %q, want %q", r, "W")
 		}
 		if r := resultOf(matches, "m2"); r != "L" {
 			t.Errorf("m2 result = %q, want %q", r, "L")
 		}
+
+		// Verify K/D/A was stored from match stats.
+		m1 := matchByID(matches, "m1")
+		if m1.Kills != 25 {
+			t.Errorf("m1 kills = %d, want 25", m1.Kills)
+		}
+		if m1.Deaths != 15 {
+			t.Errorf("m1 deaths = %d, want 15", m1.Deaths)
+		}
+		if m1.Assists != 5 {
+			t.Errorf("m1 assists = %d, want 5", m1.Assists)
+		}
+
+		m2 := matchByID(matches, "m2")
+		if m2.Kills != 18 {
+			t.Errorf("m2 kills = %d, want 18", m2.Kills)
+		}
+		if m2.Deaths != 20 {
+			t.Errorf("m2 deaths = %d, want 20", m2.Deaths)
+		}
 	})
 
 	t.Run("skip existing", func(t *testing.T) {
+		const playerID = "player-abc"
 		mock := &MockFaceitClient{
 			GetPlayerHistoryFn: func(_ context.Context, _ string, _, _ int) (*FaceitMatchHistory, error) {
 				return &FaceitMatchHistory{
 					Items: []FaceitMatchSummary{
-						{MatchID: "existing-1", Map: "de_dust2", StartedAt: 1712700000, Winner: "win", Score: map[string]int{"team": 16, "opponent": 10}},
-						{MatchID: "new-1", Map: "de_mirage", StartedAt: 1712786400, Winner: "loss", Score: map[string]int{"team": 14, "opponent": 16}},
+						{
+							MatchID: "existing-1", StartedAt: 1712700000,
+							Winner: "faction1",
+							Score:  map[string]int{"faction1": 16, "faction2": 10},
+							Teams:  map[string][]string{"faction1": {playerID}, "faction2": {"opp-1"}},
+						},
+						{
+							MatchID: "new-1", StartedAt: 1712786400,
+							Winner: "faction2",
+							Score:  map[string]int{"faction1": 14, "faction2": 16},
+							Teams:  map[string][]string{"faction1": {playerID}, "faction2": {"opp-1"}},
+						},
 					},
 				}, nil
 			},
@@ -126,7 +193,7 @@ func TestSyncMatches(t *testing.T) {
 			t.Fatalf("CreateFaceitMatch: %v", err)
 		}
 
-		inserted, err := svc.SyncMatches(ctx, user.ID, "faceit-123", nil)
+		inserted, err := svc.SyncMatches(ctx, user.ID, playerID, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -136,11 +203,17 @@ func TestSyncMatches(t *testing.T) {
 	})
 
 	t.Run("progress callback", func(t *testing.T) {
+		const playerID = "player-abc"
 		mock := &MockFaceitClient{
 			GetPlayerHistoryFn: func(_ context.Context, _ string, _, _ int) (*FaceitMatchHistory, error) {
 				return &FaceitMatchHistory{
 					Items: []FaceitMatchSummary{
-						{MatchID: "m1", Map: "de_dust2", StartedAt: 1712700000, Winner: "win", Score: map[string]int{"team": 16, "opponent": 10}},
+						{
+							MatchID: "m1", StartedAt: 1712700000,
+							Winner: "faction1",
+							Score:  map[string]int{"faction1": 16, "faction2": 10},
+							Teams:  map[string][]string{"faction1": {playerID}, "faction2": {"opp-1"}},
+						},
 					},
 				}, nil
 			},
@@ -148,7 +221,7 @@ func TestSyncMatches(t *testing.T) {
 
 		svc, _, user := newTestSyncService(t, mock)
 		var progressCalls []struct{ current, total int }
-		_, err := svc.SyncMatches(context.Background(), user.ID, "faceit-123", func(current, total int) {
+		_, err := svc.SyncMatches(context.Background(), user.ID, playerID, func(current, total int) {
 			progressCalls = append(progressCalls, struct{ current, total int }{current, total})
 		})
 		if err != nil {
@@ -170,6 +243,50 @@ func TestSyncMatches(t *testing.T) {
 		_, err := svc.SyncMatches(context.Background(), user.ID, "faceit-123", nil)
 		if err == nil {
 			t.Fatal("expected error from API failure")
+		}
+	})
+
+	t.Run("stats fetch failure non-fatal", func(t *testing.T) {
+		const playerID = "player-abc"
+		mock := &MockFaceitClient{
+			GetPlayerHistoryFn: func(_ context.Context, _ string, _, _ int) (*FaceitMatchHistory, error) {
+				return &FaceitMatchHistory{
+					Items: []FaceitMatchSummary{
+						{
+							MatchID: "m1", StartedAt: 1712700000,
+							Winner: "faction1",
+							Score:  map[string]int{"faction1": 16, "faction2": 10},
+							Teams:  map[string][]string{"faction1": {playerID}, "faction2": {"opp-1"}},
+						},
+					},
+				}, nil
+			},
+			GetMatchStatsFn: func(_ context.Context, _ string, _ string) (*FaceitPlayerMatchStats, error) {
+				return nil, fmt.Errorf("stats unavailable")
+			},
+		}
+
+		svc, q, user := newTestSyncService(t, mock)
+		inserted, err := svc.SyncMatches(context.Background(), user.ID, playerID, nil)
+		if err != nil {
+			t.Fatalf("sync should succeed even when stats fail: %v", err)
+		}
+		if inserted != 1 {
+			t.Errorf("inserted = %d, want 1", inserted)
+		}
+
+		// Match should be inserted with zero stats (non-fatal).
+		matches, err := q.GetFaceitMatchesByUserID(context.Background(), store.GetFaceitMatchesByUserIDParams{
+			UserID: user.ID, LimitVal: 10,
+		})
+		if err != nil {
+			t.Fatalf("GetFaceitMatchesByUserID: %v", err)
+		}
+		if len(matches) != 1 {
+			t.Fatalf("len(matches) = %d, want 1", len(matches))
+		}
+		if matches[0].Kills != 0 {
+			t.Errorf("kills = %d, want 0 (stats fetch failed)", matches[0].Kills)
 		}
 	})
 }
