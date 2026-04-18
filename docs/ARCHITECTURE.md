@@ -739,10 +739,17 @@ OAuth tokens are stored in the OS keychain, **not** in the app data directory:
 
 ### 9.2 Logging
 
-- Go backend: `slog` (structured logging) to rotating log file in app data dir
-- Log levels: DEBUG (dev), INFO (production default), WARN, ERROR
-- Frontend: `console.error` for binding failures; no separate log file
-- Wails dev mode: both Go and frontend logs visible in terminal
+Implemented in `internal/logging/` (see [ADR-0013](adr/0013-logging.md)). Files live under `{AppDataDir}/logs/`:
+
+| File | When | Contents |
+|------|------|----------|
+| `errors.txt` | Always | `slog` WARN+ records from all Go packages, plus a bridge that captures any remaining `log.Printf` calls |
+| `network.txt` | Dev builds only (`runtime.Environment(ctx).BuildType == "dev"`) | Full HTTP request/response dumps from the Faceit client, demo download client, and OAuth token exchange |
+
+- Both files rotate at 5MB with 3 backups via `lumberjack.v2` (plain `.txt`, no gzip).
+- `logging.Init(dir)` runs once from `main.go` before `wails.Run`; `logging.Close()` runs from `App.Shutdown`.
+- The dev network transport is wired into HTTP clients in `App.Startup`; the `OVERSITE_DEBUG_HTTP` env flag used by the old `debug_transport` is retired.
+- Frontend: `console.error` for binding failures; no separate log file (developers use the Wails DevTools).
 
 ### 9.3 Configuration
 

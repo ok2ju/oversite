@@ -5,9 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
-	"os"
 
 	"github.com/ok2ju/oversite/internal/faceit"
 )
@@ -26,11 +25,14 @@ type HTTPFaceitClient struct {
 // NewHTTPFaceitClient creates a FaceitClient that talks to the real Faceit API.
 // apiKey is a server-side API key for the Faceit Data API v4 (open.faceit.com).
 // When empty, Data API calls fall back to the user's OAuth token (which may 403).
-// Set OVERSITE_DEBUG_HTTP=1 to log all HTTP requests and responses to stderr.
-func NewHTTPFaceitClient(apiKey string) *HTTPFaceitClient {
-	debug := os.Getenv("OVERSITE_DEBUG_HTTP") == "1"
+// If transport is nil, http.DefaultTransport is used.
+func NewHTTPFaceitClient(apiKey string, transport http.RoundTripper) *HTTPFaceitClient {
+	client := &http.Client{}
+	if transport != nil {
+		client.Transport = transport
+	}
 	return &HTTPFaceitClient{
-		httpClient:  newHTTPClient(debug),
+		httpClient:  client,
 		userInfoURL: UserInfoURL,
 		apiKey:      apiKey,
 	}
@@ -83,7 +85,7 @@ func (c *HTTPFaceitClient) GetPlayer(ctx context.Context, playerID string) (*fac
 			// Fall back to userinfo data including elo/level if the v4
 			// endpoint rejects the OAuth token (it may require a server
 			// API key). The OIDC endpoint often includes these fields.
-			log.Printf("faceit: Data API v4 player fetch failed, using OIDC fallback: %v", err)
+			slog.Warn("faceit Data API v4 player fetch failed, using OIDC fallback", "err", err)
 			return &faceit.FaceitPlayer{
 				PlayerID:   info.PlayerID,
 				Nickname:   info.Nickname,

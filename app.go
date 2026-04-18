@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,9 +18,11 @@ import (
 	"github.com/ok2ju/oversite/internal/database"
 	"github.com/ok2ju/oversite/internal/demo"
 	"github.com/ok2ju/oversite/internal/faceit"
+	"github.com/ok2ju/oversite/internal/logging"
 	"github.com/ok2ju/oversite/internal/store"
 	"github.com/ok2ju/oversite/migrations"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 // App struct holds application state and is bound to the frontend.
@@ -31,6 +35,12 @@ type App struct {
 	importService   *demo.ImportService
 	syncService     *faceit.SyncService
 	downloadService *faceit.DownloadService
+
+	// logDir is the directory containing errors.txt / network.txt.
+	// Set by main.go before Startup runs.
+	logDir string
+	// networkLog is non-nil only in dev builds; closed in Shutdown.
+	networkLog *lumberjack.Logger
 }
 
 // NewApp creates a new App instance.
@@ -58,10 +68,25 @@ func (a *App) Startup(ctx context.Context) {
 	// Demo import service.
 	a.importService = demo.NewImportService(a.queries, a.db)
 
+	// Build the shared HTTP transport. In dev builds, HTTP traffic is dumped
+	// to network.txt; in production builds no transport wrapping is applied.
+	var httpTransport http.RoundTripper
+	var httpClient *http.Client
+	if wailsRuntime.Environment(ctx).BuildType == "dev" {
+		netLog, nlErr := logging.OpenNetworkLog(a.logDir)
+		if nlErr != nil {
+			slog.Warn("failed to open network log", "err", nlErr)
+		} else {
+			a.networkLog = netLog
+			httpTransport = logging.NewTransport(http.DefaultTransport, netLog)
+			httpClient = &http.Client{Transport: httpTransport}
+		}
+	}
+
 	// Auth service with OS keychain and real Faceit client.
 	kr := &auth.RealKeyring{}
 	tokens := auth.NewTokenStore(kr)
-	faceitClient := auth.NewHTTPFaceitClient(os.Getenv("FACEIT_API_KEY"))
+	faceitClient := auth.NewHTTPFaceitClient(os.Getenv("FACEIT_API_KEY"), httpTransport)
 
 	oauthCfg := auth.OAuthConfig{
 		ClientID:     os.Getenv("FACEIT_CLIENT_ID"),
@@ -69,6 +94,7 @@ func (a *App) Startup(ctx context.Context) {
 		AuthURL:      os.Getenv("FACEIT_AUTH_URL"),
 		TokenURL:     os.Getenv("FACEIT_TOKEN_URL"),
 		RelayURL:     os.Getenv("FACEIT_RELAY_URL"),
+		HTTPClient:   httpClient,
 	}
 
 	a.authService = auth.NewAuthService(
@@ -88,12 +114,16 @@ func (a *App) Startup(ctx context.Context) {
 	// Try to restore a previous session (refresh access token from keychain).
 	// Non-fatal: if refresh fails the user simply needs to log in again.
 	if err := a.authService.TryRestoreSession(ctx); err != nil {
-		log.Printf("session restore: %v", err)
+		slog.Warn("session restore failed", "err", err)
 	}
 
+	downloadClient := httpClient
+	if downloadClient == nil {
+		downloadClient = &http.Client{}
+	}
 	downloadDir := filepath.Join(filepath.Dir(dbPath), "demos")
 	a.downloadService = faceit.NewDownloadService(
-		auth.NewDebugHTTPClient(),
+		downloadClient,
 		a.importService,
 		a.queries,
 		downloadDir,
@@ -105,6 +135,10 @@ func (a *App) Shutdown(_ context.Context) {
 	if a.db != nil {
 		_ = a.db.Close()
 	}
+	if a.networkLog != nil {
+		_ = a.networkLog.Close()
+	}
+	_ = logging.Close()
 }
 
 // Greet returns a greeting for the given name.
@@ -316,7 +350,7 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		Status: "parsing",
 		ID:     demoID,
 	}); err != nil {
-		log.Printf("parseDemo(%d): update status to parsing: %v", demoID, err)
+		slog.Error("parseDemo: update status to parsing", "demo_id", demoID, "err", err)
 		return
 	}
 
@@ -324,7 +358,7 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 
 	f, err := os.Open(filePath)
 	if err != nil {
-		log.Printf("parseDemo(%d): open file: %v", demoID, err)
+		slog.Error("parseDemo: open file", "demo_id", demoID, "err", err)
 		a.failDemo(demoID, fmt.Sprintf("open file: %v", err), emitProgress)
 		return
 	}
@@ -336,7 +370,7 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 
 	result, err := parser.Parse(f)
 	if err != nil {
-		log.Printf("parseDemo(%d): parse: %v", demoID, err)
+		slog.Error("parseDemo: parse", "demo_id", demoID, "err", err)
 		a.failDemo(demoID, fmt.Sprintf("parse failed: %v", err), emitProgress)
 		return
 	}
@@ -344,14 +378,14 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 	// Ingest rounds + player stats.
 	roundMap, err := demo.IngestRounds(a.ctx, a.db, demoID, result)
 	if err != nil {
-		log.Printf("parseDemo(%d): ingest rounds: %v", demoID, err)
+		slog.Error("parseDemo: ingest rounds", "demo_id", demoID, "err", err)
 		a.failDemo(demoID, fmt.Sprintf("ingest rounds: %v", err), emitProgress)
 		return
 	}
 
 	// Ingest game events.
 	if _, err := demo.IngestGameEvents(a.ctx, a.db, demoID, result.Events, roundMap); err != nil {
-		log.Printf("parseDemo(%d): ingest events: %v", demoID, err)
+		slog.Error("parseDemo: ingest events", "demo_id", demoID, "err", err)
 		a.failDemo(demoID, fmt.Sprintf("ingest events: %v", err), emitProgress)
 		return
 	}
@@ -359,7 +393,7 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 	// Ingest tick data.
 	ingester := demo.NewTickIngester(a.db, 0)
 	if _, err := ingester.Ingest(a.ctx, demoID, result.Ticks); err != nil {
-		log.Printf("parseDemo(%d): ingest ticks: %v", demoID, err)
+		slog.Error("parseDemo: ingest ticks", "demo_id", demoID, "err", err)
 		a.failDemo(demoID, fmt.Sprintf("ingest ticks: %v", err), emitProgress)
 		return
 	}
@@ -372,7 +406,7 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		DurationSecs: int64(result.Header.DurationSecs),
 		ID:           demoID,
 	}); err != nil {
-		log.Printf("parseDemo(%d): update after parse: %v", demoID, err)
+		slog.Error("parseDemo: update after parse", "demo_id", demoID, "err", err)
 		a.failDemo(demoID, fmt.Sprintf("save metadata: %v", err), emitProgress)
 		return
 	}
@@ -575,7 +609,7 @@ func (a *App) GetFaceitProfile() (*FaceitProfile, error) {
 		matchesPlayed = stats.Matches
 	} else {
 		if statsErr != nil {
-			log.Printf("faceit: lifetime stats unavailable, using local count: %v", statsErr)
+			slog.Warn("faceit lifetime stats unavailable, using local count", "err", statsErr)
 		}
 		localCount, err := a.queries.CountFaceitMatchesByUserID(a.ctx, u.ID)
 		if err != nil {

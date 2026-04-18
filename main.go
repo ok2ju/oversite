@@ -2,8 +2,12 @@ package main
 
 import (
 	"embed"
+	"log"
+	"path/filepath"
 
 	"github.com/joho/godotenv"
+	"github.com/ok2ju/oversite/internal/database"
+	"github.com/ok2ju/oversite/internal/logging"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -17,9 +21,21 @@ func init() {
 var assets embed.FS
 
 func main() {
-	app := NewApp()
+	// Initialize persistent logging before anything else so startup errors
+	// land in errors.txt. AppDataDir also ensures the base dir exists.
+	dataDir, err := database.AppDataDir()
+	if err != nil {
+		log.Fatalf("resolving app data dir: %v", err)
+	}
+	logDir := filepath.Join(dataDir, "logs")
+	if err := logging.Init(logDir); err != nil {
+		log.Fatalf("initializing logger: %v", err)
+	}
 
-	err := wails.Run(&options.App{
+	app := NewApp()
+	app.logDir = logDir
+
+	err = wails.Run(&options.App{
 		Title:  "Oversite",
 		Width:  1280,
 		Height: 800,

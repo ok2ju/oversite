@@ -19,6 +19,18 @@ type OAuthConfig struct {
 	AuthURL      string
 	TokenURL     string
 	RelayURL     string // HTTPS relay page (e.g. "https://ok2ju.github.io/oversite/oauth/callback")
+
+	// HTTPClient is used for token exchange and refresh requests. When nil,
+	// http.DefaultClient is used. Injecting a client lets callers attach a
+	// custom transport (e.g. the dev-only network logging transport).
+	HTTPClient *http.Client
+}
+
+func (c OAuthConfig) client() *http.Client {
+	if c.HTTPClient != nil {
+		return c.HTTPClient
+	}
+	return http.DefaultClient
 }
 
 // TokenResponse represents the token response from the OAuth provider.
@@ -152,7 +164,7 @@ func RefreshTokens(ctx context.Context, cfg OAuthConfig, refreshToken string) (*
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(cfg.ClientID, cfg.ClientSecret)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := cfg.client().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("sending refresh request: %w", err)
 	}
@@ -192,7 +204,7 @@ func exchangeCode(ctx context.Context, cfg OAuthConfig, code, verifier, redirect
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(cfg.ClientID, cfg.ClientSecret)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := cfg.client().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("sending token request: %w", err)
 	}

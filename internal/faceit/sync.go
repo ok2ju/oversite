@@ -3,7 +3,7 @@ package faceit
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/ok2ju/oversite/internal/store"
@@ -102,7 +102,7 @@ func (s *SyncService) SyncMatches(ctx context.Context, userID int64, faceitID st
 				deaths = int64(stats.Deaths)
 				assists = int64(stats.Assists)
 			} else if statsErr != nil {
-				log.Printf("sync: match %s stats unavailable: %v", item.MatchID, statsErr)
+				slog.Warn("faceit match stats unavailable", "match_id", item.MatchID, "err", statsErr)
 			}
 
 			_, err = s.queries.UpsertFaceitMatch(ctx, store.UpsertFaceitMatchParams{
