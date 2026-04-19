@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { BadgeCheck } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -48,6 +49,8 @@ interface ProfileHeroProps {
 }
 
 export function ProfileHero({ profile, isLoading }: ProfileHeroProps) {
+  const [avatarBroken, setAvatarBroken] = useState(false)
+
   if (isLoading) {
     return (
       <Card
@@ -77,20 +80,31 @@ export function ProfileHero({ profile, isLoading }: ProfileHeroProps) {
       ? Math.max(0, Math.min(100, ((elo - floor) / (ceiling - floor)) * 100))
       : 0
   const levelColor = LEVEL_COLOR[level] ?? "var(--tier-5)"
+  const showAvatar = Boolean(profile.avatar_url) && !avatarBroken
 
   return (
     <Card className="grid gap-4 border border-[var(--border)] bg-[var(--bg-elevated)] px-5 py-4">
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-5">
         <div className="relative">
-          <div
-            className="grid h-[68px] w-[68px] place-items-center rounded-[10px] font-extrabold text-white"
-            style={{
-              fontSize: 24,
-              background: "linear-gradient(135deg, #ff8a3d, #e11d48)",
-            }}
-          >
-            {profile.nickname?.[0]?.toUpperCase() ?? "?"}
-          </div>
+          {showAvatar ? (
+            <img
+              src={profile.avatar_url as string}
+              alt={`${profile.nickname} avatar`}
+              className="h-[68px] w-[68px] rounded-[10px] object-cover"
+              referrerPolicy="no-referrer"
+              onError={() => setAvatarBroken(true)}
+            />
+          ) : (
+            <div
+              className="grid h-[68px] w-[68px] place-items-center rounded-[10px] font-extrabold text-white"
+              style={{
+                fontSize: 24,
+                background: "linear-gradient(135deg, #ff8a3d, #e11d48)",
+              }}
+            >
+              {profile.nickname?.[0]?.toUpperCase() ?? "?"}
+            </div>
+          )}
           <div
             className="absolute -right-1.5 -bottom-1.5 grid h-7 w-7 place-items-center rounded-[8px] text-[11px] font-bold text-white"
             style={{ background: levelColor }}

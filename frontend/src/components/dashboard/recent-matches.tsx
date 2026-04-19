@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { RefreshCw } from "lucide-react"
 import { Card } from "@/components/ui/card"
@@ -12,15 +12,28 @@ import { cn } from "@/lib/utils"
 
 const PER_PAGE = 8
 
+export const MATCH_ROW_GRID =
+  "grid grid-cols-[90px_120px_120px_80px_70px_70px_1fr_130px] items-center gap-x-4"
+
 export function RecentMatches() {
   const navigate = useNavigate()
   const [limit, setLimit] = useState(PER_PAGE)
-  const { data, isLoading, isError } = useFaceitMatches(1, limit)
+  const { data, isLoading, isError, isFetched } = useFaceitMatches(1, limit)
   const sync = useFaceitSync()
 
   const matches = data?.data ?? []
   const total = data?.meta.total ?? matches.length
   const canLoadMore = matches.length < total
+
+  const autoSynced = useRef(false)
+  useEffect(() => {
+    if (autoSynced.current) return
+    if (!isFetched || isError) return
+    if (matches.length > 0) return
+    if (sync.isPending) return
+    autoSynced.current = true
+    sync.mutate()
+  }, [isFetched, isError, matches.length, sync])
 
   function handleClick(match: FaceitMatch) {
     if (match.has_demo && match.demo_id) {
@@ -30,7 +43,7 @@ export function RecentMatches() {
 
   return (
     <Card className="overflow-hidden border border-[var(--border)] bg-[var(--bg-elevated)] p-0">
-      <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3.5">
+      <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
         <div>
           <div className="text-[15px] font-bold text-[var(--text)]">
             Recent Matches
@@ -58,23 +71,40 @@ export function RecentMatches() {
           {Array.from({ length: 3 }).map((_, i) => (
             <div
               key={i}
-              className="px-4 py-[14px]"
+              className="px-5 py-[14px]"
               data-testid="match-row-skeleton"
             >
-              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-9 w-full" />
             </div>
           ))}
         </div>
       ) : matches.length === 0 ? (
-        <div className="px-5 py-8 text-center text-[12.5px] text-[var(--text-muted)]">
+        <div className="px-5 py-10 text-center text-[12.5px] text-[var(--text-muted)]">
           {isError ? "Couldn't load matches" : "No recent matches"}
         </div>
       ) : (
-        <div className="divide-y divide-[var(--divider)]">
-          {matches.map((match) => (
-            <MatchRow key={match.id} match={match} onClick={handleClick} />
-          ))}
-        </div>
+        <>
+          <div
+            className={cn(
+              MATCH_ROW_GRID,
+              "border-b border-[var(--divider)] bg-[var(--bg)] px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--text-subtle)]",
+            )}
+          >
+            <div>Date</div>
+            <div>Score</div>
+            <div>KDA</div>
+            <div>ADR</div>
+            <div>K/D</div>
+            <div>K/R</div>
+            <div>Map</div>
+            <div />
+          </div>
+          <div className="divide-y divide-[var(--divider)]">
+            {matches.map((match) => (
+              <MatchRow key={match.id} match={match} onClick={handleClick} />
+            ))}
+          </div>
+        </>
       )}
 
       {canLoadMore && (

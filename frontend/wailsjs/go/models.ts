@@ -102,6 +102,7 @@ export namespace main {
 	    kills?: number;
 	    deaths?: number;
 	    assists?: number;
+	    adr?: number;
 	    demo_url?: string;
 	    demo_id?: string;
 	    has_demo: boolean;
@@ -122,6 +123,7 @@ export namespace main {
 	        this.kills = source["kills"];
 	        this.deaths = source["deaths"];
 	        this.assists = source["assists"];
+	        this.adr = source["adr"];
 	        this.demo_url = source["demo_url"];
 	        this.demo_id = source["demo_id"];
 	        this.has_demo = source["has_demo"];

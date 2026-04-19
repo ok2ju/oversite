@@ -40,6 +40,7 @@ type FaceitMatch struct {
 	DemoID        sql.NullInt64
 	PlayedAt      string
 	CreatedAt     string
+	Adr           float64
 }
 
 type GameEvent struct {

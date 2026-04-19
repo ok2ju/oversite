@@ -121,19 +121,20 @@ type CurrentStreak struct {
 
 // FaceitMatch represents a Faceit match.
 type FaceitMatch struct {
-	ID            string  `json:"id"`
-	FaceitMatchID string  `json:"faceit_match_id"`
-	MapName       string  `json:"map_name"`
-	ScoreTeam     int     `json:"score_team"`
-	ScoreOpponent int     `json:"score_opponent"`
-	Result        string  `json:"result"`
-	Kills         *int    `json:"kills"`
-	Deaths        *int    `json:"deaths"`
-	Assists       *int    `json:"assists"`
-	DemoURL       *string `json:"demo_url"`
-	DemoID        *string `json:"demo_id"`
-	HasDemo       bool    `json:"has_demo"`
-	PlayedAt      string  `json:"played_at"`
+	ID            string   `json:"id"`
+	FaceitMatchID string   `json:"faceit_match_id"`
+	MapName       string   `json:"map_name"`
+	ScoreTeam     int      `json:"score_team"`
+	ScoreOpponent int      `json:"score_opponent"`
+	Result        string   `json:"result"`
+	Kills         *int     `json:"kills"`
+	Deaths        *int     `json:"deaths"`
+	Assists       *int     `json:"assists"`
+	ADR           *float64 `json:"adr"`
+	DemoURL       *string  `json:"demo_url"`
+	DemoID        *string  `json:"demo_id"`
+	HasDemo       bool     `json:"has_demo"`
+	PlayedAt      string   `json:"played_at"`
 }
 
 // FolderImportResult is the response from importing a folder of demos.

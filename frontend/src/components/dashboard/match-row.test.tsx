@@ -24,6 +24,7 @@ function makeMatch(overrides: Partial<FaceitMatch> = {}): FaceitMatch {
     kills: 20,
     deaths: 15,
     assists: 5,
+    adr: 82.5,
     demo_url: null,
     demo_id: null,
     has_demo: false,
@@ -50,11 +51,11 @@ describe("MatchRow", () => {
     expect(dot).toHaveStyle({ background: "var(--loss)" })
   })
 
-  it("shows Demo ready pill when has_demo is true", () => {
+  it("shows Imported pill when has_demo is true", () => {
     renderWithProviders(
       <MatchRow match={makeMatch({ has_demo: true, demo_id: "42" })} />,
     )
-    expect(screen.getByText("Demo ready")).toBeInTheDocument()
+    expect(screen.getByText("Imported")).toBeInTheDocument()
   })
 
   it("shows No demo pill when neither demo_url nor has_demo", () => {

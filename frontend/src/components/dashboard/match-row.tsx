@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react"
-import { Download } from "lucide-react"
+import { Download, Loader2 } from "lucide-react"
 import { EventsOff, EventsOn } from "@wailsjs/runtime/runtime"
 import { cn } from "@/lib/utils"
 import { MapTile, resolveMap } from "@/components/dashboard/map-tile"
+import { MATCH_ROW_GRID } from "@/components/dashboard/recent-matches"
 import { useDemoDownload } from "@/hooks/use-demo-download"
 import { useDemoStore } from "@/stores/demo"
 import type { FaceitMatch } from "@/types/faceit"
@@ -12,21 +13,27 @@ interface DownloadProgress {
   totalBytes: number
 }
 
-function relativeTime(iso: string): string {
-  const now = Date.now()
-  const ts = new Date(iso).getTime()
-  const diffMs = now - ts
-  const mins = Math.round(diffMs / 60_000)
-  if (mins < 60) return `${Math.max(1, mins)}m ago`
-  const hrs = Math.round(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  const days = Math.round(hrs / 24)
-  if (days === 1) return "Yesterday"
-  if (days < 7) return `${days}d ago`
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
+function formatMatchDate(iso: string): { day: string; time: string } {
+  const d = new Date(iso)
+  const now = new Date()
+  const time = d.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
   })
+  const sameDay = d.toDateString() === now.toDateString()
+  if (sameDay) return { day: "Today", time }
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  if (d.toDateString() === yesterday.toDateString()) {
+    return { day: "Yesterday", time }
+  }
+  const day = d.toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  })
+  return { day, time }
 }
 
 interface MatchRowProps {
@@ -34,29 +41,23 @@ interface MatchRowProps {
   onClick?: (match: FaceitMatch) => void
 }
 
-function StatCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col items-center px-2">
-      <div className="text-[9.5px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]">
-        {label}
-      </div>
-      <div className="tabular text-[12.5px] font-semibold text-[var(--text)] leading-tight">
-        {value}
-      </div>
-    </div>
-  )
-}
-
 export function MatchRow({ match, onClick }: MatchRowProps) {
-  const win = match.result === "W"
   const meta = resolveMap(match.map_name)
 
   const kills = match.kills ?? 0
   const deaths = match.deaths ?? 0
   const assists = match.assists ?? 0
+  const totalRounds = match.score_team + match.score_opponent
+
   const kd = deaths > 0 ? (kills / deaths).toFixed(2) : "—"
-  const kMinusD = kills - deaths
-  const diff = kMinusD > 0 ? `+${kMinusD}` : `${kMinusD}`
+  const kr = totalRounds > 0 ? (kills / totalRounds).toFixed(2) : "—"
+  const kda =
+    match.kills != null && match.deaths != null && match.assists != null
+      ? `${kills} / ${deaths} / ${assists}`
+      : "—"
+  const adr = match.adr != null ? match.adr.toFixed(1) : "—"
+
+  const { day, time } = formatMatchDate(match.played_at)
 
   const canOpen = match.has_demo && match.demo_id != null
   const canImport = !match.has_demo && !!match.demo_url
@@ -131,49 +132,38 @@ export function MatchRow({ match, onClick }: MatchRowProps) {
       }}
       data-testid={`match-row-${match.id}`}
       className={cn(
-        "grid w-full grid-cols-[16px_1fr_auto] items-center gap-[18px] px-4 py-[14px] text-left transition-colors",
+        MATCH_ROW_GRID,
+        "px-5 py-3 text-left text-[13px] text-[var(--text)] transition-colors",
         interactive && "cursor-pointer hover:bg-[var(--bg-hover)]",
       )}
     >
-      <span
-        aria-label={win ? "Win" : "Loss"}
-        className="h-2 w-2 rounded-full"
-        style={{
-          background: win ? "var(--win)" : "var(--loss)",
-          boxShadow: `0 0 0 3px ${win ? "var(--win-soft)" : "var(--loss-soft)"}`,
-        }}
-      />
-
-      <div className="flex min-w-0 items-center gap-3">
-        <MapTile mapName={match.map_name} size={36} />
-        <div className="min-w-0">
-          <div className="truncate text-[13.5px] font-semibold text-[var(--text)]">
-            {meta.name}
-          </div>
-          <div className="text-[11.5px] text-[var(--text-muted)]">5v5</div>
-        </div>
-
-        <div className="tabular ml-5 flex items-baseline gap-1.5">
-          <span
-            className="text-[22px] font-bold leading-none"
-            style={{ color: win ? "var(--win)" : "var(--loss)" }}
-          >
-            {match.score_team}
-          </span>
-          <span className="text-[13px] text-[var(--text-subtle)]">:</span>
-          <span className="text-[22px] font-bold leading-none text-[var(--text-faint)]">
-            {match.score_opponent}
-          </span>
-        </div>
-
-        <div className="ml-6 hidden items-center divide-x divide-[var(--divider)] md:flex">
-          <StatCell label="K/D" value={kd} />
-          <StatCell label="K-D" value={diff} />
-          <StatCell label="A" value={String(assists)} />
-        </div>
+      <div className="leading-tight">
+        <div className="text-[13px] font-medium text-[var(--text)]">{day}</div>
+        <div className="text-[11.5px] text-[var(--text-muted)]">{time}</div>
       </div>
 
-      <div className="flex flex-col items-end gap-1.5">
+      <ScoreCell
+        result={match.result}
+        team={match.score_team}
+        opponent={match.score_opponent}
+      />
+
+      <div className="tabular font-medium">{kda}</div>
+
+      <div className="tabular font-medium">{adr}</div>
+
+      <div className="tabular font-medium">{kd}</div>
+
+      <div className="tabular font-medium">{kr}</div>
+
+      <div className="flex min-w-0 items-center gap-2">
+        <MapTile mapName={match.map_name} size={24} />
+        <span className="truncate text-[13px] font-medium text-[var(--text)]">
+          {meta.name}
+        </span>
+      </div>
+
+      <div className="flex items-center justify-end">
         {download.isPending || downloadProgress ? (
           <DownloadPill progress={downloadProgress} />
         ) : parsingThisDemo || waitingNav ? (
@@ -183,7 +173,7 @@ export function MatchRow({ match, onClick }: MatchRowProps) {
             type="button"
             onClick={handleImport}
             data-testid={`match-row-${match.id}-import`}
-            className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--accent-ink)] transition-colors hover:bg-[var(--accent)]/20"
+            className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[11px] font-semibold text-[var(--accent-ink)] transition-colors hover:bg-[var(--accent)]/20"
           >
             <Download className="h-3 w-3" />
             Import demo
@@ -191,10 +181,37 @@ export function MatchRow({ match, onClick }: MatchRowProps) {
         ) : (
           <DemoStatePill match={match} />
         )}
-        <span className="text-[11.5px] text-[var(--text-subtle)]">
-          {relativeTime(match.played_at)}
-        </span>
       </div>
+    </div>
+  )
+}
+
+function ScoreCell({
+  result,
+  team,
+  opponent,
+}: {
+  result: "W" | "L"
+  team: number
+  opponent: number
+}) {
+  const win = result === "W"
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        aria-label={win ? "Win" : "Loss"}
+        className="inline-grid h-6 w-6 place-items-center rounded-[6px] text-[11px] font-bold text-white"
+        style={{
+          background: win ? "var(--win)" : "var(--loss)",
+        }}
+      >
+        {result}
+      </span>
+      <span className="tabular flex items-baseline gap-1 text-[15px] font-bold leading-none">
+        <span className="text-[var(--text)]">{team}</span>
+        <span className="text-[var(--text-subtle)]">:</span>
+        <span className="text-[var(--text-muted)]">{opponent}</span>
+      </span>
     </div>
   )
 }
@@ -209,16 +226,13 @@ function DownloadPill({ progress }: { progress: DownloadProgress | null }) {
       : null
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium"
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
       style={{
         background: "var(--accent-soft)",
         color: "var(--accent-ink)",
       }}
     >
-      <span
-        className="h-1.5 w-1.5 animate-pulse rounded-full"
-        style={{ background: "var(--accent)" }}
-      />
+      <Loader2 className="h-3 w-3 animate-spin" />
       {pct != null ? `Downloading ${pct}%` : "Downloading…"}
     </span>
   )
@@ -229,16 +243,13 @@ function ParsingPill({ percent }: { percent?: number }) {
     typeof percent === "number" ? Math.max(0, Math.min(100, percent)) : null
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium"
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
       style={{
         background: "var(--accent-soft)",
         color: "var(--accent-ink)",
       }}
     >
-      <span
-        className="h-1.5 w-1.5 animate-pulse rounded-full"
-        style={{ background: "var(--accent)" }}
-      />
+      <Loader2 className="h-3 w-3 animate-spin" />
       {pct != null ? `Parsing ${pct}%` : "Parsing…"}
     </span>
   )
@@ -254,10 +265,10 @@ export function DemoStatePill({ match }: { match: FaceitMatch }) {
 
   const config = {
     ready: {
-      label: "Demo ready",
-      color: "var(--accent-ink)",
-      bg: "var(--accent-soft)",
-      dot: "var(--accent)",
+      label: "Imported",
+      color: "var(--win)",
+      bg: "var(--win-soft)",
+      dot: "var(--win)",
     },
     available: {
       label: "Demo available",
@@ -276,7 +287,7 @@ export function DemoStatePill({ match }: { match: FaceitMatch }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold",
       )}
       style={{ background: config.bg, color: config.color }}
     >

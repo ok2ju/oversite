@@ -1,23 +1,7 @@
-import { describe, it, expect, vi } from "vitest"
+import { describe, it, expect } from "vitest"
 import { screen } from "@testing-library/react"
 import { renderWithProviders } from "@/test/render"
 import { Header } from "@/components/layout/header"
-
-vi.mock("@/components/providers/auth-provider", () => ({
-  useAuth: () => ({
-    user: { user_id: "u1", faceit_id: "f1", nickname: "TestPlayer" },
-    isLoading: false,
-    isAuthenticated: true,
-    logout: vi.fn(),
-  }),
-}))
-
-vi.mock("@/hooks/use-faceit-sync", () => ({
-  useFaceitSync: () => ({
-    mutate: vi.fn(),
-    isPending: false,
-  }),
-}))
 
 describe("Header", () => {
   it("renders a derived page title for the current route", () => {
@@ -59,10 +43,10 @@ describe("Header", () => {
     expect(home).toHaveAttribute("href", "/dashboard")
   })
 
-  it("renders a sync button by default", () => {
+  it("does not render a sync button", () => {
     renderWithProviders(<Header />, { initialRoute: "/dashboard" })
     expect(
-      screen.getByRole("button", { name: /sync faceit data/i }),
-    ).toBeInTheDocument()
+      screen.queryByRole("button", { name: /sync faceit data/i }),
+    ).not.toBeInTheDocument()
   })
 })

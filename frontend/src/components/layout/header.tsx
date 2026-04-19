@@ -1,9 +1,5 @@
 import { Link, useLocation } from "react-router-dom"
-import { RefreshCw } from "lucide-react"
-import { cn } from "@/lib/utils"
 import { navItems } from "@/components/layout/sidebar"
-import { useAuth } from "@/components/providers/auth-provider"
-import { useFaceitSync } from "@/hooks/use-faceit-sync"
 
 export interface HeaderProps {
   title?: string
@@ -21,26 +17,6 @@ function deriveTitle(pathname: string): string {
   if (pathname.startsWith("/matches/")) return "Match detail"
   if (pathname.startsWith("/demos/")) return "Demo viewer"
   return "Oversite"
-}
-
-function SyncButton() {
-  const { isAuthenticated } = useAuth()
-  const sync = useFaceitSync()
-
-  return (
-    <button
-      type="button"
-      className="header-sync"
-      onClick={() => sync.mutate()}
-      disabled={sync.isPending || !isAuthenticated}
-      aria-label="Sync Faceit data"
-    >
-      <RefreshCw
-        className={cn("h-3.5 w-3.5", sync.isPending && "animate-spin")}
-      />
-      <span>{sync.isPending ? "Syncing…" : "Sync"}</span>
-    </button>
-  )
 }
 
 export function Header({ title, subtitle, actions }: HeaderProps = {}) {
@@ -70,10 +46,9 @@ export function Header({ title, subtitle, actions }: HeaderProps = {}) {
         <div className="page-title">{resolvedTitle}</div>
         {subtitle ? <div className="page-subtitle">{subtitle}</div> : null}
       </div>
-      <div className="flex items-center gap-2">
-        <SyncButton />
-        {actions}
-      </div>
+      {actions ? (
+        <div className="flex items-center gap-2">{actions}</div>
+      ) : null}
     </div>
   )
 }

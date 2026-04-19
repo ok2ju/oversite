@@ -49,9 +49,9 @@ func (q *Queries) CountFaceitMatchesFiltered(ctx context.Context, arg CountFacei
 }
 
 const createFaceitMatch = `-- name: CreateFaceitMatch :one
-INSERT INTO faceit_matches (user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
-RETURNING id, user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at, created_at
+INSERT INTO faceit_matches (user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, adr, demo_url, demo_id, played_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+RETURNING id, user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at, created_at, adr
 `
 
 type CreateFaceitMatchParams struct {
@@ -66,6 +66,7 @@ type CreateFaceitMatchParams struct {
 	Kills         int64
 	Deaths        int64
 	Assists       int64
+	Adr           float64
 	DemoUrl       string
 	DemoID        sql.NullInt64
 	PlayedAt      string
@@ -84,6 +85,7 @@ func (q *Queries) CreateFaceitMatch(ctx context.Context, arg CreateFaceitMatchPa
 		arg.Kills,
 		arg.Deaths,
 		arg.Assists,
+		arg.Adr,
 		arg.DemoUrl,
 		arg.DemoID,
 		arg.PlayedAt,
@@ -106,6 +108,7 @@ func (q *Queries) CreateFaceitMatch(ctx context.Context, arg CreateFaceitMatchPa
 		&i.DemoID,
 		&i.PlayedAt,
 		&i.CreatedAt,
+		&i.Adr,
 	)
 	return i, err
 }
@@ -177,7 +180,7 @@ func (q *Queries) GetExistingFaceitMatchIDs(ctx context.Context, userID int64) (
 }
 
 const getFaceitMatchByID = `-- name: GetFaceitMatchByID :one
-SELECT id, user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at, created_at FROM faceit_matches WHERE id = ?1
+SELECT id, user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at, created_at, adr FROM faceit_matches WHERE id = ?1
 `
 
 func (q *Queries) GetFaceitMatchByID(ctx context.Context, id int64) (FaceitMatch, error) {
@@ -200,12 +203,41 @@ func (q *Queries) GetFaceitMatchByID(ctx context.Context, id int64) (FaceitMatch
 		&i.DemoID,
 		&i.PlayedAt,
 		&i.CreatedAt,
+		&i.Adr,
 	)
 	return i, err
 }
 
+const getFaceitMatchIDsMissingADR = `-- name: GetFaceitMatchIDsMissingADR :many
+SELECT faceit_match_id FROM faceit_matches
+WHERE user_id = ?1 AND adr = 0
+`
+
+func (q *Queries) GetFaceitMatchIDsMissingADR(ctx context.Context, userID int64) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, getFaceitMatchIDsMissingADR, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var faceit_match_id string
+		if err := rows.Scan(&faceit_match_id); err != nil {
+			return nil, err
+		}
+		items = append(items, faceit_match_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getFaceitMatchesByUserID = `-- name: GetFaceitMatchesByUserID :many
-SELECT id, user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at, created_at FROM faceit_matches
+SELECT id, user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at, created_at, adr FROM faceit_matches
 WHERE user_id = ?1
 ORDER BY played_at DESC
 LIMIT ?3 OFFSET ?2
@@ -243,6 +275,7 @@ func (q *Queries) GetFaceitMatchesByUserID(ctx context.Context, arg GetFaceitMat
 			&i.DemoID,
 			&i.PlayedAt,
 			&i.CreatedAt,
+			&i.Adr,
 		); err != nil {
 			return nil, err
 		}
@@ -258,7 +291,7 @@ func (q *Queries) GetFaceitMatchesByUserID(ctx context.Context, arg GetFaceitMat
 }
 
 const getFaceitMatchesFiltered = `-- name: GetFaceitMatchesFiltered :many
-SELECT id, user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at, created_at FROM faceit_matches
+SELECT id, user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at, created_at, adr FROM faceit_matches
 WHERE user_id = ?1
   AND played_at >= ?2
   AND (?3 IS NULL OR map_name = ?3)
@@ -309,6 +342,7 @@ func (q *Queries) GetFaceitMatchesFiltered(ctx context.Context, arg GetFaceitMat
 			&i.DemoID,
 			&i.PlayedAt,
 			&i.CreatedAt,
+			&i.Adr,
 		); err != nil {
 			return nil, err
 		}
@@ -325,7 +359,7 @@ func (q *Queries) GetFaceitMatchesFiltered(ctx context.Context, arg GetFaceitMat
 
 const linkFaceitMatchToDemo = `-- name: LinkFaceitMatchToDemo :one
 UPDATE faceit_matches SET demo_id = ?1 WHERE id = ?2
-RETURNING id, user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at, created_at
+RETURNING id, user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at, created_at, adr
 `
 
 type LinkFaceitMatchToDemoParams struct {
@@ -353,6 +387,7 @@ func (q *Queries) LinkFaceitMatchToDemo(ctx context.Context, arg LinkFaceitMatch
 		&i.DemoID,
 		&i.PlayedAt,
 		&i.CreatedAt,
+		&i.Adr,
 	)
 	return i, err
 }
@@ -386,14 +421,15 @@ func (q *Queries) UpdateMatchScoreResult(ctx context.Context, arg UpdateMatchSco
 
 const updateMatchStats = `-- name: UpdateMatchStats :exec
 UPDATE faceit_matches
-SET kills = ?1, deaths = ?2, assists = ?3
-WHERE user_id = ?4 AND faceit_match_id = ?5
+SET kills = ?1, deaths = ?2, assists = ?3, adr = ?4
+WHERE user_id = ?5 AND faceit_match_id = ?6
 `
 
 type UpdateMatchStatsParams struct {
 	Kills         int64
 	Deaths        int64
 	Assists       int64
+	Adr           float64
 	UserID        int64
 	FaceitMatchID string
 }
@@ -403,6 +439,7 @@ func (q *Queries) UpdateMatchStats(ctx context.Context, arg UpdateMatchStatsPara
 		arg.Kills,
 		arg.Deaths,
 		arg.Assists,
+		arg.Adr,
 		arg.UserID,
 		arg.FaceitMatchID,
 	)
@@ -410,10 +447,10 @@ func (q *Queries) UpdateMatchStats(ctx context.Context, arg UpdateMatchStatsPara
 }
 
 const upsertFaceitMatch = `-- name: UpsertFaceitMatch :one
-INSERT INTO faceit_matches (user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+INSERT INTO faceit_matches (user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, adr, demo_url, demo_id, played_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
 ON CONFLICT (user_id, faceit_match_id) DO NOTHING
-RETURNING id, user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at, created_at
+RETURNING id, user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at, created_at, adr
 `
 
 type UpsertFaceitMatchParams struct {
@@ -428,6 +465,7 @@ type UpsertFaceitMatchParams struct {
 	Kills         int64
 	Deaths        int64
 	Assists       int64
+	Adr           float64
 	DemoUrl       string
 	DemoID        sql.NullInt64
 	PlayedAt      string
@@ -446,6 +484,7 @@ func (q *Queries) UpsertFaceitMatch(ctx context.Context, arg UpsertFaceitMatchPa
 		arg.Kills,
 		arg.Deaths,
 		arg.Assists,
+		arg.Adr,
 		arg.DemoUrl,
 		arg.DemoID,
 		arg.PlayedAt,
@@ -468,6 +507,7 @@ func (q *Queries) UpsertFaceitMatch(ctx context.Context, arg UpsertFaceitMatchPa
 		&i.DemoID,
 		&i.PlayedAt,
 		&i.CreatedAt,
+		&i.Adr,
 	)
 	return i, err
 }
