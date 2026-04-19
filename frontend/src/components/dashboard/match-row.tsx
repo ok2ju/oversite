@@ -113,7 +113,7 @@ export function MatchRow({ match, onClick }: MatchRowProps) {
 
   function handleImport(e: React.MouseEvent) {
     e.stopPropagation()
-    download.mutate(match.faceit_match_id)
+    download.mutate(match.id)
   }
 
   const interactive = canOpen

@@ -1,6 +1,7 @@
-import { Search, SlidersHorizontal, Download } from "lucide-react"
+import { Search, SlidersHorizontal, Download, Upload } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { useImportDemo } from "@/hooks/use-demos"
 import { cn } from "@/lib/utils"
 
 export type DemosFilter = "all" | "wins" | "losses" | "parsing"
@@ -25,6 +26,8 @@ export function DemosToolbar({
   filter,
   onFilterChange,
 }: DemosToolbarProps) {
+  const { importDemo, isImporting } = useImportDemo()
+
   return (
     <div className="flex items-center gap-3">
       <div className="relative w-full max-w-[320px]">
@@ -73,6 +76,15 @@ export function DemosToolbar({
         <Button variant="ghost" size="sm" className="gap-1.5" disabled>
           <Download className="h-3.5 w-3.5" />
           Export
+        </Button>
+        <Button
+          size="sm"
+          className="gap-1.5"
+          onClick={() => importDemo()}
+          disabled={isImporting}
+        >
+          <Upload className="h-3.5 w-3.5" />
+          {isImporting ? "Importing…" : "Import demos"}
         </Button>
       </div>
     </div>

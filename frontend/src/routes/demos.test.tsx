@@ -34,6 +34,17 @@ describe("DemosPage", () => {
     })
   })
 
+  it("calls ImportDemoFile when Import demos is clicked", async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<DemosPage />)
+
+    await user.click(screen.getByRole("button", { name: /import demos/i }))
+
+    await waitFor(() => {
+      expect(mockAppBindings.ImportDemoFile).toHaveBeenCalled()
+    })
+  })
+
   it("shows an empty-state row when there are no demos", async () => {
     mockAppBindings.ListDemos.mockResolvedValueOnce({
       data: [],

@@ -10,5 +10,8 @@ export function useDemoDownload() {
       queryClient.invalidateQueries({ queryKey: ["demos"] })
       queryClient.invalidateQueries({ queryKey: ["faceit-matches"] })
     },
+    onError: (error) => {
+      console.error("ImportMatchDemo failed:", error)
+    },
   })
 }

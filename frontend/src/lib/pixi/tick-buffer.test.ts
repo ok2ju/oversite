@@ -212,6 +212,26 @@ describe("TickBuffer", () => {
     })
   })
 
+  describe("sparse sampling", () => {
+    it("returns the nearest prior sample for unsampled ticks in a loaded chunk", async () => {
+      // Simulate backend sampling every 4th tick.
+      const sparse: TickData[] = []
+      for (let t = 0; t < 100; t += 4) {
+        sparse.push(makeTick(t, "76561198000000001"))
+        sparse.push(makeTick(t, "76561198000000002"))
+      }
+      fetchFn.mockResolvedValue(sparse)
+
+      buffer.getTickData(0)
+      await vi.waitFor(() => expect(buffer.getTickData(0)).not.toBeNull())
+
+      // Tick 5 is not sampled; should return tick 4's data, not empty.
+      const result = buffer.getTickData(5)
+      expect(result).toHaveLength(2)
+      expect(result![0].tick).toBe(4)
+    })
+  })
+
   describe("error handling", () => {
     it("returns null on network error without crashing", async () => {
       fetchFn.mockRejectedValue(new Error("network error"))

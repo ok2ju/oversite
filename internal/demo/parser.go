@@ -125,16 +125,17 @@ func NewDemoParser(opts ...Option) *DemoParser {
 
 // parseState holds mutable state tracked during parsing.
 type parseState struct {
-	mapName      string
-	inWarmup     bool
-	matchStarted bool
-	currentRound int
-	roundStart   int
-	ctScore      int
-	tScore       int
-	rounds       []RoundData
-	ticks        []TickSnapshot
-	events       []GameEvent
+	mapName         string
+	inWarmup        bool
+	matchStarted    bool
+	currentRound    int
+	roundStart      int
+	ctScore         int
+	tScore          int
+	rounds          []RoundData
+	ticks           []TickSnapshot
+	events          []GameEvent
+	lastSampledTick int
 }
 
 // Parse reads a CS2 demo from r and returns all extracted data.
@@ -306,6 +307,13 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 		if !shouldSampleTick(tick, dp.tickInterval) {
 			return
 		}
+		// FrameDone can fire multiple times per ingame tick during pauses or
+		// warmup/live transitions, which would emit duplicate (tick, steam_id)
+		// rows and fail the tick_data PK constraint on insert.
+		if tick == state.lastSampledTick {
+			return
+		}
+		state.lastSampledTick = tick
 
 		for _, player := range gs.Participants().Playing() {
 			if shouldSkipPlayer(player, dp.includeBots) {

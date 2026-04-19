@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { cn } from "@/lib/utils"
 
 interface MapMeta {
@@ -54,6 +55,21 @@ const MAP_GRADIENTS: Record<string, MapMeta> = {
   },
 }
 
+const MAP_ICONS: Record<string, string> = {
+  mirage: "/map_icons/map_icon_de_mirage.svg",
+  inferno: "/map_icons/map_icon_de_inferno.svg",
+  nuke: "/map_icons/map_icon_de_nuke.svg",
+  anubis: "/map_icons/map_icon_de_anubis.svg",
+  ancient: "/map_icons/map_icon_de_ancient.svg",
+  dust2: "/map_icons/map_icon_de_dust2.svg",
+  train: "/map_icons/map_icon_de_train.svg",
+  overpass: "/map_icons/map_icon_de_overpass.svg",
+}
+
+function mapKey(mapName: string): string {
+  return mapName.toLowerCase().replace(/^de_/, "")
+}
+
 function fallback(name: string): MapMeta {
   return {
     name,
@@ -63,7 +79,7 @@ function fallback(name: string): MapMeta {
 }
 
 export function resolveMap(mapName: string): MapMeta {
-  const key = mapName.toLowerCase().replace(/^de_/, "")
+  const key = mapKey(mapName)
   return MAP_GRADIENTS[key] ?? fallback(mapName)
 }
 
@@ -75,6 +91,23 @@ interface MapTileProps {
 
 export function MapTile({ mapName, size = 36, className }: MapTileProps) {
   const meta = resolveMap(mapName)
+  const iconSrc = MAP_ICONS[mapKey(mapName)]
+  const [iconFailed, setIconFailed] = useState(false)
+
+  if (iconSrc && !iconFailed) {
+    return (
+      <img
+        src={iconSrc}
+        alt={meta.name}
+        width={size}
+        height={size}
+        onError={() => setIconFailed(true)}
+        className={cn("shrink-0 rounded-[4px] object-contain", className)}
+        style={{ width: size, height: size }}
+      />
+    )
+  }
+
   return (
     <div
       className={cn(

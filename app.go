@@ -754,6 +754,9 @@ func (a *App) ImportMatchDemo(faceitMatchID string) error {
 			"totalBytes":      totalBytes,
 		})
 	})
+	if err != nil {
+		slog.Error("ImportMatchDemo failed", "faceit_match_id", faceitMatchID, "err", err)
+	}
 	return err
 }
 

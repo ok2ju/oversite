@@ -58,7 +58,17 @@ export class TickBuffer {
     if (cached) {
       cached.lastAccessed = Date.now()
       this.maybePrefetchNext(tick, chunkStart)
-      return cached.data.get(tick) ?? []
+
+      // Backend samples every Nth tick (see parser.go tickInterval). Walk back
+      // to the most recent sample within this chunk so frames between samples
+      // render the last known state instead of flickering to empty.
+      const MAX_WALK = 128
+      const floor = Math.max(chunkStart, tick - MAX_WALK)
+      for (let t = tick; t >= floor; t--) {
+        const data = cached.data.get(t)
+        if (data) return data
+      }
+      return []
     }
 
     this.fetchChunk(chunkStart)

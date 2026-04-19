@@ -103,7 +103,7 @@ describe("MatchRow", () => {
 
     await user.click(screen.getByRole("button", { name: /import demo/i }))
 
-    expect(mockAppBindings.ImportMatchDemo).toHaveBeenCalledWith("1-abc")
+    expect(mockAppBindings.ImportMatchDemo).toHaveBeenCalledWith("m-1")
     expect(onClick).not.toHaveBeenCalled()
   })
 
