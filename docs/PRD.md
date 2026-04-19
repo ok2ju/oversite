@@ -292,20 +292,22 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 
 - Paginated list of Faceit matches from the last 30 days
 - Each entry: map, score, K/D/A, date
-- Click to open demo (if available locally) in 2D Viewer
+- Rows with a Faceit-hosted demo but no local import show an **Import demo** button that downloads and auto-parses the demo in-process
+- Rows with an imported demo are clickable; click navigates to **Match Details** (F4.5). If the demo is still parsing when clicked, the row shows an inline "Parsing…" indicator and navigates automatically once parsing completes.
+- Rows with neither a local demo nor a Faceit demo URL are inert
 - Filter by map, result (W/L)
-
-#### F4.3 Performance Trends
-
-- Rolling averages for K/D ratio, win rate, ADR
-- Map-specific stats breakdown
-- Best/worst maps identification
 
 #### F4.4 Auto-Fetch
 
 - On login, automatically fetch the user's recent Faceit match history
 - In-process sync (no background worker -- runs in the Go backend directly)
 - Optionally auto-download demos from Faceit match rooms
+
+#### F4.5 Match Details
+
+- Dedicated route (`/matches/:demoId`) reached by clicking a match row with an imported demo (from the dashboard or the Demo Library)
+- Shows the match scoreboard, round-by-round timeline, map/mode/duration, and per-player stats
+- Toolbar includes a **Play demo** button that opens the 2D Viewer (`/demos/:demoId`); enabled only when the demo status is `ready`
 
 ---
 
@@ -345,6 +347,8 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 - Grid view option with map thumbnails
 - Sort by date, map, size
 - Search by player name, map name
+- Clicking a row navigates to **Match Details** (F4.5), not directly to the 2D Viewer. If the demo is still parsing, the click shows a "Parsing…" indicator and navigates automatically once parsing completes.
+- Row-hover action buttons still include direct **Play** (to `/demos/:id`, enabled only when status = `ready`) and **Delete**
 
 #### F6.3 Auto-Scan (Optional)
 

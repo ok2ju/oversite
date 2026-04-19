@@ -13,10 +13,11 @@ import LineupsPage from "@/routes/lineups"
 import SettingsPage from "@/routes/settings"
 import LoginPage from "@/routes/login"
 import CallbackPage from "@/routes/callback"
+import MatchDetailPage from "@/routes/match-detail"
 
 function App() {
   return (
-    <ThemeProvider defaultTheme="dark">
+    <ThemeProvider>
       <QueryProvider>
         <BrowserRouter>
           <AuthProvider>
@@ -28,6 +29,7 @@ function App() {
                 <Route path="dashboard" element={<DashboardPage />} />
                 <Route path="demos" element={<DemosPage />} />
                 <Route path="demos/:id" element={<DemoViewerPage />} />
+                <Route path="matches/:id" element={<MatchDetailPage />} />
                 <Route path="heatmaps" element={<HeatmapsPage />} />
                 <Route path="strats" element={<StratsPage />} />
                 <Route path="strats/:id" element={<StratBoardPage />} />

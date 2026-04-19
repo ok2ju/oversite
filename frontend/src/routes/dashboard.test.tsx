@@ -14,23 +14,23 @@ vi.mock("react-router-dom", async () => {
 })
 
 describe("DashboardPage", () => {
-  it("renders page heading", () => {
+  it("shows the profile hero skeleton while loading", () => {
     renderWithProviders(<DashboardPage />)
-
-    expect(screen.getByText("Dashboard")).toBeInTheDocument()
-    expect(screen.getByText("Your recent Faceit matches")).toBeInTheDocument()
+    expect(screen.getByTestId("profile-hero-skeleton")).toBeInTheDocument()
   })
 
-  it("shows loading states initially then renders profile data", async () => {
+  it("renders only the profile hero and recent matches after load", async () => {
     renderWithProviders(<DashboardPage />)
-
-    expect(screen.getByTestId("profile-card-skeleton")).toBeInTheDocument()
 
     await waitFor(() => {
       expect(screen.getByText("TestPlayer")).toBeInTheDocument()
     })
 
-    expect(screen.getByText("1850")).toBeInTheDocument()
-    expect(screen.getByText("Level 8")).toBeInTheDocument()
+    expect(screen.getByText("1,850")).toBeInTheDocument()
+    expect(screen.getByText("Recent Matches")).toBeInTheDocument()
+    expect(screen.queryByText("Performance")).not.toBeInTheDocument()
+    expect(screen.queryByText("Recent form")).not.toBeInTheDocument()
+    expect(screen.queryByText("Map performance")).not.toBeInTheDocument()
+    expect(screen.queryByText("Weapons")).not.toBeInTheDocument()
   })
 })

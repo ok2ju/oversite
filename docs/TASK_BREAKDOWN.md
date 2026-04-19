@@ -627,12 +627,12 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Complexity** | M |
 | **Deps** | P4-T01, P1-T10 |
 | **Test Types** | component |
-| **TDD Workflow** | 1. RED: Write test: dashboard renders profile card, match list, win/loss streak. 2. GREEN: Implement page with TanStack Query wrapping Wails bindings. 3. REFACTOR: Extract components. Task amended post-completion: the ELO chart was removed. |
-| **Description** | Faceit dashboard showing: profile card (avatar, nickname, level, ELO, country), recent match list (last 30 days), win/loss streak indicator. |
-| **Key Files** | `frontend/src/routes/dashboard.tsx`, `frontend/src/components/dashboard/profile-card.tsx`, `frontend/src/components/dashboard/match-list.tsx`, `frontend/src/routes/dashboard.test.tsx` |
-| **Acceptance Criteria** | - Profile card shows correct Faceit data |
-| | - Match list renders recent matches |
-| | - Win/loss streak displayed |
+| **TDD Workflow** | 1. RED: Write test: dashboard renders profile hero + match history. 2. GREEN: Implement page with TanStack Query wrapping Wails bindings. 3. REFACTOR: Extract components. Task amended post-completion: the ELO chart was removed, and the dashboard was later simplified (see P4-T11) to render only ProfileHero + RecentMatches. |
+| **Description** | Simplified Faceit dashboard showing: **ProfileHero** (avatar, nickname, level, ELO, country, progress to next tier) and **RecentMatches** (match history). No performance grid / recent form / map performance / weapons widgets — those either duplicated data shown on Match Details or were placeholders. |
+| **Key Files** | `frontend/src/routes/dashboard.tsx`, `frontend/src/components/dashboard/profile-hero.tsx`, `frontend/src/components/dashboard/recent-matches.tsx`, `frontend/src/routes/dashboard.test.tsx` |
+| **Acceptance Criteria** | - Profile hero shows correct Faceit data |
+| | - Match history list renders recent matches in a single column |
+| | - Dashboard renders **only** ProfileHero + RecentMatches |
 | | - Component tests pass with mock bindings |
 
 ### P4-T04: Build match history list [COMPLETE]
@@ -642,12 +642,14 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Complexity** | M |
 | **Deps** | P4-T02, P1-T10 |
 | **Test Types** | component |
-| **TDD Workflow** | 1. RED: Write test: match list renders paginated entries; clicking match opens demo if available. 2. GREEN: Implement match list with filters. 3. REFACTOR: Extract match card; add infinite scroll. |
-| **Description** | Paginated list of Faceit matches from the last 30 days: map, score, K/D/A, date. Filters: map, result (W/L). Click to open demo in viewer (if imported). |
-| **Key Files** | `frontend/src/components/faceit/match-list.tsx`, `frontend/src/components/faceit/match-card.tsx`, `frontend/src/components/faceit/match-list.test.tsx` |
+| **TDD Workflow** | 1. RED: Write test: match list renders paginated entries; clicking an imported row opens Match Details; rows with a Faceit `demo_url` but no local import show an Import button. 2. GREEN: Implement match list + row with Import button + parse-wait. 3. REFACTOR: Extract MatchRow. |
+| **Description** | Paginated list of Faceit matches from the last 30 days: map, score, K/D/A, date. Filters: map, result (W/L). Rows with `has_demo` navigate to **Match Details** (`/matches/:demoId`). Rows with only `demo_url` show an **Import demo** button that calls `ImportMatchDemo` and displays download + parse progress inline. Rows with neither are inert. |
+| **Key Files** | `frontend/src/components/dashboard/recent-matches.tsx`, `frontend/src/components/dashboard/match-row.tsx`, `frontend/src/components/dashboard/match-row.test.tsx` |
 | **Acceptance Criteria** | - Match list renders with pagination (last 30 days only) |
 | | - Filters work (map, result) |
-| | - Click opens demo viewer (if available) |
+| | - Rows with imported demos navigate to `/matches/:demoId` |
+| | - Rows with only a Faceit demo URL show an Import button; click triggers `ImportMatchDemo` and shows download progress |
+| | - Mid-parse click shows "Parsing…" indicator and navigates when parse completes |
 
 ### P4-T05: Implement demo download from Faceit [COMPLETE]
 
@@ -722,6 +724,62 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Acceptance Criteria** | - Stats match demo data accurately |
 | | - All stat columns render correctly |
 | | - Weapon breakdown shows kill distribution |
+
+### P4-T10: Import-demo button on match rows
+
+| | |
+|---|---|
+| **Complexity** | S |
+| **Deps** | P4-T04, P4-T05 |
+| **Test Types** | component |
+| **TDD Workflow** | 1. RED: Write test: Import button is visible iff `!has_demo && demo_url`; clicking it calls `ImportMatchDemo` and does not trigger row navigation. 2. GREEN: Add the button + `stopPropagation` + download progress pill in `MatchRow`. 3. REFACTOR: Extract progress-pill subcomponents. |
+| **Description** | Dashboard match rows gain an **Import demo** button (right-hand column) shown only when the Faceit match has a `demo_url` but no imported demo. Clicking it calls `ImportMatchDemo(faceit_match_id)`, subscribes to `faceit:demo:download:progress` for an inline progress indicator, and on success invalidates `['faceit-matches']` and `['demos']` query keys so the row flips state. |
+| **Key Files** | `frontend/src/components/dashboard/match-row.tsx`, `frontend/src/components/dashboard/match-row.test.tsx`, `frontend/src/hooks/use-demo-download.ts` |
+| **Acceptance Criteria** | - Import button visible only when gated state matches |
+| | - Clicking does not propagate to the row (no accidental navigation) |
+| | - Download progress pill appears while the mutation is pending |
+| | - Faceit-matches + demos queries invalidate on success |
+
+### P4-T11: Remove PerformanceGrid / RecentForm / MapPerformance / Weapons
+
+| | |
+|---|---|
+| **Complexity** | XS |
+| **Deps** | P4-T03 |
+| **Test Types** | component |
+| **TDD Workflow** | 1. RED: Update `dashboard.test.tsx` to assert those sections are *not* rendered. 2. GREEN: Delete components + `use-faceit-stats` hook; collapse dashboard to single column. 3. REFACTOR: None. |
+| **Description** | Delete the four dashboard widgets that duplicated data or were placeholder-only: `PerformanceGrid`, `RecentForm`, `MapPerformance`, `Weapons`, plus the `use-faceit-stats` hook they depended on. Dashboard collapses to a single-column layout of ProfileHero + RecentMatches. |
+| **Key Files** | `frontend/src/routes/dashboard.tsx`, `frontend/src/routes/dashboard.test.tsx`, `frontend/src/components/dashboard/performance-grid.tsx` (deleted), `frontend/src/components/dashboard/recent-form.tsx` (deleted), `frontend/src/components/dashboard/map-performance.tsx` (deleted), `frontend/src/components/dashboard/weapons.tsx` (deleted), `frontend/src/hooks/use-faceit-stats.ts` (deleted) |
+| **Acceptance Criteria** | - Dashboard route renders only ProfileHero + RecentMatches |
+| | - No references remain to the deleted components or hook |
+| | - Tests green (unit + typecheck) |
+
+### P4-T12: "Play demo" button on Match Details
+
+| | |
+|---|---|
+| **Complexity** | XS |
+| **Deps** | P4-T04 |
+| **Test Types** | component |
+| **TDD Workflow** | 1. RED: Write test: Play demo button disabled unless status = `ready`; click navigates to `/demos/:id`. 2. GREEN: Add button to `MatchToolbar`, thread `demoStatus` from `match-detail.tsx`. 3. REFACTOR: None. |
+| **Description** | The Match Details toolbar grows a **Play demo** button that navigates to the 2D Viewer (`/demos/:demoId`). Button is disabled unless the demo's status is `ready`. |
+| **Key Files** | `frontend/src/components/match/toolbar.tsx`, `frontend/src/components/match/toolbar.test.tsx`, `frontend/src/routes/match-detail.tsx` |
+| **Acceptance Criteria** | - Play demo enabled only when `demoStatus === 'ready'` |
+| | - Click navigates to `/demos/:demoId` |
+
+### P4-T13: Demos page → Match Details navigation + parse-wait
+
+| | |
+|---|---|
+| **Complexity** | S |
+| **Deps** | P4-T04 |
+| **Test Types** | component |
+| **TDD Workflow** | 1. RED: Write test: row click on a `ready` demo navigates to `/matches/:id`; row click on a `parsing` demo shows a "Parsing…" indicator and navigates when `demo:parse:progress` reports `stage === 'complete'`. 2. GREEN: Update `LibraryTable` with parse-wait state machine bridged via `useDemoStore`. 3. REFACTOR: Keep row-hover actions (direct Play, Delete). |
+| **Description** | The Demo Library row click now targets **Match Details** (`/matches/:id`), not the 2D Viewer directly. If the demo is still parsing when clicked, the row shows an inline "Parsing…" indicator and navigates automatically once parsing completes. Hover-only action buttons remain for direct Play / Delete. |
+| **Key Files** | `frontend/src/components/demos/library-table.tsx`, `frontend/src/components/demos/library-table.test.tsx` |
+| **Acceptance Criteria** | - Row click on a ready demo navigates to `/matches/:id` |
+| | - Row click on a parsing demo shows a waiting indicator; auto-navigates on parse completion |
+| | - Row-hover Play button still routes to `/demos/:id` directly when enabled |
 
 ---
 
