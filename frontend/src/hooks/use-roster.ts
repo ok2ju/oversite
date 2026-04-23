@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query"
 import { GetRoundRoster } from "@wailsjs/go/main/App"
 import type { PlayerRosterEntry } from "@/types/roster"
 
@@ -11,4 +12,17 @@ export async function fetchRoster(
 ): Promise<PlayerRosterEntry[]> {
   void signal
   return GetRoundRoster(demoId, roundNumber) as Promise<PlayerRosterEntry[]>
+}
+
+export function useRoundRoster(
+  demoId: string | null,
+  roundNumber: number | null,
+) {
+  return useQuery({
+    queryKey: ["round-roster", demoId, roundNumber],
+    queryFn: () =>
+      GetRoundRoster(demoId!, roundNumber!) as Promise<PlayerRosterEntry[]>,
+    enabled: !!demoId && roundNumber != null,
+    staleTime: Infinity,
+  })
 }

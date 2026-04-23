@@ -4,6 +4,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 
 type MockGraphics = {
   circle: ReturnType<typeof vi.fn>
+  roundRect: ReturnType<typeof vi.fn>
+  arc: ReturnType<typeof vi.fn>
   fill: ReturnType<typeof vi.fn>
   stroke: ReturnType<typeof vi.fn>
   moveTo: ReturnType<typeof vi.fn>
@@ -19,6 +21,8 @@ type MockGraphics = {
 
 type MockText = {
   text: string
+  width: number
+  height: number
   anchor: { set: ReturnType<typeof vi.fn> }
   destroy: ReturnType<typeof vi.fn>
   x: number
@@ -49,6 +53,8 @@ const {
   const createMockGraphics = (): MockGraphics => {
     const instance: MockGraphics = {
       circle: vi.fn().mockReturnThis(),
+      roundRect: vi.fn().mockReturnThis(),
+      arc: vi.fn().mockReturnThis(),
       fill: vi.fn().mockReturnThis(),
       stroke: vi.fn().mockReturnThis(),
       moveTo: vi.fn().mockReturnThis(),
@@ -69,6 +75,8 @@ const {
   const createMockText = (): MockText => {
     const instance: MockText = {
       text: "",
+      width: 40,
+      height: 12,
       anchor: { set: vi.fn() },
       destroy: vi.fn(),
       x: 0,
@@ -120,7 +128,12 @@ vi.mock("pixi.js", () => ({
 import { MAP_TEST_COORDINATES } from "@/lib/maps/__tests__/fixtures/coordinate-pairs"
 import { getMapCalibration } from "@/lib/maps/calibration"
 import { worldToPixel } from "@/lib/maps/calibration"
-import { getTeamColor, yawToRadians, PlayerSprite } from "./player"
+import {
+  getTeamColor,
+  getTeamOutlineColor,
+  yawToRadians,
+  PlayerSprite,
+} from "./player"
 
 describe("getTeamColor", () => {
   it("returns blue for CT", () => {
@@ -129,6 +142,16 @@ describe("getTeamColor", () => {
 
   it("returns orange for T", () => {
     expect(getTeamColor("T")).toBe(0xe67e22)
+  })
+})
+
+describe("getTeamOutlineColor", () => {
+  it("returns dark blue for CT", () => {
+    expect(getTeamOutlineColor("CT")).toBe(0x1e3a5f)
+  })
+
+  it("returns dark orange for T", () => {
+    expect(getTeamOutlineColor("T")).toBe(0x7a4417)
   })
 })
 
@@ -161,7 +184,6 @@ describe("worldToPixel (de_dust2 landmarks)", () => {
   pairs.forEach(({ label, world, expectedPixel }) => {
     it(`converts ${label} correctly`, () => {
       const pixel = worldToPixel(world, calibration)
-      // Tolerance < 1 pixel; some fixture values differ by 0.5 due to rounding convention
       expect(Math.abs(pixel.x - expectedPixel.x)).toBeLessThan(1)
       expect(Math.abs(pixel.y - expectedPixel.y)).toBeLessThan(1)
     })
@@ -170,6 +192,16 @@ describe("worldToPixel (de_dust2 landmarks)", () => {
 
 describe("PlayerSprite", () => {
   let sprite: PlayerSprite
+
+  // Graphics index layout (in construction order):
+  //   0: body (circle)
+  //   1: pointer (direction triangle)
+  //   2: deathMarker
+  //   3: selectionRing
+  const BODY = 0
+  const POINTER = 1
+  const DEATH_MARKER = 2
+  const SELECTION_RING = 3
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -187,9 +219,9 @@ describe("PlayerSprite", () => {
       expect(container.cursor).toBe("pointer")
     })
 
-    it("adds all child graphics to the container", () => {
+    it("adds all child graphics and label to the container", () => {
       const container = mockContainerInstances[0]
-      // circle + nameLabel + viewAngle + deathMarker + selectionRing = 5 children
+      // body + pointer + deathMarker + selectionRing + nameLabel = 5
       expect(container.addChild).toHaveBeenCalledTimes(5)
     })
 
@@ -197,14 +229,23 @@ describe("PlayerSprite", () => {
       expect(sprite.container).toBe(mockContainerInstances[0])
     })
 
+    it("pointer triangle is filled white", () => {
+      expect(mockGraphicsInstances[POINTER].fill).toHaveBeenCalledWith(0xffffff)
+    })
+
+    it("pointer triangle is drawn as a closed path", () => {
+      const pointer = mockGraphicsInstances[POINTER]
+      expect(pointer.moveTo).toHaveBeenCalled()
+      expect(pointer.lineTo).toHaveBeenCalled()
+      expect(pointer.closePath).toHaveBeenCalled()
+    })
+
     it("death marker starts hidden", () => {
-      const deathMarker = mockGraphicsInstances[2]
-      expect(deathMarker.visible).toBe(false)
+      expect(mockGraphicsInstances[DEATH_MARKER].visible).toBe(false)
     })
 
     it("selection ring starts hidden", () => {
-      const selectionRing = mockGraphicsInstances[3]
-      expect(selectionRing.visible).toBe(false)
+      expect(mockGraphicsInstances[SELECTION_RING].visible).toBe(false)
     })
   })
 
@@ -260,7 +301,7 @@ describe("PlayerSprite", () => {
         isAlive: false,
         isSelected: false,
       })
-      expect(mockGraphicsInstances[2].visible).toBe(true)
+      expect(mockGraphicsInstances[DEATH_MARKER].visible).toBe(true)
     })
 
     it("hides death marker when alive", () => {
@@ -273,7 +314,7 @@ describe("PlayerSprite", () => {
         isAlive: true,
         isSelected: false,
       })
-      expect(mockGraphicsInstances[2].visible).toBe(false)
+      expect(mockGraphicsInstances[DEATH_MARKER].visible).toBe(false)
     })
 
     it("shows selection ring when selected", () => {
@@ -286,7 +327,7 @@ describe("PlayerSprite", () => {
         isAlive: true,
         isSelected: true,
       })
-      expect(mockGraphicsInstances[3].visible).toBe(true)
+      expect(mockGraphicsInstances[SELECTION_RING].visible).toBe(true)
     })
 
     it("hides selection ring when not selected", () => {
@@ -299,10 +340,10 @@ describe("PlayerSprite", () => {
         isAlive: true,
         isSelected: false,
       })
-      expect(mockGraphicsInstances[3].visible).toBe(false)
+      expect(mockGraphicsInstances[SELECTION_RING].visible).toBe(false)
     })
 
-    it("applies CT team color to circle", () => {
+    it("draws body as a circle filled with CT team color", () => {
       sprite.update({
         x: 0,
         y: 0,
@@ -312,11 +353,12 @@ describe("PlayerSprite", () => {
         isAlive: true,
         isSelected: false,
       })
-      const circle = mockGraphicsInstances[0]
-      expect(circle.fill).toHaveBeenCalledWith(0x5b9bd5)
+      const body = mockGraphicsInstances[BODY]
+      expect(body.circle).toHaveBeenCalled()
+      expect(body.fill).toHaveBeenCalledWith(0x5b9bd5)
     })
 
-    it("applies T team color to circle", () => {
+    it("draws body as a circle filled with T team color", () => {
       sprite.update({
         x: 0,
         y: 0,
@@ -326,11 +368,40 @@ describe("PlayerSprite", () => {
         isAlive: true,
         isSelected: false,
       })
-      const circle = mockGraphicsInstances[0]
-      expect(circle.fill).toHaveBeenCalledWith(0xe67e22)
+      const body = mockGraphicsInstances[BODY]
+      expect(body.circle).toHaveBeenCalled()
+      expect(body.fill).toHaveBeenCalledWith(0xe67e22)
     })
 
-    it("sets view angle rotation from yaw", () => {
+    it("strokes body with darker team outline", () => {
+      sprite.update({
+        x: 0,
+        y: 0,
+        yaw: 0,
+        team: "CT",
+        name: "p",
+        isAlive: true,
+        isSelected: false,
+      })
+      expect(mockGraphicsInstances[BODY].stroke).toHaveBeenCalledWith(
+        expect.objectContaining({ color: 0x1e3a5f }),
+      )
+    })
+
+    it("sets the name label text", () => {
+      sprite.update({
+        x: 0,
+        y: 0,
+        yaw: 0,
+        team: "CT",
+        name: "mezii",
+        isAlive: true,
+        isSelected: false,
+      })
+      expect(mockTextInstances[0].text).toBe("mezii")
+    })
+
+    it("rotates the pointer based on yaw", () => {
       sprite.update({
         x: 0,
         y: 0,
@@ -340,8 +411,7 @@ describe("PlayerSprite", () => {
         isAlive: true,
         isSelected: false,
       })
-      const viewAngle = mockGraphicsInstances[1]
-      expect(viewAngle.rotation).toBeCloseTo(-Math.PI / 2)
+      expect(mockGraphicsInstances[POINTER].rotation).toBeCloseTo(-Math.PI / 2)
     })
 
     it("transitions alive to dead correctly", () => {
@@ -364,7 +434,7 @@ describe("PlayerSprite", () => {
         isSelected: false,
       })
       expect(mockContainerInstances[0].alpha).toBe(0.3)
-      expect(mockGraphicsInstances[2].visible).toBe(true)
+      expect(mockGraphicsInstances[DEATH_MARKER].visible).toBe(true)
     })
   })
 

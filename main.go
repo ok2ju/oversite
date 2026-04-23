@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"log"
+	"os"
 	"path/filepath"
 
 	"github.com/joho/godotenv"
@@ -14,6 +15,12 @@ import (
 )
 
 func init() {
+	// Force the cgo (system) DNS resolver so we honor macOS resolver configs
+	// (/etc/resolver/*, VPN DNS, mDNSResponder). Go's pure-Go resolver misses
+	// these and fails "no such host" on hosts browsers can reach.
+	if os.Getenv("GODEBUG") == "" {
+		_ = os.Setenv("GODEBUG", "netdns=cgo")
+	}
 	_ = godotenv.Load() // .env is optional; no error if missing
 }
 

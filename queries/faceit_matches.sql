@@ -1,6 +1,6 @@
 -- name: CreateFaceitMatch :one
-INSERT INTO faceit_matches (user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at)
-VALUES (@user_id, @faceit_match_id, @map_name, @score_team, @score_opponent, @result, @elo_before, @elo_after, @kills, @deaths, @assists, @demo_url, @demo_id, @played_at)
+INSERT INTO faceit_matches (user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, adr, demo_url, demo_id, played_at)
+VALUES (@user_id, @faceit_match_id, @map_name, @score_team, @score_opponent, @result, @elo_before, @elo_after, @kills, @deaths, @assists, @adr, @demo_url, @demo_id, @played_at)
 RETURNING *;
 
 -- name: GetFaceitMatchesByUserID :many
@@ -19,9 +19,13 @@ RETURNING *;
 -- name: GetExistingFaceitMatchIDs :many
 SELECT faceit_match_id FROM faceit_matches WHERE user_id = @user_id;
 
+-- name: GetFaceitMatchIDsMissingADR :many
+SELECT faceit_match_id FROM faceit_matches
+WHERE user_id = @user_id AND adr = 0;
+
 -- name: UpsertFaceitMatch :one
-INSERT INTO faceit_matches (user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, demo_url, demo_id, played_at)
-VALUES (@user_id, @faceit_match_id, @map_name, @score_team, @score_opponent, @result, @elo_before, @elo_after, @kills, @deaths, @assists, @demo_url, @demo_id, @played_at)
+INSERT INTO faceit_matches (user_id, faceit_match_id, map_name, score_team, score_opponent, result, elo_before, elo_after, kills, deaths, assists, adr, demo_url, demo_id, played_at)
+VALUES (@user_id, @faceit_match_id, @map_name, @score_team, @score_opponent, @result, @elo_before, @elo_after, @kills, @deaths, @assists, @adr, @demo_url, @demo_id, @played_at)
 ON CONFLICT (user_id, faceit_match_id) DO NOTHING
 RETURNING *;
 
@@ -39,7 +43,7 @@ DELETE FROM faceit_matches WHERE user_id = @user_id;
 
 -- name: UpdateMatchStats :exec
 UPDATE faceit_matches
-SET kills = @kills, deaths = @deaths, assists = @assists
+SET kills = @kills, deaths = @deaths, assists = @assists, adr = @adr
 WHERE user_id = @user_id AND faceit_match_id = @faceit_match_id;
 
 -- name: UpdateMatchScoreResult :exec

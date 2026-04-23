@@ -102,6 +102,7 @@ export namespace main {
 	    kills?: number;
 	    deaths?: number;
 	    assists?: number;
+	    adr?: number;
 	    demo_url?: string;
 	    demo_id?: string;
 	    has_demo: boolean;
@@ -122,6 +123,7 @@ export namespace main {
 	        this.kills = source["kills"];
 	        this.deaths = source["deaths"];
 	        this.assists = source["assists"];
+	        this.adr = source["adr"];
 	        this.demo_url = source["demo_url"];
 	        this.demo_id = source["demo_id"];
 	        this.has_demo = source["has_demo"];
@@ -319,6 +321,7 @@ export namespace main {
 	    id: string;
 	    round_number: number;
 	    start_tick: number;
+	    freeze_end_tick: number;
 	    end_tick: number;
 	    winner_side: string;
 	    win_reason: string;
@@ -335,6 +338,7 @@ export namespace main {
 	        this.id = source["id"];
 	        this.round_number = source["round_number"];
 	        this.start_tick = source["start_tick"];
+	        this.freeze_end_tick = source["freeze_end_tick"];
 	        this.end_tick = source["end_tick"];
 	        this.winner_side = source["winner_side"];
 	        this.win_reason = source["win_reason"];

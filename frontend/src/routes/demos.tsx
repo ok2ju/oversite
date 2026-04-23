@@ -1,25 +1,28 @@
-import {
-  useDemos,
-  useDeleteDemo,
-  useImportFolder,
-  useImportDemoByPath,
-} from "@/hooks/use-demos"
+import { useState } from "react"
+import { useDemos, useDeleteDemo, useImportDemoByPath } from "@/hooks/use-demos"
 import { useParseProgress } from "@/hooks/use-parse-progress"
-import { DemoList } from "@/components/demos/demo-list"
+import { WatchBanner } from "@/components/demos/watch-banner"
+import { ImportQueue } from "@/components/demos/import-queue"
+import {
+  DemosToolbar,
+  type DemosFilter,
+} from "@/components/demos/demos-toolbar"
+import { LibraryTable } from "@/components/demos/library-table"
 import { DropZone } from "@/components/demos/drop-zone"
-import { UploadDialog } from "@/components/demos/upload-dialog"
-import { Button } from "@/components/ui/button"
-import { FolderOpen } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export default function DemosPage() {
   const { data, isLoading } = useDemos()
   const deleteDemo = useDeleteDemo()
-  const { importFolder, isImporting: isFolderImporting } = useImportFolder()
   const { importByPath } = useImportDemoByPath()
 
   useParseProgress()
 
+  const [search, setSearch] = useState("")
+  const [filter, setFilter] = useState<DemosFilter>("all")
+
   const demos = data?.data ?? []
+  const total = data?.meta.total ?? 0
 
   function handleFilesDropped(filePaths: string[]) {
     for (const path of filePaths) {
@@ -29,38 +32,27 @@ export default function DemosPage() {
 
   return (
     <DropZone onFilesDropped={handleFilesDropped}>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Demos</h1>
-            <p className="mt-1 text-muted-foreground">
-              Upload and manage your CS2 demo files
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => importFolder()}
-              disabled={isFolderImporting}
-            >
-              <FolderOpen className="mr-2 h-4 w-4" />
-              {isFolderImporting ? "Importing..." : "Import Folder"}
-            </Button>
-            <UploadDialog />
-          </div>
-        </div>
+      <div className="flex flex-col gap-[18px]">
+        <WatchBanner queuedCount={total} />
+        <ImportQueue />
+        <DemosToolbar
+          search={search}
+          onSearchChange={setSearch}
+          filter={filter}
+          onFilterChange={setFilter}
+        />
 
-        {!isLoading && demos.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
-            <p className="text-lg font-medium">No demos yet</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Upload a .dem file or drag and drop to get started
-            </p>
+        {isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
           </div>
         ) : (
-          <DemoList
+          <LibraryTable
             demos={demos}
-            isLoading={isLoading}
+            search={search}
+            filter={filter}
             onDelete={(id) => deleteDemo.mutate(id)}
           />
         )}

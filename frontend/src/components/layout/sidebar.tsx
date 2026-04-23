@@ -1,52 +1,120 @@
 import { NavLink } from "react-router-dom"
 import {
   LayoutDashboard,
-  Film,
-  Flame,
-  Map,
+  Folder,
   Crosshair,
+  Goal,
+  Star,
   Settings,
+  Link2,
+  LogOut,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useDemos } from "@/hooks/use-demos"
+import { useFaceitProfile } from "@/hooks/use-faceit"
+import { useAuth } from "@/components/providers/auth-provider"
 
-const navItems = [
+type NavItem = {
+  href: string
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  badge?: number
+}
+
+const mainItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/demos", label: "Demos", icon: Film },
-  { href: "/heatmaps", label: "Heatmaps", icon: Flame },
-  { href: "/strats", label: "Strategies", icon: Map },
-  { href: "/lineups", label: "Lineups", icon: Crosshair },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/demos", label: "Demos", icon: Folder },
+  { href: "/heatmaps", label: "Heatmaps", icon: Crosshair },
+  { href: "/strats", label: "Strategies", icon: Goal },
+  { href: "/lineups", label: "Lineups", icon: Star },
 ]
 
-export function Sidebar() {
+const workspaceItems: NavItem[] = [
+  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/login", label: "Faceit account", icon: Link2 },
+]
+
+function SideNavLink({
+  item,
+  badge,
+}: {
+  item: NavItem
+  badge?: number | null
+}) {
+  const Icon = item.icon
   return (
-    <aside className="flex h-full w-64 flex-col border-r bg-card">
-      <div className="flex h-14 items-center border-b px-6">
-        <NavLink to="/dashboard" className="text-lg font-bold">
-          Oversite
-        </NavLink>
+    <NavLink
+      to={item.href}
+      end={item.href === "/dashboard"}
+      className={({ isActive }) => cn("nav-item", isActive && "active")}
+    >
+      <Icon className="h-4 w-4" />
+      <span>{item.label}</span>
+      {badge != null && badge > 0 ? (
+        <span className="nav-badge tabular">{badge}</span>
+      ) : null}
+    </NavLink>
+  )
+}
+
+export function Sidebar() {
+  const demos = useDemos(1, 1)
+  const demoCount = demos.data?.meta.total ?? 0
+  const { data: profile } = useFaceitProfile()
+  const { isAuthenticated, logout } = useAuth()
+
+  const initial = profile?.nickname?.[0]?.toUpperCase() ?? "?"
+
+  return (
+    <aside className="sidebar">
+      <div className="side-brand">
+        <span className="side-brand-mark">O</span>
+        <span className="side-brand-name">Oversite</span>
       </div>
-      <nav className="flex-1 space-y-1 p-4">
-        {navItems.map((item) => (
-          <NavLink
+
+      <div className="side-section">
+        <div className="side-label">Main</div>
+        {mainItems.map((item) => (
+          <SideNavLink
             key={item.href}
-            to={item.href}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )
-            }
-          >
-            <item.icon className="h-4 w-4" />
-            {item.label}
-          </NavLink>
+            item={item}
+            badge={item.href === "/demos" ? demoCount : null}
+          />
         ))}
-      </nav>
+      </div>
+
+      <div className="side-section">
+        <div className="side-label">Workspace</div>
+        {workspaceItems.map((item) => (
+          <SideNavLink key={item.href} item={item} />
+        ))}
+      </div>
+
+      <div className="side-user">
+        <div className="side-user-avatar">{initial}</div>
+        <div className="min-w-0">
+          <div className="side-user-name truncate">
+            {profile?.nickname ?? "Not connected"}
+          </div>
+          <div className="side-user-sub">
+            {profile?.level != null && profile?.elo != null
+              ? `Lv ${profile.level} · ${profile.elo.toLocaleString()} Elo`
+              : "Sign in with Faceit"}
+          </div>
+        </div>
+        <button
+          type="button"
+          className="side-user-logout"
+          onClick={() => logout()}
+          disabled={!isAuthenticated}
+          aria-label="Log out"
+          title="Log out"
+        >
+          <LogOut className="h-4 w-4" />
+        </button>
+      </div>
     </aside>
   )
 }
 
-export { navItems }
+export const navItems = [...mainItems, ...workspaceItems]

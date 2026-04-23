@@ -40,6 +40,7 @@ type FaceitMatch struct {
 	DemoID        sql.NullInt64
 	PlayedAt      string
 	CreatedAt     string
+	Adr           float64
 }
 
 type GameEvent struct {
@@ -95,16 +96,17 @@ type PlayerRound struct {
 }
 
 type Round struct {
-	ID          int64
-	DemoID      int64
-	RoundNumber int64
-	StartTick   int64
-	EndTick     int64
-	WinnerSide  string
-	WinReason   string
-	CtScore     int64
-	TScore      int64
-	IsOvertime  int64
+	ID            int64
+	DemoID        int64
+	RoundNumber   int64
+	StartTick     int64
+	EndTick       int64
+	WinnerSide    string
+	WinReason     string
+	CtScore       int64
+	TScore        int64
+	IsOvertime    int64
+	FreezeEndTick int64
 }
 
 type StrategyBoard struct {

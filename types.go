@@ -39,15 +39,16 @@ type PaginationMeta struct {
 
 // Round represents a round within a demo.
 type Round struct {
-	ID          string `json:"id"`
-	RoundNumber int    `json:"round_number"`
-	StartTick   int    `json:"start_tick"`
-	EndTick     int    `json:"end_tick"`
-	WinnerSide  string `json:"winner_side"`
-	WinReason   string `json:"win_reason"`
-	CTScore     int    `json:"ct_score"`
-	TScore      int    `json:"t_score"`
-	IsOvertime  bool   `json:"is_overtime"`
+	ID            string `json:"id"`
+	RoundNumber   int    `json:"round_number"`
+	StartTick     int    `json:"start_tick"`
+	FreezeEndTick int    `json:"freeze_end_tick"`
+	EndTick       int    `json:"end_tick"`
+	WinnerSide    string `json:"winner_side"`
+	WinReason     string `json:"win_reason"`
+	CTScore       int    `json:"ct_score"`
+	TScore        int    `json:"t_score"`
+	IsOvertime    bool   `json:"is_overtime"`
 }
 
 // GameEvent represents a game event in a demo.
@@ -121,19 +122,20 @@ type CurrentStreak struct {
 
 // FaceitMatch represents a Faceit match.
 type FaceitMatch struct {
-	ID            string  `json:"id"`
-	FaceitMatchID string  `json:"faceit_match_id"`
-	MapName       string  `json:"map_name"`
-	ScoreTeam     int     `json:"score_team"`
-	ScoreOpponent int     `json:"score_opponent"`
-	Result        string  `json:"result"`
-	Kills         *int    `json:"kills"`
-	Deaths        *int    `json:"deaths"`
-	Assists       *int    `json:"assists"`
-	DemoURL       *string `json:"demo_url"`
-	DemoID        *string `json:"demo_id"`
-	HasDemo       bool    `json:"has_demo"`
-	PlayedAt      string  `json:"played_at"`
+	ID            string   `json:"id"`
+	FaceitMatchID string   `json:"faceit_match_id"`
+	MapName       string   `json:"map_name"`
+	ScoreTeam     int      `json:"score_team"`
+	ScoreOpponent int      `json:"score_opponent"`
+	Result        string   `json:"result"`
+	Kills         *int     `json:"kills"`
+	Deaths        *int     `json:"deaths"`
+	Assists       *int     `json:"assists"`
+	ADR           *float64 `json:"adr"`
+	DemoURL       *string  `json:"demo_url"`
+	DemoID        *string  `json:"demo_id"`
+	HasDemo       bool     `json:"has_demo"`
+	PlayedAt      string   `json:"played_at"`
 }
 
 // FolderImportResult is the response from importing a folder of demos.

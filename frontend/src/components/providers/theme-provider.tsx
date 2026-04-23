@@ -1,57 +1,28 @@
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect } from "react"
 
-type Theme = "dark" | "light" | "system"
+type Theme = "light"
 
 interface ThemeProviderProps {
   children: React.ReactNode
-  defaultTheme?: Theme
-  storageKey?: string
 }
 
 interface ThemeProviderState {
   theme: Theme
-  setTheme: (theme: Theme) => void
 }
 
 const ThemeProviderContext = createContext<ThemeProviderState | undefined>(
   undefined,
 )
 
-export function ThemeProvider({
-  children,
-  defaultTheme = "dark",
-  storageKey = "oversite-theme",
-}: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme,
-  )
-
+export function ThemeProvider({ children }: ThemeProviderProps) {
   useEffect(() => {
     const root = window.document.documentElement
-    root.classList.remove("light", "dark")
-
-    if (theme === "system") {
-      const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-        .matches
-        ? "dark"
-        : "light"
-      root.classList.add(systemTheme)
-      return
-    }
-
-    root.classList.add(theme)
-  }, [theme])
-
-  const value = {
-    theme,
-    setTheme: (next: Theme) => {
-      localStorage.setItem(storageKey, next)
-      setTheme(next)
-    },
-  }
+    root.classList.remove("dark")
+    root.classList.add("light")
+  }, [])
 
   return (
-    <ThemeProviderContext.Provider value={value}>
+    <ThemeProviderContext.Provider value={{ theme: "light" }}>
       {children}
     </ThemeProviderContext.Provider>
   )

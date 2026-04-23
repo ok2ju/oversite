@@ -24,7 +24,7 @@ function createAllProviders({ initialRoute = "/" }: ProvidersOptions = {}) {
     return (
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={[initialRoute]}>
-          <ThemeProvider defaultTheme="dark">{children}</ThemeProvider>
+          <ThemeProvider>{children}</ThemeProvider>
         </MemoryRouter>
       </QueryClientProvider>
     )

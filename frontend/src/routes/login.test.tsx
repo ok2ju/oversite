@@ -6,25 +6,34 @@ import LoginPage from "@/routes/login"
 
 vi.mock("@wailsjs/go/main/App", () => mockAppBindings)
 
-describe("LoginPage", () => {
-  it("renders app title", () => {
-    renderWithProviders(<LoginPage />)
-    expect(screen.getByText("Oversite")).toBeInTheDocument()
-  })
-
-  it("renders sign in with Faceit button", () => {
+describe("LoginPage (first-run hero)", () => {
+  it("renders the Empty/first-run hero title", () => {
     renderWithProviders(<LoginPage />)
     expect(
-      screen.getByRole("button", { name: /sign in with faceit/i }),
+      screen.getByText("Connect Faceit to get started"),
     ).toBeInTheDocument()
   })
 
-  it("calls LoginWithFaceit binding on click", async () => {
+  it("renders the Connect Faceit primary CTA", () => {
+    renderWithProviders(<LoginPage />)
+    expect(
+      screen.getByRole("button", { name: /connect faceit account/i }),
+    ).toBeInTheDocument()
+  })
+
+  it("renders the 3-step onboarding grid", () => {
+    renderWithProviders(<LoginPage />)
+    expect(screen.getByText("Sign in")).toBeInTheDocument()
+    expect(screen.getByText("Pick a folder")).toBeInTheDocument()
+    expect(screen.getByText("Review & watch")).toBeInTheDocument()
+  })
+
+  it("calls LoginWithFaceit when the primary CTA is clicked", async () => {
     const user = userEvent.setup()
     renderWithProviders(<LoginPage />)
 
     await user.click(
-      screen.getByRole("button", { name: /sign in with faceit/i }),
+      screen.getByRole("button", { name: /connect faceit account/i }),
     )
     expect(mockAppBindings.LoginWithFaceit).toHaveBeenCalled()
   })

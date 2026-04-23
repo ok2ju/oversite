@@ -753,6 +753,9 @@ func (a *App) ImportMatchDemo(faceitMatchID string) error {
 			"totalBytes":      totalBytes,
 		})
 	})
+	if err != nil {
+		slog.Error("ImportMatchDemo failed", "faceit_match_id", faceitMatchID, "err", err)
+	}
 	return err
 }
 
@@ -962,15 +965,16 @@ func storeDemoToBinding(d store.Demo) Demo {
 
 func storeRoundToBinding(r store.Round) Round {
 	return Round{
-		ID:          strconv.FormatInt(r.ID, 10),
-		RoundNumber: int(r.RoundNumber),
-		StartTick:   int(r.StartTick),
-		EndTick:     int(r.EndTick),
-		WinnerSide:  r.WinnerSide,
-		WinReason:   r.WinReason,
-		CTScore:     int(r.CtScore),
-		TScore:      int(r.TScore),
-		IsOvertime:  r.IsOvertime != 0,
+		ID:            strconv.FormatInt(r.ID, 10),
+		RoundNumber:   int(r.RoundNumber),
+		StartTick:     int(r.StartTick),
+		FreezeEndTick: int(r.FreezeEndTick),
+		EndTick:       int(r.EndTick),
+		WinnerSide:    r.WinnerSide,
+		WinReason:     r.WinReason,
+		CTScore:       int(r.CtScore),
+		TScore:        int(r.TScore),
+		IsOvertime:    r.IsOvertime != 0,
 	}
 }
 
@@ -1029,6 +1033,10 @@ func storeFaceitMatchToBinding(m store.FaceitMatch) FaceitMatch {
 	if m.Assists != 0 {
 		v := int(m.Assists)
 		fm.Assists = &v
+	}
+	if m.Adr != 0 {
+		v := m.Adr
+		fm.ADR = &v
 	}
 	if m.DemoUrl != "" {
 		fm.DemoURL = &m.DemoUrl

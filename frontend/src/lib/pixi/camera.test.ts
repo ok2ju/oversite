@@ -14,7 +14,6 @@ import {
   clampZoom,
   zoomToPoint,
   clampPan,
-  computeViewportRect,
   screenToWorld,
   MIN_ZOOM,
   MAX_ZOOM,
@@ -133,38 +132,6 @@ describe("camera pure functions", () => {
       // map size = 512, screen = 1024 -> centered at (256, 256)
       expect(result.x).toBe(256)
       expect(result.y).toBe(256)
-    })
-  })
-
-  describe("computeViewportRect", () => {
-    it("returns full map at zoom 1 with matching screen", () => {
-      const viewport: Viewport = { x: 0, y: 0, zoom: 1 }
-      const rect = computeViewportRect(viewport, 1024, 1024)
-      expect(rect.x).toBeCloseTo(0)
-      expect(rect.y).toBeCloseTo(0)
-      expect(rect.width).toBeCloseTo(1024)
-      expect(rect.height).toBeCloseTo(1024)
-    })
-
-    it("returns smaller rect when zoomed in", () => {
-      const viewport: Viewport = { x: 0, y: 0, zoom: 2 }
-      const rect = computeViewportRect(viewport, 1024, 1024)
-      expect(rect.width).toBeCloseTo(512)
-      expect(rect.height).toBeCloseTo(512)
-    })
-
-    it("offsets rect based on pan position", () => {
-      const viewport: Viewport = { x: -200, y: -100, zoom: 2 }
-      const rect = computeViewportRect(viewport, 1024, 1024)
-      expect(rect.x).toBeCloseTo(100) // -(-200) / 2
-      expect(rect.y).toBeCloseTo(50) // -(-100) / 2
-    })
-
-    it("handles non-square screen", () => {
-      const viewport: Viewport = { x: 0, y: 0, zoom: 1 }
-      const rect = computeViewportRect(viewport, 800, 600)
-      expect(rect.width).toBeCloseTo(800)
-      expect(rect.height).toBeCloseTo(600)
     })
   })
 

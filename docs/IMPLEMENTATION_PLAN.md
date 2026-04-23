@@ -132,7 +132,7 @@ CI pipeline      Demo library UI     Scoreboard         Dashboard UI     Board m
 | **P1** | Desktop Foundation | `wails dev` runs app; CI passes | None |
 | **P2** | Auth & Demo Pipeline | Import local `.dem` -> parsed data in SQLite | P1 |
 | **P3** | Core 2D Viewer | Play back a demo at 60 FPS in the app | P2 |
-| **P4** | Faceit & Heatmaps | Faceit stats dashboard + KDE heatmaps render | P2, P3 |
+| **P4** | Faceit & Heatmaps | Simplified Faceit dashboard (profile + match history) + Match Details hub + KDE heatmaps render | P2, P3 |
 | **P5** | Strategy Board & Lineups | Drawing tools + lineup catalog | P3 |
 | **P6** | Polish & Distribute | Cross-platform builds, installer, auto-updater | P4, P5 |
 
@@ -250,18 +250,18 @@ CI pipeline      Demo library UI     Scoreboard         Dashboard UI     Board m
 
 ## 7. Phase 4: Faceit & Heatmaps
 
-**Goal**: Faceit stats dashboard with recent match history + interactive KDE heatmaps. Faceit sync runs in-process (no worker/queue).
+**Goal**: Simplified Faceit dashboard (profile + match history only) + interactive KDE heatmaps, plus a Match Details hub that gates navigation into the 2D Viewer. Faceit sync and demo downloads both run in-process (no worker/queue).
 
 ### Milestones
 
 | ID | Milestone | Done When |
 |----|-----------|-----------|
-| P4-M1 | Faceit profile + recent matches | Dashboard shows profile, recent matches |
-| P4-M2 | Match history | Paginated match list with links to demos |
+| P4-M1 | Faceit profile + recent matches | Dashboard shows ProfileHero + RecentMatches in a single column (no PerformanceGrid / RecentForm / MapPerformance / Weapons) |
+| P4-M2 | Match history → Match Details | Match rows with imported demos navigate to `/matches/:demoId`; rows with only a Faceit `demo_url` show an **Import demo** button that downloads + auto-parses; Match Details toolbar offers a **Play demo** button that opens the 2D Viewer when `status === 'ready'` |
 | P4-M3 | Match sync | In-process sync fetches Faceit matches on demand |
 | P4-M4 | Kill heatmap | KDE overlay renders correctly for a demo |
 | P4-M5 | Aggregated heatmap | Multi-demo heatmap with filters |
-| P4-MT | Tests pass | Faceit client mock tests pass; KDE algorithm unit tests pass |
+| P4-MT | Tests pass | Faceit client mock tests pass; KDE algorithm unit tests pass; match-row Import + parse-wait tests pass |
 
 ### Tasks
 
@@ -269,13 +269,17 @@ CI pipeline      Demo library UI     Scoreboard         Dashboard UI     Board m
 |------|-------------|-----------|
 | P4-T01 | Implement Faceit API client (Go HTTP client) | M |
 | P4-T02 | Implement Faceit sync service (in-process, no worker) | M |
-| P4-T03 | Build Faceit dashboard page (profile, match list) | M |
-| P4-T04 | Build match history list (pagination, filters) | M |
+| P4-T03 | Build Faceit dashboard page (ProfileHero + RecentMatches) | M |
+| P4-T04 | Build match history list (pagination, filters, Import-demo button, parse-wait) | M |
 | P4-T05 | Implement demo download from Faceit matches | L |
 | P4-T06 | Implement heatmap data binding (aggregation query) | M |
 | P4-T07 | Implement client-side KDE rendering on PixiJS canvas | L |
 | P4-T08 | Build heatmap filter controls (map, side, weapon, player) | M |
 | P4-T09 | Build per-demo stats view | M |
+| P4-T10 | Add Import-demo button on match rows (download progress pill) | S |
+| P4-T11 | Remove PerformanceGrid / RecentForm / MapPerformance / Weapons + `use-faceit-stats` hook | XS |
+| P4-T12 | Add **Play demo** button on Match Details toolbar | XS |
+| P4-T13 | Route Demos page rows to Match Details (with parse-wait indicator) | S |
 
 ---
 

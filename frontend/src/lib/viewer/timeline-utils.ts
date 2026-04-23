@@ -54,3 +54,54 @@ export function roundBoundaryPositions(
 export function formatTickDisplay(tick: number, totalTicks: number): string {
   return `${tick.toLocaleString("en-US")} / ${totalTicks.toLocaleString("en-US")}`
 }
+
+const DEFAULT_FREEZE_SECS = 15
+const ROUND_TIME_SECS = 115
+
+/**
+ * Format ticks as elapsed time M:SS. Used by the scrubber to show position
+ * within the current round.
+ */
+export function formatElapsedTime(ticks: number, tickRate: number): string {
+  if (tickRate <= 0) return "0:00"
+  const totalSecs = Math.max(0, Math.floor(ticks / tickRate))
+  const mins = Math.floor(totalSecs / 60)
+  const secs = totalSecs % 60
+  return `${mins}:${String(secs).padStart(2, "0")}`
+}
+
+/**
+ * Format ticks as a CS2 round clock in M:SS — a countdown, not elapsed time.
+ *
+ * For the first `freezeDurationTicks`, counts down the freeze time (e.g. 0:15 → 0:00).
+ * Then counts down the round time 1:55 → 0:00 for the next 115 seconds.
+ * Past the full round duration, returns "0:00".
+ *
+ * If `freezeDurationTicks` is 0 or missing, falls back to a 15-second default
+ * (e.g. rounds parsed before RoundFreezetimeEnd was captured).
+ *
+ * Zero-pads seconds; minutes have no leading zero (e.g. "1:53", "0:39").
+ */
+export function formatRoundTime(
+  elapsedTicks: number,
+  tickRate: number,
+  freezeDurationTicks = 0,
+): string {
+  if (tickRate <= 0) return "0:00"
+  const freezeSecs =
+    freezeDurationTicks > 0
+      ? Math.round(freezeDurationTicks / tickRate)
+      : DEFAULT_FREEZE_SECS
+  const elapsedSecs = Math.max(0, Math.floor(elapsedTicks / tickRate))
+  let remaining: number
+  if (elapsedSecs < freezeSecs) {
+    remaining = freezeSecs - elapsedSecs
+  } else if (elapsedSecs < freezeSecs + ROUND_TIME_SECS) {
+    remaining = freezeSecs + ROUND_TIME_SECS - elapsedSecs
+  } else {
+    remaining = 0
+  }
+  const mins = Math.floor(remaining / 60)
+  const secs = remaining % 60
+  return `${mins}:${String(secs).padStart(2, "0")}`
+}

@@ -22,6 +22,7 @@ export interface FaceitMatch {
   kills: number | null
   deaths: number | null
   assists: number | null
+  adr: number | null
   demo_url: string | null
   demo_id: string | null
   has_demo: boolean

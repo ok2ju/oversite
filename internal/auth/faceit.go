@@ -222,7 +222,7 @@ func (c *HTTPFaceitClient) GetPlayerLifetimeStats(ctx context.Context, playerID 
 	if raw.Lifetime != nil {
 		if v, ok := raw.Lifetime["Matches"]; ok {
 			if s, ok := v.(string); ok {
-				fmt.Sscanf(s, "%d", &result.Matches)
+				_, _ = fmt.Sscanf(s, "%d", &result.Matches)
 			}
 		}
 	}
@@ -452,6 +452,7 @@ func (c *HTTPFaceitClient) GetMatchStats(ctx context.Context, matchID string, pl
 						Deaths:    parseStatInt(p.PlayerStats, "Deaths"),
 						Assists:   parseStatInt(p.PlayerStats, "Assists"),
 						Headshots: parseStatInt(p.PlayerStats, "Headshots"),
+						ADR:       parseStatFloat(p.PlayerStats, "ADR"),
 					}, nil
 				}
 			}
@@ -468,8 +469,19 @@ func parseStatInt(stats map[string]string, key string) int {
 		return 0
 	}
 	var n int
-	fmt.Sscanf(v, "%d", &n)
+	_, _ = fmt.Sscanf(v, "%d", &n)
 	return n
+}
+
+// parseStatFloat extracts a float from a string-keyed stats map.
+func parseStatFloat(stats map[string]string, key string) float64 {
+	v, ok := stats[key]
+	if !ok {
+		return 0
+	}
+	var f float64
+	_, _ = fmt.Sscanf(v, "%f", &f)
+	return f
 }
 
 // contextKey is an unexported type for context keys in this package.

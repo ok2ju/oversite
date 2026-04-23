@@ -93,6 +93,16 @@ describe("PlayerLayer", () => {
   let container: ReturnType<typeof createMockContainer>
   let layer: PlayerLayer
 
+  // Most tests only care about the single-sample path; helper keeps call sites
+  // readable. Interpolation-specific behaviour has its own describe block below.
+  function updateSingle(
+    ticks: TickData[],
+    calibration: MapCalibration,
+    selected: string | null,
+  ): void {
+    layer.update(ticks, null, 0, calibration, selected)
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
     mockSpriteInstances.length = 0
@@ -106,12 +116,12 @@ describe("PlayerLayer", () => {
         makeTickData({ steam_id: "player1" }),
         makeTickData({ steam_id: "player2" }),
       ]
-      layer.update(ticks, testCalibration, null)
+      updateSingle(ticks, testCalibration, null)
       expect(mockSpriteInstances).toHaveLength(2)
     })
 
     it("adds new sprite container to layer container", () => {
-      layer.update([makeTickData()], testCalibration, null)
+      layer.update([makeTickData()], null, 0, testCalibration, null)
       expect(container.addChild).toHaveBeenCalledWith(
         mockSpriteInstances[0].container,
       )
@@ -123,7 +133,7 @@ describe("PlayerLayer", () => {
         is_alive: true,
         yaw: 90,
       })
-      layer.update([tick], testCalibration, null)
+      updateSingle([tick], testCalibration, null)
       expect(mockSpriteInstances[0].update).toHaveBeenCalledWith(
         expect.objectContaining({ isAlive: true, isSelected: false }),
       )
@@ -131,7 +141,7 @@ describe("PlayerLayer", () => {
 
     it("passes correct pixel coordinates from worldToPixel", () => {
       const tick = makeTickData({ steam_id: "player1", x: -672, y: -672 })
-      layer.update([tick], testCalibration, null)
+      updateSingle([tick], testCalibration, null)
       // worldToPixel(-672, -672) with de_dust2 calibration = (410, 889)
       expect(mockSpriteInstances[0].update).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -143,7 +153,7 @@ describe("PlayerLayer", () => {
 
     it("marks selected player as isSelected=true", () => {
       const tick = makeTickData({ steam_id: "player1" })
-      layer.update([tick], testCalibration, "player1")
+      updateSingle([tick], testCalibration, "player1")
       expect(mockSpriteInstances[0].update).toHaveBeenCalledWith(
         expect.objectContaining({ isSelected: true }),
       )
@@ -151,7 +161,7 @@ describe("PlayerLayer", () => {
 
     it("marks non-selected player as isSelected=false", () => {
       const tick = makeTickData({ steam_id: "player1" })
-      layer.update([tick], testCalibration, "player2")
+      updateSingle([tick], testCalibration, "player2")
       expect(mockSpriteInstances[0].update).toHaveBeenCalledWith(
         expect.objectContaining({ isSelected: false }),
       )
@@ -159,16 +169,16 @@ describe("PlayerLayer", () => {
 
     it("reuses existing sprite on subsequent ticks", () => {
       const tick = makeTickData({ steam_id: "player1" })
-      layer.update([tick], testCalibration, null)
-      layer.update([tick], testCalibration, null)
+      updateSingle([tick], testCalibration, null)
+      updateSingle([tick], testCalibration, null)
       expect(mockSpriteInstances).toHaveLength(1)
       expect(mockSpriteInstances[0].update).toHaveBeenCalledTimes(2)
     })
 
     it("removes sprite for player no longer in tick data", () => {
       const tick = makeTickData({ steam_id: "player1" })
-      layer.update([tick], testCalibration, null)
-      layer.update([], testCalibration, null)
+      updateSingle([tick], testCalibration, null)
+      updateSingle([], testCalibration, null)
       expect(container.removeChild).toHaveBeenCalledWith(
         mockSpriteInstances[0].container,
       )
@@ -178,7 +188,7 @@ describe("PlayerLayer", () => {
     it("sets click handler on new sprites when onPlayerClick is registered", () => {
       const cb = vi.fn()
       layer.onPlayerClick(cb)
-      layer.update(
+      updateSingle(
         [makeTickData({ steam_id: "player1" })],
         testCalibration,
         null,
@@ -195,7 +205,7 @@ describe("PlayerLayer", () => {
       layer.setRoster([
         makeRosterEntry({ steam_id: "player1", team_side: "T" }),
       ])
-      layer.update(
+      updateSingle(
         [makeTickData({ steam_id: "player1" })],
         testCalibration,
         null,
@@ -209,7 +219,7 @@ describe("PlayerLayer", () => {
       layer.setRoster([
         makeRosterEntry({ steam_id: "player1", player_name: "TestPlayer" }),
       ])
-      layer.update(
+      updateSingle(
         [makeTickData({ steam_id: "player1" })],
         testCalibration,
         null,
@@ -220,7 +230,7 @@ describe("PlayerLayer", () => {
     })
 
     it("falls back to truncated steamId when no roster entry", () => {
-      layer.update(
+      updateSingle(
         [makeTickData({ steam_id: "76561198000000001" })],
         testCalibration,
         null,
@@ -231,7 +241,7 @@ describe("PlayerLayer", () => {
     })
 
     it("falls back to CT side when no roster entry", () => {
-      layer.update(
+      updateSingle(
         [makeTickData({ steam_id: "76561198000000001" })],
         testCalibration,
         null,
@@ -246,7 +256,7 @@ describe("PlayerLayer", () => {
     it("registers callback that is forwarded to new sprites", () => {
       const cb = vi.fn()
       layer.onPlayerClick(cb)
-      layer.update(
+      updateSingle(
         [makeTickData({ steam_id: "player1" })],
         testCalibration,
         null,
@@ -260,7 +270,7 @@ describe("PlayerLayer", () => {
 
   describe("clear()", () => {
     it("removes all sprites from container", () => {
-      layer.update(
+      updateSingle(
         [makeTickData({ steam_id: "p1" }), makeTickData({ steam_id: "p2" })],
         testCalibration,
         null,
@@ -279,10 +289,75 @@ describe("PlayerLayer", () => {
 
   describe("destroy()", () => {
     it("delegates to clear", () => {
-      layer.update([makeTickData({ steam_id: "p1" })], testCalibration, null)
+      updateSingle([makeTickData({ steam_id: "p1" })], testCalibration, null)
       layer.destroy()
       expect(container.removeChild).toHaveBeenCalled()
       expect(mockSpriteInstances[0].destroy).toHaveBeenCalled()
+    })
+  })
+
+  describe("interpolation", () => {
+    it("lerps x/y linearly between current and next samples", () => {
+      const cur = makeTickData({ steam_id: "p1", x: 0, y: 0 })
+      const nxt = makeTickData({ steam_id: "p1", x: 100, y: 200 })
+      layer.update([cur], [nxt], 0.25, testCalibration, null)
+      // World position at alpha=0.25: (25, 50). Converted via mock worldToPixel.
+      const { originX, originY, scale } = testCalibration
+      expect(mockSpriteInstances[0].update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          x: (25 - originX) / scale,
+          y: (originY - 50) / scale,
+        }),
+      )
+    })
+
+    it("uses current sample when next is null", () => {
+      const cur = makeTickData({ steam_id: "p1", x: 10, y: 20 })
+      layer.update([cur], null, 0.5, testCalibration, null)
+      const { originX, originY, scale } = testCalibration
+      expect(mockSpriteInstances[0].update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          x: (10 - originX) / scale,
+          y: (originY - 20) / scale,
+        }),
+      )
+    })
+
+    it("uses current sample when alpha is 0", () => {
+      const cur = makeTickData({ steam_id: "p1", x: 0, y: 0 })
+      const nxt = makeTickData({ steam_id: "p1", x: 100, y: 100 })
+      layer.update([cur], [nxt], 0, testCalibration, null)
+      const { originX, originY, scale } = testCalibration
+      expect(mockSpriteInstances[0].update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          x: (0 - originX) / scale,
+          y: (originY - 0) / scale,
+        }),
+      )
+    })
+
+    it("uses current sample for players missing from next", () => {
+      const cur = makeTickData({ steam_id: "p1", x: 0, y: 0 })
+      // next has a different steam_id
+      const nxtOther = makeTickData({ steam_id: "p2", x: 999, y: 999 })
+      layer.update([cur], [nxtOther], 0.5, testCalibration, null)
+      const { originX, originY, scale } = testCalibration
+      expect(mockSpriteInstances[0].update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          x: (0 - originX) / scale,
+          y: (originY - 0) / scale,
+        }),
+      )
+    })
+
+    it("lerps yaw via shortest arc across the 360 boundary", () => {
+      const cur = makeTickData({ steam_id: "p1", yaw: 350 })
+      const nxt = makeTickData({ steam_id: "p1", yaw: 10 })
+      layer.update([cur], [nxt], 0.5, testCalibration, null)
+      // Shortest arc: 350 → 10 is +20°. At t=0.5, yaw = 360 (== 0).
+      expect(mockSpriteInstances[0].update).toHaveBeenCalledWith(
+        expect.objectContaining({ yaw: 360 }),
+      )
     })
   })
 })

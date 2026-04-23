@@ -18,9 +18,6 @@ vi.mock("@/components/viewer/viewer-canvas", () => ({
 vi.mock("@/components/viewer/playback-controls", () => ({
   PlaybackControls: () => <div data-testid="playback-controls" />,
 }))
-vi.mock("@/components/viewer/mini-map", () => ({
-  MiniMap: () => <div data-testid="mini-map" />,
-}))
 vi.mock("@/components/viewer/round-selector", () => ({
   RoundSelector: () => <div data-testid="round-selector" />,
 }))
@@ -72,7 +69,6 @@ describe("DemoViewerPage", () => {
 
     expect(screen.getByTestId("viewer-canvas")).toBeInTheDocument()
     expect(screen.getByTestId("playback-controls")).toBeInTheDocument()
-    expect(screen.getByTestId("mini-map")).toBeInTheDocument()
   })
 
   it("shows error state when demo not found", async () => {

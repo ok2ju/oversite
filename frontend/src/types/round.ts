@@ -2,6 +2,7 @@ export interface Round {
   id: string
   round_number: number
   start_tick: number
+  freeze_end_tick: number
   end_tick: number
   winner_side: string
   win_reason: string

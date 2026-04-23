@@ -88,10 +88,12 @@ vi.mock("@/hooks/use-roster", () => ({
 
 const mockTickBufferDispose = vi.fn()
 const mockGetTickData = vi.fn().mockReturnValue([])
+const mockGetFramePair = vi.fn().mockReturnValue({ current: null, next: null })
 
 vi.mock("@/lib/pixi/tick-buffer", () => ({
   TickBuffer: class MockTickBuffer {
     getTickData = mockGetTickData
+    getFramePair = mockGetFramePair
     dispose = mockTickBufferDispose
     seek = vi.fn()
   },
@@ -125,6 +127,10 @@ vi.mock("@/lib/pixi/camera", async (importOriginal) => {
 
 vi.mock("@/hooks/use-game-events", () => ({
   useGameEvents: vi.fn().mockReturnValue({ data: undefined }),
+}))
+
+vi.mock("@/hooks/use-rounds", () => ({
+  useRounds: vi.fn().mockReturnValue({ data: undefined }),
 }))
 
 import { ViewerCanvas } from "./viewer-canvas"
@@ -181,45 +187,25 @@ describe("ViewerCanvas", () => {
     expect(mockDestroy).toHaveBeenCalled()
   })
 
-  it("stops ticker when isPlaying is false (initial state)", async () => {
+  it("registers a ticker callback that renders every frame", async () => {
     render(<ViewerCanvas />)
 
     await vi.waitFor(() => {
-      expect(mockTickerStop).toHaveBeenCalled()
+      expect(mockTickerAdd).toHaveBeenCalledWith(expect.any(Function))
     })
   })
 
-  it("starts ticker when isPlaying changes to true", async () => {
-    render(<ViewerCanvas />)
-
-    await vi.waitFor(() => {
-      expect(mockCreateViewerApp).toHaveBeenCalled()
-    })
-
-    mockTickerStart.mockClear()
-    useViewerStore.getState().togglePlay()
-
-    await vi.waitFor(() => {
-      expect(mockTickerStart).toHaveBeenCalled()
-    })
-  })
-
-  it("cleans up Zustand subscriptions on unmount", async () => {
+  it("removes the ticker callback on unmount", async () => {
     const { unmount } = render(<ViewerCanvas />)
 
     await vi.waitFor(() => {
-      expect(mockCreateViewerApp).toHaveBeenCalled()
+      expect(mockTickerAdd).toHaveBeenCalled()
     })
 
+    const registeredFn = mockTickerAdd.mock.calls[0][0]
     unmount()
 
-    // After unmount, changing store should not affect ticker
-    mockTickerStart.mockClear()
-    mockTickerStop.mockClear()
-    useViewerStore.getState().togglePlay()
-
-    // Zustand subscribers fire synchronously — no async wait needed
-    expect(mockTickerStart).not.toHaveBeenCalled()
+    expect(mockTickerRemove).toHaveBeenCalledWith(registeredFn)
   })
 
   it("creates layers as children of camera container", async () => {
@@ -350,10 +336,7 @@ describe("ViewerCanvas", () => {
       expect(mockDestroy).toHaveBeenCalled()
     })
 
-    // Subscriptions should not be set up after late init
-    mockTickerStart.mockClear()
-    mockTickerStop.mockClear()
-    useViewerStore.getState().togglePlay()
-    expect(mockTickerStart).not.toHaveBeenCalled()
+    // Ticker callback should not be registered after late init
+    expect(mockTickerAdd).not.toHaveBeenCalled()
   })
 })

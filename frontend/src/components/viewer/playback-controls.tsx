@@ -1,10 +1,10 @@
 "use client"
 
-import { useCallback } from "react"
+import { useCallback, useMemo } from "react"
 import { Play, Pause } from "lucide-react"
 import { useViewerStore } from "@/stores/viewer"
 import { useRounds } from "@/hooks/use-rounds"
-import { formatTickDisplay } from "@/lib/viewer/timeline-utils"
+import { formatElapsedTime } from "@/lib/viewer/timeline-utils"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -13,8 +13,18 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu"
 import { Timeline } from "./timeline"
+import type { Round } from "@/types/round"
 
 const SPEED_OPTIONS = [0.25, 0.5, 1, 2, 4] as const
+
+function getActiveRound(rounds: Round[], currentTick: number): Round | null {
+  for (let i = rounds.length - 1; i >= 0; i--) {
+    if (currentTick >= rounds[i].start_tick) {
+      return rounds[i]
+    }
+  }
+  return rounds[0] ?? null
+}
 
 export function PlaybackControls() {
   const isPlaying = useViewerStore((s) => s.isPlaying)
@@ -22,21 +32,40 @@ export function PlaybackControls() {
   const totalTicks = useViewerStore((s) => s.totalTicks)
   const speed = useViewerStore((s) => s.speed)
   const demoId = useViewerStore((s) => s.demoId)
+  const tickRate = useViewerStore((s) => s.tickRate)
   const togglePlay = useViewerStore((s) => s.togglePlay)
   const setSpeed = useViewerStore((s) => s.setSpeed)
   const setTick = useViewerStore((s) => s.setTick)
   const pause = useViewerStore((s) => s.pause)
 
-  const { data } = useRounds(demoId)
+  const { data: rounds } = useRounds(demoId)
 
-  const roundBoundaries =
-    data?.map(
-      (r: { round_number: number; start_tick: number; end_tick: number }) => ({
-        roundNumber: r.round_number,
-        startTick: r.start_tick,
-        endTick: r.end_tick,
-      }),
-    ) ?? []
+  const activeRound = useMemo(
+    () => (rounds?.length ? getActiveRound(rounds, currentTick) : null),
+    [rounds, currentTick],
+  )
+
+  // Timeline is scoped to the live portion of the round only (freeze time is
+  // auto-skipped by the playback engine). Fall back to start_tick when
+  // freeze_end_tick is missing (older parser output).
+  const roundStartTick = activeRound
+    ? activeRound.freeze_end_tick > 0
+      ? activeRound.freeze_end_tick
+      : activeRound.start_tick
+    : 0
+  const roundEndTick = activeRound?.end_tick ?? totalTicks
+  const roundTotalTicks = Math.max(0, roundEndTick - roundStartTick)
+  const roundCurrentTick = Math.max(
+    0,
+    Math.min(currentTick - roundStartTick, roundTotalTicks),
+  )
+
+  const handleSeek = useCallback(
+    (tick: number) => {
+      setTick(tick + roundStartTick)
+    },
+    [setTick, roundStartTick],
+  )
 
   const handleScrubStart = useCallback(() => {
     pause()
@@ -84,20 +113,20 @@ export function PlaybackControls() {
       {/* Timeline */}
       <div className="min-w-0 flex-1">
         <Timeline
-          currentTick={currentTick}
-          totalTicks={totalTicks}
-          roundBoundaries={roundBoundaries}
-          onSeek={setTick}
+          currentTick={roundCurrentTick}
+          totalTicks={roundTotalTicks}
+          roundBoundaries={[]}
+          onSeek={handleSeek}
           onScrubStart={handleScrubStart}
         />
       </div>
 
-      {/* Tick counter */}
+      {/* Round clock */}
       <span
-        data-testid="tick-counter"
+        data-testid="round-time"
         className="shrink-0 whitespace-nowrap text-xs tabular-nums text-white/70"
       >
-        {formatTickDisplay(currentTick, totalTicks)}
+        {formatElapsedTime(roundCurrentTick, tickRate)}
       </span>
     </div>
   )

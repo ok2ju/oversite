@@ -1,6 +1,9 @@
 package demo
 
 import (
+	"bytes"
+	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
@@ -409,5 +412,252 @@ func TestProgressFunc_Callback(t *testing.T) {
 		if calls[i] != wc {
 			t.Errorf("call[%d] = %+v, want %+v", i, calls[i], wc)
 		}
+	}
+}
+
+func TestIsKnifeRoundByInventory(t *testing.T) {
+	tenKnives := func() [][]common.EquipmentType {
+		inv := make([][]common.EquipmentType, 10)
+		for i := range inv {
+			inv[i] = []common.EquipmentType{common.EqKnife}
+		}
+		return inv
+	}
+
+	tests := []struct {
+		name        string
+		inventories [][]common.EquipmentType
+		want        bool
+	}{
+		{
+			name:        "all players knife-only",
+			inventories: tenKnives(),
+			want:        true,
+		},
+		{
+			name: "all knives plus T-side C4",
+			inventories: [][]common.EquipmentType{
+				{common.EqKnife},
+				{common.EqKnife, common.EqBomb},
+				{common.EqKnife},
+				{common.EqKnife},
+				{common.EqKnife},
+			},
+			want: true,
+		},
+		{
+			name: "one player holds a pistol",
+			inventories: [][]common.EquipmentType{
+				{common.EqKnife},
+				{common.EqKnife},
+				{common.EqGlock, common.EqKnife},
+			},
+			want: false,
+		},
+		{
+			name: "one player carries an AK",
+			inventories: [][]common.EquipmentType{
+				{common.EqKnife},
+				{common.EqKnife},
+				{common.EqKnife, common.EqAK47},
+			},
+			want: false,
+		},
+		{
+			name:        "no live players — not a knife round",
+			inventories: nil,
+			want:        false,
+		},
+		{
+			name: "player with only C4 but no knife",
+			inventories: [][]common.EquipmentType{
+				{common.EqKnife},
+				{common.EqBomb},
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isKnifeRoundByInventory(tt.inventories)
+			if got != tt.want {
+				t.Errorf("isKnifeRoundByInventory() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDropKnifeRounds_NoFlaggedRounds(t *testing.T) {
+	rounds := []RoundData{
+		{Number: 1, StartTick: 0, EndTick: 1000, WinnerSide: "CT", CTScore: 1, TScore: 0},
+		{Number: 2, StartTick: 1001, EndTick: 2000, WinnerSide: "T", CTScore: 1, TScore: 1},
+	}
+	events := []GameEvent{
+		{Tick: 100, RoundNumber: 1, Type: "kill", Weapon: "AK-47"},
+		{Tick: 1100, RoundNumber: 2, Type: "kill", Weapon: "M4A1"},
+	}
+
+	gotRounds, gotEvents := dropKnifeRounds(rounds, events, nil)
+	if len(gotRounds) != 2 {
+		t.Fatalf("rounds length = %d, want 2", len(gotRounds))
+	}
+	if len(gotEvents) != len(events) {
+		t.Fatalf("events length = %d, want %d", len(gotEvents), len(events))
+	}
+}
+
+func TestDropKnifeRounds_DropsFlaggedRoundAndRenumbers(t *testing.T) {
+	rounds := []RoundData{
+		// Round 1 is a knife round — CT wins.
+		{Number: 1, StartTick: 0, EndTick: 500, WinnerSide: "CT", CTScore: 1, TScore: 0},
+		// Real pistol round — T wins; score inflated by +1 CT from knife round.
+		{Number: 2, StartTick: 501, EndTick: 2000, WinnerSide: "T", CTScore: 1, TScore: 1},
+		// Round 3 — CT wins.
+		{Number: 3, StartTick: 2001, EndTick: 3000, WinnerSide: "CT", CTScore: 2, TScore: 1},
+	}
+	events := []GameEvent{
+		{Tick: 50, RoundNumber: 1, Type: "kill", Weapon: "Knife"},
+		{Tick: 600, RoundNumber: 2, Type: "kill", Weapon: "Glock-18"},
+		{Tick: 650, RoundNumber: 2, Type: "player_hurt", Weapon: "USP-S"},
+		{Tick: 2500, RoundNumber: 3, Type: "kill", Weapon: "AK-47"},
+	}
+	flagged := map[int]bool{1: true}
+
+	gotRounds, gotEvents := dropKnifeRounds(rounds, events, flagged)
+
+	if len(gotRounds) != 2 {
+		t.Fatalf("rounds length = %d, want 2", len(gotRounds))
+	}
+	if gotRounds[0].Number != 1 || gotRounds[1].Number != 2 {
+		t.Errorf("renumbered = [%d, %d], want [1, 2]", gotRounds[0].Number, gotRounds[1].Number)
+	}
+	if gotRounds[0].CTScore != 0 || gotRounds[0].TScore != 1 {
+		t.Errorf("round 1 score = (%d, %d), want (0, 1)", gotRounds[0].CTScore, gotRounds[0].TScore)
+	}
+	if gotRounds[1].CTScore != 1 || gotRounds[1].TScore != 1 {
+		t.Errorf("round 2 score = (%d, %d), want (1, 1)", gotRounds[1].CTScore, gotRounds[1].TScore)
+	}
+
+	if len(gotEvents) != 3 {
+		t.Fatalf("events length = %d, want 3", len(gotEvents))
+	}
+	for _, ev := range gotEvents {
+		if ev.RoundNumber != 1 && ev.RoundNumber != 2 {
+			t.Errorf("event RoundNumber = %d, want 1 or 2", ev.RoundNumber)
+		}
+	}
+}
+
+func TestDropKnifeRounds_FlaggedButWinnerSideUnknown(t *testing.T) {
+	rounds := []RoundData{
+		{Number: 1, StartTick: 0, EndTick: 500, WinnerSide: "", CTScore: 0, TScore: 0},
+		{Number: 2, StartTick: 501, EndTick: 2000, WinnerSide: "T", CTScore: 0, TScore: 1},
+	}
+	flagged := map[int]bool{1: true}
+
+	gotRounds, _ := dropKnifeRounds(rounds, nil, flagged)
+
+	if len(gotRounds) != 1 {
+		t.Fatalf("rounds length = %d, want 1", len(gotRounds))
+	}
+	if gotRounds[0].Number != 1 || gotRounds[0].TScore != 1 {
+		t.Errorf("round 1 = (%d, T=%d), want (1, T=1)", gotRounds[0].Number, gotRounds[0].TScore)
+	}
+}
+
+func TestParseStateResetForPreMatchRestart(t *testing.T) {
+	state := &parseState{
+		currentRound:      1,
+		roundStart:        100,
+		freezeEndTick:     200,
+		lastSampledTick:   250,
+		rounds:            []RoundData{{Number: 1}},
+		ticks:             []TickSnapshot{{Tick: 100}},
+		events:            []GameEvent{{Tick: 100, RoundNumber: 1, Type: "kill"}},
+		knifeRoundNumbers: map[int]bool{1: true},
+		matchStartCount:   2,
+		// Scores stay zero — the trigger condition for the reset.
+	}
+
+	state.resetForPreMatchRestart()
+
+	if state.currentRound != 0 {
+		t.Errorf("currentRound = %d, want 0", state.currentRound)
+	}
+	if state.roundStart != 0 {
+		t.Errorf("roundStart = %d, want 0", state.roundStart)
+	}
+	if state.freezeEndTick != 0 {
+		t.Errorf("freezeEndTick = %d, want 0", state.freezeEndTick)
+	}
+	if state.lastSampledTick != 0 {
+		t.Errorf("lastSampledTick = %d, want 0", state.lastSampledTick)
+	}
+	if state.rounds != nil {
+		t.Errorf("rounds = %v, want nil", state.rounds)
+	}
+	if state.ticks != nil {
+		t.Errorf("ticks = %v, want nil", state.ticks)
+	}
+	if state.events != nil {
+		t.Errorf("events = %v, want nil", state.events)
+	}
+	if state.knifeRoundNumbers != nil {
+		t.Errorf("knifeRoundNumbers = %v, want nil", state.knifeRoundNumbers)
+	}
+	// matchStartCount is intentionally preserved so subsequent restarts are
+	// still recognized as "second or later".
+	if state.matchStartCount != 2 {
+		t.Errorf("matchStartCount = %d, want 2 (preserved)", state.matchStartCount)
+	}
+}
+
+// captureSlog swaps slog's default logger for one that writes to a buffer
+// and returns a restore function. Used to assert on log output.
+func captureSlog(t *testing.T, level slog.Level) (*bytes.Buffer, func()) {
+	t.Helper()
+	buf := &bytes.Buffer{}
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{Level: level})))
+	return buf, func() { slog.SetDefault(prev) }
+}
+
+func TestMidMatchRestart_NoResetAndWarnLogged(t *testing.T) {
+	// Exercise the same decision as the MatchStartedChanged handler without
+	// needing a real demo parser: non-zero score + post-initial restart must
+	// preserve captured data and emit a warn-level log line.
+	buf, restore := captureSlog(t, slog.LevelWarn)
+	defer restore()
+
+	state := &parseState{
+		ctScore:         5,
+		tScore:          3,
+		currentRound:    9,
+		rounds:          []RoundData{{Number: 1}, {Number: 2}},
+		events:          []GameEvent{{RoundNumber: 1, Type: "kill"}},
+		matchStartCount: 2,
+	}
+
+	// This mirrors the second branch of the handler.
+	if state.ctScore != 0 || state.tScore != 0 {
+		slog.Warn("mid-match restart detected; keeping captured data",
+			"tick", 1234, "count", state.matchStartCount,
+			"ct", state.ctScore, "t", state.tScore)
+	} else {
+		state.resetForPreMatchRestart()
+	}
+
+	if len(state.rounds) != 2 {
+		t.Errorf("rounds length = %d, want 2 (preserved on mid-match restart)", len(state.rounds))
+	}
+	if len(state.events) != 1 {
+		t.Errorf("events length = %d, want 1 (preserved on mid-match restart)", len(state.events))
+	}
+	if state.currentRound != 9 {
+		t.Errorf("currentRound = %d, want 9 (preserved)", state.currentRound)
+	}
+	if !strings.Contains(buf.String(), "mid-match restart detected") {
+		t.Errorf("expected warn log containing 'mid-match restart detected', got: %q", buf.String())
 	}
 }

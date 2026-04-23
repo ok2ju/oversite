@@ -14,35 +14,38 @@ vi.mock("react-router-dom", async () => {
 })
 
 describe("DemosPage", () => {
-  it("renders title and import button", async () => {
+  it("renders the watch banner and toolbar chips", async () => {
     renderWithProviders(<DemosPage />)
 
-    expect(screen.getByText("Demos")).toBeInTheDocument()
-    expect(
-      screen.getByRole("button", { name: /import demo/i }),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/Watching folder/)).toBeInTheDocument()
+    for (const chip of ["All", "Wins", "Losses", "Parsing"]) {
+      expect(screen.getByRole("button", { name: chip })).toBeInTheDocument()
+    }
   })
 
-  it("renders folder import button", async () => {
-    renderWithProviders(<DemosPage />)
-
-    expect(
-      screen.getByRole("button", { name: /import folder/i }),
-    ).toBeInTheDocument()
-  })
-
-  it("calls ImportDemoFolder when folder button is clicked", async () => {
+  it("calls ImportDemoFolder when Re-scan is clicked", async () => {
     const user = userEvent.setup()
     renderWithProviders(<DemosPage />)
 
-    await user.click(screen.getByRole("button", { name: /import folder/i }))
+    await user.click(screen.getByRole("button", { name: /re-scan/i }))
 
     await waitFor(() => {
       expect(mockAppBindings.ImportDemoFolder).toHaveBeenCalled()
     })
   })
 
-  it("shows empty state when no demos exist", async () => {
+  it("calls ImportDemoFile when Import demos is clicked", async () => {
+    const user = userEvent.setup()
+    renderWithProviders(<DemosPage />)
+
+    await user.click(screen.getByRole("button", { name: /import demos/i }))
+
+    await waitFor(() => {
+      expect(mockAppBindings.ImportDemoFile).toHaveBeenCalled()
+    })
+  })
+
+  it("shows an empty-state row when there are no demos", async () => {
     mockAppBindings.ListDemos.mockResolvedValueOnce({
       data: [],
       meta: { total: 0, page: 1, per_page: 20 },
@@ -51,25 +54,30 @@ describe("DemosPage", () => {
     renderWithProviders(<DemosPage />)
 
     await waitFor(() => {
-      expect(screen.getByText(/no demos yet/i)).toBeInTheDocument()
+      expect(screen.getByText(/No demos match/i)).toBeInTheDocument()
     })
   })
 
-  it("renders demo list when demos exist", async () => {
+  it("renders library rows when demos exist", async () => {
     renderWithProviders(<DemosPage />)
 
     await waitFor(() => {
-      expect(screen.getByText("de_dust2")).toBeInTheDocument()
+      expect(screen.getByText("Dust II")).toBeInTheDocument()
+      expect(screen.getByText("Mirage")).toBeInTheDocument()
     })
   })
 
-  it("opens import dialog when import button is clicked", async () => {
+  it("narrows the table when the Parsing chip is active", async () => {
     const user = userEvent.setup()
     renderWithProviders(<DemosPage />)
 
-    await user.click(screen.getByRole("button", { name: /import demo/i }))
     await waitFor(() => {
-      expect(screen.getByRole("dialog")).toBeInTheDocument()
+      expect(screen.getByText("Dust II")).toBeInTheDocument()
     })
+
+    await user.click(screen.getByRole("button", { name: "Parsing" }))
+
+    expect(screen.queryByText("Dust II")).not.toBeInTheDocument()
+    expect(screen.getByText("Mirage")).toBeInTheDocument()
   })
 })

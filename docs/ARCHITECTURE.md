@@ -244,6 +244,10 @@ Oversite is a desktop 2D demo viewer and analytics platform for CS2 Faceit playe
 | **TanStack Query** | Wraps Wails binding calls. Stale-while-revalidate for demo lists, Faceit data. Invalidation on import/delete. |
 | **react-router-dom** | Client-side routing; replaces Next.js App Router. Outlet-based layout with sidebar navigation. |
 
+#### Dashboard composition
+
+The `/dashboard` route is intentionally lean: it renders only the Faceit **ProfileHero** (avatar, level, ELO, progress to next tier) and **RecentMatches** (the match history list) in a single column. Deeper stats (per-map, per-weapon, rolling form) live on per-demo analytics surfaces — primarily **Match Details** (`/matches/:demoId`, reached by clicking a match row) and the 2D Viewer. Earlier PerformanceGrid / RecentForm / MapPerformance / Weapons widgets were removed because they duplicated data shown elsewhere or were placeholder-only.
+
 ---
 
 ## 5. Data Flow Diagrams
@@ -413,6 +417,72 @@ User                    React SPA          Go Backend            Faceit API     
  │                        │◀───────────────────│                    │                │
  │  Show updated matches  │                    │                    │                │
  │◀───────────────────────│                    │                    │                │
+```
+
+### 5.5 Demo Download from Match Row
+
+Triggered when a user clicks **Import demo** on a dashboard match row that has a Faceit-hosted `demo_url` but no local import. The download runs in-process via `DownloadService`, and parsing is auto-triggered on success (reusing the flow from 5.1).
+
+```
+User        React SPA           Go Backend (App)      DownloadService    Faceit CDN    SQLite
+ │             │                      │                      │               │           │
+ │ Click       │                      │                      │               │           │
+ │ Import ───▶ │ ImportMatchDemo()    │                      │               │           │
+ │             │────────────────────▶ │ DownloadAndImport()  │               │           │
+ │             │                      │────────────────────▶ │ GET demo.dem  │           │
+ │             │                      │                      │─────────────▶ │           │
+ │             │                      │                      │  bytes        │           │
+ │             │                      │ Emit                 │◀───────────── │           │
+ │             │                      │ faceit:demo:         │               │           │
+ │             │◀─ download progress  │ download:progress    │               │           │
+ │  Show pill  │                      │                      │ INSERT demo   │           │
+ │             │                      │                      │────────────────────────── ▶│
+ │             │                      │                      │               │           │
+ │             │                      │  (auto-trigger parse — see 5.1)     │           │
+ │             │                      │                      │               │           │
+ │             │ Invalidate           │                      │               │           │
+ │             │ ['faceit-matches']   │                      │               │           │
+ │             │ ['demos'] queries    │                      │               │           │
+ │◀ Row flips  │                      │                      │               │           │
+ │  to "Demo   │                      │                      │               │           │
+ │   ready"    │                      │                      │               │           │
+```
+
+### 5.6 Dashboard / Demos → Match Details → Viewer
+
+Clicks from the dashboard match list and the Demo Library converge on Match Details (`/matches/:demoId`). The 2D Viewer is reached from Match Details via the **Play demo** button.
+
+```
+User        React SPA (list)       Match Details          2D Viewer        demoStore
+ │             │                         │                    │                │
+ │  Click row  │                         │                    │                │
+ │  (has_demo) │                         │                    │                │
+ │───────────▶ │                         │                    │                │
+ │             │  If importProgress      │                    │                │
+ │             │  targets this demo &    │                    │                │
+ │             │  stage ∈ {importing,    │                    │                │
+ │             │           parsing}:     │                    │                │
+ │             │    show "Parsing…"      │                    │                │
+ │             │    indicator, wait on   │                    │                │
+ │             │    demo:parse:progress  │                    │                │
+ │             │    stage === complete   │                    │                │
+ │             │                         │                    │                │
+ │             │  navigate(/matches/:id) │                    │                │
+ │             │────────────────────────▶│                    │                │
+ │             │                         │ GetDemoByID +      │                │
+ │             │                         │ rounds + scoreboard│                │
+ │             │                         │                    │                │
+ │◀ scoreboard │                         │                    │                │
+ │  + timeline │                         │                    │                │
+ │             │                         │                    │                │
+ │  Click      │                         │                    │                │
+ │  Play demo  │                         │                    │                │
+ │───────────────────────────────────────▶│                    │                │
+ │             │                         │ navigate(/demos/:id)                │
+ │             │                         │────────────────────▶│                │
+ │             │                         │                    │  Load ticks,   │
+ │             │                         │                    │  render PixiJS │
+ │◀ Viewer     │                         │                    │                │
 ```
 
 ---

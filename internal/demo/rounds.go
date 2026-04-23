@@ -39,15 +39,16 @@ func IngestRounds(ctx context.Context, db *sql.DB, demoID int64, result *ParseRe
 
 	for _, rd := range result.Rounds {
 		round, err := q.CreateRound(ctx, store.CreateRoundParams{
-			DemoID:      demoID,
-			RoundNumber: int64(rd.Number),
-			StartTick:   int64(rd.StartTick),
-			EndTick:     int64(rd.EndTick),
-			WinnerSide:  rd.WinnerSide,
-			WinReason:   rd.WinReason,
-			CtScore:     int64(rd.CTScore),
-			TScore:      int64(rd.TScore),
-			IsOvertime:  boolToInt64(rd.IsOvertime),
+			DemoID:        demoID,
+			RoundNumber:   int64(rd.Number),
+			StartTick:     int64(rd.StartTick),
+			FreezeEndTick: int64(rd.FreezeEndTick),
+			EndTick:       int64(rd.EndTick),
+			WinnerSide:    rd.WinnerSide,
+			WinReason:     rd.WinReason,
+			CtScore:       int64(rd.CTScore),
+			TScore:        int64(rd.TScore),
+			IsOvertime:    boolToInt64(rd.IsOvertime),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("insert round %d: %w", rd.Number, err)

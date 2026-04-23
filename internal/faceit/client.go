@@ -44,6 +44,7 @@ type FaceitPlayerMatchStats struct {
 	Deaths    int
 	Assists   int
 	Headshots int
+	ADR       float64
 }
 
 // FaceitLifetimeStats holds aggregated lifetime stats for a player in a game.

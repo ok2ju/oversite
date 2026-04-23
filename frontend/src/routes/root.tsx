@@ -4,13 +4,15 @@ import { Header } from "@/components/layout/header"
 
 export default function RootLayout() {
   return (
-    <div className="flex h-screen">
-      <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-auto p-6">
-          <Outlet />
-        </main>
+    <div className="app-shell">
+      <div className="app-body">
+        <Sidebar />
+        <div className="main-wrap">
+          <Header />
+          <main className="main-body">
+            <Outlet />
+          </main>
+        </div>
       </div>
     </div>
   )

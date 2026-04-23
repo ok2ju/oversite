@@ -34,6 +34,17 @@ func (s *SyncService) SyncMatches(ctx context.Context, userID int64, faceitID st
 		existing[id] = struct{}{}
 	}
 
+	// Matches stored before stats tracking was added have adr=0 and need
+	// a one-time backfill of per-player kills/deaths/assists/adr.
+	missingADRIDs, err := s.queries.GetFaceitMatchIDsMissingADR(ctx, userID)
+	if err != nil {
+		return 0, fmt.Errorf("getting matches missing ADR: %w", err)
+	}
+	needsBackfill := make(map[string]struct{}, len(missingADRIDs))
+	for _, id := range missingADRIDs {
+		needsBackfill[id] = struct{}{}
+	}
+
 	const pageSize = 20
 	const maxMatches = 200
 	inserted := 0
@@ -78,6 +89,26 @@ func (s *SyncService) SyncMatches(ctx context.Context, userID int64, faceitID st
 					ScoreOpponent: scoreOpponent,
 					Result:        result,
 				})
+
+				// Backfill per-player stats (kills/deaths/assists/adr) for
+				// matches that predate stats tracking.
+				if _, needs := needsBackfill[item.MatchID]; needs {
+					stats, statsErr := s.faceit.GetMatchStats(ctx, item.MatchID, faceitID)
+					if statsErr != nil {
+						slog.Warn("faceit match stats backfill failed", "match_id", item.MatchID, "err", statsErr)
+					} else if stats != nil {
+						if err := s.queries.UpdateMatchStats(ctx, store.UpdateMatchStatsParams{
+							UserID:        userID,
+							FaceitMatchID: item.MatchID,
+							Kills:         int64(stats.Kills),
+							Deaths:        int64(stats.Deaths),
+							Assists:       int64(stats.Assists),
+							Adr:           stats.ADR,
+						}); err != nil {
+							slog.Warn("faceit match stats update failed", "match_id", item.MatchID, "err", err)
+						}
+					}
+				}
 				continue
 			}
 
@@ -94,13 +125,15 @@ func (s *SyncService) SyncMatches(ctx context.Context, userID int64, faceitID st
 
 			playedAt := time.Unix(item.StartedAt, 0).UTC().Format(time.RFC3339)
 
-			// Fetch per-player match stats (kills/deaths/assists).
+			// Fetch per-player match stats (kills/deaths/assists/adr).
 			var kills, deaths, assists int64
+			var adr float64
 			stats, statsErr := s.faceit.GetMatchStats(ctx, item.MatchID, faceitID)
 			if statsErr == nil && stats != nil {
 				kills = int64(stats.Kills)
 				deaths = int64(stats.Deaths)
 				assists = int64(stats.Assists)
+				adr = stats.ADR
 			} else if statsErr != nil {
 				slog.Warn("faceit match stats unavailable", "match_id", item.MatchID, "err", statsErr)
 			}
@@ -115,6 +148,7 @@ func (s *SyncService) SyncMatches(ctx context.Context, userID int64, faceitID st
 				Kills:         kills,
 				Deaths:        deaths,
 				Assists:       assists,
+				Adr:           adr,
 				DemoUrl:       demoURL,
 				PlayedAt:      playedAt,
 			})

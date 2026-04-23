@@ -48,16 +48,16 @@ func (t *dumpTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	start := time.Now()
 
 	if dump, err := httputil.DumpRequestOut(req, false); err != nil {
-		fmt.Fprintf(t.w, "[HTTP →] %s %s (dump error: %v)\n", req.Method, req.URL, err)
+		_, _ = fmt.Fprintf(t.w, "[HTTP →] %s %s (dump error: %v)\n", req.Method, req.URL, err)
 	} else {
-		fmt.Fprintf(t.w, "[HTTP →] %s %s\n%s\n", req.Method, req.URL, indent(dump))
+		_, _ = fmt.Fprintf(t.w, "[HTTP →] %s %s\n%s\n", req.Method, req.URL, indent(dump))
 	}
 
 	resp, rtErr := t.inner.RoundTrip(req)
 	elapsed := time.Since(start)
 
 	if rtErr != nil {
-		fmt.Fprintf(t.w, "[HTTP ✗] %s %s — error after %s: %v\n", req.Method, req.URL, elapsed, rtErr)
+		_, _ = fmt.Fprintf(t.w, "[HTTP ✗] %s %s — error after %s: %v\n", req.Method, req.URL, elapsed, rtErr)
 		return nil, rtErr
 	}
 
@@ -65,7 +65,7 @@ func (t *dumpTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	dumpBody := resp.ContentLength < 1<<20 // <1 MB or unknown (-1)
 	dump, err := httputil.DumpResponse(resp, dumpBody)
 	if err != nil {
-		fmt.Fprintf(t.w, "[HTTP ←] %d %s (%s, dump error: %v)\n", resp.StatusCode, req.URL, elapsed, err)
+		_, _ = fmt.Fprintf(t.w, "[HTTP ←] %d %s (%s, dump error: %v)\n", resp.StatusCode, req.URL, elapsed, err)
 		return resp, nil
 	}
 
@@ -77,7 +77,7 @@ func (t *dumpTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if !dumpBody {
 		s += fmt.Sprintf("\n  [body omitted — Content-Length: %d]", resp.ContentLength)
 	}
-	fmt.Fprintf(t.w, "[HTTP ←] %d %s (%s)\n%s\n", resp.StatusCode, req.URL, elapsed, indent([]byte(s)))
+	_, _ = fmt.Fprintf(t.w, "[HTTP ←] %d %s (%s)\n%s\n", resp.StatusCode, req.URL, elapsed, indent([]byte(s)))
 
 	return resp, nil
 }
