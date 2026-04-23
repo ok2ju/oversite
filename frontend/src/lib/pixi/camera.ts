@@ -8,13 +8,6 @@ export interface Viewport {
   zoom: number
 }
 
-export interface ViewportRect {
-  x: number
-  y: number
-  width: number
-  height: number
-}
-
 // --- Constants ---
 
 export const MIN_ZOOM = 0.5
@@ -72,19 +65,6 @@ export function clampPan(
   }
 
   return { x, y, zoom: viewport.zoom }
-}
-
-export function computeViewportRect(
-  viewport: Viewport,
-  screenW: number,
-  screenH: number,
-): ViewportRect {
-  return {
-    x: -viewport.x / viewport.zoom,
-    y: -viewport.y / viewport.zoom,
-    width: screenW / viewport.zoom,
-    height: screenH / viewport.zoom,
-  }
 }
 
 export function screenToWorld(

@@ -966,15 +966,16 @@ func storeDemoToBinding(d store.Demo) Demo {
 
 func storeRoundToBinding(r store.Round) Round {
 	return Round{
-		ID:          strconv.FormatInt(r.ID, 10),
-		RoundNumber: int(r.RoundNumber),
-		StartTick:   int(r.StartTick),
-		EndTick:     int(r.EndTick),
-		WinnerSide:  r.WinnerSide,
-		WinReason:   r.WinReason,
-		CTScore:     int(r.CtScore),
-		TScore:      int(r.TScore),
-		IsOvertime:  r.IsOvertime != 0,
+		ID:            strconv.FormatInt(r.ID, 10),
+		RoundNumber:   int(r.RoundNumber),
+		StartTick:     int(r.StartTick),
+		FreezeEndTick: int(r.FreezeEndTick),
+		EndTick:       int(r.EndTick),
+		WinnerSide:    r.WinnerSide,
+		WinReason:     r.WinReason,
+		CTScore:       int(r.CtScore),
+		TScore:        int(r.TScore),
+		IsOvertime:    r.IsOvertime != 0,
 	}
 }
 

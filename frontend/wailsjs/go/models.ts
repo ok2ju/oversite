@@ -321,6 +321,7 @@ export namespace main {
 	    id: string;
 	    round_number: number;
 	    start_tick: number;
+	    freeze_end_tick: number;
 	    end_tick: number;
 	    winner_side: string;
 	    win_reason: string;
@@ -337,6 +338,7 @@ export namespace main {
 	        this.id = source["id"];
 	        this.round_number = source["round_number"];
 	        this.start_tick = source["start_tick"];
+	        this.freeze_end_tick = source["freeze_end_tick"];
 	        this.end_tick = source["end_tick"];
 	        this.winner_side = source["winner_side"];
 	        this.win_reason = source["win_reason"];

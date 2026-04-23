@@ -6,10 +6,9 @@ import { useViewerKeyboard } from "@/hooks/use-viewer-keyboard"
 import { useViewerStore } from "@/stores/viewer"
 import { ViewerCanvas } from "@/components/viewer/viewer-canvas"
 import { PlaybackControls } from "@/components/viewer/playback-controls"
-import { MiniMap } from "@/components/viewer/mini-map"
+import { MatchHeader } from "@/components/viewer/match-header"
 import { RoundSelector } from "@/components/viewer/round-selector"
 import { Scoreboard } from "@/components/viewer/scoreboard"
-import { StatsPanel } from "@/components/viewer/stats-panel"
 
 export default function DemoViewerPage() {
   const { id } = useParams<{ id: string }>()
@@ -17,12 +16,10 @@ export default function DemoViewerPage() {
   const initDemo = useViewerStore((s) => s.initDemo)
   const reset = useViewerStore((s) => s.reset)
   const [scoreboardVisible, setScoreboardVisible] = useState(false)
-  const [statsVisible, setStatsVisible] = useState(false)
   const handleToggleScoreboard = useCallback(
     () => setScoreboardVisible((v) => !v),
     [],
   )
-  const handleToggleStats = useCallback(() => setStatsVisible((v) => !v), [])
   useViewerKeyboard({ onToggleScoreboard: handleToggleScoreboard })
 
   useEffect(() => {
@@ -75,17 +72,10 @@ export default function DemoViewerPage() {
       data-testid="demo-viewer"
     >
       <ViewerCanvas />
+      <MatchHeader />
       <PlaybackControls />
-      <MiniMap />
       <RoundSelector />
       <Scoreboard visible={scoreboardVisible} />
-      <StatsPanel demoId={id ?? null} visible={statsVisible} />
-      <button
-        onClick={handleToggleStats}
-        className="absolute bottom-16 right-4 z-10 rounded-md bg-background/80 px-3 py-1.5 text-xs font-medium backdrop-blur hover:bg-background"
-      >
-        {statsVisible ? "Hide Stats" : "Stats"}
-      </button>
     </div>
   )
 }

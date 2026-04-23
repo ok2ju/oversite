@@ -304,6 +304,98 @@ describe("PlaybackEngine", () => {
     })
   })
 
+  describe("freeze-time auto-skip", () => {
+    // Round 1: start 0, freeze_end 960, end 3200
+    // Round 2: start 3200, freeze_end 4160, end 6400
+    const freezeWindows = [
+      { startTick: 0, freezeEndTick: 960 },
+      { startTick: 3200, freezeEndTick: 4160 },
+    ]
+
+    it("snaps fractionalTick to round 1 live start when rounds load", () => {
+      const { engine, setTick } = createEngine()
+      // Demo opens with seek(0); rounds arrive after.
+      engine.seek(0)
+      setTick.mockClear()
+
+      engine.setFreezeWindows(freezeWindows)
+      expect(setTick).toHaveBeenCalledWith(960)
+      expect(engine.interpolationFactor).toBe(0)
+    })
+
+    it("does not snap if already past freeze into live", () => {
+      const { engine, setTick } = createEngine()
+      engine.seek(2000) // live phase of round 1
+      setTick.mockClear()
+
+      engine.setFreezeWindows(freezeWindows)
+      expect(setTick).not.toHaveBeenCalled()
+    })
+
+    it("seek into a freeze window snaps to the round's live start", () => {
+      const { engine, setTick } = createEngine()
+      engine.setFreezeWindows(freezeWindows)
+      setTick.mockClear()
+
+      engine.seek(3300) // inside round 2 freeze window
+      expect(setTick).toHaveBeenCalledWith(4160)
+    })
+
+    it("seek at the exact live boundary does not snap", () => {
+      const { engine, setTick } = createEngine()
+      engine.setFreezeWindows(freezeWindows)
+      setTick.mockClear()
+
+      engine.seek(960) // first live tick of round 1
+      expect(setTick).toHaveBeenCalledWith(960)
+    })
+
+    it("playback crossing from round 1 live into round 2 freeze skips to round 2 live", () => {
+      const { engine, setTick } = createEngine()
+      engine.setFreezeWindows(freezeWindows)
+      engine.seek(3100) // late in round 1 live
+      setTick.mockClear()
+
+      // 100ms at 64tr = 6.4 ticks → fractionalTick ~3106.4, not yet in freeze.
+      engine.update(100)
+      expect(setTick).toHaveBeenLastCalledWith(3106)
+
+      // Advance multiple frames to cross into round 2 freeze (tick 3200).
+      // From 3106 we need >94 ticks at 100ms/6.4-per-frame ≈ 15 frames.
+      for (let i = 0; i < 20; i++) engine.update(100)
+
+      // Must have snapped to 4160 (round 2 live start) at some point.
+      const snappedCall = setTick.mock.calls.find((c) => c[0] === 4160)
+      expect(snappedCall).toBeDefined()
+    })
+
+    it("seek before round 1 start jumps to round 1 live start", () => {
+      const { engine, setTick } = createEngine()
+      // Round 1 starts at 500, not 0 — pre-match gap at ticks [0, 499].
+      engine.setFreezeWindows([
+        { startTick: 500, freezeEndTick: 1460 },
+        { startTick: 3200, freezeEndTick: 4160 },
+      ])
+      setTick.mockClear()
+
+      engine.seek(100)
+      expect(setTick).toHaveBeenCalledWith(1460)
+    })
+
+    it("filters out windows with freeze_end_tick <= start_tick", () => {
+      const { engine, setTick } = createEngine()
+      engine.setFreezeWindows([
+        { startTick: 0, freezeEndTick: 0 }, // unknown freeze end; ignored
+        { startTick: 3200, freezeEndTick: 4160 },
+      ])
+      setTick.mockClear()
+
+      // 3300 is inside the remaining window → snap.
+      engine.seek(3300)
+      expect(setTick).toHaveBeenCalledWith(4160)
+    })
+  })
+
   describe("dispose", () => {
     it("can be called without error", () => {
       const { engine } = createEngine()

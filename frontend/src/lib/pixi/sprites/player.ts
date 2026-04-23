@@ -5,60 +5,50 @@ export function getTeamColor(team: TeamSide): number {
   return team === "CT" ? 0x5b9bd5 : 0xe67e22
 }
 
+export function getTeamOutlineColor(team: TeamSide): number {
+  return team === "CT" ? 0x1e3a5f : 0x7a4417
+}
+
 export function yawToRadians(yaw: number): number {
   return -(yaw * Math.PI) / 180
 }
 
-const PLAYER_RADIUS = 8
-const VIEW_ANGLE_LENGTH = 16
-const VIEW_ANGLE_HALF_FOV = (30 * Math.PI) / 180 // 60° total FOV
-const SELECTION_RING_RADIUS = 12
+const BODY_RADIUS = 11
+const OUTLINE_WIDTH = 1.5
+const POINTER_TIP_EXTENSION = 5
+const POINTER_HALF_WIDTH = 4
+const SELECTION_RING_RADIUS = 18
+const LABEL_OFFSET_Y = 22
+const LABEL_FONT_SIZE = 13
 
 export class PlayerSprite {
   container: Container
-  private circle: Graphics
-  private nameLabel: Text
-  private viewAngle: Graphics
+  private body: Graphics
+  private pointer: Graphics
   private deathMarker: Graphics
   private selectionRing: Graphics
+  private nameLabel: Text
 
   private _team: TeamSide | null = null
   private _isAlive: boolean | null = null
   private _isSelected: boolean | null = null
+  private _name: string | null = null
 
   constructor() {
     this.container = new Container()
     this.container.eventMode = "static"
     this.container.cursor = "pointer"
 
-    // Circle (filled, team color)
-    this.circle = new Graphics()
-    this.circle.circle(0, 0, PLAYER_RADIUS).fill(0xffffff)
+    this.body = new Graphics()
 
-    // Name label (above circle)
-    this.nameLabel = new Text({
-      text: "",
-      style: { fill: 0xffffff, fontSize: 11 },
-    })
-    this.nameLabel.anchor.set(0.5, 1)
-    this.nameLabel.y = -(PLAYER_RADIUS + 2)
-
-    // View angle cone
-    this.viewAngle = new Graphics()
-    this.viewAngle
-      .moveTo(0, 0)
-      .lineTo(
-        VIEW_ANGLE_LENGTH * Math.cos(-VIEW_ANGLE_HALF_FOV),
-        VIEW_ANGLE_LENGTH * Math.sin(-VIEW_ANGLE_HALF_FOV),
-      )
-      .lineTo(
-        VIEW_ANGLE_LENGTH * Math.cos(VIEW_ANGLE_HALF_FOV),
-        VIEW_ANGLE_LENGTH * Math.sin(VIEW_ANGLE_HALF_FOV),
-      )
+    this.pointer = new Graphics()
+    this.pointer
+      .moveTo(BODY_RADIUS - 1, -POINTER_HALF_WIDTH)
+      .lineTo(BODY_RADIUS + POINTER_TIP_EXTENSION, 0)
+      .lineTo(BODY_RADIUS - 1, POINTER_HALF_WIDTH)
       .closePath()
-      .fill({ color: 0xffffff, alpha: 0.4 })
+      .fill(0xffffff)
 
-    // Death marker (red X)
     this.deathMarker = new Graphics()
     this.deathMarker
       .moveTo(-6, -6)
@@ -70,18 +60,43 @@ export class PlayerSprite {
       .stroke({ color: 0xff0000, width: 2 })
     this.deathMarker.visible = false
 
-    // Selection ring (stroke only)
     this.selectionRing = new Graphics()
     this.selectionRing
       .circle(0, 0, SELECTION_RING_RADIUS)
       .stroke({ color: 0xffffff, width: 2 })
     this.selectionRing.visible = false
 
-    this.container.addChild(this.circle)
-    this.container.addChild(this.nameLabel)
-    this.container.addChild(this.viewAngle)
+    this.nameLabel = new Text({
+      text: "",
+      style: {
+        fill: 0xffffff,
+        fontSize: LABEL_FONT_SIZE,
+        fontWeight: "700",
+        dropShadow: {
+          color: 0x000000,
+          alpha: 0.75,
+          blur: 3,
+          distance: 1,
+          angle: Math.PI / 2,
+        },
+      },
+    })
+    this.nameLabel.anchor.set(0.5, 0)
+    this.nameLabel.y = LABEL_OFFSET_Y
+
+    this.container.addChild(this.body)
+    this.container.addChild(this.pointer)
     this.container.addChild(this.deathMarker)
     this.container.addChild(this.selectionRing)
+    this.container.addChild(this.nameLabel)
+  }
+
+  private drawBody(team: TeamSide): void {
+    this.body.clear()
+    this.body
+      .circle(0, 0, BODY_RADIUS)
+      .fill(getTeamColor(team))
+      .stroke({ color: getTeamOutlineColor(team), width: OUTLINE_WIDTH })
   }
 
   update(data: {
@@ -95,15 +110,16 @@ export class PlayerSprite {
   }): void {
     this.container.x = data.x
     this.container.y = data.y
-
-    this.nameLabel.text = data.name
-    this.viewAngle.rotation = yawToRadians(data.yaw)
+    this.pointer.rotation = yawToRadians(data.yaw)
 
     if (data.team !== this._team) {
       this._team = data.team
-      const color = getTeamColor(data.team)
-      this.circle.clear()
-      this.circle.circle(0, 0, PLAYER_RADIUS).fill(color)
+      this.drawBody(data.team)
+    }
+
+    if (data.name !== this._name) {
+      this._name = data.name
+      this.nameLabel.text = data.name
     }
 
     if (data.isAlive !== this._isAlive) {

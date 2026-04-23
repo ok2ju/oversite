@@ -5,6 +5,7 @@ import {
   clientXToPercent,
   roundBoundaryPositions,
   formatTickDisplay,
+  formatRoundTime,
 } from "./timeline-utils"
 
 describe("tickToPercent", () => {
@@ -140,5 +141,64 @@ describe("formatTickDisplay", () => {
 
   it("formats single digit", () => {
     expect(formatTickDisplay(1, 10)).toBe("1 / 10")
+  })
+})
+
+describe("formatRoundTime", () => {
+  const freeze15 = 64 * 15
+
+  it("shows the full freeze countdown at the start of the round", () => {
+    expect(formatRoundTime(0, 64, freeze15)).toBe("0:15")
+  })
+
+  it("counts down freeze time toward 0:01 on the last freeze second", () => {
+    expect(formatRoundTime(64 * 14, 64, freeze15)).toBe("0:01")
+  })
+
+  it("transitions to full round time 1:55 when freeze ends", () => {
+    expect(formatRoundTime(64 * 15, 64, freeze15)).toBe("1:55")
+  })
+
+  it("counts down round time during the round", () => {
+    expect(formatRoundTime(64 * 17, 64, freeze15)).toBe("1:53")
+  })
+
+  it("zero-pads round seconds below 10", () => {
+    expect(formatRoundTime(64 * 125, 64, freeze15)).toBe("0:05")
+  })
+
+  it("returns 0:00 at the end of the round (freeze + 115s elapsed)", () => {
+    expect(formatRoundTime(64 * 130, 64, freeze15)).toBe("0:00")
+  })
+
+  it("returns 0:00 past the full round duration", () => {
+    expect(formatRoundTime(64 * 200, 64, freeze15)).toBe("0:00")
+  })
+
+  it("floors partial ticks to the prior second", () => {
+    expect(formatRoundTime(64 * 10 + 63, 64, freeze15)).toBe("0:05")
+  })
+
+  it("honors a non-standard freeze duration from the demo", () => {
+    const freeze20 = 64 * 20
+    expect(formatRoundTime(0, 64, freeze20)).toBe("0:20")
+    expect(formatRoundTime(64 * 20, 64, freeze20)).toBe("1:55")
+  })
+
+  it("falls back to 15s when no freeze duration is provided", () => {
+    expect(formatRoundTime(0, 64)).toBe("0:15")
+    expect(formatRoundTime(64 * 15, 64)).toBe("1:55")
+  })
+
+  it("falls back to 15s when freeze duration is 0 (unknown)", () => {
+    expect(formatRoundTime(0, 64, 0)).toBe("0:15")
+  })
+
+  it("returns 0:00 when tickRate is 0", () => {
+    expect(formatRoundTime(1000, 0, freeze15)).toBe("0:00")
+  })
+
+  it("clamps negative elapsed ticks to the full freeze countdown", () => {
+    expect(formatRoundTime(-50, 64, freeze15)).toBe("0:15")
   })
 })

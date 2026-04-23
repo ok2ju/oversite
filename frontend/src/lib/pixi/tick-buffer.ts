@@ -11,6 +11,17 @@ export type FetchTicksFn = (
 export const DEFAULT_CHUNK_SIZE = 6400
 const DEFAULT_LOOK_AHEAD_THRESHOLD = 0.75
 const DEFAULT_MAX_CACHED_CHUNKS = 10
+const MAX_SAMPLE_WALK = 128
+
+export interface SampleFrame {
+  tick: number
+  data: TickData[]
+}
+
+export interface FramePair {
+  current: SampleFrame | null
+  next: SampleFrame | null
+}
 
 interface TickBufferOptions {
   fetchFn?: FetchTicksFn
@@ -62,8 +73,7 @@ export class TickBuffer {
       // Backend samples every Nth tick (see parser.go tickInterval). Walk back
       // to the most recent sample within this chunk so frames between samples
       // render the last known state instead of flickering to empty.
-      const MAX_WALK = 128
-      const floor = Math.max(chunkStart, tick - MAX_WALK)
+      const floor = Math.max(chunkStart, tick - MAX_SAMPLE_WALK)
       for (let t = tick; t >= floor; t--) {
         const data = cached.data.get(t)
         if (data) return data
@@ -73,6 +83,65 @@ export class TickBuffer {
 
     this.fetchChunk(chunkStart)
     return null
+  }
+
+  // getFramePair returns the sample at-or-before floor(fractionalTick) and the
+  // next sample strictly after it, so the renderer can interpolate positions
+  // between snapshots. Returns { current: null, next: null } if the containing
+  // chunk is not yet loaded (fetch is triggered).
+  getFramePair(fractionalTick: number): FramePair {
+    const intTick = Math.floor(fractionalTick)
+    const chunkStart = this.chunkStartFor(intTick)
+    const cached = this.cache.get(chunkStart)
+
+    if (!cached) {
+      this.fetchChunk(chunkStart)
+      return { current: null, next: null }
+    }
+    cached.lastAccessed = Date.now()
+    this.maybePrefetchNext(intTick, chunkStart)
+
+    const chunkEnd = chunkStart + this.chunkSize - 1
+
+    let current: SampleFrame | null = null
+    const backFloor = Math.max(chunkStart, intTick - MAX_SAMPLE_WALK)
+    for (let t = intTick; t >= backFloor; t--) {
+      const d = cached.data.get(t)
+      if (d) {
+        current = { tick: t, data: d }
+        break
+      }
+    }
+
+    let next: SampleFrame | null = null
+    const forwardCeiling = Math.min(chunkEnd, intTick + MAX_SAMPLE_WALK)
+    for (let t = intTick + 1; t <= forwardCeiling; t++) {
+      const d = cached.data.get(t)
+      if (d) {
+        next = { tick: t, data: d }
+        break
+      }
+    }
+
+    // At the tail of a chunk, fall through to the next chunk if it's cached so
+    // playback stays smooth across the boundary. We don't fetch here.
+    if (!next && intTick + MAX_SAMPLE_WALK > chunkEnd) {
+      const nextChunkStart = chunkStart + this.chunkSize
+      const nextCached = this.cache.get(nextChunkStart)
+      if (nextCached) {
+        const nextChunkEnd = nextChunkStart + this.chunkSize - 1
+        const ceiling = Math.min(nextChunkEnd, intTick + MAX_SAMPLE_WALK)
+        for (let t = nextChunkStart; t <= ceiling; t++) {
+          const d = nextCached.data.get(t)
+          if (d) {
+            next = { tick: t, data: d }
+            break
+          }
+        }
+      }
+    }
+
+    return { current, next }
   }
 
   seek(tick: number): void {

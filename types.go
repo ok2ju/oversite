@@ -39,15 +39,16 @@ type PaginationMeta struct {
 
 // Round represents a round within a demo.
 type Round struct {
-	ID          string `json:"id"`
-	RoundNumber int    `json:"round_number"`
-	StartTick   int    `json:"start_tick"`
-	EndTick     int    `json:"end_tick"`
-	WinnerSide  string `json:"winner_side"`
-	WinReason   string `json:"win_reason"`
-	CTScore     int    `json:"ct_score"`
-	TScore      int    `json:"t_score"`
-	IsOvertime  bool   `json:"is_overtime"`
+	ID            string `json:"id"`
+	RoundNumber   int    `json:"round_number"`
+	StartTick     int    `json:"start_tick"`
+	FreezeEndTick int    `json:"freeze_end_tick"`
+	EndTick       int    `json:"end_tick"`
+	WinnerSide    string `json:"winner_side"`
+	WinReason     string `json:"win_reason"`
+	CTScore       int    `json:"ct_score"`
+	TScore        int    `json:"t_score"`
+	IsOvertime    bool   `json:"is_overtime"`
 }
 
 // GameEvent represents a game event in a demo.

@@ -3,9 +3,8 @@ import {
   GetHeatmapData,
   GetUniqueWeapons,
   GetUniquePlayers,
-  GetWeaponStats,
 } from "@wailsjs/go/main/App"
-import type { HeatmapPoint, PlayerInfo, WeaponStat } from "@/types/heatmap"
+import type { HeatmapPoint, PlayerInfo } from "@/types/heatmap"
 
 export function useHeatmapData(
   demoIDs: number[],
@@ -38,15 +37,6 @@ export function useUniquePlayers(demoIDs: number[]) {
     queryKey: ["heatmap-players", demoIDs],
     queryFn: () => GetUniquePlayers(demoIDs) as Promise<PlayerInfo[]>,
     enabled: demoIDs.length > 0,
-    staleTime: Infinity,
-  })
-}
-
-export function useWeaponStats(demoId: string | null) {
-  return useQuery({
-    queryKey: ["weapon-stats", demoId],
-    queryFn: () => GetWeaponStats(demoId!) as Promise<WeaponStat[]>,
-    enabled: !!demoId,
     staleTime: Infinity,
   })
 }

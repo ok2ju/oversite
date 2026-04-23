@@ -11,34 +11,27 @@ import { TickBuffer } from "@/lib/pixi/tick-buffer"
 import { fetchRoster } from "@/hooks/use-roster"
 import { useViewerStore } from "@/stores/viewer"
 import { useGameEvents } from "@/hooks/use-game-events"
+import { useRounds } from "@/hooks/use-rounds"
 import { shallow } from "zustand/shallow"
+import type { Round } from "@/types/round"
 
-function setupViewerSubscriptions(app: ViewerApp): () => void {
-  const unsubs: (() => void)[] = []
-
-  unsubs.push(
-    useViewerStore.subscribe(
-      (s) => s.isPlaying,
-      (isPlaying) => {
-        if (isPlaying) {
-          app.ticker.start()
-        } else {
-          app.ticker.stop()
-        }
-      },
-      { fireImmediately: true },
-    ),
-  )
-
-  return () => unsubs.forEach((fn) => fn())
+function toFreezeWindows(rounds: Round[] | undefined) {
+  return (rounds ?? []).map((r) => ({
+    startTick: r.start_tick,
+    freezeEndTick: r.freeze_end_tick,
+  }))
 }
 
 export function ViewerCanvas() {
   const containerRef = useRef<HTMLDivElement>(null)
   const eventLayerRef = useRef<EventLayer | null>(null)
+  const engineRef = useRef<PlaybackEngine | null>(null)
+  const roundsRef = useRef<ReturnType<typeof useRounds>["data"]>(undefined)
 
   const demoId = useViewerStore((s) => s.demoId)
   const { data: gameEventsData } = useGameEvents(demoId)
+  const { data: roundsData } = useRounds(demoId)
+  roundsRef.current = roundsData
 
   // Feed event data into the EventLayer whenever the query result changes.
   useEffect(() => {
@@ -46,6 +39,13 @@ export function ViewerCanvas() {
       eventLayerRef.current.setEvents(gameEventsData)
     }
   }, [gameEventsData])
+
+  // Push freeze windows into the engine so it auto-skips freeze time on
+  // initial load, seek, and round transitions during live playback.
+  useEffect(() => {
+    if (!engineRef.current) return
+    engineRef.current.setFreezeWindows(toFreezeWindows(roundsData))
+  }, [roundsData])
 
   useEffect(() => {
     const container = containerRef.current
@@ -58,9 +58,7 @@ export function ViewerCanvas() {
     let playerLayer: PlayerLayer | null = null
     let tickBuffer: TickBuffer | null = null
     let eventLayer: EventLayer | null = null
-    let unsubscribe: (() => void) | null = null
     let mapUnsub: (() => void) | null = null
-    let tickUnsub: (() => void) | null = null
     let roundUnsub: (() => void) | null = null
     let demoUnsub: (() => void) | null = null
     let resetUnsub: (() => void) | null = null
@@ -116,8 +114,6 @@ export function ViewerCanvas() {
       eventLayer = new EventLayer(eventContainer)
       eventLayerRef.current = eventLayer
 
-      unsubscribe = setupViewerSubscriptions(app)
-
       // Track ticks written by the engine to avoid seek feedback loops
       let engineSetTick = -1
 
@@ -138,6 +134,10 @@ export function ViewerCanvas() {
         },
         pause: () => useViewerStore.getState().pause(),
       })
+      engineRef.current = engine
+      // If rounds already loaded before the engine was ready, push now so
+      // the initial seek(0) gets snapped out of round 1's freeze window.
+      engine.setFreezeWindows(toFreezeWindows(roundsRef.current))
 
       // Sync external seek changes (timeline UI) to the engine
       seekUnsub = useViewerStore.subscribe(
@@ -192,17 +192,6 @@ export function ViewerCanvas() {
         { fireImmediately: true },
       )
 
-      tickUnsub = useViewerStore.subscribe(
-        (s) => ({ tick: s.currentTick, selected: s.selectedPlayerSteamId }),
-        ({ tick, selected }) => {
-          if (!playerLayer || !mapLayer?.calibration || !tickBuffer) return
-          const data = tickBuffer.getTickData(tick)
-          if (data === null) return
-          playerLayer.update(data, mapLayer.calibration, selected)
-        },
-        { fireImmediately: false, equalityFn: shallow },
-      )
-
       roundUnsub = useViewerStore.subscribe(
         (s) => ({ round: s.currentRound, demoId: s.demoId }),
         ({ round, demoId }) => {
@@ -226,10 +215,32 @@ export function ViewerCanvas() {
 
       tickerFn = () => {
         engine?.update(app.ticker.deltaMS)
+
         const calibration = mapLayer?.calibration
-        if (eventLayer && calibration) {
-          const { currentTick } = useViewerStore.getState()
+        if (!calibration || !engine) return
+
+        const { currentTick, selectedPlayerSteamId } = useViewerStore.getState()
+
+        if (eventLayer) {
           eventLayer.update(currentTick, calibration)
+        }
+
+        if (playerLayer && tickBuffer) {
+          const fractionalTick = currentTick + engine.interpolationFactor
+          const { current, next } = tickBuffer.getFramePair(fractionalTick)
+          if (current) {
+            const alpha =
+              next && next.tick > current.tick
+                ? (fractionalTick - current.tick) / (next.tick - current.tick)
+                : 0
+            playerLayer.update(
+              current.data,
+              next?.data ?? null,
+              alpha,
+              calibration,
+              selectedPlayerSteamId,
+            )
+          }
         }
       }
       app.ticker.add(tickerFn)
@@ -240,7 +251,6 @@ export function ViewerCanvas() {
       resizeObserver?.disconnect()
       rosterAbortController?.abort()
       roundUnsub?.()
-      tickUnsub?.()
       demoUnsub?.()
       seekUnsub?.()
       resetUnsub?.()
@@ -248,8 +258,8 @@ export function ViewerCanvas() {
         viewerApp.ticker.remove(tickerFn)
       }
       engine?.dispose()
+      engineRef.current = null
       mapUnsub?.()
-      unsubscribe?.()
       tickBuffer?.dispose()
       playerLayer?.destroy()
       eventLayer?.destroy()
