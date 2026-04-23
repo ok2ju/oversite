@@ -24,7 +24,7 @@ func TestParseDemo_NoKnifeRounds(t *testing.T) {
 	if err != nil {
 		t.Skipf("testdata demo not available: %v", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	result, err := NewDemoParser().Parse(f)
 	if err != nil {

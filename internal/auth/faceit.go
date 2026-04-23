@@ -222,7 +222,7 @@ func (c *HTTPFaceitClient) GetPlayerLifetimeStats(ctx context.Context, playerID 
 	if raw.Lifetime != nil {
 		if v, ok := raw.Lifetime["Matches"]; ok {
 			if s, ok := v.(string); ok {
-				fmt.Sscanf(s, "%d", &result.Matches)
+				_, _ = fmt.Sscanf(s, "%d", &result.Matches)
 			}
 		}
 	}
@@ -469,7 +469,7 @@ func parseStatInt(stats map[string]string, key string) int {
 		return 0
 	}
 	var n int
-	fmt.Sscanf(v, "%d", &n)
+	_, _ = fmt.Sscanf(v, "%d", &n)
 	return n
 }
 
@@ -480,7 +480,7 @@ func parseStatFloat(stats map[string]string, key string) float64 {
 		return 0
 	}
 	var f float64
-	fmt.Sscanf(v, "%f", &f)
+	_, _ = fmt.Sscanf(v, "%f", &f)
 	return f
 }
 

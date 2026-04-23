@@ -646,7 +646,7 @@ func (a *App) GetFaceitProfile() (*FaceitProfile, error) {
 }
 
 // GetFaceitMatches returns a paginated, filtered list of Faceit matches from
-// the last 60 days.
+// the last 30 days.
 func (a *App) GetFaceitMatches(page, perPage int, mapName, result string) (*FaceitMatchListResult, error) {
 	u, err := a.authService.GetCurrentUser(a.ctx)
 	if err != nil {
@@ -657,7 +657,7 @@ func (a *App) GetFaceitMatches(page, perPage int, mapName, result string) (*Face
 	}
 
 	offset := int64((page - 1) * perPage)
-	since := time.Now().AddDate(0, 0, -60).Format(time.RFC3339)
+	since := time.Now().AddDate(0, 0, -30).Format(time.RFC3339)
 
 	var mapFilter, resultFilter interface{}
 	if mapName != "" {
