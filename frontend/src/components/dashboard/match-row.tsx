@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Download, Loader2 } from "lucide-react"
-import { EventsOff, EventsOn } from "@wailsjs/runtime/runtime"
+import { EventsOn } from "@wailsjs/runtime/runtime"
 import { cn } from "@/lib/utils"
 import { MapTile, resolveMap } from "@/components/dashboard/map-tile"
 import { MATCH_ROW_GRID } from "@/components/dashboard/recent-matches"
@@ -76,7 +76,6 @@ export function MatchRow({ match, onClick }: MatchRowProps) {
       (data: DownloadProgress) => setDownloadProgress(data),
     )
     return () => {
-      EventsOff("faceit:demo:download:progress")
       if (typeof cancel === "function") cancel()
     }
   }, [download.isPending])

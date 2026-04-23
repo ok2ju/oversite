@@ -66,6 +66,7 @@ export function ViewerCanvas() {
     let tickerFn: (() => void) | null = null
     let engine: PlaybackEngine | null = null
     let seekUnsub: (() => void) | null = null
+    let playingUnsub: (() => void) | null = null
     let resizeObserver: ResizeObserver | null = null
 
     createViewerApp({ container }).then((app) => {
@@ -118,7 +119,7 @@ export function ViewerCanvas() {
       let engineSetTick = -1
 
       engine = new PlaybackEngine({
-        tickRate: 64,
+        tickRate: useViewerStore.getState().tickRate,
         getState: () => {
           const s = useViewerStore.getState()
           return {
@@ -146,8 +147,28 @@ export function ViewerCanvas() {
           if (engine && currentTick !== engineSetTick) {
             engine.seek(currentTick)
             tickBuffer?.seek(currentTick)
+            // While paused, the ticker is stopped, so the scrub's new frame
+            // won't render unless we paint one. engine.update short-circuits
+            // on !isPlaying so tickerFn is safe to call manually.
+            if (!useViewerStore.getState().isPlaying && tickerFn) {
+              tickerFn()
+            }
           }
         },
+      )
+
+      // Drive the PixiJS ticker off of isPlaying so we don't burn CPU
+      // rendering interpolated frames while the demo is paused.
+      playingUnsub = useViewerStore.subscribe(
+        (s) => s.isPlaying,
+        (isPlaying) => {
+          if (isPlaying) {
+            app.ticker.start()
+          } else {
+            app.ticker.stop()
+          }
+        },
+        { fireImmediately: true },
       )
 
       resetUnsub = useViewerStore.subscribe(
@@ -169,6 +190,11 @@ export function ViewerCanvas() {
                     mapLayer.calibration.width,
                     mapLayer.calibration.height,
                   )
+                }
+                // Map loaded asynchronously — paint a frame even if paused so
+                // the initial view renders without waiting for play.
+                if (!useViewerStore.getState().isPlaying) {
+                  tickerFn?.()
                 }
               })
               .catch(console.error)
@@ -254,6 +280,7 @@ export function ViewerCanvas() {
       demoUnsub?.()
       seekUnsub?.()
       resetUnsub?.()
+      playingUnsub?.()
       if (tickerFn && viewerApp) {
         viewerApp.ticker.remove(tickerFn)
       }

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
-import { render, screen } from "@testing-library/react"
+import { screen } from "@testing-library/react"
+import { renderWithProviders } from "@/test/render"
 import { StatusPill, statusKey } from "@/components/demos/status-pill"
 
 describe("statusKey", () => {
@@ -20,7 +21,7 @@ describe("StatusPill", () => {
   ] as const)(
     "renders the %s label with the right variant",
     (status, label) => {
-      render(<StatusPill status={status} />)
+      renderWithProviders(<StatusPill status={status} />)
       expect(screen.getByText(label)).toBeInTheDocument()
     },
   )
