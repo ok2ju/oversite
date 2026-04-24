@@ -2,7 +2,7 @@
 
 ## Context
 
-Phase 3 delivers the core 2D demo viewer: users can open a parsed demo, see the map with player positions, watch playback at variable speeds, view events (kills, grenades, bombs), navigate rounds, and check the scoreboard. The TASK_BREAKDOWN.md lists 12 tasks (P3-T01 through P3-T12).
+Phase 3 delivers the core 2D demo viewer: users can open a parsed demo, see the map with player positions, watch playback at variable speeds, view events (kills, grenades, bombs), navigate rounds, and check the scoreboard. See [tasks.md](../tasks.md) for the 12 tasks (P3-T01 through P3-T12).
 
 **Critical finding**: After thorough codebase exploration, ~90% of the Phase 3 frontend is already implemented from prior waves. All PixiJS rendering layers, playback engine, tick buffer, playback controls UI, camera/zoom/pan, minimap, Zustand store bridge, and data-fetching hooks are built and tested. The remaining work is:
 

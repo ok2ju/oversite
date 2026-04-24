@@ -55,12 +55,12 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Deps** | None |
 | **Test Types** | N/A (infrastructure) |
 | **TDD Workflow** | N/A -- verify via `wails dev` launching the app window |
-| **Description** | Initialize the Wails v2 project: Go module, `wails.json` config, `main.go` entry point with Wails `App` struct, frontend Vite scaffold with `embed.FS` integration. Set up the monorepo directory structure per ARCHITECTURE.md Section 10. |
+| **Description** | Initialize the Wails v2 project: Go module, `wails.json` config, `main.go` entry point with Wails `App` struct, frontend Vite scaffold with `embed.FS` integration. Set up the monorepo directory structure per architecture/structure.md. |
 | **Key Files** | `wails.json`, `main.go`, `app.go`, `frontend/package.json`, `frontend/vite.config.ts`, `frontend/index.html` |
 | **Acceptance Criteria** | - `wails dev` launches a window with the default Wails template |
 | | - Go module compiles (`go build ./...`) |
 | | - Frontend dev server runs (`pnpm dev`) |
-| | - Directory structure matches ARCHITECTURE.md Section 10 |
+| | - Directory structure matches architecture/structure.md |
 
 ### P1-T02: Set up SQLite with migrations [COMPLETE]
 
@@ -70,7 +70,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Deps** | P1-T01 |
 | **Test Types** | integration |
 | **TDD Workflow** | 1. RED: Write test that opens SQLite DB, runs migrations, and verifies tables exist. 2. GREEN: Implement SQLite connection (modernc.org/sqlite), WAL mode setup, migration runner. 3. REFACTOR: Extract DB setup into reusable function. |
-| **Description** | Set up SQLite using `modernc.org/sqlite` (pure Go). Enable WAL mode. Create migration framework (golang-migrate with SQLite driver or custom). Write initial migration with full schema from ARCHITECTURE.md Section 7. |
+| **Description** | Set up SQLite using `modernc.org/sqlite` (pure Go). Enable WAL mode. Create migration framework (golang-migrate with SQLite driver or custom). Write initial migration with full schema from architecture/database.md. |
 | **Key Files** | `internal/database/sqlite.go`, `internal/database/sqlite_test.go`, `migrations/001_initial_schema.up.sql`, `migrations/001_initial_schema.down.sql`, `migrations/embed.go` |
 | **Acceptance Criteria** | - SQLite database created in OS app data directory |
 | | - WAL mode enabled (`PRAGMA journal_mode` returns `wal`) |
@@ -1248,4 +1248,4 @@ make clean            # Remove build artifacts
 
 ---
 
-*Cross-references: [PRD.md](PRD.md) for feature requirements, [ARCHITECTURE.md](ARCHITECTURE.md) for system design, [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for phase milestones.*
+*Cross-references: [product/features](product/features.md) for feature requirements, [architecture/overview](architecture/overview.md) for system design, [roadmap](roadmap.md) for phase milestones.*

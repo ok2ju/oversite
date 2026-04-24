@@ -57,7 +57,7 @@ oversite/
 ├── e2e/                            # Playwright E2E tests
 ├── lefthook.yml                    # Pre-commit hook config
 ├── Makefile                        # Root dev commands
-└── docs/                           # PRD, Architecture, Plans, ADRs
+└── docs/                           # Obsidian vault: product/, architecture/, decisions/, plans/, knowledge/, tasks.md, roadmap.md, index.md, log.md
 ```
 
 ## Development Commands
@@ -148,6 +148,7 @@ Before writing or modifying any test file, you **must**:
 ### Skills
 - `/create-migration <name>` -- Creates numbered golang-migrate up/down SQL file pair
 - `/gen-test <file>` -- Generates test file for any Go or TS source file
+- `/ingest-session` -- Summarizes the current session: appends to `docs/log.md` and proposes updates to `docs/knowledge/` pages
 
 ### MCP Servers (`.mcp.json`)
 - **Playwright** -- Browser automation for visual testing and debugging
@@ -155,9 +156,14 @@ Before writing or modifying any test file, you **must**:
 
 ## Documentation
 
-- `docs/PRD.md` -- Product requirements, user stories, data models
-- `docs/ARCHITECTURE.md` -- System design, DB schema, data flows
-- `docs/IMPLEMENTATION_PLAN.md` -- 6-phase delivery plan
-- `docs/TASK_BREAKDOWN.md` -- 63 granular tasks with acceptance criteria
-- `docs/adr/` -- Architecture Decision Records
-- `docs/plans/` -- Phase implementation plans
+Docs live in an Obsidian vault under `docs/`. Start at [`docs/index.md`](docs/index.md) for the MOC.
+
+- `docs/index.md` -- Entry-point MOC linking every section
+- `docs/log.md` -- Append-only project activity log (maintained via `/ingest-session`)
+- `docs/product/` -- Product requirements (split from legacy PRD): vision, personas, features, user stories, NFRs, data models, Wails bindings
+- `docs/architecture/` -- Arc42 system design (split from legacy ARCHITECTURE): overview, structure, components, data flows, Wails bindings, database, crosscutting, testing
+- `docs/decisions/` -- Architecture Decision Records (ADRs)
+- `docs/plans/` -- Phase implementation plans (p1–p4)
+- `docs/tasks.md` -- 63 granular tasks with acceptance criteria
+- `docs/roadmap.md` -- 6-phase delivery plan
+- `docs/knowledge/` -- LLM-maintained wiki of implementation entities/patterns

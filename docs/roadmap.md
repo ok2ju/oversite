@@ -390,4 +390,4 @@ Once P2 is complete, P3 can begin immediately. Within P3, once the basic viewer 
 
 ---
 
-*Cross-references: [PRD.md](PRD.md) for feature requirements, [ARCHITECTURE.md](ARCHITECTURE.md) for system design, [TASK_BREAKDOWN.md](TASK_BREAKDOWN.md) for granular tasks with acceptance criteria.*
+*Cross-references: [product/features](product/features.md) for feature requirements, [architecture/overview](architecture/overview.md) for system design, [tasks](tasks.md) for granular tasks with acceptance criteria.*
