@@ -88,7 +88,7 @@ oversite/
 │   │   └── lib/         # PixiJS, maps, utils
 │   └── wailsjs/         # Auto-generated Wails bindings
 ├── e2e/                 # Playwright E2E tests
-├── docs/                # PRD, Architecture, Plans, ADRs
+├── docs/                # Obsidian vault: product, architecture, decisions, plans, knowledge
 └── Makefile             # Root dev commands
 ```
 
@@ -107,8 +107,13 @@ oversite/
 
 ## Documentation
 
-- [`docs/PRD.md`](docs/PRD.md) -- Product requirements, user stories, data models
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) -- System design, DB schema, data flows
-- [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) -- 6-phase delivery plan
-- [`docs/TASK_BREAKDOWN.md`](docs/TASK_BREAKDOWN.md) -- 63 granular tasks with acceptance criteria
-- [`docs/adr/`](docs/adr/) -- Architecture Decision Records
+Docs live in an Obsidian vault under [`docs/`](docs/). Start at [`docs/index.md`](docs/index.md) for the map of contents.
+
+- [`docs/product/`](docs/product/) -- Vision, personas, features, user stories, NFRs, data models, Wails bindings
+- [`docs/architecture/`](docs/architecture/) -- Arc42 system design: overview, structure, components, data flows, database, crosscutting, testing
+- [`docs/decisions/`](docs/decisions/) -- Architecture Decision Records (ADRs)
+- [`docs/plans/`](docs/plans/) -- Phase implementation plans (P1–P4)
+- [`docs/roadmap.md`](docs/roadmap.md) -- 6-phase delivery plan
+- [`docs/tasks.md`](docs/tasks.md) -- 63 granular tasks with acceptance criteria
+- [`docs/knowledge/`](docs/knowledge/) -- LLM-maintained wiki of implementation entities/patterns
+- [`docs/log.md`](docs/log.md) -- Append-only project activity log

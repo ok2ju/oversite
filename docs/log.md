@@ -17,5 +17,6 @@ Restructured `docs/` into an Obsidian vault with split monoliths, a knowledge wi
 - Seeded [[knowledge/README|knowledge wiki]] with 9 entity/pattern pages
 - Absorbed `spike-parser-findings.md` into [[knowledge/demo-parser]]
 - Added [[index]] as MOC and this log
+- Updated root `README.md` to reference the new vault layout (MOC + subfolder links)
 
 Rationale: the flat `docs/` folder with four 800–1250 line monoliths was hard to navigate and edit. Splits give cleaner URLs, smaller LLM edit surfaces, and surface-area for a curated wiki layer. See `/Users/sundayfunday/.claude/plans/im-thinking-about-having-binary-clover.md` for the plan that drove this change.
