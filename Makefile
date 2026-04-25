@@ -1,4 +1,4 @@
-.PHONY: dev build clean sqlc migrate-create lint typecheck test test-go test-fe test-unit test-e2e hooks hooks-fallback help
+.PHONY: dev build clean sqlc migrate-create gen-appicon lint typecheck test test-go test-fe test-unit test-e2e hooks hooks-fallback help
 
 # ========================
 # Development
@@ -28,6 +28,9 @@ migrate-create: ## Create new migration pair (usage: make migrate-create name=<n
 	touch "migrations/$${next}_$(name).up.sql" "migrations/$${next}_$(name).down.sql"; \
 	echo "Created migrations/$${next}_$(name).up.sql"; \
 	echo "Created migrations/$${next}_$(name).down.sql"
+
+gen-appicon: ## Regenerate build/appicon.png from the reticle mark
+	go run ./cmd/gen-appicon
 
 # ========================
 # Quality

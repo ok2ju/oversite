@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils"
 import { useDemos } from "@/hooks/use-demos"
 import { useFaceitProfile } from "@/hooks/use-faceit"
 import { useAuth } from "@/components/providers/auth-provider"
+import { Logo } from "@/components/brand/logo"
 
 type NavItem = {
   href: string
@@ -68,8 +69,7 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="side-brand">
-        <span className="side-brand-mark">O</span>
-        <span className="side-brand-name">Oversite</span>
+        <Logo iconSize={22} fontSize={14} />
       </div>
 
       <div className="side-section">
