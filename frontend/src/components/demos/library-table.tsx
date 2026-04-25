@@ -115,152 +115,121 @@ export function LibraryTable({
   }
 
   return (
-    <div
-      className="overflow-hidden rounded-lg border"
-      style={{ borderColor: "var(--border)", background: "var(--bg-elevated)" }}
-    >
-      <div
-        className="grid items-center px-3.5 py-2 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--text-subtle)]"
-        style={{
-          gridTemplateColumns:
-            "40px minmax(0,1fr) 90px 140px 80px 70px 110px 120px",
-          background: "var(--bg-sunken)",
-        }}
-      >
-        <div>
-          <input
-            type="checkbox"
-            aria-label="Select all"
-            checked={selected.size > 0 && selected.size === rows.length}
-            onChange={toggleAll}
-          />
-        </div>
-        <div>Map</div>
-        <div>Score</div>
-        <div>Date</div>
-        <div>Duration</div>
-        <div>Size</div>
-        <div>Status</div>
-        <div className="text-right">Actions</div>
-      </div>
-
-      <div>
-        {rows.map((demo) => {
-          const isSelected = selected.has(demo.id)
-          const meta = resolveMap(demo.map_name)
-          const fileName = demo.file_path.split("/").pop() ?? ""
-          const isParsing = demo.status === "parsing"
-          const isWaiting = waitingDemoId === demo.id
-          return (
-            <div
-              key={demo.id}
-              data-testid={`demo-row-${demo.id}`}
-              className={cn(
-                "group grid cursor-pointer items-center border-t px-3.5 py-2.5 text-[12.5px] transition-colors",
-                isWaiting && "cursor-wait",
-              )}
-              style={{
-                gridTemplateColumns:
-                  "40px minmax(0,1fr) 90px 140px 80px 70px 110px 120px",
-                borderColor: "var(--divider)",
-                background: isSelected
-                  ? "var(--bg-selected)"
-                  : "var(--bg-elevated)",
-              }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = isSelected
-                  ? "var(--bg-selected)"
-                  : "var(--bg-hover)")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background = isSelected
-                  ? "var(--bg-selected)"
-                  : "var(--bg-elevated)")
-              }
-              onClick={() => handleRowClick(demo)}
-            >
-              <div onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="checkbox"
-                  aria-label={`Select demo ${demo.id}`}
-                  checked={isSelected}
-                  onChange={() => toggle(demo.id)}
-                />
-              </div>
-              <div className="flex min-w-0 items-center gap-3">
-                <MapTile mapName={demo.map_name} size={28} />
-                <div className="min-w-0">
-                  <div className="truncate font-semibold text-[var(--text)]">
-                    {meta.name}
-                  </div>
-                  <div className="truncate font-mono text-[11px] text-[var(--text-subtle)]">
-                    {fileName}
-                  </div>
-                </div>
-              </div>
-              <div className="tabular text-[var(--text-muted)]">—</div>
-              <div className="text-[var(--text-muted)]">
-                {formatDate(demo.match_date || demo.created_at)}
-              </div>
-              <div className="tabular text-[var(--text-muted)]">
-                {formatDuration(demo.duration_secs)}
-              </div>
-              <div className="tabular text-[var(--text-muted)]">
-                {formatBytes(demo.file_size)}
-              </div>
-              <div>
-                {isParsing && isWaiting ? (
-                  <span
-                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium"
-                    style={{
-                      background: "var(--warn-soft)",
-                      color: "var(--warn)",
-                    }}
-                    data-testid={`demo-row-${demo.id}-waiting`}
-                  >
-                    Parsing…
-                  </span>
-                ) : (
-                  <StatusPill status={demo.status} />
-                )}
-              </div>
-              <div
+    <div className="demos-table">
+      <table>
+        <thead>
+          <tr>
+            <th style={{ width: 40 }}>
+              <input
+                type="checkbox"
+                aria-label="Select all"
+                checked={selected.size > 0 && selected.size === rows.length}
+                onChange={toggleAll}
+              />
+            </th>
+            <th>Map</th>
+            <th style={{ width: 90 }}>Score</th>
+            <th style={{ width: 140 }}>Date</th>
+            <th style={{ width: 80 }}>Duration</th>
+            <th style={{ width: 70 }}>Size</th>
+            <th style={{ width: 110 }}>Status</th>
+            <th style={{ width: 120 }} aria-label="Actions"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((demo) => {
+            const isSelected = selected.has(demo.id)
+            const meta = resolveMap(demo.map_name)
+            const fileName = demo.file_path.split("/").pop() ?? ""
+            const isParsing = demo.status === "parsing"
+            const isWaiting = waitingDemoId === demo.id
+            return (
+              <tr
+                key={demo.id}
+                data-testid={`demo-row-${demo.id}`}
                 className={cn(
-                  "flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100",
-                  isSelected && "opacity-100",
+                  isSelected && "selected",
+                  isWaiting && "cursor-wait",
                 )}
-                onClick={(e) => e.stopPropagation()}
+                onClick={() => handleRowClick(demo)}
               >
-                <button
-                  type="button"
-                  className="grid h-7 w-7 place-items-center rounded-md text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text)]"
-                  aria-label="Play"
-                  disabled={statusKey(demo.status) !== "ready"}
-                  onClick={() => navigate(`/demos/${demo.id}`)}
-                >
-                  <Play className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  className="grid h-7 w-7 place-items-center rounded-md text-[var(--text-muted)] hover:bg-[var(--bg-hover)] hover:text-[var(--text)]"
-                  aria-label="Open match"
-                  onClick={() => navigate(`/matches/${demo.id}`)}
-                >
-                  <Link2 className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  className="grid h-7 w-7 place-items-center rounded-md text-[var(--text-muted)] hover:bg-[var(--loss-soft)] hover:text-[var(--loss)]"
-                  aria-label="Delete"
-                  onClick={() => onDelete(demo.id)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+                <td onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    aria-label={`Select demo ${demo.id}`}
+                    checked={isSelected}
+                    onChange={() => toggle(demo.id)}
+                  />
+                </td>
+                <td>
+                  <div className="mcell">
+                    <MapTile mapName={demo.map_name} size={28} />
+                    <div className="min-w-0">
+                      <div className="m-name truncate">{meta.name}</div>
+                      <div className="m-id truncate">{fileName}</div>
+                    </div>
+                  </div>
+                </td>
+                <td className="tabular text-[var(--text-muted)]">—</td>
+                <td className="tabular text-[var(--text-muted)]">
+                  {formatDate(demo.match_date || demo.created_at)}
+                </td>
+                <td className="tabular">
+                  {formatDuration(demo.duration_secs)}
+                </td>
+                <td className="tabular text-[var(--text-muted)]">
+                  {formatBytes(demo.file_size)}
+                </td>
+                <td>
+                  {isParsing && isWaiting ? (
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium"
+                      style={{
+                        background: "var(--warn-soft)",
+                        color: "var(--warn)",
+                      }}
+                      data-testid={`demo-row-${demo.id}-waiting`}
+                    >
+                      Parsing…
+                    </span>
+                  ) : (
+                    <StatusPill status={demo.status} />
+                  )}
+                </td>
+                <td className="act-cell" onClick={(e) => e.stopPropagation()}>
+                  <div className="row-actions">
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      aria-label="Play"
+                      disabled={statusKey(demo.status) !== "ready"}
+                      onClick={() => navigate(`/demos/${demo.id}`)}
+                    >
+                      <Play className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      aria-label="Open match"
+                      onClick={() => navigate(`/matches/${demo.id}`)}
+                    >
+                      <Link2 className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      aria-label="Delete"
+                      onClick={() => onDelete(demo.id)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }

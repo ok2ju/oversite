@@ -3,6 +3,16 @@ import { screen, waitFor } from "@testing-library/react"
 import { renderWithProviders, userEvent } from "@/test/render"
 import { mockAppBindings, mockRuntime } from "@/test/mocks/bindings"
 import DemosPage from "@/routes/demos"
+import { DemosHeaderActions } from "@/components/demos/demos-header-actions"
+
+function renderPageWithHeader() {
+  return renderWithProviders(
+    <>
+      <DemosHeaderActions />
+      <DemosPage />
+    </>,
+  )
+}
 
 vi.mock("@wailsjs/go/main/App", () => mockAppBindings)
 vi.mock("@wailsjs/runtime/runtime", () => mockRuntime)
@@ -14,29 +24,17 @@ vi.mock("react-router-dom", async () => {
 })
 
 describe("DemosPage", () => {
-  it("renders the watch banner and toolbar chips", async () => {
+  it("renders the toolbar chips", async () => {
     renderWithProviders(<DemosPage />)
 
-    expect(screen.getByText(/Watching folder/)).toBeInTheDocument()
     for (const chip of ["All", "Wins", "Losses", "Parsing"]) {
       expect(screen.getByRole("button", { name: chip })).toBeInTheDocument()
     }
   })
 
-  it("calls ImportDemoFolder when Re-scan is clicked", async () => {
-    const user = userEvent.setup()
-    renderWithProviders(<DemosPage />)
-
-    await user.click(screen.getByRole("button", { name: /re-scan/i }))
-
-    await waitFor(() => {
-      expect(mockAppBindings.ImportDemoFolder).toHaveBeenCalled()
-    })
-  })
-
   it("calls ImportDemoFile when Import demos is clicked", async () => {
     const user = userEvent.setup()
-    renderWithProviders(<DemosPage />)
+    renderPageWithHeader()
 
     await user.click(screen.getByRole("button", { name: /import demos/i }))
 

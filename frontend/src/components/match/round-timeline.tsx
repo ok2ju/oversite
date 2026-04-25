@@ -15,10 +15,10 @@ export function roundClass(
 }
 
 const COLOR: Record<RoundClass, { bg: string; fg: string }> = {
-  "win-t": { bg: "var(--round-win-t)", fg: "#1e5a3a" },
-  "win-ct": { bg: "var(--round-win-ct)", fg: "var(--accent-ink)" },
-  "loss-t": { bg: "var(--round-loss-t)", fg: "#9a1d2d" },
-  "loss-ct": { bg: "var(--round-loss-ct)", fg: "#9a1d2d" },
+  "win-t": { bg: "var(--round-win-t)", fg: "var(--round-win-t-fg)" },
+  "win-ct": { bg: "var(--round-win-ct)", fg: "var(--round-win-ct-fg)" },
+  "loss-t": { bg: "var(--round-loss-t)", fg: "var(--round-loss-t-fg)" },
+  "loss-ct": { bg: "var(--round-loss-ct)", fg: "var(--round-loss-ct-fg)" },
 }
 
 const LEGEND: Array<{ key: RoundClass; label: string }> = [

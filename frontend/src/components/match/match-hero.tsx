@@ -89,11 +89,13 @@ export function MatchHero({
           </div>
         </div>
 
-        <div className="tabular flex items-baseline gap-3 px-6 text-[56px] font-bold leading-none">
+        <div className="tabular flex items-baseline gap-3 px-6 text-[40px] font-bold leading-none tracking-[-0.04em]">
           <span style={{ color: leftWin ? "var(--win)" : "var(--text)" }}>
             {left.score}
           </span>
-          <span className="text-[28px] text-[var(--text-faint)]">:</span>
+          <span className="text-[30px] text-[var(--text-faint)] font-normal">
+            :
+          </span>
           <span style={{ color: rightWin ? "var(--win)" : "var(--text)" }}>
             {right.score}
           </span>
@@ -109,7 +111,7 @@ export function MatchHero({
             </div>
           </div>
           <TeamLogo
-            gradient="linear-gradient(135deg, #6b7280, #1f2937)"
+            gradient="linear-gradient(135deg, #4a5058, #1a1d22)"
             initial={right.name[0]?.toUpperCase() ?? "?"}
           />
         </div>

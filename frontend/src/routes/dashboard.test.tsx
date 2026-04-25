@@ -23,7 +23,7 @@ describe("DashboardPage", () => {
     renderWithProviders(<DashboardPage />)
 
     await waitFor(() => {
-      expect(screen.getByText("TestPlayer")).toBeInTheDocument()
+      expect(screen.getAllByText("TestPlayer").length).toBeGreaterThan(0)
     })
 
     expect(screen.getByText("1,850")).toBeInTheDocument()

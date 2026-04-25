@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router-dom"
+import { ChevronRight } from "lucide-react"
 import { navItems } from "@/components/layout/sidebar"
 
 export interface HeaderProps {
@@ -23,6 +24,7 @@ export function Header({ title, subtitle, actions }: HeaderProps = {}) {
   const { pathname } = useLocation()
   const resolvedTitle = title ?? deriveTitle(pathname)
   const isHome = pathname === "/" || pathname === "/dashboard"
+  const crumbCurrent = isHome ? "Dashboard" : resolvedTitle
 
   return (
     <div className="main-header">
@@ -31,17 +33,10 @@ export function Header({ title, subtitle, actions }: HeaderProps = {}) {
           <Link to="/dashboard" className="hover:text-[var(--text)]">
             Home
           </Link>
-          {!isHome ? (
-            <>
-              <span className="crumb-sep">›</span>
-              <span className="crumb-current">{resolvedTitle}</span>
-            </>
-          ) : (
-            <>
-              <span className="crumb-sep">›</span>
-              <span className="crumb-current">Dashboard</span>
-            </>
-          )}
+          <span className="crumb-sep" aria-hidden>
+            <ChevronRight className="h-3 w-3" />
+          </span>
+          <span className="crumb-current">{crumbCurrent}</span>
         </div>
         <div className="page-title">{resolvedTitle}</div>
         {subtitle ? <div className="page-subtitle">{subtitle}</div> : null}

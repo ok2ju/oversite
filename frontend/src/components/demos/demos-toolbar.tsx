@@ -1,7 +1,6 @@
-import { Search, SlidersHorizontal, Download, Upload } from "lucide-react"
+import { Search, SlidersHorizontal, Download } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { useImportDemo } from "@/hooks/use-demos"
 import { cn } from "@/lib/utils"
 
 export type DemosFilter = "all" | "wins" | "losses" | "parsing"
@@ -26,8 +25,6 @@ export function DemosToolbar({
   filter,
   onFilterChange,
 }: DemosToolbarProps) {
-  const { importDemo, isImporting } = useImportDemo()
-
   return (
     <div className="flex items-center gap-3">
       <div className="relative w-full max-w-[320px]">
@@ -36,29 +33,31 @@ export function DemosToolbar({
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Search map, file name, match ID"
-          className="h-8 pl-8 text-[12.5px]"
+          className="h-[30px] pl-8 text-[12.5px]"
           aria-label="Search demos"
         />
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1.5">
         {CHIPS.map((chip) => (
           <button
             key={chip.value}
             type="button"
             onClick={() => onFilterChange(chip.value)}
             className={cn(
-              "h-7 rounded-full px-3 text-[12px] font-medium transition-colors",
+              "inline-flex h-[26px] items-center rounded-full border px-2.5 text-[11.5px] font-medium transition-colors",
             )}
             style={
               filter === chip.value
                 ? {
                     background: "var(--accent-soft)",
                     color: "var(--accent-ink)",
+                    borderColor: "var(--accent-soft)",
                   }
                 : {
-                    background: "var(--bg-sunken)",
+                    background: "var(--bg-elevated)",
                     color: "var(--text-muted)",
+                    borderColor: "var(--border-strong)",
                   }
             }
             aria-pressed={filter === chip.value}
@@ -69,22 +68,23 @@ export function DemosToolbar({
       </div>
 
       <div className="ml-auto flex items-center gap-1">
-        <Button variant="ghost" size="sm" className="gap-1.5" disabled>
-          <SlidersHorizontal className="h-3.5 w-3.5" />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-[26px] gap-1.5 px-2.5 text-[12px]"
+          disabled
+        >
+          <SlidersHorizontal className="h-3 w-3" />
           More filters
         </Button>
-        <Button variant="ghost" size="sm" className="gap-1.5" disabled>
-          <Download className="h-3.5 w-3.5" />
-          Export
-        </Button>
         <Button
+          variant="ghost"
           size="sm"
-          className="gap-1.5"
-          onClick={() => importDemo()}
-          disabled={isImporting}
+          className="h-[26px] gap-1.5 px-2.5 text-[12px]"
+          disabled
         >
-          <Upload className="h-3.5 w-3.5" />
-          {isImporting ? "Importing…" : "Import demos"}
+          <Download className="h-3 w-3" />
+          Export
         </Button>
       </div>
     </div>

@@ -34,6 +34,17 @@ const LEVEL_ELO: Array<[number, number, number]> = [
   [10, 2001, 99999],
 ]
 
+function countryFlag(cc: string | null | undefined): string {
+  if (!cc || cc.length !== 2) return ""
+  const A = "A".charCodeAt(0)
+  const offset = 0x1f1e6
+  const upper = cc.toUpperCase()
+  const a = upper.charCodeAt(0)
+  const b = upper.charCodeAt(1)
+  if (a < A || a > A + 25 || b < A || b > A + 25) return ""
+  return String.fromCodePoint(offset + (a - A), offset + (b - A))
+}
+
 function levelBounds(level: number | null, elo: number | null) {
   if (level == null) return { floor: 0, ceiling: 0, toNext: 0 }
   const row = LEVEL_ELO.find((r) => r[0] === level) ?? LEVEL_ELO[0]
@@ -83,7 +94,7 @@ export function ProfileHero({ profile, isLoading }: ProfileHeroProps) {
   const showAvatar = Boolean(profile.avatar_url) && !avatarBroken
 
   return (
-    <Card className="grid gap-4 border border-[var(--border)] bg-[var(--bg-elevated)] px-5 py-4">
+    <Card className="hero-card grid gap-4 border border-[var(--border)] bg-[var(--bg-elevated)] px-5 py-4">
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-5">
         <div className="relative">
           {showAvatar ? (
@@ -99,14 +110,14 @@ export function ProfileHero({ profile, isLoading }: ProfileHeroProps) {
               className="grid h-[68px] w-[68px] place-items-center rounded-[10px] font-extrabold text-white"
               style={{
                 fontSize: 24,
-                background: "linear-gradient(135deg, #ff8a3d, #e11d48)",
+                background: "linear-gradient(135deg, #ff7a1a, #b44500)",
               }}
             >
               {profile.nickname?.[0]?.toUpperCase() ?? "?"}
             </div>
           )}
           <div
-            className="absolute -right-1.5 -bottom-1.5 grid h-7 w-7 place-items-center rounded-[8px] text-[11px] font-bold text-white"
+            className="hero-level-ring absolute -right-1.5 -bottom-1.5 grid h-7 w-7 place-items-center rounded-[8px] text-[11px] font-bold text-white"
             style={{ background: levelColor }}
             aria-label={`Level ${level}`}
           >
@@ -125,12 +136,26 @@ export function ProfileHero({ profile, isLoading }: ProfileHeroProps) {
               aria-hidden
             />
           </div>
-          <div className="mt-1 flex items-center gap-2 text-[12.5px] text-[var(--text-muted)]">
-            {profile.country && <span>{profile.country.toUpperCase()}</span>}
-            {profile.country && <span aria-hidden>·</span>}
-            <span>EU</span>
-            <span aria-hidden>·</span>
-            <span>faceit / {profile.nickname}</span>
+          <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-[var(--text-muted)]">
+            {profile.country && (
+              <span className="inline-flex items-center gap-1.5">
+                <span aria-hidden className="text-[14px] leading-none">
+                  {countryFlag(profile.country) || "🌐"}
+                </span>
+                <span className="font-semibold text-[var(--text)]">
+                  {profile.country.toUpperCase()}
+                </span>
+              </span>
+            )}
+            <span>
+              Region <b className="font-semibold text-[var(--text)]">EU</b>
+            </span>
+            <span>
+              Faceit{" "}
+              <b className="font-semibold text-[var(--text)]">
+                {profile.nickname}
+              </b>
+            </span>
           </div>
         </div>
 
@@ -153,7 +178,7 @@ export function ProfileHero({ profile, isLoading }: ProfileHeroProps) {
             className="h-full rounded-full transition-[width] duration-[600ms] ease-out"
             style={{
               width: `${pct}%`,
-              background: "linear-gradient(90deg, #e11d48, #ff8a3d)",
+              background: "linear-gradient(90deg, #ff7a1a, #ffb266)",
             }}
           />
         </div>

@@ -1,7 +1,6 @@
 import { Check, Loader2, Clock } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Button } from "@/components/ui/button"
 import { useDemoStore } from "@/stores/demo"
 
 interface QueueRow {
@@ -82,14 +81,6 @@ export function ImportQueue() {
           >
             {activeCount} active
           </span>
-        </div>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" disabled>
-            Pause
-          </Button>
-          <Button variant="ghost" size="sm" disabled>
-            Clear done
-          </Button>
         </div>
       </div>
       <div className="divide-y divide-[var(--divider)]">

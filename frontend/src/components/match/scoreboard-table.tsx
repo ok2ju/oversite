@@ -83,7 +83,7 @@ function TeamBlock({ label, players, meSteamId }: TeamBlockProps) {
               <div
                 className="grid h-[26px] w-[26px] place-items-center rounded-[4px] text-[11px] font-bold text-white"
                 style={{
-                  background: "linear-gradient(135deg, #6b7280, #1f2937)",
+                  background: "linear-gradient(135deg, #4a5058, #1a1d22)",
                 }}
                 aria-hidden
               >
@@ -104,7 +104,7 @@ function TeamBlock({ label, players, meSteamId }: TeamBlockProps) {
                   className="rounded-sm px-1.5 py-0.5 text-[9.5px] font-bold tracking-wider uppercase"
                   style={{
                     background: "var(--accent)",
-                    color: "#fff",
+                    color: "#0b0d10",
                   }}
                 >
                   You

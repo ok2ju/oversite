@@ -37,8 +37,8 @@ function Illustration() {
     >
       <defs>
         <linearGradient id="folder-g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#6ea8ff" />
-          <stop offset="1" stopColor="#2563eb" />
+          <stop offset="0" stopColor="#ff8f3d" />
+          <stop offset="1" stopColor="#b44500" />
         </linearGradient>
       </defs>
       <path
@@ -51,7 +51,9 @@ function Illustration() {
         width="66"
         height="36"
         rx="4"
-        fill="#fff"
+        fill="#14171c"
+        stroke="#30363f"
+        strokeWidth="1"
         opacity="0.96"
       />
       <rect
@@ -60,13 +62,15 @@ function Illustration() {
         width="66"
         height="36"
         rx="4"
-        fill="#fff"
-        opacity="0.88"
+        fill="#1b1f25"
+        stroke="#30363f"
+        strokeWidth="1"
+        opacity="0.96"
       />
-      <polygon points="74,68 94,82 74,96" fill="#2563eb" />
-      <circle cx="118" cy="28" r="3" fill="#ff8a3d" />
-      <circle cx="10" cy="62" r="2" fill="#e11d48" />
-      <path d="M128 46 l2 4 4 2 -4 2 -2 4 -2 -4 -4 -2 4 -2 z" fill="#ff8a3d" />
+      <polygon points="74,68 94,82 74,96" fill="#ff7a1a" />
+      <circle cx="118" cy="28" r="3" fill="#ff7a1a" />
+      <circle cx="10" cy="62" r="2" fill="#ffb266" />
+      <path d="M128 46 l2 4 4 2 -4 2 -2 4 -2 -4 -4 -2 4 -2 z" fill="#fbbf24" />
     </svg>
   )
 }
@@ -78,15 +82,14 @@ export function EmptyHero({
   error,
 }: EmptyHeroProps) {
   return (
-    <div className="grid min-h-screen place-items-center p-8">
+    <div
+      className="grid min-h-screen place-items-center p-8"
+      style={{ background: "var(--bg)" }}
+    >
       <div className="w-full max-w-[640px]">
         <div
-          className="rounded-[10px] border px-10 py-10 text-center"
-          style={{
-            borderColor: "var(--border)",
-            background:
-              "radial-gradient(circle at top, #e0ebff 0%, var(--bg-elevated) 45%)",
-          }}
+          className="empty-hero rounded-[10px] border px-10 py-10 text-center"
+          style={{ borderColor: "var(--border)" }}
         >
           <Illustration />
           <h1
