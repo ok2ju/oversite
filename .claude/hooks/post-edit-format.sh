@@ -29,14 +29,14 @@ fi
 # --- Go → gofmt + goimports ---
 if [[ "$FILE" == */backend/*.go ]]; then
   gofmt -w "$FILE" 2>/dev/null || true
-  goimports -w "$FILE" 2>/dev/null || true
+  command -v goimports >/dev/null 2>&1 && goimports -w "$FILE" 2>/dev/null || true
   exit 0
 fi
 
 # --- Root-level Go (Wails app, internal/) → gofmt + goimports ---
 if [[ "$FILE" == *.go ]] && [[ "$FILE" != */backend/*.go ]]; then
   gofmt -w "$FILE" 2>/dev/null || true
-  goimports -w "$FILE" 2>/dev/null || true
+  command -v goimports >/dev/null 2>&1 && goimports -w "$FILE" 2>/dev/null || true
   exit 0
 fi
 

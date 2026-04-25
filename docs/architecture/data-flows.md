@@ -4,9 +4,9 @@
 
 ---
 
-## 5. Data Flow Diagrams
+## Data Flow Diagrams
 
-### 5.1 Demo Import & Parse
+### Demo Import & Parse
 
 ```
 User                    React SPA          Go Backend            SQLite           Filesystem
@@ -53,7 +53,7 @@ User                    React SPA          Go Backend            SQLite         
  │◀───────────────────────│                    │                    │                │
 ```
 
-### 5.2 Viewer Playback
+### Viewer Playback
 
 ```
 User                    React SPA          Zustand Store       PixiJS App         Go Backend         SQLite
@@ -93,7 +93,7 @@ User                    React SPA          Zustand Store       PixiJS App       
  │◀───────────────────────────────────────────────────────────────│                  │                │
 ```
 
-### 5.3 Faceit OAuth Loopback Flow
+### Faceit OAuth Loopback Flow
 
 ```
 User                    React SPA          Go Backend            System Browser    Faceit API        OS Keychain
@@ -143,7 +143,7 @@ User                    React SPA          Go Backend            System Browser 
  │◀───────────────────────│                    │                    │                │                │
 ```
 
-### 5.4 Faceit Match Sync
+### Faceit Match Sync
 
 ```
 User                    React SPA          Go Backend            Faceit API        SQLite
@@ -173,7 +173,7 @@ User                    React SPA          Go Backend            Faceit API     
  │◀───────────────────────│                    │                    │                │
 ```
 
-### 5.5 Demo Download from Match Row
+### Demo Download from Match Row
 
 Triggered when a user clicks **Import demo** on a dashboard match row that has a Faceit-hosted `demo_url` but no local import. The download runs in-process via `DownloadService`, and parsing is auto-triggered on success (reusing the flow from 5.1).
 
@@ -192,7 +192,7 @@ User        React SPA           Go Backend (App)      DownloadService    Faceit 
  │  Show pill  │                      │                      │ INSERT demo   │           │
  │             │                      │                      │────────────────────────── ▶│
  │             │                      │                      │               │           │
- │             │                      │  (auto-trigger parse — see 5.1)     │           │
+ │             │                      │  (auto-trigger parse — see Demo Import & Parse) │
  │             │                      │                      │               │           │
  │             │ Invalidate           │                      │               │           │
  │             │ ['faceit-matches']   │                      │               │           │
@@ -202,7 +202,7 @@ User        React SPA           Go Backend (App)      DownloadService    Faceit 
  │   ready"    │                      │                      │               │           │
 ```
 
-### 5.6 Dashboard / Demos → Match Details → Viewer
+### Dashboard / Demos → Match Details → Viewer
 
 Clicks from the dashboard match list and the Demo Library converge on Match Details (`/matches/:demoId`). The 2D Viewer is reached from Match Details via the **Play demo** button.
 

@@ -6,11 +6,11 @@
 
 ---
 
-## 6. Wails Bindings Specification
+## Wails Bindings Specification
 
 Wails bindings replace the REST API from the web version. Go struct methods decorated with Wails annotations are automatically available as TypeScript functions in the frontend.
 
-### 6.1 Binding Architecture
+### Binding Architecture
 
 ```
 Go struct method                    Auto-generated TS function
@@ -23,7 +23,7 @@ func (a *App) ImportDemo(           import { ImportDemo } from
 
 Wails generates the TypeScript bindings at build time from Go method signatures. The generated files live in `frontend/wailsjs/`.
 
-### 6.2 Error Handling Convention
+### Error Handling Convention
 
 All binding methods return `(result, error)` in Go. In TypeScript, errors become rejected promises:
 
@@ -36,7 +36,7 @@ try {
 }
 ```
 
-### 6.3 Event System
+### Event System
 
 For long-running operations (demo parsing), Wails runtime events provide progress updates:
 
@@ -58,6 +58,6 @@ EventsOn('demo:parse:progress', (progress: DemoProgress) => {
 });
 ```
 
-### 6.4 Full Binding Reference
+### Full Binding Reference
 
 See [product/wails-bindings.md](../product/wails-bindings.md) for the complete binding method table.

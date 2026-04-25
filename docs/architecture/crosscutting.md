@@ -4,9 +4,9 @@
 
 ---
 
-## 9. Cross-Cutting Concerns
+## Cross-Cutting Concerns
 
-### 9.1 Error Handling
+### Error Handling
 
 | Layer | Strategy |
 |-------|----------|
@@ -15,7 +15,7 @@
 | Demo parser | Structured errors with context (e.g., `ParseError{Phase: "ticks", Tick: 42000, Err: ...}`) |
 | SQLite | Wrap in transaction; rollback on error; return descriptive error to caller |
 
-### 9.2 Logging
+### Logging
 
 Implemented in `internal/logging/` (see [ADR-0013](../decisions/0013-logging.md)). Files live under `{AppDataDir}/logs/`:
 
@@ -29,7 +29,7 @@ Implemented in `internal/logging/` (see [ADR-0013](../decisions/0013-logging.md)
 - The dev network transport is wired into HTTP clients in `App.Startup`; the `OVERSITE_DEBUG_HTTP` env flag used by the old `debug_transport` is retired.
 - Frontend: `console.error` for binding failures; no separate log file (developers use the Wails DevTools).
 
-### 9.3 Configuration
+### Configuration
 
 User preferences stored in `config.json` in the app data directory:
 
@@ -48,7 +48,7 @@ User preferences stored in `config.json` in the app data directory:
 
 Loaded at startup by Go backend; exposed to frontend via `GetConfig`/`SetConfig` bindings.
 
-### 9.4 SQLite Data Integrity & Recovery
+### SQLite Data Integrity & Recovery
 
 The SQLite database is the sole store for all parsed demo data. Since re-parsing demos is possible but expensive (< 10s per demo), data integrity matters.
 
@@ -66,7 +66,7 @@ The SQLite database is the sole store for all parsed demo data. Since re-parsing
 
 **Recovery path**: Since demos are stored as external `.dem` files (not copied into the database), the worst-case recovery is: delete `oversite.db`, restart the app (migrations recreate schema), re-import demos. Faceit match data can be re-synced from the API.
 
-### 9.5 Coordinate Calibration
+### Coordinate Calibration
 
 Each CS2 map has calibration data mapping game world-space to radar image pixel-space. Stored in the frontend as TypeScript constants:
 
@@ -84,7 +84,7 @@ export const MAP_CALIBRATION = {
 
 See the knowledge wiki entry on [coordinate calibration](../knowledge/coordinate-calibration.md) for implementation notes.
 
-### 9.6 Auto-Update
+### Auto-Update
 
 - On startup, check for new version via HTTPS to a releases endpoint (GitHub Releases API or custom)
 - Show non-intrusive notification if update available

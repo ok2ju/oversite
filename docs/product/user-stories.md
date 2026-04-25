@@ -4,7 +4,7 @@
 
 ---
 
-## 6. User Stories
+## User Stories
 
 ### Installation & Auth
 
@@ -75,9 +75,9 @@
 
 ---
 
-## 7. Empty States, Error States & Onboarding
+## Empty States, Error States & Onboarding
 
-### 7.1 First-Run Onboarding
+### First-Run Onboarding
 
 On first launch (no `config.json` exists):
 
@@ -88,7 +88,7 @@ On first launch (no `config.json` exists):
 
 The onboarding flow does not reappear after first completion (flag in `config.json`).
 
-### 7.2 Empty States
+### Empty States
 
 | Page | Empty State |
 |------|-------------|
@@ -100,7 +100,7 @@ The onboarding flow does not reappear after first completion (flag in `config.js
 | Faceit Dashboard | "Connect your Faceit account" login CTA (if not authed) or "Sync your matches" button (if authed but no data) |
 | Grenade Lineups | "Parse demos to discover grenade lineups" message |
 
-### 7.3 Error States
+### Error States
 
 | Scenario | Behavior |
 |----------|----------|

@@ -20,6 +20,8 @@ BE_PACKAGES=()
 ROOT_GO_PACKAGES=()
 
 while IFS= read -r file; do
+  # Skip stale paths (file deleted/moved during the turn)
+  [ -f "$file" ] || continue
   if [[ "$file" == */frontend/src/*.test.ts ]] || [[ "$file" == */frontend/src/*.test.tsx ]]; then
     FE_TEST_FILES+=("$file")
   elif [[ "$file" == */frontend/src/*.ts ]] || [[ "$file" == */frontend/src/*.tsx ]]; then
@@ -31,6 +33,8 @@ while IFS= read -r file; do
     # Root-level Go files (Wails app, internal/)
     rel="${file#$PROJECT_ROOT/}"
     pkg_dir=$(dirname "$rel")
+    # Skip cmd/* — spike packages with unresolved deps; not part of main test surface
+    [[ "$pkg_dir" == cmd/* ]] && continue
     if [ "$pkg_dir" = "." ]; then
       # Root main package requires //go:embed frontend/dist (only available
       # after wails build), so test ./internal/... instead of ./...

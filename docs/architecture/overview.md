@@ -4,9 +4,9 @@
 
 ---
 
-## 1. Introduction & Goals
+## Introduction & Goals
 
-### 1.1 Requirements Overview
+### Requirements Overview
 
 Oversite is a desktop 2D demo viewer and analytics platform for CS2 Faceit players. It runs as a single native binary using Wails (Go backend + system WebView frontend).
 
@@ -17,7 +17,7 @@ Oversite is a desktop 2D demo viewer and analytics platform for CS2 Faceit playe
 | 3 | **Developer Experience** | Monorepo with hot reload, type-safe SQL, Wails dev mode |
 | 4 | **Cross-Platform** | macOS, Windows, Linux from a single codebase |
 
-### 1.2 Stakeholders
+### Stakeholders
 
 | Role | Concern |
 |------|---------|
@@ -27,7 +27,7 @@ Oversite is a desktop 2D demo viewer and analytics platform for CS2 Faceit playe
 
 ---
 
-## 2. System Context (C4 Level 1)
+## System Context (C4 Level 1)
 
 ```
 ┌─────────────────────────────────────────────────────────┐

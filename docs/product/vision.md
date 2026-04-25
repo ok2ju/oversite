@@ -4,7 +4,7 @@
 
 ---
 
-## 1. Product Vision
+## Product Vision
 
 **Oversite** is a desktop 2D demo viewer and analytics platform for Counter-Strike 2 (CS2) Faceit players. It transforms local `.dem` files into interactive playback, heatmaps, strategy boards, and stat dashboards -- giving competitive players the tools to study their game on their own machine, with zero cloud infrastructure.
 
@@ -34,7 +34,7 @@ CS2 players on Faceit lack a fast, unified tool to:
 | G4 | Grenade knowledge base | Users can browse, save, tag, and filter lineups |
 | G5 | Faceit integration | Auto-fetch recent matches, display recent match history |
 
-## 3. Technology Stack
+## Technology Stack
 
 | Layer | Technology | Notes |
 |-------|-----------|-------|

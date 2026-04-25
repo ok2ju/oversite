@@ -4,7 +4,7 @@
 
 ---
 
-## 2. Target Audience & Personas
+## Target Audience & Personas
 
 ### Persona 1: Solo Grinder ("Kai")
 

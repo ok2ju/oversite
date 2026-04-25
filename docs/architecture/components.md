@@ -4,9 +4,9 @@
 
 ---
 
-## 4. Component Diagrams (C4 Level 3)
+## Component Diagrams (C4 Level 3)
 
-### 4.1 Go Backend Components
+### Go Backend Components
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -51,7 +51,7 @@
 └─────────────────────────────────────────────────────┘
 ```
 
-### 4.2 React Frontend Components
+### React Frontend Components
 
 ```
 ┌──────────────────────────────────────────────────────────┐

@@ -4,7 +4,7 @@
 
 ---
 
-## 3. Application Structure (C4 Level 2)
+## Application Structure (C4 Level 2)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -60,7 +60,7 @@
 
 ---
 
-## 10. Project Directory Structure
+## Project Directory Structure
 
 ```
 oversite/

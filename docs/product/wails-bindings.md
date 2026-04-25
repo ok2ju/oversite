@@ -6,11 +6,11 @@
 
 ---
 
-## 10. Wails Bindings Overview
+## Wails Bindings Overview
 
 Instead of a REST API, the Go backend exposes methods to the frontend via Wails bindings. The frontend calls these as async TypeScript functions.
 
-### 10.1 Binding Groups
+### Binding Groups
 
 #### Auth
 
@@ -81,7 +81,7 @@ Instead of a REST API, the Go backend exposes methods to the frontend via Wails 
 | `GetAppInfo` | `() -> AppInfo` | App version, data dir, DB size |
 | `CheckForUpdates` | `() -> UpdateInfo \| null` | Check if a newer version is available |
 
-### 10.2 Frontend Call Pattern
+### Frontend Call Pattern
 
 ```typescript
 import { ImportDemo, ListDemos } from '../../wailsjs/go/main/App';

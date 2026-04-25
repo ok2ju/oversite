@@ -7,21 +7,21 @@
 
 ## Table of Contents
 
-1. [Task Legend](#1-task-legend)
-2. [Phase 1: Desktop Foundation](#2-phase-1-desktop-foundation)
-3. [Phase 2: Auth & Demo Pipeline](#3-phase-2-auth--demo-pipeline)
-4. [Phase 3: Core 2D Viewer](#4-phase-3-core-2d-viewer)
-5. [Phase 4: Faceit & Heatmaps](#5-phase-4-faceit--heatmaps)
-6. [Phase 5: Strategy Board & Lineups](#6-phase-5-strategy-board--lineups)
-7. [Phase 6: Polish & Distribute](#7-phase-6-polish--distribute)
-8. [Critical Path Analysis](#8-critical-path-analysis)
-9. [Risk Register](#9-risk-register)
-10. [Development Environment Setup](#10-development-environment-setup)
-11. [Sprint Pairing Recommendations](#11-sprint-pairing-recommendations)
+- [[#Task Legend]]
+- [[#Phase 1: Desktop Foundation]]
+- [[#Phase 2: Auth & Demo Pipeline]]
+- [[#Phase 3: Core 2D Viewer]]
+- [[#Phase 4: Faceit & Heatmaps]]
+- [[#Phase 5: Strategy Board & Lineups]]
+- [[#Phase 6: Polish & Distribute]]
+- [[#Critical Path Analysis]]
+- [[#Risk Register]]
+- [[#Development Environment Setup]]
+- [[#Sprint Pairing Recommendations]]
 
 ---
 
-## 1. Task Legend
+## Task Legend
 
 | Field | Description |
 |-------|-------------|
@@ -45,7 +45,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ---
 
-## 2. Phase 1: Desktop Foundation
+## Phase 1: Desktop Foundation
 
 ### P1-T01: Initialize Wails project [COMPLETE]
 
@@ -101,9 +101,9 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Deps** | P1-T01 |
 | **Test Types** | component |
 | **TDD Workflow** | 1. RED: Write component test for app shell rendering sidebar + content area. 2. GREEN: Implement react-router-dom routes, root layout with sidebar, placeholder pages. 3. REFACTOR: Extract sidebar into component; add route constants. |
-| **Description** | Set up the frontend as a Vite + React SPA with react-router-dom v6. Create the app shell (sidebar + header + content outlet). Set up route structure per PRD Section 4. Create placeholder pages for all routes. Integrate with Wails JS runtime. |
+| **Description** | Set up the frontend as a Vite + React SPA with react-router-dom v6. Create the app shell (sidebar + header + content outlet). Set up route structure per [[product/features#Information Architecture|product/features → Information Architecture]]. Create placeholder pages for all routes. Integrate with Wails JS runtime. |
 | **Key Files** | `frontend/src/main.tsx`, `frontend/src/routes/root.tsx`, `frontend/src/routes/*.tsx`, `frontend/src/components/layout/sidebar.tsx`, `frontend/src/components/layout/header.tsx` |
-| **Acceptance Criteria** | - All routes from PRD Section 4 render correct placeholder pages |
+| **Acceptance Criteria** | - All routes from [[product/features#Information Architecture|product/features → Information Architecture]] render correct placeholder pages |
 | | - Sidebar navigation highlights active route |
 | | - react-router-dom v6 with Outlet-based layout works |
 | | - Wails JS runtime imports resolve |
@@ -220,7 +220,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ---
 
-## 3. Phase 2: Auth & Demo Pipeline
+## Phase 2: Auth & Demo Pipeline
 
 ### P2-T01: Implement loopback OAuth flow [COMPLETE]
 
@@ -401,7 +401,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ---
 
-## 4. Phase 3: Core 2D Viewer
+## Phase 3: Core 2D Viewer
 
 ### P3-T01: Set up PixiJS Application + canvas container [COMPLETE]
 
@@ -588,7 +588,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ---
 
-## 5. Phase 4: Faceit & Heatmaps
+## Phase 4: Faceit & Heatmaps
 
 ### P4-T01: Implement Faceit API client [COMPLETE]
 
@@ -783,7 +783,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ---
 
-## 6. Phase 5: Strategy Board & Lineups
+## Phase 5: Strategy Board & Lineups
 
 ### P5-T01: Implement drawing canvas
 
@@ -950,7 +950,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ---
 
-## 7. Phase 6: Polish & Distribute
+## Phase 6: Polish & Distribute
 
 ### P6-T01: Performance profiling and optimization (frontend)
 
@@ -1099,7 +1099,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ---
 
-## 8. Critical Path Analysis
+## Critical Path Analysis
 
 ### Longest Path
 
@@ -1130,7 +1130,7 @@ This single task is the project's biggest risk. The same mitigation applies as t
 
 ---
 
-## 9. Risk Register
+## Risk Register
 
 | # | Risk | Likelihood | Impact | Mitigation |
 |---|------|-----------|--------|------------|
@@ -1147,7 +1147,7 @@ This single task is the project's biggest risk. The same mitigation applies as t
 
 ---
 
-## 10. Development Environment Setup
+## Development Environment Setup
 
 ### Prerequisites
 
@@ -1206,7 +1206,7 @@ make clean            # Remove build artifacts
 
 ---
 
-## 11. Sprint Pairing Recommendations
+## Sprint Pairing Recommendations
 
 ### Natural Sprint Groupings (Solo Dev)
 

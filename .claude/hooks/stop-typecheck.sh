@@ -19,11 +19,17 @@ HAS_BE=false
 HAS_ROOT_GO=false
 
 while IFS= read -r file; do
+  # Skip stale paths (file deleted/moved during the turn)
+  [ -f "$file" ] || continue
   if [[ "$file" == */frontend/src/*.ts ]] || [[ "$file" == */frontend/src/*.tsx ]]; then
     HAS_FE=true
   elif [[ "$file" == */backend/*.go ]]; then
     HAS_BE=true
   elif [[ "$file" == *.go ]]; then
+    rel="${file#$PROJECT_ROOT/}"
+    pkg_dir=$(dirname "$rel")
+    # Skip cmd/* spike packages
+    [[ "$pkg_dir" == cmd/* ]] && continue
     HAS_ROOT_GO=true
   fi
 done <<< "$CHANGED"

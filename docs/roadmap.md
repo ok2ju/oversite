@@ -7,20 +7,20 @@
 
 ## Table of Contents
 
-1. [Git Worktree Strategy](#1-git-worktree-strategy)
-2. [TDD Methodology](#2-tdd-methodology)
-3. [Phase Overview](#3-phase-overview)
-4. [Phase 1: Desktop Foundation](#4-phase-1-desktop-foundation)
-5. [Phase 2: Auth & Demo Pipeline](#5-phase-2-auth--demo-pipeline)
-6. [Phase 3: Core 2D Viewer](#6-phase-3-core-2d-viewer)
-7. [Phase 4: Faceit & Heatmaps](#7-phase-4-faceit--heatmaps)
-8. [Phase 5: Strategy Board & Lineups](#8-phase-5-strategy-board--lineups)
-9. [Phase 6: Polish & Distribute](#9-phase-6-polish--distribute)
-10. [Dependency Graph](#10-dependency-graph)
+- [[#Git Worktree Strategy]]
+- [[#TDD Methodology]]
+- [[#Phase Overview]]
+- [[#Phase 1: Desktop Foundation]]
+- [[#Phase 2: Auth & Demo Pipeline]]
+- [[#Phase 3: Core 2D Viewer]]
+- [[#Phase 4: Faceit & Heatmaps]]
+- [[#Phase 5: Strategy Board & Lineups]]
+- [[#Phase 6: Polish & Distribute]]
+- [[#Dependency Graph]]
 
 ---
 
-## 1. Git Worktree Strategy
+## Git Worktree Strategy
 
 The repository uses a **bare clone + worktree** model. The bare repo at `oversite/` contains no working tree; all development happens in worktrees.
 
@@ -56,11 +56,11 @@ git worktree remove ../oversite-feat-demo-parser
 
 ---
 
-## 2. TDD Methodology
+## TDD Methodology
 
 The project follows **Test-Driven Development** from the first line of code. Every feature is built using the Red-Green-Refactor cycle.
 
-### 2.1 Red-Green-Refactor Workflow
+### Red-Green-Refactor Workflow
 
 ```
     ┌─────────────────────────────────────┐
@@ -81,7 +81,7 @@ The project follows **Test-Driven Development** from the first line of code. Eve
 3. **REFACTOR**: Clean up the implementation and the test. All tests must remain green.
 4. **COMMIT**: Commit after each green-to-refactor cycle.
 
-### 2.2 TDD Applicability by Layer
+### TDD Applicability by Layer
 
 | Layer | TDD Approach | Rationale |
 |-------|-------------|-----------|
@@ -95,7 +95,7 @@ The project follows **Test-Driven Development** from the first line of code. Eve
 | PixiJS rendering | Test-alongside | TDD the logic (transforms, interpolation); screenshot-test the visuals |
 | E2E flows | Test-alongside | Written after features work, not strict Red-Green-Refactor |
 
-### 2.3 Test Infrastructure Requirements per Phase
+### Test Infrastructure Requirements per Phase
 
 | Phase | Test Infrastructure Added | CI Gate |
 |-------|--------------------------|---------|
@@ -106,13 +106,13 @@ The project follows **Test-Driven Development** from the first line of code. Eve
 | **P5** | Drawing tool logic test fixtures | Drawing logic tests pass |
 | **P6** | Full E2E test suite, coverage reporting, cross-platform CI | Coverage targets met; all E2E pass |
 
-### 2.4 Testing Milestones Convention
+### Testing Milestones Convention
 
 Every phase includes a **testing milestone** (`Px-MT`) that must be met before the phase is considered complete.
 
 ---
 
-## 3. Phase Overview
+## Phase Overview
 
 ```
 Phase 1          Phase 2             Phase 3           Phase 4          Phase 5            Phase 6
@@ -138,7 +138,7 @@ CI pipeline      Demo library UI     Scoreboard         Dashboard UI     Board m
 
 ---
 
-## 4. Phase 1: Desktop Foundation
+## Phase 1: Desktop Foundation
 
 **Goal**: Wails project scaffolding, SQLite database, Vite + React frontend, CI pipeline. After this phase, `wails dev` launches the app with hot reload, and CI runs lint + test + build.
 
@@ -170,7 +170,7 @@ CI pipeline      Demo library UI     Scoreboard         Dashboard UI     Board m
 
 ---
 
-## 5. Phase 2: Auth & Demo Pipeline
+## Phase 2: Auth & Demo Pipeline
 
 **Goal**: Users can log in with Faceit via loopback OAuth, import local `.dem` files, and have them parsed into queryable SQLite data.
 
@@ -214,7 +214,7 @@ CI pipeline      Demo library UI     Scoreboard         Dashboard UI     Board m
 
 ---
 
-## 6. Phase 3: Core 2D Viewer
+## Phase 3: Core 2D Viewer
 
 **Goal**: Users can watch a parsed demo in a 2D top-down view with full playback controls. Data comes from SQLite via Wails bindings instead of REST API.
 
@@ -248,7 +248,7 @@ CI pipeline      Demo library UI     Scoreboard         Dashboard UI     Board m
 
 ---
 
-## 7. Phase 4: Faceit & Heatmaps
+## Phase 4: Faceit & Heatmaps
 
 **Goal**: Simplified Faceit dashboard (profile + match history only) + interactive KDE heatmaps, plus a Match Details hub that gates navigation into the 2D Viewer. Faceit sync and demo downloads both run in-process (no worker/queue).
 
@@ -283,7 +283,7 @@ CI pipeline      Demo library UI     Scoreboard         Dashboard UI     Board m
 
 ---
 
-## 8. Phase 5: Strategy Board & Lineups
+## Phase 5: Strategy Board & Lineups
 
 **Goal**: Single-user strategy drawing tools with local persistence, and a grenade lineup catalog auto-populated from demos.
 
@@ -316,7 +316,7 @@ CI pipeline      Demo library UI     Scoreboard         Dashboard UI     Board m
 
 ---
 
-## 9. Phase 6: Polish & Distribute
+## Phase 6: Polish & Distribute
 
 **Goal**: Cross-platform testing, auto-updater, installers, code signing, performance optimization, and documentation.
 
@@ -348,7 +348,7 @@ CI pipeline      Demo library UI     Scoreboard         Dashboard UI     Board m
 
 ---
 
-## 10. Dependency Graph
+## Dependency Graph
 
 ```
 P1 (Desktop Foundation)

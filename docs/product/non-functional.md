@@ -4,9 +4,9 @@
 
 ---
 
-## 8. Non-Functional Requirements
+## Non-Functional Requirements
 
-### 8.1 Performance
+### Performance
 
 | Metric | Target |
 |--------|--------|
@@ -17,7 +17,7 @@
 | App startup time (cold) | < 3 seconds to interactive UI |
 | Tick data query latency (SQLite) | < 50ms for a 1000-tick range |
 
-### 8.2 Security
+### Security
 
 - Faceit OAuth 2.0 with PKCE (loopback redirect, RFC 8252)
 - Refresh tokens stored in OS keychain (encrypted at rest)
@@ -26,7 +26,7 @@
 - No network listeners except during OAuth callback (temporary, localhost only)
 - SQLite database file permissions: owner read/write only
 
-### 8.3 Accessibility
+### Accessibility
 
 - WCAG 2.1 AA compliance for all non-canvas UI
 - Keyboard navigation for all controls (playback, menus, forms)
@@ -34,7 +34,7 @@
 - Color-blind-friendly palette option for team colors
 - Canvas elements: provide text alternatives where feasible (scoreboard, stats)
 
-### 8.4 Platform Support
+### Platform Support
 
 | Platform | Minimum Version | WebView Engine |
 |----------|----------------|---------------|
@@ -45,7 +45,7 @@
 - WebGL 2.0 required for PixiJS rendering (all supported WebView versions support this)
 - Requires internet access only for Faceit OAuth and API calls
 
-### 8.5 Installation & Distribution
+### Installation & Distribution
 
 | Dimension | Target |
 |-----------|--------|
@@ -55,7 +55,7 @@
 | Installer format (Linux) | `.AppImage` or `.deb` |
 | Auto-update | Built-in update checker + download |
 
-### 8.6 Test Coverage & Quality
+### Test Coverage & Quality
 
 The project follows **Test-Driven Development (TDD)**. Every feature is developed using the Red-Green-Refactor cycle: write a failing test first, implement the minimum code to pass, then refactor.
 

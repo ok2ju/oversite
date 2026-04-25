@@ -4,11 +4,11 @@
 
 ---
 
-## 7. Database Schema
+## Database Schema
 
 SQLite database using `modernc.org/sqlite` (pure Go). WAL mode enabled for concurrent reads during writes. This section contains the canonical DDL. For business-level field descriptions, see [product/data-models.md](../product/data-models.md).
 
-### 7.1 Schema DDL
+### Schema DDL
 
 ```sql
 -- Enable WAL mode (run once on DB creation)
@@ -199,7 +199,7 @@ CREATE INDEX idx_faceit_matches_user_id ON faceit_matches(user_id);
 CREATE INDEX idx_faceit_matches_played_at ON faceit_matches(user_id, played_at);
 ```
 
-### 7.2 Key Schema Differences from Web Version
+### Key Schema Differences from Web Version
 
 | Aspect | Web (PostgreSQL + TimescaleDB) | Desktop (SQLite) |
 |--------|-------------------------------|------------------|
@@ -215,9 +215,9 @@ CREATE INDEX idx_faceit_matches_played_at ON faceit_matches(user_id, played_at);
 
 ---
 
-## 8. Local Storage Layout
+## Local Storage Layout
 
-### 8.1 OS-Specific Paths
+### OS-Specific Paths
 
 | Platform | App Data Directory |
 |----------|--------------------|
@@ -225,7 +225,7 @@ CREATE INDEX idx_faceit_matches_played_at ON faceit_matches(user_id, played_at);
 | Windows | `%APPDATA%\oversite\` |
 | Linux | `~/.local/share/oversite/` |
 
-### 8.2 Directory Structure
+### Directory Structure
 
 ```
 {app_data_dir}/
@@ -237,13 +237,13 @@ CREATE INDEX idx_faceit_matches_played_at ON faceit_matches(user_id, played_at);
 └── config.json              # User preferences (theme, watch folder, etc.)
 ```
 
-### 8.3 Demo File Storage
+### Demo File Storage
 
 Demo `.dem` files are **not** copied into the app data directory. The `demos.file_path` column stores the absolute path to the original file on the user's filesystem. This avoids doubling disk usage for large demo files.
 
 If a user deletes the original `.dem` file, the parsed data in SQLite remains available. The demo's status can be updated to `source_missing` if the file is no longer found.
 
-### 8.4 Credential Storage
+### Credential Storage
 
 OAuth tokens are stored in the OS keychain, **not** in the app data directory:
 

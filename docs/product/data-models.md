@@ -6,9 +6,9 @@
 
 ---
 
-## 9. Data Models
+## Data Models
 
-### 9.1 Core Entities
+### Core Entities
 
 #### User
 

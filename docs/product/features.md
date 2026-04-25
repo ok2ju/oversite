@@ -4,7 +4,7 @@
 
 ---
 
-## 4. Information Architecture
+## Information Architecture
 
 ### React Router Structure
 
@@ -59,7 +59,7 @@ Oversite
 
 ---
 
-## 5. Feature Specifications
+## Feature Specifications
 
 ### F1: 2D Demo Viewer (Core)
 

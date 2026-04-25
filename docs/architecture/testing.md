@@ -4,9 +4,9 @@
 
 ---
 
-## 11. Testing Architecture
+## Testing Architecture
 
-### 11.1 Test Strategy by Layer
+### Test Strategy by Layer
 
 | Layer | Tool | Strategy |
 |-------|------|----------|
@@ -20,7 +20,7 @@
 | PixiJS rendering | Test-alongside | TDD the logic; screenshot-test the visuals |
 | E2E flows | Playwright | Test-alongside; written after features work |
 
-### 11.2 Test Infrastructure
+### Test Infrastructure
 
 | Component | Purpose |
 |-----------|---------|
@@ -30,7 +30,7 @@
 | Playwright | E2E tests against a running Wails dev instance |
 | Golden files | Known-good parser output for regression testing |
 
-### 11.3 Key Differences from Web Test Architecture
+### Key Differences from Web Test Architecture
 
 | Aspect | Web Version | Desktop Version |
 |--------|-------------|-----------------|
