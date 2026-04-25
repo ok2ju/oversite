@@ -25,7 +25,12 @@ GO_FILES=$(git diff --cached --name-only --diff-filter=d -- '*.go' 'internal/**/
 
 if [ -n "$GO_FILES" ]; then
   echo "[pre-commit] golangci-lint..."
+  if ! command -v golangci-lint >/dev/null 2>&1; then
+    echo "[pre-commit] ERROR: golangci-lint not found on PATH" >&2
+    echo "[pre-commit] Install: brew install golangci-lint" >&2
+    exit 1
+  fi
   PACKAGES=$(echo "$GO_FILES" | xargs -n1 dirname | sort -u | sed 's|^|./|')
   # shellcheck disable=SC2086
-  go tool golangci-lint run $PACKAGES
+  golangci-lint run $PACKAGES
 fi

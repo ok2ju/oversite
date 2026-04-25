@@ -13,5 +13,12 @@ packages=$(printf '%s\n' "$@" | xargs -n1 dirname | sort -u | sed 's|^|./|')
 pkg_count=$(echo "$packages" | wc -l | tr -d ' ')
 
 echo "[pre-commit] golangci-lint: ${pkg_count} package(s)"
+
+if ! command -v golangci-lint >/dev/null 2>&1; then
+  echo "[pre-commit] ERROR: golangci-lint not found on PATH" >&2
+  echo "[pre-commit] Install: brew install golangci-lint" >&2
+  exit 1
+fi
+
 # shellcheck disable=SC2086
-exec go tool golangci-lint run $packages
+exec golangci-lint run $packages
