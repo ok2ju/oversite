@@ -72,7 +72,7 @@
 On first launch (no `config.json` exists):
 
 1. **Welcome screen** with app logo and one-line description
-2. **Import prompt** — "Import your first demo" with drag-drop zone and folder picker
+2. **Import prompt** — "Import your first demo" with drag-drop zone and file picker
 3. After dismissal, user lands on the Demos library
 
 The onboarding flow does not reappear after first completion (flag in `config.json`).

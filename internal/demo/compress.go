@@ -48,6 +48,38 @@ func DecompressZstd(srcPath string) (string, error) {
 	return outPath, nil
 }
 
+// decompressZstdToFile decompresses a zstandard-compressed file into the given
+// target file path. Removes the partial output if decompression fails.
+func decompressZstdToFile(srcPath, dstPath string) error {
+	src, err := os.Open(srcPath)
+	if err != nil {
+		return fmt.Errorf("opening zstd file: %w", err)
+	}
+	defer src.Close() //nolint:errcheck
+
+	decoder, err := zstd.NewReader(src)
+	if err != nil {
+		return fmt.Errorf("creating zstd decoder: %w", err)
+	}
+	defer decoder.Close()
+
+	dst, err := os.Create(dstPath)
+	if err != nil {
+		return fmt.Errorf("creating output file: %w", err)
+	}
+
+	if _, err := io.Copy(dst, decoder); err != nil {
+		_ = dst.Close()
+		_ = os.Remove(dstPath)
+		return fmt.Errorf("decompressing: %w", err)
+	}
+	if err := dst.Close(); err != nil {
+		_ = os.Remove(dstPath)
+		return fmt.Errorf("closing output file: %w", err)
+	}
+	return nil
+}
+
 // DecompressZstdTo decompresses a zstandard-compressed file into the given
 // target directory with a .dem extension. Used by the download service where
 // the source is a temp file without a meaningful name.

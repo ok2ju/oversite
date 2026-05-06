@@ -188,13 +188,15 @@ CREATE INDEX idx_grenade_lineups_type ON grenade_lineups(map_name, grenade_type)
 ├── oversite.db              # SQLite database (WAL mode)
 ├── oversite.db-wal          # WAL file (auto-managed)
 ├── oversite.db-shm          # Shared memory file (auto-managed)
+├── demos/                   # App-managed demo file storage
+│   └── *.dem                # Imported demo files (copied here on import)
 ├── logs/
 │   └── oversite.log         # Application log (rotated)
-└── config.json              # User preferences (theme, watch folder, etc.)
+└── config.json              # User preferences (e.g. theme)
 ```
 
 ### Demo File Storage
 
-Demo `.dem` files are **not** copied into the app data directory. The `demos.file_path` column stores the absolute path to the original file on the user's filesystem. This avoids doubling disk usage for large demo files.
+On import, the app copies the source `.dem` file into `{app_data_dir}/demos/` and records the in-app path in `demos.file_path`. `.dem.zst` archives are decompressed during the copy. Filename collisions are resolved by appending a counter (e.g. `match (1).dem`). The demos directory is created on app startup and is **not** user-configurable.
 
-If a user deletes the original `.dem` file, the parsed data in SQLite remains available. The demo's status can be updated to `source_missing` if the file is no longer found.
+This keeps imports self-contained: deleting or moving the user's original file does not break playback, and removing a demo from the library deletes the in-app copy.

@@ -144,3 +144,17 @@ func DefaultDBPath() (string, error) {
 	}
 	return filepath.Join(dir, "oversite.db"), nil
 }
+
+// DemosDir returns the app-managed directory where imported demo files live.
+// The directory is created if it does not exist.
+func DemosDir() (string, error) {
+	base, err := AppDataDir()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(base, "demos")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("MkdirAll %q: %w", dir, err)
+	}
+	return dir, nil
+}

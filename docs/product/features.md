@@ -38,7 +38,6 @@ Sidebar:
 Oversite
 ├── File
 │   ├── Open Demo...        (Ctrl/Cmd+O)
-│   ├── Import Folder...
 │   └── Quit                (Ctrl/Cmd+Q)
 ├── View
 │   ├── Toggle Sidebar
@@ -196,7 +195,7 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 
 - Drag-and-drop `.dem` files onto the app window
 - File picker dialog (Ctrl/Cmd+O)
-- Import entire folders (recursive scan for `.dem` files)
+- Imported demos are copied into the app-managed demos folder (under the OS app-data dir, e.g. `~/Library/Application Support/oversite/demos/` on macOS). The folder is fixed and not user-configurable.
 
 #### F5.2 Demo Library
 
@@ -207,15 +206,10 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 - Clicking a row opens the 2D Viewer (`/demos/:id`) once status = `ready`. Rows for `parsing` demos show an inline "Parsing…" indicator and become clickable when parsing completes.
 - Row-hover action buttons include **Delete**
 
-#### F5.3 Auto-Scan (Optional)
-
-- Configure a "watch folder" that the app scans for new `.dem` files on startup
-- Default to CS2's demo download directory if detectable
-
-#### F5.4 Storage Management
+#### F5.3 Storage Management
 
 - Show total database size and demo count
-- Delete demos (removes parsed data from SQLite; optionally removes source `.dem` file)
+- Delete demos (removes parsed data from SQLite; deletes the copy from the app demos folder)
 - Re-parse a demo (useful after parser updates)
 
 ### F6: Settings
@@ -227,13 +221,7 @@ Application-wide preferences accessible via the `/settings` route.
 - Theme toggle: light / dark / system (persisted in `config.json`)
 - Theme applies globally via Tailwind CSS class strategy
 
-#### F6.2 Demo Management Settings
-
-- **Watch folder**: Optional directory path the app scans for new `.dem` files on startup
-- Default to CS2's demo download directory if detectable
-- Browse button opens native folder picker
-
-#### F6.3 About
+#### F6.2 About
 
 - App version, build info, and link to check for updates
 - Link to project repository / issue tracker

@@ -16,9 +16,8 @@ Instead of a REST API, the Go backend exposes methods to the frontend via Wails 
 
 | Method | Signature | Description |
 |--------|----------|-------------|
-| `ImportDemoFile` | `() -> void` | Open native file picker; validate, persist, and trigger parse |
-| `ImportDemoFolder` | `() -> FolderImportResult` | Open native folder picker; recursively import `.dem` files |
-| `ImportDemoByPath` | `(path: string) -> void` | Import a `.dem` at the given path (drag-and-drop) |
+| `ImportDemoFile` | `() -> void` | Open native file picker; copy into the app demos folder, validate, persist, and trigger parse |
+| `ImportDemoByPath` | `(path: string) -> void` | Import a `.dem` at the given path (drag-and-drop); copies into the app demos folder |
 | `ListDemos` | `(page: number, perPage: number) -> DemoListResult` | Paginated list of imported demos |
 | `GetDemoByID` | `(id: string) -> Demo` | Get demo metadata |
 | `DeleteDemo` | `(id: number) -> void` | Delete demo data from SQLite |

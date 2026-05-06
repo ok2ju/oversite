@@ -58,10 +58,6 @@ export function ImportDemoFile() {
   return window['go']['main']['App']['ImportDemoFile']();
 }
 
-export function ImportDemoFolder() {
-  return window['go']['main']['App']['ImportDemoFolder']();
-}
-
 export function ListDemos(arg1, arg2) {
   return window['go']['main']['App']['ListDemos'](arg1, arg2);
 }

@@ -3,7 +3,6 @@ import {
   ListDemos,
   ImportDemoFile,
   ImportDemoByPath,
-  ImportDemoFolder,
   DeleteDemo,
 } from "@wailsjs/go/main/App"
 import type { DemoListResponse } from "@/types/demo"
@@ -55,25 +54,6 @@ export function useImportDemoByPath() {
   return {
     importByPath: mutation.mutateAsync,
     isImporting: mutation.isPending,
-  }
-}
-
-export function useImportFolder() {
-  const queryClient = useQueryClient()
-
-  const mutation = useMutation({
-    mutationFn: () => ImportDemoFolder(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["demos"] })
-    },
-  })
-
-  return {
-    importFolder: mutation.mutate,
-    isImporting: mutation.isPending,
-    error: mutation.error,
-    result: mutation.data,
-    reset: mutation.reset,
   }
 }
 

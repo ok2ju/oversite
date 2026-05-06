@@ -30,6 +30,4 @@ export function ImportDemoByPath(arg1:string):Promise<void>;
 
 export function ImportDemoFile():Promise<void>;
 
-export function ImportDemoFolder():Promise<main.FolderImportResult>;
-
 export function ListDemos(arg1:number,arg2:number):Promise<main.DemoListResult>;

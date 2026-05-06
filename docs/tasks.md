@@ -318,29 +318,18 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Deps** | P2-T05, P1-T10 |
 | **Test Types** | component |
 | **TDD Workflow** | 1. RED: Write component test: library renders list of demos; drag-drop zone accepts files; delete shows confirmation. 2. GREEN: Implement library page with list/grid views, drag-drop, status badges, delete. 3. REFACTOR: Extract demo card component; add sort/filter controls. |
-| **Description** | Build the demo library page: list and grid view modes, drag-and-drop import zone, demo cards showing map, date, player count, parse status. Delete with confirmation dialog. Status badges (imported, parsing, ready, error). Wails file/folder picker integration. |
+| **Description** | Build the demo library page: list and grid view modes, drag-and-drop import zone, demo cards showing map, date, player count, parse status. Delete with confirmation dialog. Status badges (imported, parsing, ready, error). Wails file picker integration. |
 | **Key Files** | `frontend/src/routes/demos/index.tsx`, `frontend/src/components/demos/demo-card.tsx`, `frontend/src/components/demos/drop-zone.tsx`, `frontend/src/routes/demos/index.test.tsx` |
 | **Acceptance Criteria** | - Library renders demo list from `ListDemos()` binding |
 | | - Drag-drop accepts `.dem` files and triggers import |
-| | - File/folder picker buttons work |
+| | - File picker button works |
 | | - Delete shows confirmation dialog |
 | | - Status badges show correct parse state |
 | | - Component tests pass with mock bindings |
 
-### P2-T11: Implement folder import binding [COMPLETE]
+### P2-T11: Folder import [REMOVED]
 
-| | |
-|---|---|
-| **Complexity** | S |
-| **Deps** | P2-T05 |
-| **Test Types** | unit |
-| **TDD Workflow** | 1. RED: Write test: given a temp dir with .dem and non-.dem files, ImportFolder returns only .dem paths. 2. GREEN: Implement recursive directory walk with .dem filter. 3. REFACTOR: Add progress event for large folders. |
-| **Description** | Implement `ImportFolder(path)` binding that recursively scans a directory for `.dem` files and imports each one. Skip non-`.dem` files. Report progress via Wails events. |
-| **Key Files** | `internal/demo/folder.go`, `internal/demo/folder_test.go` |
-| **Acceptance Criteria** | - Recursively finds all `.dem` files in directory tree |
-| | - Skips non-`.dem` files and directories |
-| | - Returns list of imported demos |
-| | - Progress events emitted during scan |
+The folder import feature was removed. Imports happen one file at a time via the file picker or drag-and-drop, and the file is copied into the app-managed demos folder under the OS app-data directory.
 
 ---
 

@@ -496,30 +496,13 @@ Findings that inform implementation:
 - `frontend/src/components/demos/drop-zone.tsx` (new)
 - `frontend/src/hooks/use-demos.ts` (add progress subscription)
 - `frontend/src/components/demos/demo-card.tsx` (progress bar)
-- `frontend/src/test/mocks/bindings.ts` (add ImportFolder mock)
+- `frontend/src/test/mocks/bindings.ts`
 
 ---
 
-### P2-T11: Implement Folder Import Binding -- COMPLETE
+### P2-T11: Folder Import Binding -- REMOVED
 
-**Status:** Done (2026-04-15). Files: `internal/demo/folder.go` with `FolderProgressFunc` callback, `app.go` wiring with Wails event emission. 6 tests passing.
-
-**Why:** Users have replay folders with many `.dem` files. Folder import recursively scans and imports all valid demos.
-
-**Implementation plan:**
-
-1. **Create `internal/demo/folder.go`:**
-   - `type FolderImportResult struct` -- `Imported []store.Demo`, `Errors []FolderImportError`
-   - `ImportFolder(ctx, dirPath string, userID int64) (*FolderImportResult, error)`:
-     a. `filepath.WalkDir` collecting `.dem` paths
-     b. Call `ImportFile()` for each; successes -> `Imported`, failures -> `Errors`
-     c. Emit progress events: `{total, current, fileName}`
-
-2. **Wire to `app.go`:** `runtime.OpenDirectoryDialog()` -> `importService.ImportFolder()`
-
-3. **Tests:** temp directory with `.dem` + non-`.dem` files; verify recursive scan, invalid file handling, empty directory
-
-**Key files:** `internal/demo/folder.go`, `internal/demo/folder_test.go`, `app.go`
+The folder-import feature was removed. Imports happen one file at a time via the file picker or drag-and-drop, and the file is copied into the app-managed demos folder (`{app_data_dir}/demos/`). The folder location is fixed and not user-configurable.
 
 ---
 
@@ -608,11 +591,6 @@ After all 11 tasks complete:
 3. Transitions to `parsing` (progress bar), then `ready`
 4. Card shows map name, duration, file size
 5. Delete with confirmation -- removed from list
-
-### Folder Import Smoke Test
-1. Click "Import Folder" -- directory picker opens
-2. Select folder with mixed files -- only `.dem` files imported
-3. Progress shown during scan
 
 ### Data Integrity Verification
 ```sql

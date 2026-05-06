@@ -96,12 +96,6 @@ type ScoreboardEntry struct {
 	ADR          float64 `json:"adr"`
 }
 
-// FolderImportResult is the response from importing a folder of demos.
-type FolderImportResult struct {
-	Imported []Demo   `json:"imported"`
-	Errors   []string `json:"errors"`
-}
-
 // HeatmapPoint represents a single aggregated kill position.
 type HeatmapPoint struct {
 	X         float64 `json:"x"`

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/ok2ju/oversite/internal/database"
 	"github.com/ok2ju/oversite/internal/demo"
@@ -25,6 +26,7 @@ type App struct {
 	db            *sql.DB
 	queries       *store.Queries
 	importService *demo.ImportService
+	demosDir      string
 }
 
 // NewApp opens the database, runs migrations, and returns an App ready to be
@@ -37,6 +39,11 @@ func NewApp() (*App, error) {
 		return nil, fmt.Errorf("resolve db path: %w", err)
 	}
 
+	demosDir, err := database.DemosDir()
+	if err != nil {
+		return nil, fmt.Errorf("resolve demos dir: %w", err)
+	}
+
 	db, err := database.OpenWithMigrations(dbPath, migrations.FS)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
@@ -47,7 +54,8 @@ func NewApp() (*App, error) {
 		ctx:           context.Background(),
 		db:            db,
 		queries:       queries,
-		importService: demo.NewImportService(queries, db),
+		importService: demo.NewImportService(queries, db, demosDir),
+		demosDir:      demosDir,
 	}, nil
 }
 
@@ -128,46 +136,6 @@ func (a *App) ImportDemoFile() error {
 	return nil
 }
 
-// ImportDemoFolder opens a native directory dialog and imports all .dem files.
-func (a *App) ImportDemoFolder() (*FolderImportResult, error) {
-	dirPath, err := wailsRuntime.OpenDirectoryDialog(a.ctx, wailsRuntime.OpenDialogOptions{
-		Title: "Select Demo Folder",
-	})
-	if err != nil {
-		return nil, fmt.Errorf("directory dialog: %w", err)
-	}
-	if dirPath == "" {
-		return nil, nil // User cancelled.
-	}
-
-	result, err := a.importService.ImportFolder(a.ctx, dirPath, func(current, total int, fileName string) {
-		wailsRuntime.EventsEmit(a.ctx, "demo:folder:progress", map[string]interface{}{
-			"current":  current,
-			"total":    total,
-			"fileName": fileName,
-		})
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	imported := make([]Demo, len(result.Imported))
-	for i, d := range result.Imported {
-		imported[i] = storeDemoToBinding(*d)
-		go a.parseDemo(d.ID, d.FilePath)
-	}
-
-	importErrors := make([]string, len(result.Errors))
-	for i, e := range result.Errors {
-		importErrors[i] = e.Error()
-	}
-
-	return &FolderImportResult{
-		Imported: imported,
-		Errors:   importErrors,
-	}, nil
-}
-
 // ImportDemoByPath imports a .dem file at the given path (used for drag-and-drop).
 func (a *App) ImportDemoByPath(filePath string) error {
 	d, err := a.importService.ImportFile(a.ctx, filePath)
@@ -178,9 +146,33 @@ func (a *App) ImportDemoByPath(filePath string) error {
 	return nil
 }
 
-// DeleteDemo removes a demo by ID.
+// DeleteDemo removes a demo by ID and also removes its file copy from the
+// app-managed demos folder. Files outside that folder (legacy imports) are
+// left untouched.
 func (a *App) DeleteDemo(id int64) error {
+	if d, err := a.queries.GetDemoByID(a.ctx, id); err == nil {
+		if a.demosDir != "" && isWithinDir(a.demosDir, d.FilePath) {
+			_ = os.Remove(d.FilePath)
+		}
+	}
 	return a.queries.DeleteDemo(a.ctx, id)
+}
+
+// isWithinDir reports whether path is contained inside dir.
+func isWithinDir(dir, path string) bool {
+	absDir, err := filepath.Abs(dir)
+	if err != nil {
+		return false
+	}
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(absDir, absPath)
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // parseDemo runs the full parse-and-ingest pipeline for a demo in the background.
