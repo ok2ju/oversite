@@ -98,14 +98,14 @@ describe("LibraryTable row navigation", () => {
     )
   }
 
-  it("navigates to /matches/:id when a ready row is clicked", async () => {
+  it("navigates to /demos/:id when a ready row is clicked", async () => {
     const user = userEvent.setup()
     const demo = makeDemo({ id: 7, status: "ready" })
     render([demo])
 
     await user.click(screen.getByTestId("demo-row-7"))
 
-    expect(mockNavigate).toHaveBeenCalledWith("/matches/7")
+    expect(mockNavigate).toHaveBeenCalledWith("/demos/7")
   })
 
   it("does not navigate when clicking a parsing row, shows waiting indicator", async () => {
@@ -135,7 +135,7 @@ describe("LibraryTable row navigation", () => {
     })
 
     await vi.waitFor(() =>
-      expect(mockNavigate).toHaveBeenCalledWith("/matches/11"),
+      expect(mockNavigate).toHaveBeenCalledWith("/demos/11"),
     )
   })
 })

@@ -1,6 +1,6 @@
 # Architecture — Overview & System Context
 
-> **Version:** 2.0 · **Format:** arc42 · **Siblings:** [structure](structure.md) · [components](components.md) · [data-flows](data-flows.md) · [wails-bindings](wails-bindings.md) · [database](database.md) · [crosscutting](crosscutting.md) · [testing](testing.md)
+> **Version:** 2.1 · **Format:** arc42 · **Siblings:** [structure](structure.md) · [components](components.md) · [data-flows](data-flows.md) · [wails-bindings](wails-bindings.md) · [database](database.md) · [crosscutting](crosscutting.md) · [testing](testing.md)
 
 ---
 
@@ -8,12 +8,12 @@
 
 ### Requirements Overview
 
-Oversite is a desktop 2D demo viewer and analytics platform for CS2 Faceit players. It runs as a single native binary using Wails (Go backend + system WebView frontend).
+Oversite is a desktop 2D demo viewer and analytics platform for CS2 players. It runs as a single native binary using Wails (Go backend + system WebView frontend) with no network dependencies — demos are imported from disk, parsed in-process, and stored in a local SQLite database.
 
 | Priority | Quality Goal | Motivation |
 |----------|-------------|------------|
 | 1 | **Performance** | 60 FPS canvas rendering; < 10s demo parse from local disk; < 50ms tick query |
-| 2 | **Simplicity** | Single binary, single process, no external services except Faceit API |
+| 2 | **Simplicity** | Single binary, single process, no external services |
 | 3 | **Developer Experience** | Monorepo with hot reload, type-safe SQL, Wails dev mode |
 | 4 | **Cross-Platform** | macOS, Windows, Linux from a single codebase |
 
@@ -22,7 +22,7 @@ Oversite is a desktop 2D demo viewer and analytics platform for CS2 Faceit playe
 | Role | Concern |
 |------|---------|
 | Solo developer | Productive monorepo DX; manageable complexity |
-| End users (Faceit players) | Fast, reliable demo review on their desktop |
+| End users (CS2 players) | Fast, reliable demo review on their desktop |
 | Future contributors | Clear architecture boundaries; documented bindings |
 
 ---
@@ -31,36 +31,31 @@ Oversite is a desktop 2D demo viewer and analytics platform for CS2 Faceit playe
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    External Systems                      │
-│                                                         │
-│  ┌──────────────┐                   ┌──────────────┐   │
-│  │  Faceit API   │                   │ Local         │   │
-│  │  (OAuth +     │                   │ Filesystem    │   │
-│  │   Data API)   │                   │ (.dem files)  │   │
-│  └──────┬───────┘                   └──────┬───────┘   │
-│         │                                  │           │
-└─────────┼──────────────────────────────────┼───────────┘
-          │                                  │
-          ▼                                  ▼
-┌─────────────────────────────────────────────────────────┐
 │                                                         │
 │              O V E R S I T E  (Desktop)                  │
 │                                                         │
 │    Native desktop app for CS2 demo review, analytics,   │
-│    strategy planning, and Faceit stats tracking.        │
+│    and strategy planning.                               │
 │                                                         │
 │    Single binary: Go backend + WebView frontend         │
 │                                                         │
-└─────────────────────────────────────────────────────────┘
+└──────────────────────────┬──────────────────────────────┘
+                           │
+                           ▼
+                    ┌──────────────┐
+                    │ Local        │
+                    │ Filesystem   │
+                    │ (.dem files) │
+                    └──────────────┘
 ```
 
 ### External System Interfaces
 
 | System | Protocol | Purpose |
 |--------|----------|---------|
-| **Faceit OAuth** | HTTPS (OAuth 2.0 + PKCE) | User authentication via loopback redirect |
-| **Faceit Data API** | HTTPS REST | Player stats, match history, ELO data |
 | **Local Filesystem** | OS file I/O | Read `.dem` files, SQLite database, app data |
+
+There are no remote services. The app neither calls out to nor accepts inbound connections at runtime.
 
 ---
 

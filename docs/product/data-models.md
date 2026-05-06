@@ -10,31 +10,15 @@
 
 ### Core Entities
 
-#### User
-
-| Field | Type | Notes |
-|-------|------|-------|
-| id | INTEGER | Primary key (autoincrement) |
-| faceit_id | TEXT | Unique; from Faceit OAuth |
-| nickname | TEXT | Faceit display name |
-| avatar_url | TEXT | Faceit avatar |
-| faceit_elo | INTEGER | Last known ELO |
-| faceit_level | INTEGER | 1-10 |
-| country | TEXT | ISO country code |
-| created_at | TEXT | ISO 8601 datetime |
-| updated_at | TEXT | ISO 8601 datetime |
-
 #### Demo
 
 | Field | Type | Notes |
 |-------|------|-------|
 | id | INTEGER | Primary key (autoincrement) |
-| user_id | INTEGER | FK -> User |
-| faceit_match_id | TEXT | Nullable; for auto-imported demos |
 | map_name | TEXT | e.g., "de_dust2" |
 | file_path | TEXT | Absolute path to local `.dem` file |
 | file_size | INTEGER | Bytes |
-| status | TEXT | imported / parsing / ready / error |
+| status | TEXT | imported / parsing / ready / failed |
 | total_ticks | INTEGER | Set after parsing |
 | tick_rate | REAL | Ticks per second |
 | duration_secs | INTEGER | Match duration |
@@ -140,25 +124,4 @@
 | description | TEXT | |
 | tags | TEXT | JSON array of tags |
 | is_favorite | INTEGER | 0/1 boolean; default 0 |
-| created_at | TEXT | ISO 8601 datetime |
-
-#### FaceitMatch
-
-| Field | Type | Notes |
-|-------|------|-------|
-| id | INTEGER | Primary key (autoincrement) |
-| user_id | INTEGER | FK -> User |
-| faceit_match_id | TEXT | Unique per user |
-| map_name | TEXT | |
-| score_team | INTEGER | User's team score |
-| score_opponent | INTEGER | Opponent team score |
-| result | TEXT | win / loss / draw |
-| elo_before | INTEGER | Retained for potential future use; not surfaced in the UI |
-| elo_after | INTEGER | Retained for potential future use; not surfaced in the UI |
-| kills | INTEGER | |
-| deaths | INTEGER | |
-| assists | INTEGER | |
-| demo_url | TEXT | Faceit demo download URL |
-| demo_id | INTEGER | FK -> Demo (nullable, if imported) |
-| played_at | TEXT | ISO 8601 datetime |
 | created_at | TEXT | ISO 8601 datetime |

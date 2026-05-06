@@ -1,7 +1,14 @@
 # Oversite -- Task Breakdown
 
-> **Version:** 2.0
-> **Last Updated:** 2026-04-12
+> **Version:** 2.1
+> **Last Updated:** 2026-05-06
+>
+> **Note:** prior versions of this document tracked Faceit OAuth, match sync,
+> dashboard, and demo download tasks (P2-T01..T04, P4-T01..T05, P4-T10..T13).
+> Those tasks were removed from scope on 2026-05-06 and dropped from this list.
+> See `docs/log.md`. Any incidental references below to the deleted
+> `users` / `faceit_matches` tables or the `faceitStore` should be read with
+> that pivot in mind.
 
 ---
 
@@ -9,9 +16,9 @@
 
 - [[#Task Legend]]
 - [[#Phase 1: Desktop Foundation]]
-- [[#Phase 2: Auth & Demo Pipeline]]
+- [[#Phase 2: Demo Pipeline]]
 - [[#Phase 3: Core 2D Viewer]]
-- [[#Phase 4: Faceit & Heatmaps]]
+- [[#Phase 4: Heatmaps]]
 - [[#Phase 5: Strategy Board & Lineups]]
 - [[#Phase 6: Polish & Distribute]]
 - [[#Critical Path Analysis]]
@@ -86,7 +93,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Deps** | P1-T02 |
 | **Test Types** | unit, integration |
 | **TDD Workflow** | 1. RED: Write test for a basic query (e.g., insert + select a demo). 2. GREEN: Configure sqlc.yaml for SQLite, write SQL queries, generate Go code. 3. REFACTOR: Organize query files by domain. |
-| **Description** | Configure sqlc with SQLite dialect. Write SQL query files for all entities: users, demos, rounds, player_rounds, tick_data, game_events, strategy_boards, grenade_lineups, faceit_matches. Generate type-safe Go code. Verify generated code compiles and basic CRUD works against temp SQLite. |
+| **Description** | Configure sqlc with SQLite dialect. Write SQL query files for all entities: demos, rounds, player_rounds, tick_data, game_events, strategy_boards, grenade_lineups. Generate type-safe Go code. Verify generated code compiles and basic CRUD works against temp SQLite. |
 | **Key Files** | `sqlc.yaml`, `queries/*.sql`, `internal/store/*.sql.go` (generated) |
 | **Acceptance Criteria** | - `sqlc generate` succeeds with no errors |
 | | - Generated Go code compiles |
@@ -132,8 +139,8 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Deps** | P1-T04 |
 | **Test Types** | unit |
 | **TDD Workflow** | 1. RED: Write tests for each store's initial state and basic actions. 2. GREEN: Create stores with typed state and actions. 3. REFACTOR: Extract shared patterns. |
-| **Description** | Create Zustand stores: `viewerStore` (playback state, current tick, speed), `stratStore` (board state, tool selection), `uiStore` (sidebar, modals, theme), `faceitStore` (profile, matches), `demoStore` (library state, filters). |
-| **Key Files** | `frontend/src/stores/viewer.ts`, `frontend/src/stores/strat.ts`, `frontend/src/stores/ui.ts`, `frontend/src/stores/faceit.ts`, `frontend/src/stores/demo.ts`, `frontend/src/stores/*.test.ts` |
+| **Description** | Create Zustand stores: `viewerStore` (playback state, current tick, speed), `stratStore` (board state, tool selection), `uiStore` (sidebar, modals, theme), `demoStore` (library state, filters). |
+| **Key Files** | `frontend/src/stores/viewer.ts`, `frontend/src/stores/strat.ts`, `frontend/src/stores/ui.ts`, `frontend/src/stores/demo.ts`, `frontend/src/stores/*.test.ts` |
 | **Acceptance Criteria** | - All stores have typed state + actions |
 | | - Unit tests verify initial state and basic state transitions |
 | | - Stores export selectors for common derived state |
@@ -175,7 +182,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Deps** | P1-T02 |
 | **Test Types** | N/A (infrastructure) |
 | **TDD Workflow** | N/A -- verify via running an example test |
-| **Description** | Create shared test helpers: `testutil.NewTestDB()` returns temp SQLite with migrations applied (`:memory:` for speed). Create mock interfaces: `MockKeyring`, `MockFaceitClient`. Create golden file test helpers. Set up `go test -race` as default. |
+| **Description** | Create shared test helpers: `testutil.NewTestDB()` returns temp SQLite with migrations applied (`:memory:` for speed). Create golden file test helpers. Set up `go test -race` as default. |
 | **Key Files** | `internal/testutil/db.go`, `internal/testutil/mocks.go`, `internal/testutil/golden.go` |
 | **Acceptance Criteria** | - `testutil.NewTestDB()` returns a migrated temp SQLite |
 | | - Mock interfaces match production interfaces |
@@ -190,11 +197,10 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Deps** | P1-T04 |
 | **Test Types** | N/A (infrastructure) |
 | **TDD Workflow** | N/A -- verify via running an example test |
-| **Description** | Configure Vitest with React Testing Library. Set up `renderWithProviders()` helper (QueryClient, RouterProvider, ThemeProvider). Create MSW server for Faceit API mocking. Create mock factories for Wails binding functions. Set up Playwright config for E2E. |
+| **Description** | Configure Vitest with React Testing Library. Set up `renderWithProviders()` helper (QueryClient, RouterProvider, ThemeProvider). Create mock factories for Wails binding functions. Set up Playwright config for E2E. |
 | **Key Files** | `frontend/vitest.config.ts`, `frontend/src/test/render.tsx`, `frontend/src/test/msw/handlers.ts`, `frontend/src/test/mocks/bindings.ts`, `e2e/playwright.config.ts` |
 | **Acceptance Criteria** | - `pnpm test` runs with example component test passing |
 | | - `renderWithProviders()` wraps with all needed providers |
-| | - MSW handlers intercept Faceit API patterns |
 | | - Mock binding factories return typed test data |
 | | - Playwright config points at Wails dev server |
 
@@ -220,70 +226,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ---
 
-## Phase 2: Auth & Demo Pipeline
-
-### P2-T01: Implement loopback OAuth flow [COMPLETE]
-
-| | |
-|---|---|
-| **Complexity** | M |
-| **Deps** | P1-T02, P1-T09 |
-| **Test Types** | unit, integration |
-| **TDD Workflow** | 1. RED: Write test for temp HTTP listener capturing callback code; test PKCE code verifier/challenge generation. 2. GREEN: Implement temp listener, PKCE helpers, token exchange. 3. REFACTOR: Extract HTTP client, add timeout handling. |
-| **Description** | Implement RFC 8252 loopback OAuth: start temp listener on `127.0.0.1:{random_port}`, generate PKCE code verifier/challenge, build Faceit auth URL, open system browser, capture callback, exchange code for tokens. |
-| **Key Files** | `internal/auth/oauth.go`, `internal/auth/pkce.go`, `internal/auth/oauth_test.go`, `internal/auth/pkce_test.go` |
-| **Acceptance Criteria** | - Temp listener starts on random port and captures auth code |
-| | - PKCE code verifier/challenge are RFC 7636 compliant |
-| | - Token exchange works against Faceit token endpoint |
-| | - Listener shuts down after callback or timeout (30s) |
-| | - Unit tests pass for PKCE generation and callback capture |
-
-### P2-T02: Implement keychain token storage [COMPLETE]
-
-| | |
-|---|---|
-| **Complexity** | S |
-| **Deps** | P1-T09 |
-| **Test Types** | unit |
-| **TDD Workflow** | 1. RED: Write test for store/retrieve/delete tokens using mock keyring. 2. GREEN: Implement keyring wrapper with `zalando/go-keyring`. 3. REFACTOR: Define interface for testing. |
-| **Description** | Create a `TokenStore` interface backed by `zalando/go-keyring`. Store refresh token under service name `oversite-faceit-auth`. Access token held in memory only. Mock interface for testing. |
-| **Key Files** | `internal/auth/keyring.go`, `internal/auth/keyring_test.go`, `internal/testutil/mocks.go` (add MockKeyring) |
-| **Acceptance Criteria** | - Refresh token stored/retrieved from OS keychain |
-| | - Access token held in memory, not persisted |
-| | - `TokenStore` interface allows mock substitution |
-| | - Unit tests pass with mock keyring |
-
-### P2-T03: Create auth service [COMPLETE]
-
-| | |
-|---|---|
-| **Complexity** | M |
-| **Deps** | P2-T01, P2-T02 |
-| **Test Types** | unit, integration |
-| **TDD Workflow** | 1. RED: Write test for login flow (mock OAuth + mock keyring -> returns user). Test for token refresh. Test for logout (clears keyring). 2. GREEN: Implement AuthService with login, logout, refresh, getCurrentUser. 3. REFACTOR: Add error types for auth failures. |
-| **Description** | Create `AuthService` that orchestrates: loopback OAuth -> token exchange -> fetch Faceit profile -> upsert user in SQLite -> store refresh token in keychain. Expose as Wails bindings: `StartLogin()`, `GetCurrentUser()`, `Logout()`, `RefreshProfile()`. |
-| **Key Files** | `internal/auth/service.go`, `internal/auth/service_test.go` |
-| **Acceptance Criteria** | - Login flow creates/updates user in SQLite |
-| | - Logout clears keychain token and in-memory access token |
-| | - Token refresh fetches new access token using refresh token |
-| | - getCurrentUser returns nil when not logged in |
-| | - All tests pass with mock keyring and mock Faceit client |
-
-### P2-T04: Create AuthProvider + login page [COMPLETE]
-
-| | |
-|---|---|
-| **Complexity** | M |
-| **Deps** | P2-T03, P1-T10 |
-| **Test Types** | component |
-| **TDD Workflow** | 1. RED: Write component test: login page shows button; clicking triggers StartLogin binding; success redirects to dashboard. 2. GREEN: Implement AuthProvider context, login page, auth guard. 3. REFACTOR: Extract protected route wrapper. |
-| **Description** | Create React AuthProvider that calls `GetCurrentUser()` on mount. Login page with Faceit branding and "Login with Faceit" button. Protected route wrapper redirects unauthenticated users to login. |
-| **Key Files** | `frontend/src/routes/login.tsx`, `frontend/src/hooks/useAuth.ts`, `frontend/src/components/auth/auth-provider.tsx`, `frontend/src/components/auth/protected-route.tsx`, `frontend/src/routes/login.test.tsx` |
-| **Acceptance Criteria** | - Login page renders with Faceit login button |
-| | - Clicking login calls `StartLogin()` Wails binding |
-| | - Successful login redirects to dashboard |
-| | - Protected routes redirect to login when unauthenticated |
-| | - Component tests pass with mock bindings |
+## Phase 2: Demo Pipeline
 
 ### P2-T05: Implement demo import binding [COMPLETE]
 
@@ -317,7 +260,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | | - Bot players are handled gracefully |
 | | - Memory usage stays < 500 MB for 100 MB demo files |
 | | - Parse time < 10 seconds for average demo on modern hardware |
-| **Spike Findings** | **Validated (2026-04-15):** Parser from `backend/internal/demo/` compiles and runs against 3 real CS2 demos with zero code changes. demoinfocs-golang v5.1.2 API is stable. Performance: 6.5s / +118 MB heap (862 MB demo, 54 rounds, 30 OT), 3.1s / -68 MB heap (394 MB demo, 25 rounds), 3.8s / +12 MB heap (454 MB demo, 30 rounds). All well within targets. Full details in `docs/spike-parser-findings.md`. **Known gaps to fix during implementation:** (1) Incendiary/Molotov grenades are not tracked -- `parser.go` registers no handler for `events.FireGrenadeStart` or equivalent, and `grenade_extractor.go` `detonationTypes` omits them. This causes ~25% of grenade throws to be orphaned (no matching detonation). Must add incendiary/molotov event handlers. (2) `MaxUploadSize` (500 MB) is too low for decompressed CS2 demos -- Faceit `.dem.zst` files decompress to 400-860+ MB. Raise to 1 GB or remove for local-only desktop use. (3) Decoy destruction events (`DecoyExpired`) are not correlated, contributing a small number of additional orphans. |
+| **Spike Findings** | **Validated (2026-04-15):** Parser from `backend/internal/demo/` compiles and runs against 3 real CS2 demos with zero code changes. demoinfocs-golang v5.1.2 API is stable. Performance: 6.5s / +118 MB heap (862 MB demo, 54 rounds, 30 OT), 3.1s / -68 MB heap (394 MB demo, 25 rounds), 3.8s / +12 MB heap (454 MB demo, 30 rounds). All well within targets. Full details in `docs/spike-parser-findings.md`. **Known gaps to fix during implementation:** (1) Incendiary/Molotov grenades are not tracked -- `parser.go` registers no handler for `events.FireGrenadeStart` or equivalent, and `grenade_extractor.go` `detonationTypes` omits them. This causes ~25% of grenade throws to be orphaned (no matching detonation). Must add incendiary/molotov event handlers. (2) `MaxUploadSize` (500 MB) is too low for decompressed CS2 demos -- real `.dem.zst` files decompress to 400-860+ MB. Raise to 1 GB or remove for local-only desktop use. (3) Decoy destruction events (`DecoyExpired`) are not correlated, contributing a small number of additional orphans. |
 
 ### P2-T07: Parse ticks -> batch insert into SQLite [COMPLETE]
 
@@ -588,83 +531,7 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 
 ---
 
-## Phase 4: Faceit & Heatmaps
-
-### P4-T01: Implement Faceit API client [COMPLETE]
-
-| | |
-|---|---|
-| **Complexity** | M |
-| **Deps** | P2-T03, P1-T09 |
-| **Test Types** | unit |
-| **TDD Workflow** | 1. RED: Write tests for GetProfile, GetMatches with mock HTTP responses. 2. GREEN: Implement HTTP client with auth header injection. 3. REFACTOR: Add rate limiting; extract response types. |
-| **Description** | Go HTTP client for Faceit Data API: get player profile and match history (paginated). Inject access token from auth service. Handle rate limiting (429) with exponential backoff. |
-| **Key Files** | `internal/faceit/client.go`, `internal/faceit/client_test.go`, `internal/faceit/types.go` |
-| **Acceptance Criteria** | - GetProfile returns typed Faceit profile |
-| | - GetMatches returns paginated match list |
-| | - Rate limiting handled with backoff |
-| | - Unit tests pass with mock HTTP responses |
-
-### P4-T02: Implement Faceit sync service [COMPLETE]
-
-| | |
-|---|---|
-| **Complexity** | M |
-| **Deps** | P4-T01 |
-| **Test Types** | unit, integration |
-| **TDD Workflow** | 1. RED: Write test: sync fetches new matches, upserts into SQLite, skips already-synced. 2. GREEN: Implement sync service with delta detection. 3. REFACTOR: Add progress events; handle partial failures. |
-| **Description** | In-process Faceit match sync (replaces web version's Redis Streams worker). Fetch recent matches, compare with SQLite, upsert new ones. No background job -- runs synchronously when triggered. Exposed as `SyncMatches()` Wails binding. |
-| **Key Files** | `internal/faceit/sync.go`, `internal/faceit/sync_test.go` |
-| **Acceptance Criteria** | - New matches inserted into SQLite |
-| | - Existing matches skipped (no duplicates) |
-| | - Progress events emitted during sync |
-| | - Tests pass with mock Faceit client + temp SQLite |
-
-### P4-T03: Build Faceit dashboard page [COMPLETE]
-
-| | |
-|---|---|
-| **Complexity** | M |
-| **Deps** | P4-T01, P1-T10 |
-| **Test Types** | component |
-| **TDD Workflow** | 1. RED: Write test: dashboard renders profile hero + match history. 2. GREEN: Implement page with TanStack Query wrapping Wails bindings. 3. REFACTOR: Extract components. Task amended post-completion: the ELO chart was removed, and the dashboard was later simplified (see P4-T11) to render only ProfileHero + RecentMatches. |
-| **Description** | Simplified Faceit dashboard showing: **ProfileHero** (avatar, nickname, level, ELO, country, progress to next tier) and **RecentMatches** (match history). No performance grid / recent form / map performance / weapons widgets — those either duplicated data shown on Match Details or were placeholders. |
-| **Key Files** | `frontend/src/routes/dashboard.tsx`, `frontend/src/components/dashboard/profile-hero.tsx`, `frontend/src/components/dashboard/recent-matches.tsx`, `frontend/src/routes/dashboard.test.tsx` |
-| **Acceptance Criteria** | - Profile hero shows correct Faceit data |
-| | - Match history list renders recent matches in a single column |
-| | - Dashboard renders **only** ProfileHero + RecentMatches |
-| | - Component tests pass with mock bindings |
-
-### P4-T04: Build match history list [COMPLETE]
-
-| | |
-|---|---|
-| **Complexity** | M |
-| **Deps** | P4-T02, P1-T10 |
-| **Test Types** | component |
-| **TDD Workflow** | 1. RED: Write test: match list renders paginated entries; clicking an imported row opens Match Details; rows with a Faceit `demo_url` but no local import show an Import button. 2. GREEN: Implement match list + row with Import button + parse-wait. 3. REFACTOR: Extract MatchRow. |
-| **Description** | Paginated list of Faceit matches from the last 30 days: map, score, K/D/A, date. Filters: map, result (W/L). Rows with `has_demo` navigate to **Match Details** (`/matches/:demoId`). Rows with only `demo_url` show an **Import demo** button that calls `ImportMatchDemo` and displays download + parse progress inline. Rows with neither are inert. |
-| **Key Files** | `frontend/src/components/dashboard/recent-matches.tsx`, `frontend/src/components/dashboard/match-row.tsx`, `frontend/src/components/dashboard/match-row.test.tsx` |
-| **Acceptance Criteria** | - Match list renders with pagination (last 30 days only) |
-| | - Filters work (map, result) |
-| | - Rows with imported demos navigate to `/matches/:demoId` |
-| | - Rows with only a Faceit demo URL show an Import button; click triggers `ImportMatchDemo` and shows download progress |
-| | - Mid-parse click shows "Parsing…" indicator and navigates when parse completes |
-
-### P4-T05: Implement demo download from Faceit [COMPLETE]
-
-| | |
-|---|---|
-| **Complexity** | L |
-| **Deps** | P4-T02, P2-T05 |
-| **Test Types** | unit, integration |
-| **TDD Workflow** | 1. RED: Write test: given a Faceit match with demo URL, download file and trigger import. 2. GREEN: Implement download with progress events. 3. REFACTOR: Add retry logic; handle large files. |
-| **Description** | Download `.dem` files from Faceit match data URLs. Save to a configurable local directory. Trigger import + parse after download. Exposed as `ImportMatchDemo(matchId)` binding. |
-| **Key Files** | `internal/faceit/download.go`, `internal/faceit/download_test.go` |
-| **Acceptance Criteria** | - Demo downloaded from Faceit URL to local directory |
-| | - Progress events emitted during download |
-| | - Import triggered automatically after download |
-| | - Retry on transient failures |
+## Phase 4: Heatmaps
 
 ### P4-T06: Implement heatmap data binding [COMPLETE]
 
@@ -724,62 +591,6 @@ Every task follows the **Red-Green-Refactor** cycle unless marked `N/A`:
 | **Acceptance Criteria** | - Stats match demo data accurately |
 | | - All stat columns render correctly |
 | | - Weapon breakdown shows kill distribution |
-
-### P4-T10: Import-demo button on match rows
-
-| | |
-|---|---|
-| **Complexity** | S |
-| **Deps** | P4-T04, P4-T05 |
-| **Test Types** | component |
-| **TDD Workflow** | 1. RED: Write test: Import button is visible iff `!has_demo && demo_url`; clicking it calls `ImportMatchDemo` and does not trigger row navigation. 2. GREEN: Add the button + `stopPropagation` + download progress pill in `MatchRow`. 3. REFACTOR: Extract progress-pill subcomponents. |
-| **Description** | Dashboard match rows gain an **Import demo** button (right-hand column) shown only when the Faceit match has a `demo_url` but no imported demo. Clicking it calls `ImportMatchDemo(faceit_match_id)`, subscribes to `faceit:demo:download:progress` for an inline progress indicator, and on success invalidates `['faceit-matches']` and `['demos']` query keys so the row flips state. |
-| **Key Files** | `frontend/src/components/dashboard/match-row.tsx`, `frontend/src/components/dashboard/match-row.test.tsx`, `frontend/src/hooks/use-demo-download.ts` |
-| **Acceptance Criteria** | - Import button visible only when gated state matches |
-| | - Clicking does not propagate to the row (no accidental navigation) |
-| | - Download progress pill appears while the mutation is pending |
-| | - Faceit-matches + demos queries invalidate on success |
-
-### P4-T11: Remove PerformanceGrid / RecentForm / MapPerformance / Weapons
-
-| | |
-|---|---|
-| **Complexity** | XS |
-| **Deps** | P4-T03 |
-| **Test Types** | component |
-| **TDD Workflow** | 1. RED: Update `dashboard.test.tsx` to assert those sections are *not* rendered. 2. GREEN: Delete components + `use-faceit-stats` hook; collapse dashboard to single column. 3. REFACTOR: None. |
-| **Description** | Delete the four dashboard widgets that duplicated data or were placeholder-only: `PerformanceGrid`, `RecentForm`, `MapPerformance`, `Weapons`, plus the `use-faceit-stats` hook they depended on. Dashboard collapses to a single-column layout of ProfileHero + RecentMatches. |
-| **Key Files** | `frontend/src/routes/dashboard.tsx`, `frontend/src/routes/dashboard.test.tsx`, `frontend/src/components/dashboard/performance-grid.tsx` (deleted), `frontend/src/components/dashboard/recent-form.tsx` (deleted), `frontend/src/components/dashboard/map-performance.tsx` (deleted), `frontend/src/components/dashboard/weapons.tsx` (deleted), `frontend/src/hooks/use-faceit-stats.ts` (deleted) |
-| **Acceptance Criteria** | - Dashboard route renders only ProfileHero + RecentMatches |
-| | - No references remain to the deleted components or hook |
-| | - Tests green (unit + typecheck) |
-
-### P4-T12: "Play demo" button on Match Details
-
-| | |
-|---|---|
-| **Complexity** | XS |
-| **Deps** | P4-T04 |
-| **Test Types** | component |
-| **TDD Workflow** | 1. RED: Write test: Play demo button disabled unless status = `ready`; click navigates to `/demos/:id`. 2. GREEN: Add button to `MatchToolbar`, thread `demoStatus` from `match-detail.tsx`. 3. REFACTOR: None. |
-| **Description** | The Match Details toolbar grows a **Play demo** button that navigates to the 2D Viewer (`/demos/:demoId`). Button is disabled unless the demo's status is `ready`. |
-| **Key Files** | `frontend/src/components/match/toolbar.tsx`, `frontend/src/components/match/toolbar.test.tsx`, `frontend/src/routes/match-detail.tsx` |
-| **Acceptance Criteria** | - Play demo enabled only when `demoStatus === 'ready'` |
-| | - Click navigates to `/demos/:demoId` |
-
-### P4-T13: Demos page → Match Details navigation + parse-wait
-
-| | |
-|---|---|
-| **Complexity** | S |
-| **Deps** | P4-T04 |
-| **Test Types** | component |
-| **TDD Workflow** | 1. RED: Write test: row click on a `ready` demo navigates to `/matches/:id`; row click on a `parsing` demo shows a "Parsing…" indicator and navigates when `demo:parse:progress` reports `stage === 'complete'`. 2. GREEN: Update `LibraryTable` with parse-wait state machine bridged via `useDemoStore`. 3. REFACTOR: Keep row-hover actions (direct Play, Delete). |
-| **Description** | The Demo Library row click now targets **Match Details** (`/matches/:id`), not the 2D Viewer directly. If the demo is still parsing when clicked, the row shows an inline "Parsing…" indicator and navigates automatically once parsing completes. Hover-only action buttons remain for direct Play / Delete. |
-| **Key Files** | `frontend/src/components/demos/library-table.tsx`, `frontend/src/components/demos/library-table.test.tsx` |
-| **Acceptance Criteria** | - Row click on a ready demo navigates to `/matches/:id` |
-| | - Row click on a parsing demo shows a waiting indicator; auto-navigates on parse completion |
-| | - Row-hover Play button still routes to `/demos/:id` directly when enabled |
 
 ---
 
@@ -1138,12 +949,10 @@ This single task is the project's biggest risk. The same mitigation applies as t
 | R2 | **System WebView inconsistencies across platforms** | Medium | High | Test PixiJS on all three WebView engines early (P3); maintain platform-specific workarounds list; set minimum OS versions |
 | R3 | **modernc.org/sqlite performance insufficient for tick data** | Low | High | Benchmark early; tune batch size and transaction scope; fall back to mattn/go-sqlite3 (CGo) if needed |
 | R4 | **PixiJS 60 FPS not achievable in system WebView** | Low | High | Object pooling; sprite batching; LOD; profile WebGL on each platform early |
-| R5 | **Faceit API rate limiting disrupts sync** | Medium | Medium | Aggressive local caching; exponential backoff; batch API calls |
 | R6 | **Map coordinate calibration inaccurate** | Low | High | Verify against known positions; allow manual adjustment; community-sourced data |
 | R7 | **Code signing certificates expensive or unavailable** | Medium | Medium | macOS Developer Program ($99/yr); Windows EV cert ($200-400/yr); budget for certs; consider unsigned builds for early testers |
 | R8 | **Auto-updater security (man-in-the-middle)** | Low | High | HTTPS-only update checks; verify signature on downloaded binaries; use GitHub Releases (trusted CDN) |
-| R9 | **TDD overhead slows early velocity** | Medium | Medium | Start with highest-value tests (parser golden files, auth); defer low-value tests; keep unit tests < 30s |
-| R10 | **Loopback OAuth blocked by firewalls** | Low | Medium | Clear error message + troubleshooting guide; configurable port range; future fallback to manual token entry |
+| R9 | **TDD overhead slows early velocity** | Medium | Medium | Start with highest-value tests (parser golden files); defer low-value tests; keep unit tests < 30s |
 
 ---
 
@@ -1213,16 +1022,14 @@ make clean            # Remove build artifacts
 | Sprint | Tasks | Focus |
 |--------|-------|-------|
 | 1 | P1-T01 through P1-T10 | Desktop foundation + test infrastructure |
-| 2 | P2-T01 through P2-T04 | Auth (OAuth + keychain + UI) |
-| 3 | P2-T05 through P2-T09 | Demo import + parser + ingestion |
-| 4 | P2-T10, P2-T11, P3-T01, P3-T02 | Demo library UI + viewer setup |
-| 5 | P3-T03 through P3-T06 | Viewer core rendering + playback |
-| 6 | P3-T07 through P3-T12 | Viewer UI + polish |
-| 7 | P4-T01 through P4-T05 | Faceit integration |
-| 8 | P4-T06 through P4-T09 | Heatmaps + analytics |
-| 9 | P5-T01 through P5-T08 | Strategy board |
-| 10 | P5-T09 through P5-T11 | Lineups |
-| 11 | P6-T01 through P6-T10 | Polish + distribute |
+| 2 | P2-T05 through P2-T09 | Demo import + parser + ingestion |
+| 3 | P2-T10, P2-T11, P3-T01, P3-T02 | Demo library UI + viewer setup |
+| 4 | P3-T03 through P3-T06 | Viewer core rendering + playback |
+| 5 | P3-T07 through P3-T12 | Viewer UI + polish |
+| 6 | P4-T06 through P4-T09 | Heatmaps + analytics |
+| 7 | P5-T01 through P5-T08 | Strategy board |
+| 8 | P5-T09 through P5-T11 | Lineups |
+| 9 | P6-T01 through P6-T10 | Polish + distribute |
 
 ### Parallel Tracks (After P2 Complete)
 
@@ -1232,16 +1039,13 @@ make clean            # Remove build artifacts
 **Track B: Viewer UI**
 - P3-T07 -> P3-T10 -> P3-T11
 
-**Track C: Faceit Backend** (can start early)
-- P4-T01 -> P4-T02 -> P4-T05
-
 ### Parallel Tracks (After P3 Complete)
 
 **Track A: Heatmaps**
 - P4-T06 -> P4-T07 -> P4-T08
 
-**Track B: Faceit Dashboard**
-- P4-T03 -> P4-T04 -> P4-T09
+**Track B: Stats Dashboard**
+- P4-T09
 
 **Track C: Strategy Board Foundation**
 - P5-T01 -> P5-T02 -> P5-T04

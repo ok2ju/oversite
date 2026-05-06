@@ -494,63 +494,6 @@
     color: var(--accent-ink);
   }
 
-  .side-user {
-    margin-top: auto;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 14px;
-    border-top: 1px solid var(--border);
-  }
-
-  .side-user-logout {
-    margin-left: auto;
-    display: grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
-    color: var(--text-muted);
-    transition: background 80ms ease, color 80ms ease;
-    flex-shrink: 0;
-  }
-
-  .side-user-logout:hover {
-    background: var(--bg-hover);
-    color: var(--loss);
-  }
-
-  .side-user-logout:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .side-user-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 6px;
-    background: linear-gradient(135deg, #ff8a3d, #b44500);
-    color: #fff;
-    font-weight: 700;
-    display: grid;
-    place-items: center;
-    font-size: 13px;
-  }
-
-  .side-user-name {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text);
-    line-height: 1.1;
-  }
-
-  .side-user-sub {
-    font-size: 11px;
-    color: var(--text-muted);
-    margin-top: 2px;
-    font-variant-numeric: tabular-nums;
-  }
-
   /* Main header */
   .page-title {
     font-size: 17px;

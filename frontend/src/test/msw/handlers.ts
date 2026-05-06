@@ -4,20 +4,11 @@ import {
   createMockEvents,
   mockRounds,
   createMockTickData,
-  mockFaceitMatches,
-  mockFaceitProfile,
-  mockUser,
 } from "@/test/fixtures"
 
-// Re-export fixtures for backward compatibility with existing tests
 export { mockDemos } from "@/test/fixtures"
-export { mockFaceitMatches } from "@/test/fixtures"
 
 export const handlers = [
-  http.get("/api/v1/auth/me", () => {
-    return HttpResponse.json(mockUser)
-  }),
-
   http.get("/api/v1/demos", ({ request }) => {
     const url = new URL(request.url)
     const page = Number(url.searchParams.get("page") ?? "1")
@@ -91,33 +82,6 @@ export const handlers = [
       : allSteamIds
     return HttpResponse.json({
       data: createMockTickData(startTick, endTick, steamIds),
-    })
-  }),
-
-  http.get("/api/v1/faceit/profile", () => {
-    return HttpResponse.json({ data: mockFaceitProfile })
-  }),
-
-  http.get("/api/v1/faceit/matches", ({ request }) => {
-    const url = new URL(request.url)
-    const page = Number(url.searchParams.get("page") ?? "1")
-    const perPage = Number(url.searchParams.get("per_page") ?? "20")
-    const mapFilter = url.searchParams.get("map_name")
-    const resultFilter = url.searchParams.get("result")
-
-    let filtered = [...mockFaceitMatches]
-    if (mapFilter) {
-      filtered = filtered.filter((m) => m.map_name === mapFilter)
-    }
-    if (resultFilter) {
-      filtered = filtered.filter((m) => m.result === resultFilter)
-    }
-
-    const start = (page - 1) * perPage
-    const sliced = filtered.slice(start, start + perPage)
-    return HttpResponse.json({
-      data: sliced,
-      meta: { total: filtered.length, page, per_page: perPage },
     })
   }),
 ]

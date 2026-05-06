@@ -12,20 +12,12 @@
 src/
 ├── routes/
 │   ├── root.tsx                    # App shell (sidebar + header + Outlet)
-│   ├── login.tsx                   # Faceit OAuth login trigger
-│   ├── dashboard.tsx               # Faceit stats overview
-│   ├── demos/
-│   │   ├── index.tsx               # Demo library (list/grid, drag-drop import)
-│   │   └── $demoId/
-│   │       ├── viewer.tsx          # 2D Viewer (PixiJS canvas)
-│   │       └── heatmap.tsx         # Heatmap view for this demo
+│   ├── demos.tsx                   # Demo library (list/grid, drag-drop import)
+│   ├── demo-viewer.tsx             # 2D Viewer (PixiJS canvas)
 │   ├── heatmaps.tsx                # Cross-demo aggregated heatmaps
-│   ├── strats/
-│   │   ├── index.tsx               # Strategy board list
-│   │   └── $stratId.tsx            # Strategy board canvas
-│   ├── lineups/
-│   │   ├── index.tsx               # Grenade lineup library
-│   │   └── $lineupId.tsx           # Lineup detail + 2D preview
+│   ├── strats.tsx                  # Strategy board list
+│   ├── strat-board.tsx             # Strategy board canvas
+│   ├── lineups.tsx                 # Grenade lineup library
 │   └── settings.tsx                # User preferences
 ```
 
@@ -33,11 +25,10 @@ src/
 
 ```
 Sidebar:
-  ├── Dashboard          → /dashboard
   ├── Demos              → /demos
   ├── Heatmaps           → /heatmaps
-  ├── Strategy Board     → /strats
-  ├── Grenade Lineups    → /lineups
+  ├── Strategies         → /strats
+  ├── Lineups            → /lineups
   └── Settings           → /settings
 ```
 
@@ -177,52 +168,21 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 
 ---
 
-### F4: Faceit Stats Dashboard
+### F4: Grenade Lineups Library
 
-#### F4.1 Profile Overview
-
-- Display Faceit avatar, nickname, level, ELO, country
-- Current win streak / loss streak
-- Membership info (Faceit Premium/Free)
-
-#### F4.2 Match History
-
-- Paginated list of Faceit matches from the last 30 days
-- Each entry: map, score, K/D/A, date
-- Rows with a Faceit-hosted demo but no local import show an **Import demo** button that downloads and auto-parses the demo in-process
-- Rows with an imported demo are clickable; click navigates to **Match Details** (F4.5). If the demo is still parsing when clicked, the row shows an inline "Parsing…" indicator and navigates automatically once parsing completes.
-- Rows with neither a local demo nor a Faceit demo URL are inert
-- Filter by map, result (W/L)
-
-#### F4.4 Auto-Fetch
-
-- On login, automatically fetch the user's recent Faceit match history
-- In-process sync (no background worker -- runs in the Go backend directly)
-- Optionally auto-download demos from Faceit match rooms
-
-#### F4.5 Match Details
-
-- Dedicated route (`/matches/:demoId`) reached by clicking a match row with an imported demo (from the dashboard or the Demo Library)
-- Shows the match scoreboard, round-by-round timeline, map/mode/duration, and per-player stats
-- Toolbar includes a **Play demo** button that opens the 2D Viewer (`/demos/:demoId`); enabled only when the demo status is `ready`
-
----
-
-### F5: Grenade Lineups Library
-
-#### F5.1 Auto-Extraction from Demos
+#### F4.1 Auto-Extraction from Demos
 
 - During demo parsing, detect grenade throws (smoke, flash, HE, molotov)
 - Extract: thrower position, aim angle, grenade type, landing position
 - Link to the specific tick in the demo for playback context
 
-#### F5.2 Lineup Catalog
+#### F4.2 Lineup Catalog
 
 - Browse lineups by: map, grenade type, site (A/B/Mid), side
 - Each lineup entry: 2D preview (throw position + landing on map), description, tags
 - Search and filter functionality
 
-#### F5.3 Personal Collection
+#### F4.3 Personal Collection
 
 - Users can save lineups to their personal library
 - Add custom notes and tags
@@ -230,55 +190,50 @@ The flagship feature. Renders a top-down 2D view of CS2 gameplay from parsed `.d
 
 ---
 
-### F6: Local Demo Management
+### F5: Local Demo Management
 
-#### F6.1 File Import
+#### F5.1 File Import
 
 - Drag-and-drop `.dem` files onto the app window
 - File picker dialog (Ctrl/Cmd+O)
 - Import entire folders (recursive scan for `.dem` files)
 
-#### F6.2 Demo Library
+#### F5.2 Demo Library
 
 - List view of all imported demos with metadata (map, date, players, size, status)
 - Grid view option with map thumbnails
 - Sort by date, map, size
 - Search by player name, map name
-- Clicking a row navigates to **Match Details** (F4.5), not directly to the 2D Viewer. If the demo is still parsing, the click shows a "Parsing…" indicator and navigates automatically once parsing completes.
-- Row-hover action buttons still include direct **Play** (to `/demos/:id`, enabled only when status = `ready`) and **Delete**
+- Clicking a row opens the 2D Viewer (`/demos/:id`) once status = `ready`. Rows for `parsing` demos show an inline "Parsing…" indicator and become clickable when parsing completes.
+- Row-hover action buttons include **Delete**
 
-#### F6.3 Auto-Scan (Optional)
+#### F5.3 Auto-Scan (Optional)
 
 - Configure a "watch folder" that the app scans for new `.dem` files on startup
 - Default to CS2's demo download directory if detectable
 
-#### F6.4 Storage Management
+#### F5.4 Storage Management
 
 - Show total database size and demo count
 - Delete demos (removes parsed data from SQLite; optionally removes source `.dem` file)
 - Re-parse a demo (useful after parser updates)
 
-### F7: Settings
+### F6: Settings
 
 Application-wide preferences accessible via the `/settings` route.
 
-#### F7.1 Appearance
+#### F6.1 Appearance
 
 - Theme toggle: light / dark / system (persisted in `config.json`)
 - Theme applies globally via Tailwind CSS class strategy
 
-#### F7.2 Demo Management Settings
+#### F6.2 Demo Management Settings
 
 - **Watch folder**: Optional directory path the app scans for new `.dem` files on startup
 - Default to CS2's demo download directory if detectable
 - Browse button opens native folder picker
 
-#### F7.3 Faceit Integration Settings
-
-- **Auto-fetch**: Toggle automatic Faceit match sync on login (default: on)
-- **Sync interval**: How often to check for new matches (manual / on launch / periodic)
-
-#### F7.4 About
+#### F6.3 About
 
 - App version, build info, and link to check for updates
 - Link to project repository / issue tracker

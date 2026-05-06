@@ -32,7 +32,7 @@ type FolderProgressFunc func(current, total int, fileName string)
 // Valid demos are returned in Imported; files that fail validation are collected
 // in Errors rather than aborting the entire operation. If onProgress is non-nil,
 // it is called after each file is processed.
-func (s *ImportService) ImportFolder(ctx context.Context, dirPath string, userID int64, onProgress FolderProgressFunc) (*FolderImportResult, error) {
+func (s *ImportService) ImportFolder(ctx context.Context, dirPath string, onProgress FolderProgressFunc) (*FolderImportResult, error) {
 	var demPaths []string
 
 	err := filepath.WalkDir(dirPath, func(path string, d os.DirEntry, err error) error {
@@ -58,7 +58,7 @@ func (s *ImportService) ImportFolder(ctx context.Context, dirPath string, userID
 			return result, ctx.Err()
 		}
 
-		demo, err := s.ImportFile(ctx, path, userID)
+		demo, err := s.ImportFile(ctx, path)
 		if err != nil {
 			result.Errors = append(result.Errors, FolderImportError{
 				FilePath: path,

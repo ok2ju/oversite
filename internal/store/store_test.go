@@ -2,106 +2,17 @@ package store_test
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 
 	"github.com/ok2ju/oversite/internal/store"
 	"github.com/ok2ju/oversite/internal/testutil"
 )
 
-func createTestUser(t *testing.T, q *store.Queries) store.User {
-	t.Helper()
-	user, err := q.CreateUser(context.Background(), store.CreateUserParams{
-		FaceitID:    "faceit-abc-123",
-		Nickname:    "testplayer",
-		AvatarUrl:   "https://example.com/avatar.png",
-		FaceitElo:   2100,
-		FaceitLevel: 10,
-		Country:     "US",
-	})
-	if err != nil {
-		t.Fatalf("CreateUser: %v", err)
-	}
-	return user
-}
-
-func TestCreateAndGetUser(t *testing.T) {
-	q, _ := testutil.NewTestQueries(t)
-	ctx := context.Background()
-
-	created := createTestUser(t, q)
-
-	if created.ID == 0 {
-		t.Fatal("expected non-zero user ID")
-	}
-	if created.Nickname != "testplayer" {
-		t.Errorf("Nickname = %q, want %q", created.Nickname, "testplayer")
-	}
-
-	got, err := q.GetUserByID(ctx, created.ID)
-	if err != nil {
-		t.Fatalf("GetUserByID: %v", err)
-	}
-
-	if got.FaceitID != created.FaceitID {
-		t.Errorf("FaceitID = %q, want %q", got.FaceitID, created.FaceitID)
-	}
-	if got.FaceitElo != 2100 {
-		t.Errorf("FaceitElo = %d, want 2100", got.FaceitElo)
-	}
-	if got.CreatedAt == "" {
-		t.Error("CreatedAt should be populated by default")
-	}
-
-	gotByFaceit, err := q.GetUserByFaceitID(ctx, "faceit-abc-123")
-	if err != nil {
-		t.Fatalf("GetUserByFaceitID: %v", err)
-	}
-	if gotByFaceit.ID != created.ID {
-		t.Errorf("GetUserByFaceitID ID = %d, want %d", gotByFaceit.ID, created.ID)
-	}
-}
-
-func TestUpdateUser(t *testing.T) {
-	q, _ := testutil.NewTestQueries(t)
-	ctx := context.Background()
-
-	created := createTestUser(t, q)
-
-	updated, err := q.UpdateUser(ctx, store.UpdateUserParams{
-		ID:          created.ID,
-		Nickname:    "newname",
-		AvatarUrl:   created.AvatarUrl,
-		FaceitElo:   2200,
-		FaceitLevel: 10,
-		Country:     "DE",
-	})
-	if err != nil {
-		t.Fatalf("UpdateUser: %v", err)
-	}
-
-	if updated.Nickname != "newname" {
-		t.Errorf("Nickname = %q, want %q", updated.Nickname, "newname")
-	}
-	if updated.FaceitElo != 2200 {
-		t.Errorf("FaceitElo = %d, want 2200", updated.FaceitElo)
-	}
-	if updated.UpdatedAt == "" {
-		t.Error("UpdatedAt should be populated after update")
-	}
-	if updated.Country != "DE" {
-		t.Errorf("Country = %q, want %q", updated.Country, "DE")
-	}
-}
-
 func TestCreateDemoAndList(t *testing.T) {
 	q, _ := testutil.NewTestQueries(t)
 	ctx := context.Background()
 
-	user := createTestUser(t, q)
-
 	demo, err := q.CreateDemo(ctx, store.CreateDemoParams{
-		UserID:   user.ID,
 		MapName:  "de_dust2",
 		FilePath: "/demos/match1.dem",
 		FileSize: 150_000_000,
@@ -120,9 +31,7 @@ func TestCreateDemoAndList(t *testing.T) {
 		t.Errorf("Status = %q, want %q", demo.Status, "imported")
 	}
 
-	// Insert a second demo.
 	_, err = q.CreateDemo(ctx, store.CreateDemoParams{
-		UserID:   user.ID,
 		MapName:  "de_inferno",
 		FilePath: "/demos/match2.dem",
 		FileSize: 120_000_000,
@@ -132,20 +41,19 @@ func TestCreateDemoAndList(t *testing.T) {
 		t.Fatalf("CreateDemo (second): %v", err)
 	}
 
-	demos, err := q.ListDemosByUserID(ctx, store.ListDemosByUserIDParams{
-		UserID:   user.ID,
+	demos, err := q.ListDemos(ctx, store.ListDemosParams{
 		LimitVal: 10,
 	})
 	if err != nil {
-		t.Fatalf("ListDemosByUserID: %v", err)
+		t.Fatalf("ListDemos: %v", err)
 	}
 	if len(demos) != 2 {
 		t.Errorf("len(demos) = %d, want 2", len(demos))
 	}
 
-	count, err := q.CountDemosByUserID(ctx, user.ID)
+	count, err := q.CountDemos(ctx)
 	if err != nil {
-		t.Fatalf("CountDemosByUserID: %v", err)
+		t.Fatalf("CountDemos: %v", err)
 	}
 	if count != 2 {
 		t.Errorf("count = %d, want 2", count)
@@ -156,9 +64,7 @@ func TestUpdateDemoAfterParse(t *testing.T) {
 	q, _ := testutil.NewTestQueries(t)
 	ctx := context.Background()
 
-	user := createTestUser(t, q)
 	demo, err := q.CreateDemo(ctx, store.CreateDemoParams{
-		UserID:   user.ID,
 		MapName:  "de_dust2",
 		FilePath: "/demos/match1.dem",
 		FileSize: 150_000_000,
@@ -222,21 +128,5 @@ func TestStrategyBoardCRUD(t *testing.T) {
 	}
 	if len(boards) != 1 {
 		t.Errorf("len(boards) = %d, want 1", len(boards))
-	}
-}
-
-func TestDeleteUser(t *testing.T) {
-	q, _ := testutil.NewTestQueries(t)
-	ctx := context.Background()
-
-	user := createTestUser(t, q)
-
-	if err := q.DeleteUser(ctx, user.ID); err != nil {
-		t.Fatalf("DeleteUser: %v", err)
-	}
-
-	_, err := q.GetUserByID(ctx, user.ID)
-	if err != sql.ErrNoRows {
-		t.Errorf("GetUserByID after delete: err = %v, want sql.ErrNoRows", err)
 	}
 }

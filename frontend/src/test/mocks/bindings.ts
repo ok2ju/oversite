@@ -4,9 +4,6 @@ import {
   createMockEvents,
   mockRounds,
   mockScoreboardEntries,
-  mockFaceitMatches,
-  mockFaceitProfile,
-  mockUser,
 } from "@/test/fixtures"
 
 // ---------------------------------------------------------------------------
@@ -21,14 +18,6 @@ export const mockAppBindings = {
   Greet: vi
     .fn<(name: string) => Promise<string>>()
     .mockResolvedValue("Hello TestPlayer, welcome to Oversite!"),
-
-  GetCurrentUser: vi
-    .fn<() => Promise<typeof mockUser>>()
-    .mockResolvedValue(mockUser),
-
-  LoginWithFaceit: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
-
-  Logout: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
 
   ListDemos: vi
     .fn<
@@ -95,16 +84,6 @@ export const mockAppBindings = {
     .fn<(demoId: string) => Promise<typeof mockScoreboardEntries>>()
     .mockResolvedValue(mockScoreboardEntries),
 
-  GetFaceitProfile: vi
-    .fn<() => Promise<typeof mockFaceitProfile>>()
-    .mockResolvedValue(mockFaceitProfile),
-
-  SyncFaceitMatches: vi.fn<() => Promise<number>>().mockResolvedValue(5),
-
-  ImportMatchDemo: vi
-    .fn<(faceitMatchID: string) => Promise<void>>()
-    .mockResolvedValue(undefined),
-
   GetHeatmapData: vi
     .fn<
       (
@@ -147,34 +126,6 @@ export const mockAppBindings = {
       { weapon: "M4A1", kill_count: 7, hs_count: 3 },
       { weapon: "AWP", kill_count: 4, hs_count: 0 },
     ]),
-
-  GetFaceitMatches: vi
-    .fn<
-      (
-        page: number,
-        perPage: number,
-        mapName: string,
-        result: string,
-      ) => Promise<{
-        data: typeof mockFaceitMatches
-        meta: { total: number; page: number; per_page: number }
-      }>
-    >()
-    .mockImplementation((page = 1, perPage = 20, mapName = "", result = "") => {
-      let filtered = [...mockFaceitMatches]
-      if (mapName) {
-        filtered = filtered.filter((m) => m.map_name === mapName)
-      }
-      if (result) {
-        filtered = filtered.filter((m) => m.result === result)
-      }
-      const start = (page - 1) * perPage
-      const sliced = filtered.slice(start, start + perPage)
-      return Promise.resolve({
-        data: sliced,
-        meta: { total: filtered.length, page, per_page: perPage },
-      })
-    }),
 }
 
 /**
@@ -185,7 +136,7 @@ export const mockAppBindings = {
  * Or for per-test control:
  *
  *   import { mockAppBindings } from "@/test/mocks/bindings"
- *   mockAppBindings.GetCurrentUser.mockResolvedValueOnce(customUser)
+ *   mockAppBindings.GetDemoByID.mockResolvedValueOnce(customDemo)
  */
 export function resetAppBindings() {
   Object.values(mockAppBindings).forEach((fn) => fn.mockClear())

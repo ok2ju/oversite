@@ -10,10 +10,10 @@
 
 | Attribute | Detail |
 |-----------|--------|
-| Role | Faceit Level 7-10 player, solo queue |
+| Role | Mid-to-high-rank competitive CS2 player, solo queue |
 | Goal | Identify personal mistakes, track recent performance |
 | Pain Point | Rewatching full demos in-game is slow; no easy cross-demo stats |
-| Key Features | 2D Viewer, Heatmaps, Faceit Stats Dashboard |
+| Key Features | 2D Viewer, Heatmaps, Per-Player Stats |
 | Technical Level | Comfortable installing desktop apps; not a developer |
 
 ### Persona 2: Team IGL ("Sofia")
@@ -24,7 +24,7 @@
 | Goal | Prepare strats, review team demos, share grenade setups |
 | Pain Point | Coordinating strat prep across Discord, screenshots, and in-game practice |
 | Key Features | Strategy Board, Grenade Lineups, 2D Viewer |
-| Technical Level | Moderate; uses Faceit, Discord, basic tools |
+| Technical Level | Moderate; comfortable with Discord and basic desktop tools |
 
 ### Persona 3: Casual Analyst ("Marcus")
 

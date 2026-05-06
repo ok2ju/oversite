@@ -12,90 +12,51 @@ Instead of a REST API, the Go backend exposes methods to the frontend via Wails 
 
 ### Binding Groups
 
-#### Auth
-
-| Method | Signature | Description |
-|--------|----------|-------------|
-| `StartLogin` | `() -> LoginResult` | Start loopback OAuth; opens system browser |
-| `GetCurrentUser` | `() -> User \| null` | Get logged-in user profile |
-| `Logout` | `() -> void` | Clear tokens from keychain |
-| `RefreshProfile` | `() -> User` | Re-fetch Faceit profile data |
-
 #### Demos
 
 | Method | Signature | Description |
 |--------|----------|-------------|
-| `ImportDemo` | `(path: string) -> Demo` | Import and parse a single `.dem` file |
-| `ImportFolder` | `(path: string) -> Demo[]` | Recursively import `.dem` files from folder |
-| `ListDemos` | `(opts: ListOpts) -> Demo[]` | List user's demos (sortable, filterable) |
-| `GetDemo` | `(id: number) -> Demo` | Get demo metadata |
-| `DeleteDemo` | `(id: number, deleteFile: bool) -> void` | Delete demo data; optionally remove `.dem` |
-| `GetRounds` | `(demoId: number) -> Round[]` | Get round summaries for a demo |
-| `GetRoundDetail` | `(roundId: number) -> RoundDetail` | Get round detail + player stats |
-| `GetTicks` | `(demoId: number, from: number, to: number) -> TickData[]` | Get tick data for a range |
-| `GetEvents` | `(demoId: number, filters: EventFilter) -> GameEvent[]` | Get filtered game events |
+| `ImportDemoFile` | `() -> void` | Open native file picker; validate, persist, and trigger parse |
+| `ImportDemoFolder` | `() -> FolderImportResult` | Open native folder picker; recursively import `.dem` files |
+| `ImportDemoByPath` | `(path: string) -> void` | Import a `.dem` at the given path (drag-and-drop) |
+| `ListDemos` | `(page: number, perPage: number) -> DemoListResult` | Paginated list of imported demos |
+| `GetDemoByID` | `(id: string) -> Demo` | Get demo metadata |
+| `DeleteDemo` | `(id: number) -> void` | Delete demo data from SQLite |
+
+#### Viewer
+
+| Method | Signature | Description |
+|--------|----------|-------------|
+| `GetDemoRounds` | `(demoId: string) -> Round[]` | All rounds for a demo |
+| `GetDemoEvents` | `(demoId: string) -> GameEvent[]` | All game events for a demo |
+| `GetDemoTicks` | `(demoId: string, startTick: number, endTick: number) -> TickData[]` | Tick data for a range |
+| `GetRoundRoster` | `(demoId: string, roundNumber: number) -> PlayerRosterEntry[]` | Roster for a specific round |
+| `GetScoreboard` | `(demoId: string) -> ScoreboardEntry[]` | Aggregated player stats for a demo |
 
 #### Heatmaps
 
 | Method | Signature | Description |
 |--------|----------|-------------|
-| `GetHeatmapData` | `(demoIds: number[], filters: HeatmapFilter) -> HeatmapPoint[]` | Aggregated heatmap data |
-
-#### Strategy Boards
-
-| Method | Signature | Description |
-|--------|----------|-------------|
-| `ListBoards` | `() -> StrategyBoard[]` | List all strategy boards |
-| `CreateBoard` | `(title: string, mapName: string) -> StrategyBoard` | Create a new board |
-| `GetBoard` | `(id: number) -> StrategyBoard` | Get board with state |
-| `SaveBoard` | `(id: number, state: string) -> void` | Save board state (JSON) |
-| `DeleteBoard` | `(id: number) -> void` | Delete a board |
-| `ExportBoardJSON` | `(id: number) -> string` | Export board as JSON string |
-| `ImportBoardJSON` | `(json: string) -> StrategyBoard` | Import board from JSON |
-
-#### Grenade Lineups
-
-| Method | Signature | Description |
-|--------|----------|-------------|
-| `ListLineups` | `(filters: LineupFilter) -> GrenadeLineup[]` | List/search lineups |
-| `GetLineup` | `(id: number) -> GrenadeLineup` | Get lineup detail |
-| `UpdateLineup` | `(id: number, data: LineupUpdate) -> GrenadeLineup` | Update title, description, tags |
-| `DeleteLineup` | `(id: number) -> void` | Delete a lineup |
-| `ToggleFavorite` | `(id: number) -> void` | Toggle favorite status |
-
-#### Faceit
-
-| Method | Signature | Description |
-|--------|----------|-------------|
-| `GetFaceitProfile` | `() -> FaceitProfile` | Get user's Faceit profile (cached) |
-| `GetMatches` | `(opts: MatchListOpts) -> FaceitMatch[]` | Get match history (paginated) |
-| `SyncMatches` | `() -> SyncResult` | Trigger manual match sync |
-| `ImportMatchDemo` | `(matchId: string) -> Demo` | Download and import demo from Faceit match |
-
-#### System
-
-| Method | Signature | Description |
-|--------|----------|-------------|
-| `OpenFileDialog` | `() -> string` | Native file picker for `.dem` files |
-| `OpenFolderDialog` | `() -> string` | Native folder picker |
-| `GetAppInfo` | `() -> AppInfo` | App version, data dir, DB size |
-| `CheckForUpdates` | `() -> UpdateInfo \| null` | Check if a newer version is available |
+| `GetHeatmapData` | `(demoIds: number[], weapons: string[], playerSteamID: string, side: string) -> HeatmapPoint[]` | Aggregated kill positions |
+| `GetUniqueWeapons` | `(demoIds: number[]) -> string[]` | Distinct kill-event weapons across demos |
+| `GetUniquePlayers` | `(demoIds: number[]) -> PlayerInfo[]` | Distinct kill-event players across demos |
+| `GetWeaponStats` | `(demoId: string) -> WeaponStat[]` | Per-weapon kill / headshot counts for a demo |
 
 ### Frontend Call Pattern
 
 ```typescript
-import { ImportDemo, ListDemos } from '../../wailsjs/go/main/App';
+import { ListDemos, ImportDemoByPath } from '../../wailsjs/go/main/App';
 
 // Wails bindings are called as regular async functions
-const demo = await ImportDemo('/path/to/demo.dem');
-const demos = await ListDemos({ sortBy: 'date', order: 'desc' });
+await ImportDemoByPath('/path/to/demo.dem');
+const demos = await ListDemos(1, 50);
 ```
 
 TanStack Query wraps these bindings for caching and background refetch:
 
 ```typescript
 const { data: demos } = useQuery({
-  queryKey: ['demos', filters],
-  queryFn: () => ListDemos(filters),
+  queryKey: ['demos', page, perPage],
+  queryFn: () => ListDemos(page, perPage),
 });
 ```

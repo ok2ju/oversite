@@ -2,7 +2,7 @@
 
 ## Coding Conventions
 
-- **State**: Zustand stores per domain (`demoStore`, `viewerStore`, `stratStore`, `uiStore`, `faceitStore`). Use selector hooks to minimize re-renders.
+- **State**: Zustand stores per domain (`demoStore`, `viewerStore`, `stratStore`, `uiStore`). Use selector hooks to minimize re-renders.
 - **Data fetching**: TanStack Query for all API calls. No raw `fetch` in components.
 - **Components**: shadcn/ui for standard UI. Custom components in `components/viewer/`, `components/strat/`.
 - **Styling**: Tailwind CSS utility classes. No CSS modules or styled-components.

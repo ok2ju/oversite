@@ -1,6 +1,6 @@
 # Oversite
 
-CS2 2D demo viewer and analytics platform for Faceit players. Single-binary Wails desktop app -- import local demos, watch top-down playback, generate heatmaps, plan strategies, and track Faceit stats.
+CS2 2D demo viewer and analytics platform. Single-binary Wails desktop app -- import local demos, watch top-down playback, generate heatmaps, and plan strategies.
 
 ## Tech Stack
 
@@ -13,7 +13,7 @@ CS2 2D demo viewer and analytics platform for Faceit players. Single-binary Wail
 | Database | SQLite (modernc.org/sqlite, pure Go, WAL mode) |
 | SQL | sqlc (type-safe generated Go, SQLite dialect) |
 | Migrations | golang-migrate (embedded via `//go:embed`) |
-| Auth | Faceit OAuth 2.0 + PKCE (loopback redirect), OS keychain (zalando/go-keyring) |
+| Auth | None — single-tenant local app |
 | Packaging | Single native binary per platform (macOS, Windows, Linux) |
 
 ## Project Structure
@@ -28,7 +28,6 @@ oversite/
 ├── go.mod                          # Root Go module
 ├── wails.json                      # Wails project config
 ├── internal/
-│   ├── auth/                       # Faceit OAuth, PKCE, keyring, auth service
 │   ├── database/                   # SQLite connection, migration runner
 │   ├── demo/                       # Demo parser, importer, stats, events, rounds
 │   ├── store/                      # sqlc generated code (SQLite)
@@ -40,9 +39,8 @@ oversite/
 │   ├── src/
 │   │   ├── routes/                 # react-router-dom pages
 │   │   ├── components/             # UI, viewer, strat, layout
-│   │   │   ├── dashboard/          # Faceit profile, elo chart, match list
 │   │   │   ├── demos/              # Demo cards, list, drop zone, upload
-│   │   │   ├── providers/          # Auth, Query, Theme providers
+│   │   │   ├── providers/          # Query, Theme providers
 │   │   │   ├── ui/                 # shadcn/ui primitives
 │   │   │   ├── viewer/             # 2D viewer canvas, controls, scoreboard
 │   │   │   └── strat/              # Strategy board canvas
@@ -110,11 +108,11 @@ Single embedded SQLite database using `modernc.org/sqlite` (pure Go, no CGo). WA
 
 Go struct methods on the App struct are automatically exposed as TypeScript functions in the frontend. No HTTP server, no REST routes. Long-running operations (demo parsing) report progress via Wails runtime events.
 
-**Current status**: Most binding methods in `app.go` are implemented (auth, demo import/parsing, stats, viewer data). A few stubs remain for later phases. Domain types live in `types.go` at the root package level. To implement a remaining stub: (1) write the Go logic in the appropriate `internal/` package, (2) wire it in `app.go`, (3) update the frontend to use real data instead of mocks.
+**Current status**: Demo import/parsing, stats, and viewer-data bindings in `app.go` are implemented. Domain types live in `types.go` at the root package level. To add a new binding: (1) write the Go logic in the appropriate `internal/` package, (2) wire it in `app.go`, (3) update the frontend to consume the regenerated Wails binding.
 
 ### Synchronous Processing
 
-Demo parsing and Faceit sync run in-process (no background workers, no Redis). Operations are triggered by Wails binding calls and run synchronously with progress events.
+Demo parsing runs in-process (no background workers, no Redis). Operations are triggered by Wails binding calls and run synchronously with progress events.
 
 ### Coordinate Calibration
 
@@ -126,9 +124,8 @@ Before writing or modifying any test file, you **must**:
 
 1. **Read an existing test** in the same directory/package to match patterns exactly (imports, wrappers, mock style)
 2. **Use the project's test utilities** — never reinvent wrappers:
-   - **Frontend**: Always use `renderWithProviders()` from `src/test/render.tsx` (provides QueryClientProvider, ThemeProvider, AuthProvider). Never create a raw `QueryClientProvider` wrapper in a test file.
-   - **Frontend mocks**: Use MSW handlers from `src/test/msw/handlers.ts` for Faceit API mocking. Use PixiJS mock factories from `src/test/mocks/pixi.ts`. Mock Wails binding functions from `src/test/mocks/bindings.ts`.
-   - **Go mocks**: Use stub implementations from `internal/testutil/mocks.go` (`MockKeyring`, `MockFaceitClient`). Never create ad-hoc mock structs that duplicate these.
+   - **Frontend**: Always use `renderWithProviders()` from `src/test/render.tsx` (provides QueryClientProvider, ThemeProvider). Never create a raw `QueryClientProvider` wrapper in a test file.
+   - **Frontend mocks**: Use MSW handlers from `src/test/msw/handlers.ts` for HTTP mocking. Use PixiJS mock factories from `src/test/mocks/pixi.ts`. Mock Wails binding functions from `src/test/mocks/bindings.ts`.
    - **Go database tests**: Use `testutil.NewTestDB(t)` or `testutil.NewTestQueries(t)` from `internal/testutil/db.go` for in-memory SQLite with migrations applied. Never open a test database manually.
    - **Go golden files**: Use `testutil.CompareGolden(t, name, got)` and `testutil.LoadFixture(t, name, &v)` from `internal/testutil/golden.go`. Update goldens with `go test -update`. Fixtures live in `testdata/`.
 3. **Run the test immediately** after writing it — do not move to the next file until the test passes (the Stop hook runs tests automatically when your turn ends)
@@ -142,7 +139,7 @@ Before writing or modifying any test file, you **must**:
 - **Stop (typecheck)**: Runs `tsc --noEmit` for frontend changes and `go vet ./...` for backend changes. Runs once per turn after tests. Cleans up the edited-files tracking list.
 
 ### Subagents (`.claude/agents/`)
-- **security-reviewer** -- Reviews code for auth, injection, WebSocket, and data exposure vulnerabilities
+- **security-reviewer** -- Reviews code for injection, file-handling, and data exposure vulnerabilities
 - **test-writer** -- Generates tests matching project TDD conventions (table-driven Go, RTL+MSW React, Vitest stores)
 
 ### Skills

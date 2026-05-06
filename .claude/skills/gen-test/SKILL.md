@@ -10,7 +10,7 @@ Generates a test file for a given source file or function, following project con
 
 ## Arguments
 
-- `$ARGUMENTS` — path to the source file or `package.function` to test (e.g., `backend/internal/auth/service.go` or `frontend/src/hooks/useDemo.ts`)
+- `$ARGUMENTS` — path to the source file or `package.function` to test (e.g., `internal/demo/import.go` or `frontend/src/hooks/use-demos.ts`)
 
 ## Workflow
 
@@ -18,11 +18,11 @@ Generates a test file for a given source file or function, following project con
 2. Check for existing tests in the same package/directory — match their style exactly
 3. Determine the test type based on the file:
 
-### Go Files (`backend/**/*.go`)
+### Go Files (`**/*.go`)
 - Create `*_test.go` in the same package
 - Use table-driven tests with `tt` loop variable
-- Mock dependencies using existing interfaces (`Store`, `S3Client`, `SessionStore`, `JobQueue`, `FaceitAPI`)
-- If the file interacts with the database, ask if integration tests are needed (use `//go:build integration` tag + testcontainers)
+- For DB-touching code, use `testutil.NewTestQueries(t)` from `internal/testutil/db.go` (in-memory SQLite + migrations)
+- For golden files, use `testutil.CompareGolden(t, name, got)` and `testutil.LoadFixture(t, name, &v)` from `internal/testutil/golden.go`
 - Include: happy path, error cases, edge cases, validation failures
 
 ### React Components (`frontend/src/components/**/*.tsx`)
@@ -53,7 +53,7 @@ Generates a test file for a given source file or function, following project con
 ## Example
 
 ```
-/gen-test backend/internal/demo/service.go
-/gen-test frontend/src/hooks/useDemo.ts
-/gen-test frontend/src/stores/viewerStore.ts
+/gen-test internal/demo/import.go
+/gen-test frontend/src/hooks/use-demos.ts
+/gen-test frontend/src/stores/demo.ts
 ```

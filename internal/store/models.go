@@ -9,38 +9,16 @@ import (
 )
 
 type Demo struct {
-	ID            int64
-	UserID        int64
-	FaceitMatchID sql.NullString
-	MapName       string
-	FilePath      string
-	FileSize      int64
-	Status        string
-	TotalTicks    int64
-	TickRate      float64
-	DurationSecs  int64
-	MatchDate     string
-	CreatedAt     string
-}
-
-type FaceitMatch struct {
-	ID            int64
-	UserID        int64
-	FaceitMatchID string
-	MapName       string
-	ScoreTeam     int64
-	ScoreOpponent int64
-	Result        string
-	EloBefore     int64
-	EloAfter      int64
-	Kills         int64
-	Deaths        int64
-	Assists       int64
-	DemoUrl       string
-	DemoID        sql.NullInt64
-	PlayedAt      string
-	CreatedAt     string
-	Adr           float64
+	ID           int64
+	MapName      string
+	FilePath     string
+	FileSize     int64
+	Status       string
+	TotalTicks   int64
+	TickRate     float64
+	DurationSecs int64
+	MatchDate    string
+	CreatedAt    string
 }
 
 type GameEvent struct {
@@ -130,16 +108,4 @@ type TickDatum struct {
 	Armor   int64
 	IsAlive int64
 	Weapon  string
-}
-
-type User struct {
-	ID          int64
-	FaceitID    string
-	Nickname    string
-	AvatarUrl   string
-	FaceitElo   int64
-	FaceitLevel int64
-	Country     string
-	CreatedAt   string
-	UpdatedAt   string
 }

@@ -13,41 +13,32 @@
 │                   App (Wails Bindings)                │
 │                                                     │
 │  ┌──────────────┐  ┌──────────────┐  ┌───────────┐  │
-│  │ DemoService   │  │ FaceitService│  │AuthService│  │
-│  │               │  │              │  │           │  │
-│  │ - ImportDemo  │  │ - GetProfile │  │ - Login   │  │
-│  │ - ImportDir   │  │ - GetElo     │  │ - Logout  │  │
-│  │ - ListDemos   │  │ - GetMatches │  │ - Refresh │  │
-│  │ - GetTicks    │  │ - Sync       │  │           │  │
-│  │ - GetEvents   │  │ - ImportDemo │  └───────────┘  │
-│  └──────┬───────┘  └──────┬───────┘                 │
-│         │                 │                          │
-│  ┌──────▼─────────────────▼──────────────────────┐   │
-│  │              StoreService (sqlc/SQLite)         │   │
-│  │                                                │   │
-│  │  - DemoQueries    - RoundQueries               │   │
-│  │  - TickQueries    - EventQueries               │   │
-│  │  - FaceitQueries  - LineupQueries              │   │
-│  │  - BoardQueries   - UserQueries                │   │
-│  └────────────────────────────────────────────────┘   │
-│                                                     │
-│  ┌──────────────┐  ┌──────────────┐  ┌───────────┐  │
-│  │ HeatmapSvc   │  │ StratService │  │LineupSvc  │  │
-│  │               │  │              │  │           │  │
-│  │ - GetData     │  │ - CRUD       │  │ - CRUD    │  │
-│  │ - Aggregate   │  │ - Export/    │  │ - Favorite│  │
-│  │               │  │   Import JSON│  │ - Extract │  │
-│  └──────────────┘  └──────────────┘  └───────────┘  │
+│  │ Demo bindings │  │ Viewer       │  │ Heatmap   │  │
+│  │               │  │ bindings     │  │ bindings  │  │
+│  │ - ImportFile  │  │ - GetDemo    │  │ - GetData │  │
+│  │ - ImportDir   │  │ - GetRounds  │  │ - Weapons │  │
+│  │ - ListDemos   │  │ - GetTicks   │  │ - Players │  │
+│  │ - DeleteDemo  │  │ - GetEvents  │  │ - Stats   │  │
+│  │ - parseDemo   │  │ - Roster     │  └─────┬─────┘  │
+│  └──────┬───────┘  │ - Scoreboard │        │        │
+│         │          └──────┬───────┘        │        │
+│  ┌──────▼─────────────────▼────────────────▼─────┐  │
+│  │              Store (sqlc / SQLite)              │  │
+│  │                                                │  │
+│  │  - DemoQueries    - RoundQueries               │  │
+│  │  - TickQueries    - EventQueries               │  │
+│  │  - LineupQueries  - BoardQueries               │  │
+│  │  - Heatmap custom queries (json_each based)    │  │
+│  └────────────────────────────────────────────────┘  │
 │                                                     │
 │  ┌──────────────┐  ┌──────────────┐                 │
-│  │ Demo Parser   │  │ Faceit Client│                 │
-│  │ (demoinfocs)  │  │ (HTTP)       │                 │
+│  │ Demo Parser   │  │ Import       │                 │
+│  │ (demoinfocs)  │  │ Service      │                 │
+│  │               │  │              │                 │
+│  │ - ticks       │  │ - validate   │                 │
+│  │ - events      │  │ - decompress │                 │
+│  │ - rounds      │  │ - persist    │                 │
 │  └──────────────┘  └──────────────┘                 │
-│                                                     │
-│  ┌──────────────┐                                   │
-│  │ Keyring       │                                   │
-│  │ (go-keyring)  │                                   │
-│  └──────────────┘                                   │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -65,14 +56,14 @@
 │  ┌───────────┐  ┌───────────┐  ┌───────────────────────┐ │
 │  │  Pages     │  │  Stores    │  │  Providers            │ │
 │  │ (react-    │  │ (Zustand)  │  │                       │ │
-│  │  router)   │  │            │  │ - AuthProvider        │ │
-│  │            │  │ - viewer   │  │ - QueryProvider       │ │
-│  │ - Viewer   │  │ - strat    │  │ - ThemeProvider       │ │
-│  │ - Heatmap  │  │ - ui       │  │ - RouterProvider      │ │
-│  │ - Strats   │  │ - faceit   │  │                       │ │
-│  │ - Dashboard│  │ - demo     │  └───────────────────────┘ │
-│  │ - Lineups  │  │            │                           │
-│  │ - DemoLib  │  └─────┬─────┘                           │
+│  │  router)   │  │            │  │ - QueryProvider       │ │
+│  │            │  │ - viewer   │  │ - ThemeProvider       │ │
+│  │ - Demos    │  │ - strat    │  │                       │ │
+│  │ - Viewer   │  │ - ui       │  └───────────────────────┘ │
+│  │ - Heatmaps │  │ - demo     │                           │
+│  │ - Strats   │  │            │                           │
+│  │ - Lineups  │  └─────┬─────┘                           │
+│  │ - Settings │        │                                   │
 │  └─────┬─────┘        │                                  │
 │        │              │                                   │
 │  ┌─────▼──────────────▼──────────────────────────────┐   │
@@ -106,10 +97,6 @@
 | Pattern | Implementation |
 |---------|---------------|
 | **PixiJS outside React** | PixiJS Application instantiated in a `useEffect`; React renders a container `<div>`, PixiJS manages its own render loop. Zustand store bridges React UI controls to PixiJS state. (See [ADR-0001](../decisions/0001-pixijs-outside-react.md)) |
-| **Zustand stores** | Separate stores per domain: `viewerStore` (playback state, current tick), `stratStore` (board state), `uiStore` (sidebar, modals), `faceitStore` (profile, matches), `demoStore` (library state). |
-| **TanStack Query** | Wraps Wails binding calls. Stale-while-revalidate for demo lists, Faceit data. Invalidation on import/delete. |
+| **Zustand stores** | Separate stores per domain: `viewerStore` (playback state, current tick), `stratStore` (board state), `uiStore` (sidebar, modals), `demoStore` (library state). |
+| **TanStack Query** | Wraps Wails binding calls. Stale-while-revalidate for demo lists. Invalidation on import/delete. |
 | **react-router-dom** | Client-side routing; replaces Next.js App Router. Outlet-based layout with sidebar navigation. |
-
-#### Dashboard composition
-
-The `/dashboard` route is intentionally lean: it renders only the Faceit **ProfileHero** (avatar, level, ELO, progress to next tier) and **RecentMatches** (the match history list) in a single column. Deeper stats (per-map, per-weapon, rolling form) live on per-demo analytics surfaces — primarily **Match Details** (`/matches/:demoId`, reached by clicking a match row) and the 2D Viewer. Earlier PerformanceGrid / RecentForm / MapPerformance / Weapons widgets were removed because they duplicated data shown elsewhere or were placeholder-only.

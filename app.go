@@ -6,128 +6,55 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
 
-	"github.com/ok2ju/oversite/internal/auth"
 	"github.com/ok2ju/oversite/internal/database"
 	"github.com/ok2ju/oversite/internal/demo"
-	"github.com/ok2ju/oversite/internal/faceit"
 	"github.com/ok2ju/oversite/internal/logging"
 	"github.com/ok2ju/oversite/internal/store"
 	"github.com/ok2ju/oversite/migrations"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
-	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 // App struct holds application state and is bound to the frontend.
 type App struct {
-	ctx             context.Context
-	db              *sql.DB
-	queries         *store.Queries
-	authService     *auth.AuthService
-	faceitClient    faceit.FaceitClient
-	importService   *demo.ImportService
-	syncService     *faceit.SyncService
-	downloadService *faceit.DownloadService
-
-	// logDir is the directory containing errors.txt / network.txt.
-	// Set by main.go before Startup runs.
-	logDir string
-	// networkLog is non-nil only in dev builds; closed in Shutdown.
-	networkLog *lumberjack.Logger
+	ctx           context.Context
+	db            *sql.DB
+	queries       *store.Queries
+	importService *demo.ImportService
 }
 
-// NewApp creates a new App instance.
-func NewApp() *App {
-	return &App{}
-}
-
-// Startup is called when the app starts. The context is saved
-// so it can be used by other methods.
-func (a *App) Startup(ctx context.Context) {
-	a.ctx = ctx
-
+// NewApp opens the database, runs migrations, and returns an App ready to be
+// bound to Wails. DB init must happen here (not in Startup) because Wails on
+// macOS launches OnStartup in a goroutine, which races with binding calls from
+// the WebView. See internal/frontend/desktop/darwin/frontend.go in wails v2.
+func NewApp() (*App, error) {
 	dbPath, err := database.DefaultDBPath()
 	if err != nil {
-		log.Fatalf("failed to get database path: %v", err)
+		return nil, fmt.Errorf("resolve db path: %w", err)
 	}
 
 	db, err := database.OpenWithMigrations(dbPath, migrations.FS)
 	if err != nil {
-		log.Fatalf("failed to open database: %v", err)
-	}
-	a.db = db
-	a.queries = store.New(db)
-
-	// Demo import service.
-	a.importService = demo.NewImportService(a.queries, a.db)
-
-	// Build the shared HTTP transport. In dev builds, HTTP traffic is dumped
-	// to network.txt; in production builds no transport wrapping is applied.
-	var httpTransport http.RoundTripper
-	var httpClient *http.Client
-	if wailsRuntime.Environment(ctx).BuildType == "dev" {
-		netLog, nlErr := logging.OpenNetworkLog(a.logDir)
-		if nlErr != nil {
-			slog.Warn("failed to open network log", "err", nlErr)
-		} else {
-			a.networkLog = netLog
-			httpTransport = logging.NewTransport(http.DefaultTransport, netLog)
-			httpClient = &http.Client{Transport: httpTransport}
-		}
+		return nil, fmt.Errorf("open database: %w", err)
 	}
 
-	// Auth service with OS keychain and real Faceit client.
-	kr := &auth.RealKeyring{}
-	tokens := auth.NewTokenStore(kr)
-	faceitClient := auth.NewHTTPFaceitClient(os.Getenv("FACEIT_API_KEY"), httpTransport)
+	queries := store.New(db)
+	return &App{
+		ctx:           context.Background(),
+		db:            db,
+		queries:       queries,
+		importService: demo.NewImportService(queries, db),
+	}, nil
+}
 
-	oauthCfg := auth.OAuthConfig{
-		ClientID:     os.Getenv("FACEIT_CLIENT_ID"),
-		ClientSecret: os.Getenv("FACEIT_CLIENT_SECRET"),
-		AuthURL:      os.Getenv("FACEIT_AUTH_URL"),
-		TokenURL:     os.Getenv("FACEIT_TOKEN_URL"),
-		RelayURL:     os.Getenv("FACEIT_RELAY_URL"),
-		HTTPClient:   httpClient,
-	}
-
-	a.authService = auth.NewAuthService(
-		oauthCfg,
-		tokens,
-		faceitClient,
-		a.queries,
-		func(url string) error {
-			wailsRuntime.BrowserOpenURL(a.ctx, url)
-			return nil
-		},
-	)
-
-	a.faceitClient = faceitClient
-	a.syncService = faceit.NewSyncService(faceitClient, a.queries)
-
-	// Try to restore a previous session (refresh access token from keychain).
-	// Non-fatal: if refresh fails the user simply needs to log in again.
-	if err := a.authService.TryRestoreSession(ctx); err != nil {
-		slog.Warn("session restore failed", "err", err)
-	}
-
-	downloadClient := httpClient
-	if downloadClient == nil {
-		downloadClient = &http.Client{}
-	}
-	downloadDir := filepath.Join(filepath.Dir(dbPath), "demos")
-	a.downloadService = faceit.NewDownloadService(
-		downloadClient,
-		a.importService,
-		a.queries,
-		downloadDir,
-	)
+// Startup is called by Wails after the window is created. It replaces the
+// background context with the Wails-aware one needed by runtime.EventsEmit.
+func (a *App) Startup(ctx context.Context) {
+	a.ctx = ctx
 }
 
 // Shutdown is called when the app is closing.
@@ -135,47 +62,12 @@ func (a *App) Shutdown(_ context.Context) {
 	if a.db != nil {
 		_ = a.db.Close()
 	}
-	if a.networkLog != nil {
-		_ = a.networkLog.Close()
-	}
 	_ = logging.Close()
 }
 
 // Greet returns a greeting for the given name.
-// This is a placeholder binding to verify frontend-to-Go communication.
 func (a *App) Greet(name string) string {
 	return "Hello " + name + ", welcome to Oversite!"
-}
-
-// ---------------------------------------------------------------------------
-// Auth bindings
-// ---------------------------------------------------------------------------
-
-// GetCurrentUser returns the currently authenticated user.
-func (a *App) GetCurrentUser() (*User, error) {
-	u, err := a.authService.GetCurrentUser(a.ctx)
-	if err != nil {
-		return nil, err
-	}
-	if u == nil {
-		return nil, nil
-	}
-	return &User{
-		UserID:   strconv.FormatInt(u.ID, 10),
-		FaceitID: u.FaceitID,
-		Nickname: u.Nickname,
-	}, nil
-}
-
-// LoginWithFaceit initiates the Faceit OAuth login flow.
-func (a *App) LoginWithFaceit() error {
-	_, err := a.authService.Login(a.ctx)
-	return err
-}
-
-// Logout clears the authentication state and keychain.
-func (a *App) Logout() error {
-	return a.authService.Logout()
 }
 
 // ---------------------------------------------------------------------------
@@ -184,20 +76,8 @@ func (a *App) Logout() error {
 
 // ListDemos returns a paginated list of imported demos.
 func (a *App) ListDemos(page, perPage int) (*DemoListResult, error) {
-	u, err := a.authService.GetCurrentUser(a.ctx)
-	if err != nil {
-		return nil, err
-	}
-	if u == nil {
-		return &DemoListResult{
-			Data: []Demo{},
-			Meta: PaginationMeta{Total: 0, Page: page, PerPage: perPage},
-		}, nil
-	}
-
 	offset := int64((page - 1) * perPage)
-	demos, err := a.queries.ListDemosByUserID(a.ctx, store.ListDemosByUserIDParams{
-		UserID:    u.ID,
+	demos, err := a.queries.ListDemos(a.ctx, store.ListDemosParams{
 		OffsetVal: offset,
 		LimitVal:  int64(perPage),
 	})
@@ -205,7 +85,7 @@ func (a *App) ListDemos(page, perPage int) (*DemoListResult, error) {
 		return nil, fmt.Errorf("listing demos: %w", err)
 	}
 
-	total, err := a.queries.CountDemosByUserID(a.ctx, u.ID)
+	total, err := a.queries.CountDemos(a.ctx)
 	if err != nil {
 		return nil, fmt.Errorf("counting demos: %w", err)
 	}
@@ -227,14 +107,6 @@ func (a *App) ListDemos(page, perPage int) (*DemoListResult, error) {
 
 // ImportDemoFile opens a native file dialog and imports the selected .dem file.
 func (a *App) ImportDemoFile() error {
-	u, err := a.authService.GetCurrentUser(a.ctx)
-	if err != nil {
-		return err
-	}
-	if u == nil {
-		return errors.New("not logged in")
-	}
-
 	filePath, err := wailsRuntime.OpenFileDialog(a.ctx, wailsRuntime.OpenDialogOptions{
 		Title: "Select CS2 Demo File",
 		Filters: []wailsRuntime.FileFilter{
@@ -248,7 +120,7 @@ func (a *App) ImportDemoFile() error {
 		return nil // User cancelled.
 	}
 
-	d, err := a.importService.ImportFile(a.ctx, filePath, u.ID)
+	d, err := a.importService.ImportFile(a.ctx, filePath)
 	if err != nil {
 		return err
 	}
@@ -258,14 +130,6 @@ func (a *App) ImportDemoFile() error {
 
 // ImportDemoFolder opens a native directory dialog and imports all .dem files.
 func (a *App) ImportDemoFolder() (*FolderImportResult, error) {
-	u, err := a.authService.GetCurrentUser(a.ctx)
-	if err != nil {
-		return nil, err
-	}
-	if u == nil {
-		return nil, errors.New("not logged in")
-	}
-
 	dirPath, err := wailsRuntime.OpenDirectoryDialog(a.ctx, wailsRuntime.OpenDialogOptions{
 		Title: "Select Demo Folder",
 	})
@@ -276,7 +140,7 @@ func (a *App) ImportDemoFolder() (*FolderImportResult, error) {
 		return nil, nil // User cancelled.
 	}
 
-	result, err := a.importService.ImportFolder(a.ctx, dirPath, u.ID, func(current, total int, fileName string) {
+	result, err := a.importService.ImportFolder(a.ctx, dirPath, func(current, total int, fileName string) {
 		wailsRuntime.EventsEmit(a.ctx, "demo:folder:progress", map[string]interface{}{
 			"current":  current,
 			"total":    total,
@@ -306,15 +170,7 @@ func (a *App) ImportDemoFolder() (*FolderImportResult, error) {
 
 // ImportDemoByPath imports a .dem file at the given path (used for drag-and-drop).
 func (a *App) ImportDemoByPath(filePath string) error {
-	u, err := a.authService.GetCurrentUser(a.ctx)
-	if err != nil {
-		return err
-	}
-	if u == nil {
-		return errors.New("not logged in")
-	}
-
-	d, err := a.importService.ImportFile(a.ctx, filePath, u.ID)
+	d, err := a.importService.ImportFile(a.ctx, filePath)
 	if err != nil {
 		return err
 	}
@@ -345,7 +201,6 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		wailsRuntime.EventsEmit(a.ctx, "demo:parse:progress", payload)
 	}
 
-	// Mark as parsing.
 	if _, err := a.queries.UpdateDemoStatus(a.ctx, store.UpdateDemoStatusParams{
 		Status: "parsing",
 		ID:     demoID,
@@ -375,7 +230,6 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		return
 	}
 
-	// Ingest rounds + player stats.
 	roundMap, err := demo.IngestRounds(a.ctx, a.db, demoID, result)
 	if err != nil {
 		slog.Error("parseDemo: ingest rounds", "demo_id", demoID, "err", err)
@@ -383,14 +237,12 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		return
 	}
 
-	// Ingest game events.
 	if _, err := demo.IngestGameEvents(a.ctx, a.db, demoID, result.Events, roundMap); err != nil {
 		slog.Error("parseDemo: ingest events", "demo_id", demoID, "err", err)
 		a.failDemo(demoID, fmt.Sprintf("ingest events: %v", err), emitProgress)
 		return
 	}
 
-	// Ingest tick data.
 	ingester := demo.NewTickIngester(a.db, 0)
 	if _, err := ingester.Ingest(a.ctx, demoID, result.Ticks); err != nil {
 		slog.Error("parseDemo: ingest ticks", "demo_id", demoID, "err", err)
@@ -398,7 +250,6 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		return
 	}
 
-	// Mark demo as ready with parsed metadata.
 	if _, err := a.queries.UpdateDemoAfterParse(a.ctx, store.UpdateDemoAfterParseParams{
 		MapName:      result.Header.MapName,
 		TotalTicks:   int64(result.Header.TotalTicks),
@@ -586,207 +437,14 @@ func (a *App) GetScoreboard(demoID string) ([]ScoreboardEntry, error) {
 }
 
 // ---------------------------------------------------------------------------
-// Faceit bindings
-// ---------------------------------------------------------------------------
-
-// GetFaceitProfile returns the current user's Faceit profile.
-func (a *App) GetFaceitProfile() (*FaceitProfile, error) {
-	u, err := a.authService.GetCurrentUser(a.ctx)
-	if err != nil {
-		return nil, err
-	}
-	if u == nil {
-		return nil, errors.New("not logged in")
-	}
-
-	// Fetch live match count from Faceit API; fall back to local DB count.
-	token := a.authService.GetAccessToken()
-	ctx := auth.WithAccessToken(a.ctx, token)
-
-	var matchesPlayed int
-	stats, statsErr := a.faceitClient.GetPlayerLifetimeStats(ctx, u.FaceitID)
-	if statsErr == nil && stats != nil && stats.Matches > 0 {
-		matchesPlayed = stats.Matches
-	} else {
-		if statsErr != nil {
-			slog.Warn("faceit lifetime stats unavailable, using local count", "err", statsErr)
-		}
-		localCount, err := a.queries.CountFaceitMatchesByUserID(a.ctx, u.ID)
-		if err != nil {
-			return nil, fmt.Errorf("counting matches: %w", err)
-		}
-		matchesPlayed = int(localCount)
-	}
-
-	results, err := a.queries.GetCurrentStreak(a.ctx, u.ID)
-	if err != nil {
-		return nil, fmt.Errorf("getting streak: %w", err)
-	}
-
-	profile := &FaceitProfile{
-		Nickname:      u.Nickname,
-		MatchesPlayed: matchesPlayed,
-		CurrentStreak: computeStreak(results),
-	}
-	if u.AvatarUrl != "" {
-		profile.AvatarURL = &u.AvatarUrl
-	}
-	if u.FaceitElo != 0 {
-		elo := int(u.FaceitElo)
-		profile.Elo = &elo
-	}
-	if u.FaceitLevel != 0 {
-		level := int(u.FaceitLevel)
-		profile.Level = &level
-	}
-	if u.Country != "" {
-		profile.Country = &u.Country
-	}
-	return profile, nil
-}
-
-// GetFaceitMatches returns a paginated, filtered list of Faceit matches from
-// the last 30 days.
-func (a *App) GetFaceitMatches(page, perPage int, mapName, result string) (*FaceitMatchListResult, error) {
-	u, err := a.authService.GetCurrentUser(a.ctx)
-	if err != nil {
-		return nil, err
-	}
-	if u == nil {
-		return nil, errors.New("not logged in")
-	}
-
-	offset := int64((page - 1) * perPage)
-	since := time.Now().AddDate(0, 0, -30).Format(time.RFC3339)
-
-	var mapFilter, resultFilter interface{}
-	if mapName != "" {
-		mapFilter = mapName
-	}
-	if result != "" {
-		resultFilter = result
-	}
-
-	matches, err := a.queries.GetFaceitMatchesFiltered(a.ctx, store.GetFaceitMatchesFilteredParams{
-		UserID:    u.ID,
-		SinceDate: since,
-		MapName:   mapFilter,
-		Result:    resultFilter,
-		OffsetVal: offset,
-		LimitVal:  int64(perPage),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("listing faceit matches: %w", err)
-	}
-
-	total, err := a.queries.CountFaceitMatchesFiltered(a.ctx, store.CountFaceitMatchesFilteredParams{
-		UserID:    u.ID,
-		SinceDate: since,
-		MapName:   mapFilter,
-		Result:    resultFilter,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("counting faceit matches: %w", err)
-	}
-
-	data := make([]FaceitMatch, len(matches))
-	for i, m := range matches {
-		data[i] = storeFaceitMatchToBinding(m)
-	}
-
-	return &FaceitMatchListResult{
-		Data: data,
-		Meta: PaginationMeta{
-			Total:   int(total),
-			Page:    page,
-			PerPage: perPage,
-		},
-	}, nil
-}
-
-// SyncFaceitMatches fetches match history from Faceit and stores new matches.
-// Returns the number of newly inserted matches. Progress events are emitted
-// via the Wails runtime under "faceit:sync:progress".
-func (a *App) SyncFaceitMatches() (int, error) {
-	u, err := a.authService.GetCurrentUser(a.ctx)
-	if err != nil {
-		return 0, err
-	}
-	if u == nil {
-		return 0, errors.New("not logged in")
-	}
-
-	token := a.authService.GetAccessToken()
-	ctx := auth.WithAccessToken(a.ctx, token)
-
-	inserted, err := a.syncService.SyncMatches(ctx, u.ID, u.FaceitID, func(current, total int) {
-		wailsRuntime.EventsEmit(a.ctx, "faceit:sync:progress", map[string]interface{}{
-			"current": current,
-			"total":   total,
-		})
-	})
-	if err != nil {
-		return inserted, fmt.Errorf("syncing matches: %w", err)
-	}
-	return inserted, nil
-}
-
-// ImportMatchDemo downloads and imports a demo from a Faceit match.
-// Progress events are emitted via "faceit:demo:download:progress".
-func (a *App) ImportMatchDemo(faceitMatchID string) error {
-	u, err := a.authService.GetCurrentUser(a.ctx)
-	if err != nil {
-		return err
-	}
-	if u == nil {
-		return errors.New("not logged in")
-	}
-
-	id, err := strconv.ParseInt(faceitMatchID, 10, 64)
-	if err != nil {
-		return fmt.Errorf("invalid match id: %w", err)
-	}
-
-	_, err = a.downloadService.DownloadAndImport(a.ctx, id, u.ID, func(bytesDownloaded, totalBytes int64) {
-		wailsRuntime.EventsEmit(a.ctx, "faceit:demo:download:progress", map[string]interface{}{
-			"bytesDownloaded": bytesDownloaded,
-			"totalBytes":      totalBytes,
-		})
-	})
-	if err != nil {
-		slog.Error("ImportMatchDemo failed", "faceit_match_id", faceitMatchID, "err", err)
-	}
-	return err
-}
-
-// ---------------------------------------------------------------------------
 // Heatmap bindings
 // ---------------------------------------------------------------------------
 
 // GetHeatmapData returns aggregated kill positions for the given demos and filters.
 func (a *App) GetHeatmapData(demoIDs []int64, weapons []string, playerSteamID string, side string) ([]HeatmapPoint, error) {
-	u, err := a.authService.GetCurrentUser(a.ctx)
-	if err != nil {
-		return nil, err
-	}
-	if u == nil {
-		return nil, errors.New("not logged in")
-	}
-
 	demoIDsJSON, err := json.Marshal(demoIDs)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling demo ids: %w", err)
-	}
-
-	// Verify user owns all requested demos.
-	demos, err := a.queries.GetDemosByIDs(a.ctx, string(demoIDsJSON))
-	if err != nil {
-		return nil, fmt.Errorf("getting demos: %w", err)
-	}
-	for _, d := range demos {
-		if d.UserID != u.ID {
-			return nil, errors.New("unauthorized: demo does not belong to user")
-		}
 	}
 
 	weaponsJSON, err := json.Marshal(weapons)
@@ -823,28 +481,9 @@ func (a *App) GetHeatmapData(demoIDs []int64, weapons []string, playerSteamID st
 
 // GetUniqueWeapons returns distinct weapons from kill events for the given demos.
 func (a *App) GetUniqueWeapons(demoIDs []int64) ([]string, error) {
-	u, err := a.authService.GetCurrentUser(a.ctx)
-	if err != nil {
-		return nil, err
-	}
-	if u == nil {
-		return nil, errors.New("not logged in")
-	}
-
 	demoIDsJSON, err := json.Marshal(demoIDs)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling demo ids: %w", err)
-	}
-
-	// Verify user owns all requested demos.
-	demos, err := a.queries.GetDemosByIDs(a.ctx, string(demoIDsJSON))
-	if err != nil {
-		return nil, fmt.Errorf("getting demos: %w", err)
-	}
-	for _, d := range demos {
-		if d.UserID != u.ID {
-			return nil, errors.New("unauthorized: demo does not belong to user")
-		}
 	}
 
 	weapons, err := a.queries.GetDistinctWeapons(a.ctx, string(demoIDsJSON))
@@ -859,28 +498,9 @@ func (a *App) GetUniqueWeapons(demoIDs []int64) ([]string, error) {
 
 // GetUniquePlayers returns distinct players from kill events for the given demos.
 func (a *App) GetUniquePlayers(demoIDs []int64) ([]PlayerInfo, error) {
-	u, err := a.authService.GetCurrentUser(a.ctx)
-	if err != nil {
-		return nil, err
-	}
-	if u == nil {
-		return nil, errors.New("not logged in")
-	}
-
 	demoIDsJSON, err := json.Marshal(demoIDs)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling demo ids: %w", err)
-	}
-
-	// Verify user owns all requested demos.
-	demos, err := a.queries.GetDemosByIDs(a.ctx, string(demoIDsJSON))
-	if err != nil {
-		return nil, fmt.Errorf("getting demos: %w", err)
-	}
-	for _, d := range demos {
-		if d.UserID != u.ID {
-			return nil, errors.New("unauthorized: demo does not belong to user")
-		}
 	}
 
 	rows, err := a.queries.GetDistinctPlayers(a.ctx, string(demoIDsJSON))
@@ -900,32 +520,9 @@ func (a *App) GetUniquePlayers(demoIDs []int64) ([]PlayerInfo, error) {
 
 // GetWeaponStats returns weapon kill stats for a demo.
 func (a *App) GetWeaponStats(demoID string) ([]WeaponStat, error) {
-	u, err := a.authService.GetCurrentUser(a.ctx)
-	if err != nil {
-		return nil, err
-	}
-	if u == nil {
-		return nil, errors.New("not logged in")
-	}
-
 	id, err := strconv.ParseInt(demoID, 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("invalid demo id: %w", err)
-	}
-
-	// Verify user owns the requested demo.
-	demoIDsJSON, err := json.Marshal([]int64{id})
-	if err != nil {
-		return nil, fmt.Errorf("marshaling demo ids: %w", err)
-	}
-	demos, err := a.queries.GetDemosByIDs(a.ctx, string(demoIDsJSON))
-	if err != nil {
-		return nil, fmt.Errorf("getting demos: %w", err)
-	}
-	for _, d := range demos {
-		if d.UserID != u.ID {
-			return nil, errors.New("unauthorized: demo does not belong to user")
-		}
 	}
 
 	rows, err := a.queries.GetWeaponStatsByDemoID(a.ctx, id)
@@ -1009,66 +606,6 @@ func storeGameEventToBinding(e store.GameEvent) GameEvent {
 		}
 	}
 	return ge
-}
-
-func storeFaceitMatchToBinding(m store.FaceitMatch) FaceitMatch {
-	fm := FaceitMatch{
-		ID:            strconv.FormatInt(m.ID, 10),
-		FaceitMatchID: m.FaceitMatchID,
-		MapName:       m.MapName,
-		ScoreTeam:     int(m.ScoreTeam),
-		ScoreOpponent: int(m.ScoreOpponent),
-		Result:        m.Result,
-		PlayedAt:      m.PlayedAt,
-		HasDemo:       m.DemoID.Valid,
-	}
-	if m.Kills != 0 {
-		v := int(m.Kills)
-		fm.Kills = &v
-	}
-	if m.Deaths != 0 {
-		v := int(m.Deaths)
-		fm.Deaths = &v
-	}
-	if m.Assists != 0 {
-		v := int(m.Assists)
-		fm.Assists = &v
-	}
-	if m.Adr != 0 {
-		v := m.Adr
-		fm.ADR = &v
-	}
-	if m.DemoUrl != "" {
-		fm.DemoURL = &m.DemoUrl
-	}
-	if m.DemoID.Valid {
-		v := strconv.FormatInt(m.DemoID.Int64, 10)
-		fm.DemoID = &v
-	}
-	return fm
-}
-
-func computeStreak(results []string) CurrentStreak {
-	if len(results) == 0 {
-		return CurrentStreak{Type: "none", Count: 0}
-	}
-	streakType := results[0]
-	count := 1
-	for i := 1; i < len(results); i++ {
-		if results[i] != streakType {
-			break
-		}
-		count++
-	}
-	// Map DB values to frontend-expected types.
-	typeLabel := "draw"
-	switch streakType {
-	case "W":
-		typeLabel = "win"
-	case "L":
-		typeLabel = "loss"
-	}
-	return CurrentStreak{Type: typeLabel, Count: count}
 }
 
 func storeTickDatumToBinding(d store.TickDatum) TickData {

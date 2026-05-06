@@ -3,6 +3,8 @@
 **Library:** `github.com/markus-wa/demoinfocs-golang/v5`
 **Related:** [[sqlite-wal]] · [[wails-bindings]] · [plans/p2-auth-demo-pipeline](../plans/p2-auth-demo-pipeline.md)
 
+> Note: this page describes the parser as it runs against MR12 competitive CS2 demos (24 regulation rounds + optional overtime, no bots). Casual / bot-laden demos are out of scope.
+
 ## Original spike (2026-04-15, v5.1.2)
 
 ### Performance
@@ -22,7 +24,7 @@ All three demos met the targets: < 10s parse, < 500 MB heap. Even an 862 MB 54-r
 | Case | Handled? | Notes |
 |------|----------|-------|
 | Warmup rounds | Yes | Default `skipWarmup=true`; round numbering starts at 1 post-warmup |
-| Bot presence | N/A | No bots in Faceit competitive demos |
+| Bot presence | N/A | No bots in MR12 competitive demos |
 | Overtime | Yes | `isOvertime(roundNum > 24)` works correctly |
 | Truncated demo | N/A | All three parsed cleanly; no `ErrUnexpectedEndOfDemo` |
 | Orphaned grenade throws | **No — bug** | ~25% orphan rate. See below. |
@@ -39,7 +41,7 @@ All three demos met the targets: < 10s parse, < 500 MB heap. Even an 862 MB 54-r
 
 ## Other spike recommendations
 
-- **Raise or remove `MaxUploadSize`** in `validate.go` (currently 500 MB, meant for web uploads). Faceit `.dem.zst` decompresses to 400–860+ MB.
+- **Raise or remove `MaxUploadSize`** in `validate.go` (currently 500 MB, meant for web uploads). Real `.dem.zst` files decompress to 400–860+ MB.
 - **Consider native `.dem.zst` support** via `klauspost/compress/zstd` (in-process, no CLI dependency).
 - **Add progress events** for Wails UI feedback — `ProgressFunc` callback exposed via `runtime.EventsEmit`.
 

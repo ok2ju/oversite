@@ -3,13 +3,6 @@ package main
 // Domain types exposed to the frontend via Wails bindings.
 // JSON tags match the TypeScript interfaces in frontend/src/types/.
 
-// User represents an authenticated user.
-type User struct {
-	UserID   string `json:"user_id"`
-	FaceitID string `json:"faceit_id"`
-	Nickname string `json:"nickname"`
-}
-
 // Demo represents a parsed demo file.
 type Demo struct {
 	ID           int64  `json:"id"`
@@ -103,51 +96,10 @@ type ScoreboardEntry struct {
 	ADR          float64 `json:"adr"`
 }
 
-// FaceitProfile represents a user's Faceit profile.
-type FaceitProfile struct {
-	Nickname      string        `json:"nickname"`
-	AvatarURL     *string       `json:"avatar_url"`
-	Elo           *int          `json:"elo"`
-	Level         *int          `json:"level"`
-	Country       *string       `json:"country"`
-	MatchesPlayed int           `json:"matches_played"`
-	CurrentStreak CurrentStreak `json:"current_streak"`
-}
-
-// CurrentStreak represents a win/loss streak.
-type CurrentStreak struct {
-	Type  string `json:"type"`
-	Count int    `json:"count"`
-}
-
-// FaceitMatch represents a Faceit match.
-type FaceitMatch struct {
-	ID            string   `json:"id"`
-	FaceitMatchID string   `json:"faceit_match_id"`
-	MapName       string   `json:"map_name"`
-	ScoreTeam     int      `json:"score_team"`
-	ScoreOpponent int      `json:"score_opponent"`
-	Result        string   `json:"result"`
-	Kills         *int     `json:"kills"`
-	Deaths        *int     `json:"deaths"`
-	Assists       *int     `json:"assists"`
-	ADR           *float64 `json:"adr"`
-	DemoURL       *string  `json:"demo_url"`
-	DemoID        *string  `json:"demo_id"`
-	HasDemo       bool     `json:"has_demo"`
-	PlayedAt      string   `json:"played_at"`
-}
-
 // FolderImportResult is the response from importing a folder of demos.
 type FolderImportResult struct {
 	Imported []Demo   `json:"imported"`
 	Errors   []string `json:"errors"`
-}
-
-// FaceitMatchListResult is the paginated response for Faceit match listing.
-type FaceitMatchListResult struct {
-	Data []FaceitMatch  `json:"data"`
-	Meta PaginationMeta `json:"meta"`
 }
 
 // HeatmapPoint represents a single aggregated kill position.

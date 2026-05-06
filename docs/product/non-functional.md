@@ -19,11 +19,8 @@
 
 ### Security
 
-- Faceit OAuth 2.0 with PKCE (loopback redirect, RFC 8252)
-- Refresh tokens stored in OS keychain (encrypted at rest)
-- Access tokens held in memory only (never persisted to disk)
 - `.dem` file validation (magic bytes, size limits) before parsing
-- No network listeners except during OAuth callback (temporary, localhost only)
+- No network listeners; the app neither calls out to nor accepts inbound connections at runtime
 - SQLite database file permissions: owner read/write only
 
 ### Accessibility
@@ -43,7 +40,7 @@
 | Linux | Ubuntu 22.04+ | WebKitGTK |
 
 - WebGL 2.0 required for PixiJS rendering (all supported WebView versions support this)
-- Requires internet access only for Faceit OAuth and API calls
+- No internet access required at runtime
 
 ### Installation & Distribution
 
@@ -62,10 +59,10 @@ The project follows **Test-Driven Development (TDD)**. Every feature is develope
 | Metric | Target |
 |--------|--------|
 | Go backend line coverage | >= 80% |
-| Go critical-path coverage (parser, auth, SQLite store) | >= 90% |
+| Go critical-path coverage (parser, SQLite store) | >= 90% |
 | Frontend component/hook test coverage | >= 75% |
 | Frontend utility/store coverage | >= 90% |
-| E2E critical path coverage | 100% of US-01 (install), US-04 (import), US-09 (viewer), US-22 (strat board) |
+| E2E critical path coverage | 100% of US-01 (install), US-04 (import), US-09 (viewer), US-22 (strat board) — see [user-stories](user-stories.md) |
 | CI gate | Zero merge to main without all tests passing |
 
 **Test execution time budgets:**

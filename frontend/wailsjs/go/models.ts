@@ -1,19 +1,5 @@
 export namespace main {
 	
-	export class CurrentStreak {
-	    type: string;
-	    count: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new CurrentStreak(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.type = source["type"];
-	        this.count = source["count"];
-	    }
-	}
 	export class Demo {
 	    id: number;
 	    map_name: string;
@@ -72,118 +58,6 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.data = this.convertValues(source["data"], Demo);
 	        this.meta = this.convertValues(source["meta"], PaginationMeta);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class FaceitMatch {
-	    id: string;
-	    faceit_match_id: string;
-	    map_name: string;
-	    score_team: number;
-	    score_opponent: number;
-	    result: string;
-	    kills?: number;
-	    deaths?: number;
-	    assists?: number;
-	    adr?: number;
-	    demo_url?: string;
-	    demo_id?: string;
-	    has_demo: boolean;
-	    played_at: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new FaceitMatch(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.faceit_match_id = source["faceit_match_id"];
-	        this.map_name = source["map_name"];
-	        this.score_team = source["score_team"];
-	        this.score_opponent = source["score_opponent"];
-	        this.result = source["result"];
-	        this.kills = source["kills"];
-	        this.deaths = source["deaths"];
-	        this.assists = source["assists"];
-	        this.adr = source["adr"];
-	        this.demo_url = source["demo_url"];
-	        this.demo_id = source["demo_id"];
-	        this.has_demo = source["has_demo"];
-	        this.played_at = source["played_at"];
-	    }
-	}
-	export class FaceitMatchListResult {
-	    data: FaceitMatch[];
-	    meta: PaginationMeta;
-	
-	    static createFrom(source: any = {}) {
-	        return new FaceitMatchListResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.data = this.convertValues(source["data"], FaceitMatch);
-	        this.meta = this.convertValues(source["meta"], PaginationMeta);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class FaceitProfile {
-	    nickname: string;
-	    avatar_url?: string;
-	    elo?: number;
-	    level?: number;
-	    country?: string;
-	    matches_played: number;
-	    current_streak: CurrentStreak;
-	
-	    static createFrom(source: any = {}) {
-	        return new FaceitProfile(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.nickname = source["nickname"];
-	        this.avatar_url = source["avatar_url"];
-	        this.elo = source["elo"];
-	        this.level = source["level"];
-	        this.country = source["country"];
-	        this.matches_played = source["matches_played"];
-	        this.current_streak = this.convertValues(source["current_streak"], CurrentStreak);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -407,22 +281,6 @@ export namespace main {
 	        this.armor = source["armor"];
 	        this.is_alive = source["is_alive"];
 	        this.weapon = source["weapon"];
-	    }
-	}
-	export class User {
-	    user_id: string;
-	    faceit_id: string;
-	    nickname: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new User(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.user_id = source["user_id"];
-	        this.faceit_id = source["faceit_id"];
-	        this.nickname = source["nickname"];
 	    }
 	}
 	export class WeaponStat {

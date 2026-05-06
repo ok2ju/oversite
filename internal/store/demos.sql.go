@@ -7,40 +7,35 @@ package store
 
 import (
 	"context"
-	"database/sql"
 )
 
-const countDemosByUserID = `-- name: CountDemosByUserID :one
-SELECT count(*) FROM demos WHERE user_id = ?1
+const countDemos = `-- name: CountDemos :one
+SELECT count(*) FROM demos
 `
 
-func (q *Queries) CountDemosByUserID(ctx context.Context, userID int64) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countDemosByUserID, userID)
+func (q *Queries) CountDemos(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countDemos)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
 const createDemo = `-- name: CreateDemo :one
-INSERT INTO demos (user_id, faceit_match_id, map_name, file_path, file_size, status, match_date)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-RETURNING id, user_id, faceit_match_id, map_name, file_path, file_size, status, total_ticks, tick_rate, duration_secs, match_date, created_at
+INSERT INTO demos (map_name, file_path, file_size, status, match_date)
+VALUES (?1, ?2, ?3, ?4, ?5)
+RETURNING id, map_name, file_path, file_size, status, total_ticks, tick_rate, duration_secs, match_date, created_at
 `
 
 type CreateDemoParams struct {
-	UserID        int64
-	FaceitMatchID sql.NullString
-	MapName       string
-	FilePath      string
-	FileSize      int64
-	Status        string
-	MatchDate     string
+	MapName   string
+	FilePath  string
+	FileSize  int64
+	Status    string
+	MatchDate string
 }
 
 func (q *Queries) CreateDemo(ctx context.Context, arg CreateDemoParams) (Demo, error) {
 	row := q.db.QueryRowContext(ctx, createDemo,
-		arg.UserID,
-		arg.FaceitMatchID,
 		arg.MapName,
 		arg.FilePath,
 		arg.FileSize,
@@ -50,8 +45,6 @@ func (q *Queries) CreateDemo(ctx context.Context, arg CreateDemoParams) (Demo, e
 	var i Demo
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
-		&i.FaceitMatchID,
 		&i.MapName,
 		&i.FilePath,
 		&i.FileSize,
@@ -75,7 +68,7 @@ func (q *Queries) DeleteDemo(ctx context.Context, id int64) error {
 }
 
 const getDemoByID = `-- name: GetDemoByID :one
-SELECT id, user_id, faceit_match_id, map_name, file_path, file_size, status, total_ticks, tick_rate, duration_secs, match_date, created_at FROM demos WHERE id = ?1
+SELECT id, map_name, file_path, file_size, status, total_ticks, tick_rate, duration_secs, match_date, created_at FROM demos WHERE id = ?1
 `
 
 func (q *Queries) GetDemoByID(ctx context.Context, id int64) (Demo, error) {
@@ -83,8 +76,6 @@ func (q *Queries) GetDemoByID(ctx context.Context, id int64) (Demo, error) {
 	var i Demo
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
-		&i.FaceitMatchID,
 		&i.MapName,
 		&i.FilePath,
 		&i.FileSize,
@@ -98,21 +89,19 @@ func (q *Queries) GetDemoByID(ctx context.Context, id int64) (Demo, error) {
 	return i, err
 }
 
-const listDemosByUserID = `-- name: ListDemosByUserID :many
-SELECT id, user_id, faceit_match_id, map_name, file_path, file_size, status, total_ticks, tick_rate, duration_secs, match_date, created_at FROM demos
-WHERE user_id = ?1
+const listDemos = `-- name: ListDemos :many
+SELECT id, map_name, file_path, file_size, status, total_ticks, tick_rate, duration_secs, match_date, created_at FROM demos
 ORDER BY created_at DESC
-LIMIT ?3 OFFSET ?2
+LIMIT ?2 OFFSET ?1
 `
 
-type ListDemosByUserIDParams struct {
-	UserID    int64
+type ListDemosParams struct {
 	OffsetVal int64
 	LimitVal  int64
 }
 
-func (q *Queries) ListDemosByUserID(ctx context.Context, arg ListDemosByUserIDParams) ([]Demo, error) {
-	rows, err := q.db.QueryContext(ctx, listDemosByUserID, arg.UserID, arg.OffsetVal, arg.LimitVal)
+func (q *Queries) ListDemos(ctx context.Context, arg ListDemosParams) ([]Demo, error) {
+	rows, err := q.db.QueryContext(ctx, listDemos, arg.OffsetVal, arg.LimitVal)
 	if err != nil {
 		return nil, err
 	}
@@ -122,8 +111,6 @@ func (q *Queries) ListDemosByUserID(ctx context.Context, arg ListDemosByUserIDPa
 		var i Demo
 		if err := rows.Scan(
 			&i.ID,
-			&i.UserID,
-			&i.FaceitMatchID,
 			&i.MapName,
 			&i.FilePath,
 			&i.FileSize,
@@ -155,7 +142,7 @@ UPDATE demos SET
     tick_rate = ?3,
     duration_secs = ?4
 WHERE id = ?5
-RETURNING id, user_id, faceit_match_id, map_name, file_path, file_size, status, total_ticks, tick_rate, duration_secs, match_date, created_at
+RETURNING id, map_name, file_path, file_size, status, total_ticks, tick_rate, duration_secs, match_date, created_at
 `
 
 type UpdateDemoAfterParseParams struct {
@@ -177,8 +164,6 @@ func (q *Queries) UpdateDemoAfterParse(ctx context.Context, arg UpdateDemoAfterP
 	var i Demo
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
-		&i.FaceitMatchID,
 		&i.MapName,
 		&i.FilePath,
 		&i.FileSize,
@@ -194,7 +179,7 @@ func (q *Queries) UpdateDemoAfterParse(ctx context.Context, arg UpdateDemoAfterP
 
 const updateDemoStatus = `-- name: UpdateDemoStatus :one
 UPDATE demos SET status = ?1 WHERE id = ?2
-RETURNING id, user_id, faceit_match_id, map_name, file_path, file_size, status, total_ticks, tick_rate, duration_secs, match_date, created_at
+RETURNING id, map_name, file_path, file_size, status, total_ticks, tick_rate, duration_secs, match_date, created_at
 `
 
 type UpdateDemoStatusParams struct {
@@ -207,8 +192,6 @@ func (q *Queries) UpdateDemoStatus(ctx context.Context, arg UpdateDemoStatusPara
 	var i Demo
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
-		&i.FaceitMatchID,
 		&i.MapName,
 		&i.FilePath,
 		&i.FileSize,

@@ -1,5 +1,11 @@
 # Phase 2: Auth & Demo Pipeline -- Sprint Plan
 
+> **Note (2026-05-06):** Faceit / auth scope was removed from the project after
+> this plan was executed. The auth tasks (loopback OAuth, keyring storage, auth
+> service, AuthProvider, login page) and references to the `users` /
+> `faceit_matches` tables describe historical direction. The demo-pipeline
+> portion (import, parse, library UI) is still active. See `docs/log.md`.
+
 ## Context
 
 Phase 1 established the desktop app skeleton: Wails scaffold, SQLite with WAL mode, sqlc-generated queries (56 functions across 9 files), Vite+React SPA with all routes, shadcn/ui components, Zustand stores, and full test infrastructure on both sides. Every Wails binding in `app.go` is a stub returning `errNotImplemented`. The frontend renders mock/placeholder data.

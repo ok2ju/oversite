@@ -14,17 +14,15 @@ func TestImportFolder_ImportsOnlyDemFiles(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	svc := demo.NewImportService(q, db)
 	ctx := context.Background()
-	user := createTestUser(t, q)
 
 	dir := t.TempDir()
 
-	// Create mix of files.
 	writeTempDem(t, dir, cs2Header()) // test.dem
 	writeFile(t, filepath.Join(dir, "notes.txt"), []byte("not a demo"))
 	writeFile(t, filepath.Join(dir, "replay.DEM"), cs2Header()) // uppercase extension
 	writeFile(t, filepath.Join(dir, "image.png"), []byte{0x89, 0x50, 0x4E, 0x47})
 
-	result, err := svc.ImportFolder(ctx, dir, user.ID, nil)
+	result, err := svc.ImportFolder(ctx, dir, nil)
 	if err != nil {
 		t.Fatalf("ImportFolder: %v", err)
 	}
@@ -41,7 +39,6 @@ func TestImportFolder_RecursiveSubdirectories(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	svc := demo.NewImportService(q, db)
 	ctx := context.Background()
-	user := createTestUser(t, q)
 
 	dir := t.TempDir()
 	subDir := filepath.Join(dir, "sub", "nested")
@@ -52,7 +49,7 @@ func TestImportFolder_RecursiveSubdirectories(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "top.dem"), cs2Header())
 	writeFile(t, filepath.Join(subDir, "deep.dem"), cs2Header())
 
-	result, err := svc.ImportFolder(ctx, dir, user.ID, nil)
+	result, err := svc.ImportFolder(ctx, dir, nil)
 	if err != nil {
 		t.Fatalf("ImportFolder: %v", err)
 	}
@@ -66,11 +63,10 @@ func TestImportFolder_EmptyDirectory(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	svc := demo.NewImportService(q, db)
 	ctx := context.Background()
-	user := createTestUser(t, q)
 
 	dir := t.TempDir()
 
-	result, err := svc.ImportFolder(ctx, dir, user.ID, nil)
+	result, err := svc.ImportFolder(ctx, dir, nil)
 	if err != nil {
 		t.Fatalf("ImportFolder: %v", err)
 	}
@@ -87,16 +83,13 @@ func TestImportFolder_InvalidFilesCapturedAsErrors(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	svc := demo.NewImportService(q, db)
 	ctx := context.Background()
-	user := createTestUser(t, q)
 
 	dir := t.TempDir()
 
-	// Valid demo.
 	writeFile(t, filepath.Join(dir, "good.dem"), cs2Header())
-	// Invalid demo (bad magic bytes).
 	writeFile(t, filepath.Join(dir, "bad.dem"), []byte{0xFF, 0xFE, 0xFD, 0xFC, 0xFB, 0xFA, 0xF9, 0xF8})
 
-	result, err := svc.ImportFolder(ctx, dir, user.ID, nil)
+	result, err := svc.ImportFolder(ctx, dir, nil)
 	if err != nil {
 		t.Fatalf("ImportFolder: %v", err)
 	}
@@ -112,20 +105,18 @@ func TestImportFolder_InvalidFilesCapturedAsErrors(t *testing.T) {
 func TestImportFolder_CancelledContext(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	svc := demo.NewImportService(q, db)
-	user := createTestUser(t, q)
 
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "a.dem"), cs2Header())
 	writeFile(t, filepath.Join(dir, "b.dem"), cs2Header())
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately.
+	cancel()
 
-	result, err := svc.ImportFolder(ctx, dir, user.ID, nil)
+	result, err := svc.ImportFolder(ctx, dir, nil)
 	if err == nil {
 		t.Fatal("expected context error, got nil")
 	}
-	// Some or none may have been imported before cancellation.
 	_ = result
 }
 
@@ -133,9 +124,8 @@ func TestImportFolder_NonexistentDirectory(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	svc := demo.NewImportService(q, db)
 	ctx := context.Background()
-	user := createTestUser(t, q)
 
-	_, err := svc.ImportFolder(ctx, "/nonexistent/directory/path", user.ID, nil)
+	_, err := svc.ImportFolder(ctx, "/nonexistent/directory/path", nil)
 	if err == nil {
 		t.Fatal("expected error for non-existent directory, got nil")
 	}

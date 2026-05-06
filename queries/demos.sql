@@ -1,14 +1,13 @@
 -- name: CreateDemo :one
-INSERT INTO demos (user_id, faceit_match_id, map_name, file_path, file_size, status, match_date)
-VALUES (@user_id, @faceit_match_id, @map_name, @file_path, @file_size, @status, @match_date)
+INSERT INTO demos (map_name, file_path, file_size, status, match_date)
+VALUES (@map_name, @file_path, @file_size, @status, @match_date)
 RETURNING *;
 
 -- name: GetDemoByID :one
 SELECT * FROM demos WHERE id = @id;
 
--- name: ListDemosByUserID :many
+-- name: ListDemos :many
 SELECT * FROM demos
-WHERE user_id = @user_id
 ORDER BY created_at DESC
 LIMIT @limit_val OFFSET @offset_val;
 
@@ -29,5 +28,5 @@ RETURNING *;
 -- name: DeleteDemo :exec
 DELETE FROM demos WHERE id = @id;
 
--- name: CountDemosByUserID :one
-SELECT count(*) FROM demos WHERE user_id = @user_id;
+-- name: CountDemos :one
+SELECT count(*) FROM demos;

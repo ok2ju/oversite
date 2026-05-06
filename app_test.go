@@ -5,10 +5,7 @@ import (
 	"database/sql"
 	"strconv"
 	"testing"
-	"time"
 
-	"github.com/ok2ju/oversite/internal/auth"
-	"github.com/ok2ju/oversite/internal/faceit"
 	"github.com/ok2ju/oversite/internal/store"
 	"github.com/ok2ju/oversite/internal/testutil"
 )
@@ -26,20 +23,15 @@ func newTestApp(t *testing.T) (*App, *store.Queries) {
 	return app, q
 }
 
-// seedDemo creates a user + demo and returns the demo.
+// seedDemo creates a demo and returns it.
 func seedDemo(t *testing.T, q *store.Queries) store.Demo {
 	t.Helper()
 	ctx := context.Background()
-	user, err := q.CreateUser(ctx, store.CreateUserParams{
-		FaceitID: "test-faceit", Nickname: "tester",
-		AvatarUrl: "", FaceitElo: 2000, FaceitLevel: 10, Country: "US",
-	})
-	if err != nil {
-		t.Fatalf("CreateUser: %v", err)
-	}
 	demo, err := q.CreateDemo(ctx, store.CreateDemoParams{
-		UserID: user.ID, MapName: "de_dust2",
-		FilePath: "/demos/test.dem", FileSize: 100_000_000, Status: "imported",
+		MapName:  "de_dust2",
+		FilePath: "/demos/test.dem",
+		FileSize: 100_000_000,
+		Status:   "imported",
 	})
 	if err != nil {
 		t.Fatalf("CreateDemo: %v", err)
@@ -72,69 +64,6 @@ func seedRounds(t *testing.T, q *store.Queries, demoID int64) []store.Round {
 		result = append(result, r)
 	}
 	return result
-}
-
-// newTestAppWithUser returns an App with an AuthService wired to a real user.
-// The returned user has: Nickname="tester", FaceitElo=2000, Level=10, Country="US".
-func newTestAppWithUser(t *testing.T) (*App, *store.Queries, store.User) {
-	t.Helper()
-	q, db := testutil.NewTestQueries(t)
-	ctx := context.Background()
-
-	user, err := q.CreateUser(ctx, store.CreateUserParams{
-		FaceitID: "test-faceit-id", Nickname: "tester",
-		AvatarUrl: "https://example.com/avatar.png", FaceitElo: 2000,
-		FaceitLevel: 10, Country: "US",
-	})
-	if err != nil {
-		t.Fatalf("CreateUser: %v", err)
-	}
-
-	kr := testutil.NewMockKeyring()
-	tokens := auth.NewTokenStore(kr)
-	if err := tokens.SaveUserID(strconv.FormatInt(user.ID, 10)); err != nil {
-		t.Fatalf("SaveUserID: %v", err)
-	}
-
-	authSvc := auth.NewAuthService(
-		auth.OAuthConfig{},
-		tokens,
-		&faceit.MockFaceitClient{},
-		q,
-		func(string) error { return nil },
-	)
-
-	mockFaceit := &faceit.MockFaceitClient{}
-	app := &App{
-		ctx:          ctx,
-		db:           db,
-		queries:      q,
-		authService:  authSvc,
-		faceitClient: mockFaceit,
-	}
-	return app, q, user
-}
-
-// seedFaceitMatches inserts 5 Faceit matches with varied results/elos/maps.
-func seedFaceitMatches(t *testing.T, q *store.Queries, userID int64) []store.FaceitMatch {
-	t.Helper()
-	ctx := context.Background()
-	params := []store.CreateFaceitMatchParams{
-		{UserID: userID, FaceitMatchID: "match-1", MapName: "de_dust2", ScoreTeam: 16, ScoreOpponent: 10, Result: "W", EloBefore: 1980, EloAfter: 2000, Kills: 20, Deaths: 15, Assists: 5, DemoUrl: "https://example.com/demo1.dem.gz", PlayedAt: "2026-04-10T10:00:00Z"},
-		{UserID: userID, FaceitMatchID: "match-2", MapName: "de_mirage", ScoreTeam: 14, ScoreOpponent: 16, Result: "L", EloBefore: 2000, EloAfter: 1975, Kills: 18, Deaths: 20, Assists: 3, PlayedAt: "2026-04-11T10:00:00Z"},
-		{UserID: userID, FaceitMatchID: "match-3", MapName: "de_dust2", ScoreTeam: 16, ScoreOpponent: 8, Result: "W", EloBefore: 1975, EloAfter: 2005, Kills: 25, Deaths: 10, Assists: 7, PlayedAt: "2026-04-12T10:00:00Z"},
-		{UserID: userID, FaceitMatchID: "match-4", MapName: "de_inferno", ScoreTeam: 16, ScoreOpponent: 14, Result: "W", EloBefore: 2005, EloAfter: 2020, Kills: 22, Deaths: 18, Assists: 4, PlayedAt: "2026-04-13T10:00:00Z"},
-		{UserID: userID, FaceitMatchID: "match-5", MapName: "de_dust2", ScoreTeam: 10, ScoreOpponent: 16, Result: "L", EloBefore: 2020, EloAfter: 1995, Kills: 12, Deaths: 19, Assists: 2, PlayedAt: "2026-04-14T10:00:00Z"},
-	}
-	var matches []store.FaceitMatch
-	for _, p := range params {
-		m, err := q.CreateFaceitMatch(ctx, p)
-		if err != nil {
-			t.Fatalf("CreateFaceitMatch: %v", err)
-		}
-		matches = append(matches, m)
-	}
-	return matches
 }
 
 // ---------------------------------------------------------------------------
@@ -216,7 +145,6 @@ func TestGetDemoRounds(t *testing.T) {
 		})
 	}
 
-	// Verify conversion details.
 	rounds, _ := app.GetDemoRounds("1")
 	if rounds[0].RoundNumber != 1 {
 		t.Errorf("RoundNumber = %d, want 1", rounds[0].RoundNumber)
@@ -227,7 +155,6 @@ func TestGetDemoRounds(t *testing.T) {
 	if rounds[0].IsOvertime {
 		t.Error("Round 1 should not be overtime")
 	}
-	// Round 25 should be overtime.
 	if !rounds[2].IsOvertime {
 		t.Error("Round 25 should be overtime")
 	}
@@ -255,7 +182,6 @@ func TestGetDemoEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateGameEvent: %v", err)
 	}
-	// Event with null optional fields.
 	_, err = q.CreateGameEvent(ctx, store.CreateGameEventParams{
 		DemoID: demo.ID, RoundID: rounds[0].ID, Tick: 200,
 		EventType: "bomb_plant",
@@ -293,7 +219,6 @@ func TestGetDemoEvents(t *testing.T) {
 		})
 	}
 
-	// Verify conversion of first event with all fields set.
 	events, _ := app.GetDemoEvents("1")
 	e := events[0]
 	if e.EventType != "kill" {
@@ -312,7 +237,6 @@ func TestGetDemoEvents(t *testing.T) {
 		t.Errorf("ExtraData[headshot] = %v, want true", hs)
 	}
 
-	// Verify second event with null optional fields.
 	e2 := events[1]
 	if e2.AttackerSteamID != nil {
 		t.Error("expected nil AttackerSteamID for bomb_plant")
@@ -376,7 +300,6 @@ func TestGetDemoTicks(t *testing.T) {
 		})
 	}
 
-	// Verify alive/dead conversion.
 	ticks, _ := app.GetDemoTicks("1", 100, 100)
 	if !ticks[0].IsAlive {
 		t.Error("STEAM_A should be alive")
@@ -460,7 +383,6 @@ func TestGetScoreboard(t *testing.T) {
 	rounds := seedRounds(t, q, demo.ID)
 	ctx := context.Background()
 
-	// Player A: 2 rounds, 5 kills (3 hs), 2 deaths, 300 damage.
 	for i, roundIdx := range []int{0, 1} {
 		kills := int64(2)
 		hs := int64(1)
@@ -521,239 +443,12 @@ func TestGetScoreboard(t *testing.T) {
 	if entry.RoundsPlayed != 2 {
 		t.Errorf("RoundsPlayed = %d, want 2", entry.RoundsPlayed)
 	}
-	// HSPercent = 3/5 * 100 = 60
 	if entry.HSPercent != 60 {
 		t.Errorf("HSPercent = %f, want 60", entry.HSPercent)
 	}
-	// ADR = 300/2 = 150
 	if entry.ADR != 150 {
 		t.Errorf("ADR = %f, want 150", entry.ADR)
 	}
-}
-
-// ---------------------------------------------------------------------------
-// computeStreak
-// ---------------------------------------------------------------------------
-
-func TestComputeStreak(t *testing.T) {
-	tests := []struct {
-		name      string
-		results   []string
-		wantType  string
-		wantCount int
-	}{
-		{"empty", nil, "none", 0},
-		{"single win", []string{"W"}, "win", 1},
-		{"single loss", []string{"L"}, "loss", 1},
-		{"win streak", []string{"W", "W", "W", "L"}, "win", 3},
-		{"loss streak", []string{"L", "L", "W"}, "loss", 2},
-		{"alternating", []string{"W", "L", "W"}, "win", 1},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := computeStreak(tt.results)
-			if got.Type != tt.wantType {
-				t.Errorf("Type = %q, want %q", got.Type, tt.wantType)
-			}
-			if got.Count != tt.wantCount {
-				t.Errorf("Count = %d, want %d", got.Count, tt.wantCount)
-			}
-		})
-	}
-}
-
-// ---------------------------------------------------------------------------
-// GetFaceitProfile
-// ---------------------------------------------------------------------------
-
-func TestGetFaceitProfile(t *testing.T) {
-	t.Run("not logged in", func(t *testing.T) {
-		q, db := testutil.NewTestQueries(t)
-		kr := testutil.NewMockKeyring()
-		tokens := auth.NewTokenStore(kr)
-		app := &App{
-			ctx: context.Background(), db: db, queries: q,
-			authService: auth.NewAuthService(auth.OAuthConfig{}, tokens, &faceit.MockFaceitClient{}, q, func(string) error { return nil }),
-		}
-		_, err := app.GetFaceitProfile()
-		if err == nil {
-			t.Fatal("expected error for unauthenticated user")
-		}
-	})
-
-	t.Run("no matches", func(t *testing.T) {
-		app, _, _ := newTestAppWithUser(t)
-		profile, err := app.GetFaceitProfile()
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if profile.Nickname != "tester" {
-			t.Errorf("Nickname = %q, want %q", profile.Nickname, "tester")
-		}
-		if profile.Elo == nil || *profile.Elo != 2000 {
-			t.Errorf("Elo = %v, want 2000", profile.Elo)
-		}
-		if profile.Level == nil || *profile.Level != 10 {
-			t.Errorf("Level = %v, want 10", profile.Level)
-		}
-		if profile.MatchesPlayed != 0 {
-			t.Errorf("MatchesPlayed = %d, want 0", profile.MatchesPlayed)
-		}
-		if profile.CurrentStreak.Type != "none" {
-			t.Errorf("Streak.Type = %q, want %q", profile.CurrentStreak.Type, "none")
-		}
-	})
-
-	t.Run("with matches and streak", func(t *testing.T) {
-		app, q, user := newTestAppWithUser(t)
-		seedFaceitMatches(t, q, user.ID)
-
-		profile, err := app.GetFaceitProfile()
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if profile.MatchesPlayed != 5 {
-			t.Errorf("MatchesPlayed = %d, want 5", profile.MatchesPlayed)
-		}
-		// Matches ordered by played_at DESC: match-5 (loss), match-4 (win), ...
-		// So streak should be "loss", count=1.
-		if profile.CurrentStreak.Type != "loss" {
-			t.Errorf("Streak.Type = %q, want %q", profile.CurrentStreak.Type, "loss")
-		}
-		if profile.CurrentStreak.Count != 1 {
-			t.Errorf("Streak.Count = %d, want 1", profile.CurrentStreak.Count)
-		}
-		if profile.AvatarURL == nil || *profile.AvatarURL != "https://example.com/avatar.png" {
-			t.Errorf("AvatarURL = %v, want avatar URL", profile.AvatarURL)
-		}
-		if profile.Country == nil || *profile.Country != "US" {
-			t.Errorf("Country = %v, want US", profile.Country)
-		}
-	})
-}
-
-// ---------------------------------------------------------------------------
-// GetFaceitMatches
-// ---------------------------------------------------------------------------
-
-func TestGetFaceitMatches(t *testing.T) {
-	app, q, user := newTestAppWithUser(t)
-	seedFaceitMatches(t, q, user.ID)
-
-	t.Run("unfiltered", func(t *testing.T) {
-		result, err := app.GetFaceitMatches(1, 10, "", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if result.Meta.Total != 5 {
-			t.Errorf("Total = %d, want 5", result.Meta.Total)
-		}
-		if len(result.Data) != 5 {
-			t.Fatalf("len = %d, want 5", len(result.Data))
-		}
-		// Ordered DESC by played_at, first should be match-5.
-		if result.Data[0].FaceitMatchID != "match-5" {
-			t.Errorf("first match = %q, want match-5", result.Data[0].FaceitMatchID)
-		}
-	})
-
-	t.Run("filter by map", func(t *testing.T) {
-		result, err := app.GetFaceitMatches(1, 10, "de_dust2", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if result.Meta.Total != 3 {
-			t.Errorf("Total = %d, want 3", result.Meta.Total)
-		}
-	})
-
-	t.Run("filter by result", func(t *testing.T) {
-		result, err := app.GetFaceitMatches(1, 10, "", "W")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if result.Meta.Total != 3 {
-			t.Errorf("Total = %d, want 3", result.Meta.Total)
-		}
-	})
-
-	t.Run("pagination", func(t *testing.T) {
-		result, err := app.GetFaceitMatches(1, 2, "", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(result.Data) != 2 {
-			t.Fatalf("len = %d, want 2", len(result.Data))
-		}
-		if result.Meta.Total != 5 {
-			t.Errorf("Total = %d, want 5", result.Meta.Total)
-		}
-		if result.Meta.Page != 1 {
-			t.Errorf("Page = %d, want 1", result.Meta.Page)
-		}
-	})
-
-	t.Run("type mapping", func(t *testing.T) {
-		result, err := app.GetFaceitMatches(1, 1, "de_dust2", "W")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if len(result.Data) == 0 {
-			t.Fatal("expected at least 1 match")
-		}
-		m := result.Data[0]
-		// Match-3: Kills=25, Deaths=10, Assists=7, no demo URL.
-		if m.Kills == nil || *m.Kills != 25 {
-			t.Errorf("Kills = %v, want 25", m.Kills)
-		}
-		if m.Deaths == nil || *m.Deaths != 10 {
-			t.Errorf("Deaths = %v, want 10", m.Deaths)
-		}
-		if m.Assists == nil || *m.Assists != 7 {
-			t.Errorf("Assists = %v, want 7", m.Assists)
-		}
-		if m.DemoURL != nil {
-			t.Errorf("DemoURL = %v, want nil (match-3 has no demo_url)", m.DemoURL)
-		}
-		if m.HasDemo {
-			t.Error("HasDemo should be false")
-		}
-	})
-
-	t.Run("filters out matches older than 30 days", func(t *testing.T) {
-		app2, q2, user2 := newTestAppWithUser(t)
-		ctx := context.Background()
-		oldDate := time.Now().AddDate(0, 0, -45).Format(time.RFC3339)
-		recentDate := time.Now().AddDate(0, 0, -5).Format(time.RFC3339)
-
-		_, err := q2.CreateFaceitMatch(ctx, store.CreateFaceitMatchParams{
-			UserID: user2.ID, FaceitMatchID: "old-1", MapName: "de_dust2",
-			ScoreTeam: 16, ScoreOpponent: 10, Result: "W",
-			PlayedAt: oldDate,
-		})
-		if err != nil {
-			t.Fatalf("CreateFaceitMatch (old): %v", err)
-		}
-		_, err = q2.CreateFaceitMatch(ctx, store.CreateFaceitMatchParams{
-			UserID: user2.ID, FaceitMatchID: "recent-1", MapName: "de_dust2",
-			ScoreTeam: 16, ScoreOpponent: 10, Result: "W",
-			PlayedAt: recentDate,
-		})
-		if err != nil {
-			t.Fatalf("CreateFaceitMatch (recent): %v", err)
-		}
-
-		res, err := app2.GetFaceitMatches(1, 20, "", "")
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if res.Meta.Total != 1 {
-			t.Errorf("Total = %d, want 1 (old match filtered out)", res.Meta.Total)
-		}
-		if len(res.Data) != 1 || res.Data[0].FaceitMatchID != "recent-1" {
-			t.Errorf("Data = %+v, want only recent-1", res.Data)
-		}
-	})
 }
 
 // ---------------------------------------------------------------------------
@@ -765,7 +460,6 @@ func seedKillEvents(t *testing.T, q *store.Queries, demoID int64, rounds []store
 	t.Helper()
 	ctx := context.Background()
 
-	// Also seed player_rounds so heatmap side-filtering can join.
 	_, err := q.CreatePlayerRound(ctx, store.CreatePlayerRoundParams{
 		RoundID: rounds[0].ID, SteamID: "STEAM_A", PlayerName: "Player1",
 		TeamSide: "CT", Kills: 2, Deaths: 0, Assists: 0, Damage: 200, HeadshotKills: 1,
@@ -810,22 +504,8 @@ func seedKillEvents(t *testing.T, q *store.Queries, demoID int64, rounds []store
 // ---------------------------------------------------------------------------
 
 func TestGetHeatmapData(t *testing.T) {
-	app, q, user := newTestAppWithUser(t)
-	ctx := context.Background()
-
-	demo, err := q.CreateDemo(ctx, store.CreateDemoParams{
-		UserID: user.ID, MapName: "de_dust2",
-		FilePath: "/demos/heatmap.dem", FileSize: 100_000_000, Status: "imported",
-	})
-	if err != nil {
-		t.Fatalf("CreateDemo: %v", err)
-	}
-	demo, err = q.UpdateDemoAfterParse(ctx, store.UpdateDemoAfterParseParams{
-		ID: demo.ID, MapName: "de_dust2", TotalTicks: 128000, TickRate: 128.0, DurationSecs: 2400,
-	})
-	if err != nil {
-		t.Fatalf("UpdateDemoAfterParse: %v", err)
-	}
+	app, q := newTestApp(t)
+	demo := seedDemo(t, q)
 	rounds := seedRounds(t, q, demo.ID)
 	seedKillEvents(t, q, demo.ID, rounds)
 
@@ -837,7 +517,6 @@ func TestGetHeatmapData(t *testing.T) {
 		if len(points) != 2 {
 			t.Fatalf("len = %d, want 2 (two distinct positions)", len(points))
 		}
-		// Position (100.5, 200.5) has 2 kills.
 		found := false
 		for _, p := range points {
 			if p.X == 100.5 && p.Y == 200.5 {
@@ -883,7 +562,6 @@ func TestGetHeatmapData(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		// Only STEAM_A is CT, so only their 2 kills at (100.5, 200.5).
 		if len(points) != 1 {
 			t.Fatalf("len = %d, want 1", len(points))
 		}
@@ -908,22 +586,8 @@ func TestGetHeatmapData(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGetUniqueWeapons(t *testing.T) {
-	app, q, user := newTestAppWithUser(t)
-	ctx := context.Background()
-
-	demo, err := q.CreateDemo(ctx, store.CreateDemoParams{
-		UserID: user.ID, MapName: "de_dust2",
-		FilePath: "/demos/weapons.dem", FileSize: 100_000_000, Status: "imported",
-	})
-	if err != nil {
-		t.Fatalf("CreateDemo: %v", err)
-	}
-	demo, err = q.UpdateDemoAfterParse(ctx, store.UpdateDemoAfterParseParams{
-		ID: demo.ID, MapName: "de_dust2", TotalTicks: 128000, TickRate: 128.0, DurationSecs: 2400,
-	})
-	if err != nil {
-		t.Fatalf("UpdateDemoAfterParse: %v", err)
-	}
+	app, q := newTestApp(t)
+	demo := seedDemo(t, q)
 	rounds := seedRounds(t, q, demo.ID)
 	seedKillEvents(t, q, demo.ID, rounds)
 
@@ -946,41 +610,6 @@ func TestGetUniqueWeapons(t *testing.T) {
 			t.Errorf("len = %d, want 0", len(weapons))
 		}
 	})
-
-	t.Run("not logged in", func(t *testing.T) {
-		q2, db2 := testutil.NewTestQueries(t)
-		kr := testutil.NewMockKeyring()
-		tokens := auth.NewTokenStore(kr)
-		noAuthApp := &App{
-			ctx: context.Background(), db: db2, queries: q2,
-			authService: auth.NewAuthService(auth.OAuthConfig{}, tokens, &faceit.MockFaceitClient{}, q2, func(string) error { return nil }),
-		}
-		_, err := noAuthApp.GetUniqueWeapons([]int64{demo.ID})
-		if err == nil {
-			t.Fatal("expected error for unauthenticated call")
-		}
-	})
-
-	t.Run("unauthorized demo", func(t *testing.T) {
-		otherUser, err := q.CreateUser(ctx, store.CreateUserParams{
-			FaceitID: "other-faceit-w", Nickname: "other",
-			AvatarUrl: "", FaceitElo: 1500, FaceitLevel: 5, Country: "DE",
-		})
-		if err != nil {
-			t.Fatalf("CreateUser: %v", err)
-		}
-		otherDemo, err := q.CreateDemo(ctx, store.CreateDemoParams{
-			UserID: otherUser.ID, MapName: "de_mirage",
-			FilePath: "/demos/other-w.dem", FileSize: 50_000_000, Status: "imported",
-		})
-		if err != nil {
-			t.Fatalf("CreateDemo: %v", err)
-		}
-		_, err = app.GetUniqueWeapons([]int64{otherDemo.ID})
-		if err == nil {
-			t.Fatal("expected unauthorized error")
-		}
-	})
 }
 
 // ---------------------------------------------------------------------------
@@ -988,22 +617,8 @@ func TestGetUniqueWeapons(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGetUniquePlayers(t *testing.T) {
-	app, q, user := newTestAppWithUser(t)
-	ctx := context.Background()
-
-	demo, err := q.CreateDemo(ctx, store.CreateDemoParams{
-		UserID: user.ID, MapName: "de_dust2",
-		FilePath: "/demos/players.dem", FileSize: 100_000_000, Status: "imported",
-	})
-	if err != nil {
-		t.Fatalf("CreateDemo: %v", err)
-	}
-	demo, err = q.UpdateDemoAfterParse(ctx, store.UpdateDemoAfterParseParams{
-		ID: demo.ID, MapName: "de_dust2", TotalTicks: 128000, TickRate: 128.0, DurationSecs: 2400,
-	})
-	if err != nil {
-		t.Fatalf("UpdateDemoAfterParse: %v", err)
-	}
+	app, q := newTestApp(t)
+	demo := seedDemo(t, q)
 	rounds := seedRounds(t, q, demo.ID)
 	seedKillEvents(t, q, demo.ID, rounds)
 
@@ -1015,7 +630,6 @@ func TestGetUniquePlayers(t *testing.T) {
 		if len(players) != 2 {
 			t.Fatalf("len = %d, want 2", len(players))
 		}
-		// Check that we get real player info.
 		found := false
 		for _, p := range players {
 			if p.SteamID == "STEAM_A" && p.PlayerName == "Player1" {
@@ -1026,41 +640,6 @@ func TestGetUniquePlayers(t *testing.T) {
 			t.Error("expected player STEAM_A / Player1")
 		}
 	})
-
-	t.Run("not logged in", func(t *testing.T) {
-		q2, db2 := testutil.NewTestQueries(t)
-		kr := testutil.NewMockKeyring()
-		tokens := auth.NewTokenStore(kr)
-		noAuthApp := &App{
-			ctx: context.Background(), db: db2, queries: q2,
-			authService: auth.NewAuthService(auth.OAuthConfig{}, tokens, &faceit.MockFaceitClient{}, q2, func(string) error { return nil }),
-		}
-		_, err := noAuthApp.GetUniquePlayers([]int64{demo.ID})
-		if err == nil {
-			t.Fatal("expected error for unauthenticated call")
-		}
-	})
-
-	t.Run("unauthorized demo", func(t *testing.T) {
-		otherUser, err := q.CreateUser(ctx, store.CreateUserParams{
-			FaceitID: "other-faceit-p", Nickname: "other",
-			AvatarUrl: "", FaceitElo: 1500, FaceitLevel: 5, Country: "DE",
-		})
-		if err != nil {
-			t.Fatalf("CreateUser: %v", err)
-		}
-		otherDemo, err := q.CreateDemo(ctx, store.CreateDemoParams{
-			UserID: otherUser.ID, MapName: "de_mirage",
-			FilePath: "/demos/other-p.dem", FileSize: 50_000_000, Status: "imported",
-		})
-		if err != nil {
-			t.Fatalf("CreateDemo: %v", err)
-		}
-		_, err = app.GetUniquePlayers([]int64{otherDemo.ID})
-		if err == nil {
-			t.Fatal("expected unauthorized error")
-		}
-	})
 }
 
 // ---------------------------------------------------------------------------
@@ -1068,26 +647,12 @@ func TestGetUniquePlayers(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGetWeaponStats(t *testing.T) {
-	app, q, user := newTestAppWithUser(t)
+	app, q := newTestApp(t)
+	demo := seedDemo(t, q)
+	rounds := seedRounds(t, q, demo.ID)
 	ctx := context.Background()
 
-	demo, err := q.CreateDemo(ctx, store.CreateDemoParams{
-		UserID: user.ID, MapName: "de_dust2",
-		FilePath: "/demos/weaponstats.dem", FileSize: 100_000_000, Status: "imported",
-	})
-	if err != nil {
-		t.Fatalf("CreateDemo: %v", err)
-	}
-	demo, err = q.UpdateDemoAfterParse(ctx, store.UpdateDemoAfterParseParams{
-		ID: demo.ID, MapName: "de_dust2", TotalTicks: 128000, TickRate: 128.0, DurationSecs: 2400,
-	})
-	if err != nil {
-		t.Fatalf("UpdateDemoAfterParse: %v", err)
-	}
-	rounds := seedRounds(t, q, demo.ID)
-
-	// Seed player_rounds for the join.
-	_, err = q.CreatePlayerRound(ctx, store.CreatePlayerRoundParams{
+	_, err := q.CreatePlayerRound(ctx, store.CreatePlayerRoundParams{
 		RoundID: rounds[0].ID, SteamID: "STEAM_A", PlayerName: "Player1",
 		TeamSide: "CT", Kills: 2, Deaths: 0, Assists: 0, Damage: 200, HeadshotKills: 1,
 	})
@@ -1143,9 +708,7 @@ func TestGetWeaponStats(t *testing.T) {
 		})
 	}
 
-	// Verify stats ordering and HS counts.
 	stats, _ := app.GetWeaponStats(strconv.FormatInt(demo.ID, 10))
-	// AK-47 has 2 kills (1 HS), should be first (ordered by kill_count DESC).
 	if stats[0].Weapon != "AK-47" {
 		t.Errorf("Weapon[0] = %q, want AK-47", stats[0].Weapon)
 	}
@@ -1155,7 +718,6 @@ func TestGetWeaponStats(t *testing.T) {
 	if stats[0].HSCount != 1 {
 		t.Errorf("HSCount[0] = %d, want 1", stats[0].HSCount)
 	}
-	// AWP has 1 kill (1 HS).
 	if stats[1].Weapon != "AWP" {
 		t.Errorf("Weapon[1] = %q, want AWP", stats[1].Weapon)
 	}
@@ -1165,40 +727,4 @@ func TestGetWeaponStats(t *testing.T) {
 	if stats[1].HSCount != 1 {
 		t.Errorf("HSCount[1] = %d, want 1", stats[1].HSCount)
 	}
-
-	t.Run("not logged in", func(t *testing.T) {
-		q2, db2 := testutil.NewTestQueries(t)
-		kr := testutil.NewMockKeyring()
-		tokens := auth.NewTokenStore(kr)
-		noAuthApp := &App{
-			ctx: context.Background(), db: db2, queries: q2,
-			authService: auth.NewAuthService(auth.OAuthConfig{}, tokens, &faceit.MockFaceitClient{}, q2, func(string) error { return nil }),
-		}
-		_, err := noAuthApp.GetWeaponStats(strconv.FormatInt(demo.ID, 10))
-		if err == nil {
-			t.Fatal("expected error for unauthenticated call")
-		}
-	})
-
-	t.Run("unauthorized demo", func(t *testing.T) {
-		// Create a demo owned by a different user.
-		otherUser, err := q.CreateUser(ctx, store.CreateUserParams{
-			FaceitID: "other-faceit", Nickname: "other",
-			AvatarUrl: "", FaceitElo: 1500, FaceitLevel: 5, Country: "DE",
-		})
-		if err != nil {
-			t.Fatalf("CreateUser: %v", err)
-		}
-		otherDemo, err := q.CreateDemo(ctx, store.CreateDemoParams{
-			UserID: otherUser.ID, MapName: "de_mirage",
-			FilePath: "/demos/other.dem", FileSize: 50_000_000, Status: "imported",
-		})
-		if err != nil {
-			t.Fatalf("CreateDemo: %v", err)
-		}
-		_, err = app.GetWeaponStats(strconv.FormatInt(otherDemo.ID, 10))
-		if err == nil {
-			t.Fatal("expected unauthorized error")
-		}
-	})
 }

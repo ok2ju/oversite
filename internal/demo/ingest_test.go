@@ -11,10 +11,9 @@ import (
 )
 
 // createTestDemo creates a demo record in the test database.
-func createTestDemo(t *testing.T, q *store.Queries, userID int64) store.Demo {
+func createTestDemo(t *testing.T, q *store.Queries) store.Demo {
 	t.Helper()
 	d, err := q.CreateDemo(context.Background(), store.CreateDemoParams{
-		UserID:   userID,
 		FilePath: "/test.dem",
 		Status:   "imported",
 		FileSize: 1000,
@@ -51,8 +50,7 @@ func TestTickIngester_Ingest(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	ctx := context.Background()
 
-	user := createTestUser(t, q)
-	d := createTestDemo(t, q, user.ID)
+	d := createTestDemo(t, q)
 
 	ticks := makeSyntheticTicks(10, 10) // 100 ticks total
 	ingester := demo.NewTickIngester(db, 50)
@@ -104,8 +102,7 @@ func TestTickIngester_Idempotent(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	ctx := context.Background()
 
-	user := createTestUser(t, q)
-	d := createTestDemo(t, q, user.ID)
+	d := createTestDemo(t, q)
 
 	ticks := makeSyntheticTicks(5, 10) // 50 ticks
 	ingester := demo.NewTickIngester(db, 100)
@@ -160,8 +157,7 @@ func TestTickIngester_BoolConversion(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	ctx := context.Background()
 
-	user := createTestUser(t, q)
-	d := createTestDemo(t, q, user.ID)
+	d := createTestDemo(t, q)
 
 	ticks := []demo.TickSnapshot{
 		{Tick: 4, SteamID: "alive_player", X: 1, Y: 2, Z: 3, Yaw: 90, Health: 100, Armor: 50, IsAlive: true, Weapon: "AK-47"},

@@ -13,7 +13,7 @@ User                    React SPA          Go Backend            SQLite         
  │                        │                    │                    │                │
  │  Drag-drop .dem file   │                    │                    │                │
  │───────────────────────▶│                    │                    │                │
- │                        │  ImportDemo(path)  │                    │                │
+ │                        │  ImportDemoByPath  │                    │                │
  │                        │───────────────────▶│                    │                │
  │                        │                    │  Validate file     │                │
  │                        │                    │  (magic bytes,     │                │
@@ -25,11 +25,25 @@ User                    React SPA          Go Backend            SQLite         
  │                        │                    │◀────────────────────────────────────│
  │                        │                    │                    │                │
  │                        │                    │  INSERT demo       │                │
- │                        │                    │  (status=parsing)  │                │
+ │                        │                    │  (status=imported) │                │
+ │                        │                    │───────────────────▶│                │
+ │                        │  Demo (imported)   │                    │                │
+ │                        │◀───────────────────│                    │                │
+ │  Show in library       │                    │                    │                │
+ │◀───────────────────────│                    │                    │                │
+ │                        │                    │  parseDemo (go)    │                │
+ │                        │                    │  status=parsing    │                │
  │                        │                    │───────────────────▶│                │
  │                        │                    │                    │                │
  │                        │                    │  Parse demo        │                │
  │                        │                    │  (demoinfocs)      │                │
+ │                        │                    │                    │                │
+ │                        │                    │  Emit              │                │
+ │                        │                    │  demo:parse:       │                │
+ │                        │  parse progress    │  progress events   │                │
+ │                        │◀───────────────────│                    │                │
+ │  Progress UI           │                    │                    │                │
+ │◀───────────────────────│                    │                    │                │
  │                        │                    │                    │                │
  │                        │                    │  BEGIN transaction │                │
  │                        │                    │  Batch INSERT      │                │
@@ -46,10 +60,10 @@ User                    React SPA          Go Backend            SQLite         
  │                        │                    │  UPDATE demo       │                │
  │                        │                    │  (status=ready)    │                │
  │                        │                    │───────────────────▶│                │
- │                        │                    │                    │                │
- │                        │  Demo (ready)      │                    │                │
+ │                        │  parse complete    │                    │                │
  │                        │◀───────────────────│                    │                │
- │  Show in library       │                    │                    │                │
+ │  Library row flips to  │                    │                    │                │
+ │  "ready"; clickable    │                    │                    │                │
  │◀───────────────────────│                    │                    │                │
 ```
 
@@ -93,148 +107,39 @@ User                    React SPA          Zustand Store       PixiJS App       
  │◀───────────────────────────────────────────────────────────────│                  │                │
 ```
 
-### Faceit OAuth Loopback Flow
+### Heatmap Aggregation
 
 ```
-User                    React SPA          Go Backend            System Browser    Faceit API        OS Keychain
- │                        │                    │                    │                │                │
- │  Click "Login"         │                    │                    │                │                │
- │───────────────────────▶│                    │                    │                │                │
- │                        │  StartLogin()      │                    │                │                │
- │                        │───────────────────▶│                    │                │                │
- │                        │                    │  Start temp HTTP   │                │                │
- │                        │                    │  listener on       │                │                │
- │                        │                    │  127.0.0.1:{port}  │                │                │
- │                        │                    │                    │                │                │
- │                        │                    │  Open auth URL     │                │                │
- │                        │                    │───────────────────▶│                │                │
- │                        │                    │                    │                │                │
- │  Authenticate in       │                    │                    │  GET /authorize │                │
- │  browser               │                    │                    │───────────────▶│                │
- │───────────────────────▶│                    │                    │                │                │
- │                        │                    │                    │  302 → localhost│                │
- │                        │                    │                    │◀───────────────│                │
- │                        │                    │                    │                │                │
- │                        │                    │  Receive callback  │                │                │
- │                        │                    │◀───────────────────│                │                │
- │                        │                    │  (auth code)       │                │                │
- │                        │                    │                    │                │                │
- │                        │                    │  Exchange code     │                │                │
- │                        │                    │  for tokens        │                │                │
- │                        │                    │──────────────────────────────────────▶│                │
- │                        │                    │  access + refresh  │                │                │
- │                        │                    │◀──────────────────────────────────────│                │
- │                        │                    │                    │                │                │
- │                        │                    │  Store refresh     │                │                │
- │                        │                    │  token in keychain │                │                │
- │                        │                    │──────────────────────────────────────────────────────▶│
- │                        │                    │                    │                │                │
- │                        │                    │  Fetch profile     │                │                │
- │                        │                    │──────────────────────────────────────▶│                │
- │                        │                    │  profile data      │                │                │
- │                        │                    │◀──────────────────────────────────────│                │
- │                        │                    │                    │                │                │
- │                        │                    │  INSERT/UPDATE user│                │                │
- │                        │                    │  in SQLite         │                │                │
- │                        │                    │                    │                │                │
- │                        │  LoginResult       │                    │                │                │
- │                        │◀───────────────────│                    │                │                │
- │  Show dashboard        │                    │                    │                │                │
- │◀───────────────────────│                    │                    │                │                │
-```
-
-### Faceit Match Sync
-
-```
-User                    React SPA          Go Backend            Faceit API        SQLite
- │                        │                    │                    │                │
- │  Dashboard loads       │                    │                    │                │
- │───────────────────────▶│                    │                    │                │
- │                        │  SyncMatches()     │                    │                │
- │                        │───────────────────▶│                    │                │
- │                        │                    │  GET /matches      │                │
- │                        │                    │───────────────────▶│                │
- │                        │                    │  match list        │                │
- │                        │                    │◀───────────────────│                │
- │                        │                    │                    │                │
- │                        │                    │  For each new match│                │
- │                        │                    │  GET /match/{id}   │                │
- │                        │                    │───────────────────▶│                │
- │                        │                    │  match detail      │                │
- │                        │                    │◀───────────────────│                │
- │                        │                    │                    │                │
- │                        │                    │  UPSERT matches    │                │
- │                        │                    │  into SQLite       │                │
- │                        │                    │──────────────────────────────────────▶│
- │                        │                    │                    │                │
- │                        │  SyncResult        │                    │                │
- │                        │◀───────────────────│                    │                │
- │  Show updated matches  │                    │                    │                │
- │◀───────────────────────│                    │                    │                │
-```
-
-### Demo Download from Match Row
-
-Triggered when a user clicks **Import demo** on a dashboard match row that has a Faceit-hosted `demo_url` but no local import. The download runs in-process via `DownloadService`, and parsing is auto-triggered on success (reusing the flow from 5.1).
-
-```
-User        React SPA           Go Backend (App)      DownloadService    Faceit CDN    SQLite
- │             │                      │                      │               │           │
- │ Click       │                      │                      │               │           │
- │ Import ───▶ │ ImportMatchDemo()    │                      │               │           │
- │             │────────────────────▶ │ DownloadAndImport()  │               │           │
- │             │                      │────────────────────▶ │ GET demo.dem  │           │
- │             │                      │                      │─────────────▶ │           │
- │             │                      │                      │  bytes        │           │
- │             │                      │ Emit                 │◀───────────── │           │
- │             │                      │ faceit:demo:         │               │           │
- │             │◀─ download progress  │ download:progress    │               │           │
- │  Show pill  │                      │                      │ INSERT demo   │           │
- │             │                      │                      │────────────────────────── ▶│
- │             │                      │                      │               │           │
- │             │                      │  (auto-trigger parse — see Demo Import & Parse) │
- │             │                      │                      │               │           │
- │             │ Invalidate           │                      │               │           │
- │             │ ['faceit-matches']   │                      │               │           │
- │             │ ['demos'] queries    │                      │               │           │
- │◀ Row flips  │                      │                      │               │           │
- │  to "Demo   │                      │                      │               │           │
- │   ready"    │                      │                      │               │           │
-```
-
-### Dashboard / Demos → Match Details → Viewer
-
-Clicks from the dashboard match list and the Demo Library converge on Match Details (`/matches/:demoId`). The 2D Viewer is reached from Match Details via the **Play demo** button.
-
-```
-User        React SPA (list)       Match Details          2D Viewer        demoStore
- │             │                         │                    │                │
- │  Click row  │                         │                    │                │
- │  (has_demo) │                         │                    │                │
- │───────────▶ │                         │                    │                │
- │             │  If importProgress      │                    │                │
- │             │  targets this demo &    │                    │                │
- │             │  stage ∈ {importing,    │                    │                │
- │             │           parsing}:     │                    │                │
- │             │    show "Parsing…"      │                    │                │
- │             │    indicator, wait on   │                    │                │
- │             │    demo:parse:progress  │                    │                │
- │             │    stage === complete   │                    │                │
- │             │                         │                    │                │
- │             │  navigate(/matches/:id) │                    │                │
- │             │────────────────────────▶│                    │                │
- │             │                         │ GetDemoByID +      │                │
- │             │                         │ rounds + scoreboard│                │
- │             │                         │                    │                │
- │◀ scoreboard │                         │                    │                │
- │  + timeline │                         │                    │                │
- │             │                         │                    │                │
- │  Click      │                         │                    │                │
- │  Play demo  │                         │                    │                │
- │───────────────────────────────────────▶│                    │                │
- │             │                         │ navigate(/demos/:id)                │
- │             │                         │────────────────────▶│                │
- │             │                         │                    │  Load ticks,   │
- │             │                         │                    │  render PixiJS │
- │◀ Viewer     │                         │                    │                │
+User                    React SPA          Go Backend            SQLite
+ │                        │                    │                    │
+ │  Open Heatmaps         │                    │                    │
+ │───────────────────────▶│                    │                    │
+ │                        │  GetUniqueWeapons  │                    │
+ │                        │  GetUniquePlayers  │                    │
+ │                        │───────────────────▶│                    │
+ │                        │                    │  SELECT DISTINCT   │
+ │                        │                    │───────────────────▶│
+ │                        │                    │◀───────────────────│
+ │                        │  filter options    │                    │
+ │                        │◀───────────────────│                    │
+ │                        │                    │                    │
+ │  Adjust filters        │                    │                    │
+ │  (weapon, side, demo)  │                    │                    │
+ │───────────────────────▶│                    │                    │
+ │                        │  GetHeatmapData    │                    │
+ │                        │  (json demoIDs +   │                    │
+ │                        │   weapons + opts)  │                    │
+ │                        │───────────────────▶│                    │
+ │                        │                    │  json_each() join  │
+ │                        │                    │  on game_events    │
+ │                        │                    │  WHERE event=kill  │
+ │                        │                    │  GROUP BY x, y     │
+ │                        │                    │───────────────────▶│
+ │                        │                    │  aggregated points │
+ │                        │                    │◀───────────────────│
+ │                        │  HeatmapPoint[]    │                    │
+ │                        │◀───────────────────│                    │
+ │  KDE renders on        │                    │                    │
+ │  PixiJS canvas         │                    │                    │
+ │◀───────────────────────│                    │                    │
 ```

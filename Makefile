@@ -1,4 +1,4 @@
-.PHONY: dev build clean sqlc migrate-create gen-appicon lint typecheck test test-go test-fe test-unit test-e2e hooks hooks-fallback help
+.PHONY: dev build clean sqlc migrate-create gen-appicon lint typecheck test test-go test-fe test-unit test-e2e hooks hooks-fallback db-reset help
 
 # ========================
 # Development
@@ -72,6 +72,23 @@ hooks: ## Install pre-commit hooks via lefthook
 hooks-fallback: ## Install pre-commit hooks (no extra tools)
 	git config core.hooksPath .githooks
 	@echo "Pre-commit hooks activated via core.hooksPath"
+
+# ========================
+# Database
+# ========================
+
+db-reset: ## Wipe all data from the local SQLite DB (keeps schema and migration history)
+	@case "$$(uname -s)" in \
+	  Darwin) db="$$HOME/Library/Application Support/oversite/oversite.db" ;; \
+	  Linux)  db="$${XDG_DATA_HOME:-$$HOME/.local/share}/oversite/oversite.db" ;; \
+	  *)      echo "Unsupported OS: $$(uname -s)"; exit 1 ;; \
+	esac; \
+	if [ ! -f "$$db" ]; then echo "No database at $$db"; exit 0; fi; \
+	if pgrep -x oversite >/dev/null 2>&1; then echo "Refusing: oversite is running. Quit the app first."; exit 1; fi; \
+	echo "Wiping data from $$db"; \
+	stmts=$$(sqlite3 "$$db" "SELECT 'DELETE FROM ' || quote(name) || ';' FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name <> 'schema_migrations';"); \
+	sqlite3 "$$db" "PRAGMA foreign_keys=OFF; BEGIN; $$stmts COMMIT; VACUUM;"; \
+	echo "Done."
 
 # ========================
 # Help

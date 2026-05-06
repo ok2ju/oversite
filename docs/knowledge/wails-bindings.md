@@ -20,16 +20,15 @@ Go `error` → rejected TS promise with the error's message string. Wrap calls i
 
 ## Progress events for long operations
 
-`runtime.EventsEmit(ctx, "demo:parse:progress", payload)` on the Go side; `EventsOn('demo:parse:progress', handler)` on the TS side. Use for demo parse, demo download, batch import.
+`runtime.EventsEmit(ctx, "demo:parse:progress", payload)` on the Go side; `EventsOn('demo:parse:progress', handler)` on the TS side. Use for demo parse and batch import.
 
 Event names in use:
-- `demo:parse:progress` — tick parsing, phases: `validating` / `parsing_ticks` / `parsing_events` / `complete`
-- `faceit:demo:download:progress` — Faceit demo download (bytes transferred)
-- `faceit:sync:progress` — batch match sync
+- `demo:parse:progress` — tick parsing, phases: `parsing` / `complete` / `error`
+- `demo:folder:progress` — batch folder import (current/total file count)
 
 ## Synchronous processing
 
-There is no background worker. Demo parsing, Faceit sync, and demo downloads all run in-process on the Go backend. If the user kicks off two parses at once, they queue naturally on the SQLite single connection (see [[sqlite-wal]]).
+There is no background worker. Demo parsing runs in-process on the Go backend. If the user kicks off two parses at once, they queue naturally on the SQLite single connection (see [[sqlite-wal]]).
 
 ## TanStack Query wrapping
 

@@ -11,7 +11,6 @@ LLM-maintained wiki of implementation entities and patterns. These pages capture
 - [[sqlite-wal]] — WAL mode, single connection rationale, modernc driver
 - [[sqlc-workflow]] — queries/ → generate → store/ roundtrip
 - [[migrations]] — golang-migrate embedding, up/down discipline
-- [[faceit-oauth]] — PKCE loopback flow + keychain storage
 - [[coordinate-calibration]] — world-space ↔ pixel-space transform
 - [[demo-parser]] — demoinfocs-golang findings + ongoing edge cases
 - [[testing]] — shared test utilities by layer

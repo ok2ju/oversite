@@ -4,8 +4,6 @@ import {main} from '../models';
 
 export function DeleteDemo(arg1:number):Promise<void>;
 
-export function GetCurrentUser():Promise<main.User>;
-
 export function GetDemoByID(arg1:string):Promise<main.Demo>;
 
 export function GetDemoEvents(arg1:string):Promise<Array<main.GameEvent>>;
@@ -13,10 +11,6 @@ export function GetDemoEvents(arg1:string):Promise<Array<main.GameEvent>>;
 export function GetDemoRounds(arg1:string):Promise<Array<main.Round>>;
 
 export function GetDemoTicks(arg1:string,arg2:number,arg3:number):Promise<Array<main.TickData>>;
-
-export function GetFaceitMatches(arg1:number,arg2:number,arg3:string,arg4:string):Promise<main.FaceitMatchListResult>;
-
-export function GetFaceitProfile():Promise<main.FaceitProfile>;
 
 export function GetHeatmapData(arg1:Array<number>,arg2:Array<string>,arg3:string,arg4:string):Promise<Array<main.HeatmapPoint>>;
 
@@ -38,12 +32,4 @@ export function ImportDemoFile():Promise<void>;
 
 export function ImportDemoFolder():Promise<main.FolderImportResult>;
 
-export function ImportMatchDemo(arg1:string):Promise<void>;
-
 export function ListDemos(arg1:number,arg2:number):Promise<main.DemoListResult>;
-
-export function LoginWithFaceit():Promise<void>;
-
-export function Logout():Promise<void>;
-
-export function SyncFaceitMatches():Promise<number>;

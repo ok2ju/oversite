@@ -11,10 +11,9 @@ import (
 )
 
 // createDemoForEvents creates a demo in the test database for FK constraints.
-func createDemoForEvents(t *testing.T, q *store.Queries, userID int64) store.Demo {
+func createDemoForEvents(t *testing.T, q *store.Queries) store.Demo {
 	t.Helper()
 	d, err := q.CreateDemo(context.Background(), store.CreateDemoParams{
-		UserID:   userID,
 		MapName:  "de_dust2",
 		FilePath: "/demos/test.dem",
 		FileSize: 100_000,
@@ -30,8 +29,7 @@ func TestIngestGameEvents_Basic(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	ctx := context.Background()
 
-	user := createTestUser(t, q)
-	d := createDemoForEvents(t, q, user.ID)
+	d := createDemoForEvents(t, q)
 
 	// Create a round so we can map round numbers to DB IDs.
 	round, err := q.CreateRound(ctx, store.CreateRoundParams{
@@ -145,8 +143,7 @@ func TestIngestGameEvents_Idempotent(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	ctx := context.Background()
 
-	user := createTestUser(t, q)
-	d := createDemoForEvents(t, q, user.ID)
+	d := createDemoForEvents(t, q)
 
 	round, err := q.CreateRound(ctx, store.CreateRoundParams{
 		DemoID:      d.ID,
@@ -223,8 +220,7 @@ func TestIngestGameEvents_ExtraData(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	ctx := context.Background()
 
-	user := createTestUser(t, q)
-	d := createDemoForEvents(t, q, user.ID)
+	d := createDemoForEvents(t, q)
 
 	round, err := q.CreateRound(ctx, store.CreateRoundParams{
 		DemoID:      d.ID,
@@ -292,8 +288,7 @@ func TestIngestGameEvents_NullableFields(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	ctx := context.Background()
 
-	user := createTestUser(t, q)
-	d := createDemoForEvents(t, q, user.ID)
+	d := createDemoForEvents(t, q)
 
 	round, err := q.CreateRound(ctx, store.CreateRoundParams{
 		DemoID:      d.ID,

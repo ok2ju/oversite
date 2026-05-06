@@ -5,17 +5,21 @@ import { Header } from "@/components/layout/header"
 
 describe("Header", () => {
   it("renders a derived page title for the current route", () => {
-    renderWithProviders(<Header />, { initialRoute: "/dashboard" })
+    renderWithProviders(<Header />, { initialRoute: "/demos" })
     expect(
       screen
-        .getAllByText("Dashboard")
+        .getAllByText("Demos")
         .some((el) => el.classList.contains("page-title")),
     ).toBe(true)
   })
 
   it("prefers an explicit title prop over the derived title", () => {
     renderWithProviders(<Header title="Custom" subtitle="Sub text" />)
-    expect(screen.getByText("Custom")).toBeInTheDocument()
+    expect(
+      screen
+        .getAllByText("Custom")
+        .some((el) => el.classList.contains("page-title")),
+    ).toBe(true)
     expect(screen.getByText("Sub text")).toBeInTheDocument()
   })
 
@@ -28,25 +32,18 @@ describe("Header", () => {
     ).toBeInTheDocument()
   })
 
-  it("renders match detail title for /matches/:id routes", () => {
-    renderWithProviders(<Header />, { initialRoute: "/matches/123" })
+  it("renders demo viewer title for /demos/:id routes", () => {
+    renderWithProviders(<Header />, { initialRoute: "/demos/123" })
     expect(
       screen
-        .getAllByText("Match detail")
+        .getAllByText("Demo viewer")
         .some((el) => el.classList.contains("page-title")),
     ).toBe(true)
   })
 
-  it("renders a breadcrumb with Home link", () => {
+  it("renders a breadcrumb with Home link to /demos", () => {
     renderWithProviders(<Header />, { initialRoute: "/demos" })
     const home = screen.getByRole("link", { name: "Home" })
-    expect(home).toHaveAttribute("href", "/dashboard")
-  })
-
-  it("does not render a sync button", () => {
-    renderWithProviders(<Header />, { initialRoute: "/dashboard" })
-    expect(
-      screen.queryByRole("button", { name: /sync faceit data/i }),
-    ).not.toBeInTheDocument()
+    expect(home).toHaveAttribute("href", "/demos")
   })
 })

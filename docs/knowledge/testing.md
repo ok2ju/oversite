@@ -10,16 +10,14 @@ Before writing any test: **open an existing test in the same directory/package**
 
 ### Frontend (React / Vitest)
 
-- `renderWithProviders()` — `src/test/render.tsx`. Provides `QueryClientProvider`, `ThemeProvider`, `AuthProvider`. **Always use this**; never build a raw `QueryClientProvider` wrapper in a test file.
-- MSW handlers — `src/test/msw/handlers.ts`. Use for Faceit API mocking.
+- `renderWithProviders()` — `src/test/render.tsx`. Provides `QueryClientProvider` and `ThemeProvider`. **Always use this**; never build a raw `QueryClientProvider` wrapper in a test file.
+- MSW handlers — `src/test/msw/handlers.ts`. Use for any HTTP mocking the test environment needs.
 - PixiJS mocks — `src/test/mocks/pixi.ts`.
 - Wails binding mocks — `src/test/mocks/bindings.ts`.
 
 ### Go
 
 - `testutil.NewTestDB(t)` / `testutil.NewTestQueries(t)` — `internal/testutil/db.go`. In-memory SQLite with migrations applied. Never open a test DB manually.
-- `testutil.MockKeyring` — `internal/testutil/mocks.go`. Stub keyring for auth tests.
-- `testutil.MockFaceitClient` — same file. Stub Faceit HTTP client.
 - Golden files: `testutil.CompareGolden(t, name, got)` and `testutil.LoadFixture(t, name, &v)` from `internal/testutil/golden.go`. Update with `go test -update`. Fixtures live in `testdata/`.
 
 ## Run tests immediately

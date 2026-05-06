@@ -1,7 +1,7 @@
 # ADR-0009: Loopback OAuth Flow for Desktop Authentication
 
 **Date:** 2026-04-12
-**Status:** Accepted
+**Status:** Superseded by [ADR-0014](0014-remove-faceit-integration.md) (2026-05-06)
 
 ## Context
 

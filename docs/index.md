@@ -1,6 +1,6 @@
 # Oversite Docs
 
-CS2 2D demo viewer and analytics platform for Faceit players. Single-binary Wails desktop app. This vault is the single source of truth for product, architecture, and implementation knowledge.
+CS2 2D demo viewer and analytics platform. Single-binary Wails desktop app. This vault is the single source of truth for product, architecture, and implementation knowledge.
 
 ## Product
 
@@ -8,8 +8,8 @@ What we're building. Canonical specs — read top-to-bottom to understand the pr
 
 - [[product/vision|Vision & Goals]] — problem statement, goals, tech stack
 - [[product/personas|Personas]] — Kai (solo grinder), Sofia (IGL), Marcus (analyst)
-- [[product/features|Features]] — information architecture + feature specs (F1–F7)
-- [[product/user-stories|User Stories]] — US-01 through US-33 + empty/error states
+- [[product/features|Features]] — information architecture + feature specs (F1–F6)
+- [[product/user-stories|User Stories]] — empty / error states + scenario stories
 - [[product/non-functional|Non-Functional Requirements]] — performance, security, a11y, quality
 - [[product/data-models|Data Models]] — business-level entity tables
 - [[product/wails-bindings|Wails Bindings]] — binding method catalog
@@ -39,7 +39,7 @@ Where we are and where we're going.
 
 - [[roadmap|Roadmap]] — 6-phase delivery plan
 - [[tasks|Task Breakdown]] — granular tasks across P1–P6
-- Phase plans: [[plans/p1-desktop-foundation|P1]] · [[plans/p2-auth-demo-pipeline|P2]] · [[plans/p3-core-2d-viewer|P3]] · [[plans/p4-faceit-heatmaps|P4]]
+- Phase plans: [[plans/p1-desktop-foundation|P1]] · [[plans/p2-auth-demo-pipeline|P2]] · [[plans/p3-core-2d-viewer|P3]]
 
 ## Knowledge Wiki
 

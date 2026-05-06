@@ -25,7 +25,7 @@
 | Component | Purpose |
 |-----------|---------|
 | Temp SQLite databases | In-memory (`:memory:`) or temp file per test; run migrations; clean between tests |
-| MSW (Mock Service Worker) | Mock Faceit API responses for frontend tests |
+| MSW (Mock Service Worker) | HTTP mocking infrastructure for frontend tests (kept for future use) |
 | Vitest + React Testing Library | Frontend component and hook testing |
 | Playwright | E2E tests against a running Wails dev instance |
 | Golden files | Known-good parser output for regression testing |
@@ -38,7 +38,6 @@
 | API tests | httptest against chi router | Direct service method calls |
 | WebSocket tests | WebSocket test client | Not needed (no WebSocket) |
 | Yjs tests | In-memory Yjs docs | Not needed (no Yjs) |
-| Auth tests | Mock Redis session store | Mock keyring interface |
 
 ---
 

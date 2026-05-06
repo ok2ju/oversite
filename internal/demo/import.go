@@ -62,7 +62,7 @@ func (s *ImportService) ValidateFile(filePath string) error {
 // Compressed .dem.zst files are decompressed in-place before validation.
 // The returned Demo has Status "imported" with MapName and MatchDate empty,
 // to be populated after parsing.
-func (s *ImportService) ImportFile(ctx context.Context, filePath string, userID int64) (*store.Demo, error) {
+func (s *ImportService) ImportFile(ctx context.Context, filePath string) (*store.Demo, error) {
 	if err := ValidateExtension(filePath); err != nil {
 		return nil, err
 	}
@@ -101,7 +101,6 @@ func (s *ImportService) ImportFile(ctx context.Context, filePath string, userID 
 	}
 
 	demo, err := s.queries.CreateDemo(ctx, store.CreateDemoParams{
-		UserID:   userID,
 		FilePath: filePath,
 		FileSize: info.Size(),
 		Status:   "imported",

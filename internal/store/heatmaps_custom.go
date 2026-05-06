@@ -9,14 +9,13 @@ import (
 )
 
 const getDemosByIDs = `
-SELECT d.id, d.user_id, d.map_name
+SELECT d.id, d.map_name
 FROM demos d
 INNER JOIN json_each(?) AS je ON d.id = je.value
 `
 
 type GetDemosByIDsRow struct {
 	ID      int64
-	UserID  int64
 	MapName string
 }
 
@@ -29,7 +28,7 @@ func (q *Queries) GetDemosByIDs(ctx context.Context, demoIDs string) ([]GetDemos
 	var items []GetDemosByIDsRow
 	for rows.Next() {
 		var i GetDemosByIDsRow
-		if err := rows.Scan(&i.ID, &i.UserID, &i.MapName); err != nil {
+		if err := rows.Scan(&i.ID, &i.MapName); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

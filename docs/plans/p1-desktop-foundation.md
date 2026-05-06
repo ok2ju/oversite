@@ -1,5 +1,10 @@
 # Phase 1: Desktop Foundation -- Sprint Plan
 
+> **Note (2026-05-06):** Faceit / auth scope was removed from the project. Any
+> mention below of `faceitStore`, `MockFaceitClient`, `MockKeyring`, the `users`
+> / `faceit_matches` tables, or "Login with Faceit" describes a previous
+> direction and is no longer in scope. See `docs/log.md`.
+
 ## Context
 
 Oversite is pivoting from a multi-service web app (PostgreSQL, Redis, MinIO, Docker) to a single-binary Wails desktop app (SQLite, local filesystem, no infra). The existing repo has a fully built web-era codebase in `backend/` (Go + Cobra + chi + PostgreSQL) and `frontend/` (Next.js 16 + React 19). **No Wails initialization exists yet.**

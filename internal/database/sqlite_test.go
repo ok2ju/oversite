@@ -60,7 +60,6 @@ func TestMigrations_AllTablesCreated(t *testing.T) {
 	db := openTestDBWithMigrations(t)
 
 	want := []string{
-		"users",
 		"demos",
 		"rounds",
 		"player_rounds",
@@ -68,7 +67,6 @@ func TestMigrations_AllTablesCreated(t *testing.T) {
 		"game_events",
 		"strategy_boards",
 		"grenade_lineups",
-		"faceit_matches",
 	}
 
 	for _, table := range want {

@@ -6,12 +6,11 @@
 
 ## User Stories
 
-### Installation & Auth
+### Installation & Onboarding
 
 | ID | Story | Acceptance Criteria |
 |----|-------|-------------------|
 | US-01 | As a player, I want to install Oversite by downloading a single file | Installer/binary available for macOS, Windows, Linux; installs in < 30 seconds |
-| US-02 | As a player, I want to log in with my Faceit account | Loopback OAuth flow opens browser; tokens stored in OS keychain; profile displayed |
 | US-03 | As a new user, I want to see a quick onboarding tour | First-launch modal with 3-4 slides; dismissible; doesn't show again |
 
 ### Demo Management
@@ -22,7 +21,6 @@
 | US-05 | As a player, I want to import an entire folder of demos | Folder picker scans recursively; skips non-`.dem` files; batch progress indicator |
 | US-06 | As a player, I want to see a list of my imported demos | Library shows demos sorted by date; displays map, date, players, parse status |
 | US-07 | As a player, I want to delete a demo I no longer need | Confirm dialog; removes parsed data from SQLite; optionally deletes `.dem` file |
-| US-08 | As a player, I want demos from Faceit matches auto-downloaded | After Faceit sync, app offers to download demos; progress shown in library |
 
 ### 2D Viewer
 
@@ -56,14 +54,6 @@
 | US-24 | As a user, I want to export a strategy board as PNG | PNG export captures the full board state at current zoom |
 | US-25 | As a user, I want to share a board via JSON export | Export produces a JSON file; import on another machine restores the board |
 
-### Faceit Dashboard
-
-| ID | Story | Acceptance Criteria |
-|----|-------|-------------------|
-| US-26 | As a player, I want to see my Faceit profile and ELO | Dashboard shows current ELO, level, avatar; data matches Faceit |
-| US-28 | As a player, I want to browse my recent Faceit matches | Paginated list of matches from the last 30 days; each entry shows map, score, K/D |
-| US-29 | As a player, I want to open a Faceit match demo in the viewer | Click-through from match history to 2D viewer works seamlessly |
-
 ### Grenade Lineups
 
 | ID | Story | Acceptance Criteria |
@@ -82,9 +72,8 @@
 On first launch (no `config.json` exists):
 
 1. **Welcome screen** with app logo and one-line description
-2. **Faceit login prompt** — "Connect your Faceit account" button (skippable; app works without auth for local demo analysis)
-3. **Import prompt** — "Import your first demo" with drag-drop zone and folder picker
-4. After dismissal, user lands on the Dashboard
+2. **Import prompt** — "Import your first demo" with drag-drop zone and folder picker
+3. After dismissal, user lands on the Demos library
 
 The onboarding flow does not reappear after first completion (flag in `config.json`).
 
@@ -92,21 +81,17 @@ The onboarding flow does not reappear after first completion (flag in `config.js
 
 | Page | Empty State |
 |------|-------------|
-| Dashboard | Illustration + "Import your first demo to get started" CTA |
 | Demo Library | Drag-drop zone prominently displayed + "No demos imported yet" |
 | Viewer | Not reachable without a demo (route guard redirects to library) |
 | Heatmaps | "Import and parse demos to generate heatmaps" message |
 | Strategy Board | "Create your first strategy" CTA button |
-| Faceit Dashboard | "Connect your Faceit account" login CTA (if not authed) or "Sync your matches" button (if authed but no data) |
 | Grenade Lineups | "Parse demos to discover grenade lineups" message |
 
 ### Error States
 
 | Scenario | Behavior |
 |----------|----------|
-| Faceit OAuth failure (user cancels, timeout, network error) | Toast notification with error message; user stays on login page; retry button available |
-| Demo parse failure (corrupt file, unsupported format) | Demo record marked as `error` status in library; error message shown in toast; other demos in batch continue |
-| Demo parse partial failure (crash mid-parse) | Partial data rolled back (SQLite transaction); demo marked `error`; user can retry |
-| Network offline (Faceit sync) | Toast "No internet connection — Faceit features unavailable"; local features remain fully functional |
+| Demo parse failure (corrupt file, unsupported format) | Demo record marked as `failed` status in library; error message shown in toast; other demos in batch continue |
+| Demo parse partial failure (crash mid-parse) | Partial data rolled back (SQLite transaction); demo marked `failed`; user can retry |
 | SQLite error (disk full, permissions) | Modal error with explanation; suggest checking disk space; app remains open for read-only browsing |
 | Invalid .dem file (wrong magic bytes, too small) | Rejected at import with "Not a valid CS2 demo file" message; file skipped in batch import |

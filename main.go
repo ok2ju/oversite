@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/joho/godotenv"
 	"github.com/ok2ju/oversite/internal/database"
 	"github.com/ok2ju/oversite/internal/logging"
 	"github.com/wailsapp/wails/v2"
@@ -21,11 +20,13 @@ func init() {
 	if os.Getenv("GODEBUG") == "" {
 		_ = os.Setenv("GODEBUG", "netdns=cgo")
 	}
-	_ = godotenv.Load() // .env is optional; no error if missing
 }
 
 //go:embed all:frontend/dist
 var assets embed.FS
+
+// version is overridden at build time via -ldflags "-X main.version=...".
+var version = "dev"
 
 func main() {
 	// Initialize persistent logging before anything else so startup errors
@@ -34,13 +35,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("resolving app data dir: %v", err)
 	}
-	logDir := filepath.Join(dataDir, "logs")
-	if err := logging.Init(logDir); err != nil {
+	if err := logging.Init(filepath.Join(dataDir, "logs")); err != nil {
 		log.Fatalf("initializing logger: %v", err)
 	}
+	log.Printf("oversite version=%s", version)
 
-	app := NewApp()
-	app.logDir = logDir
+	app, err := NewApp()
+	if err != nil {
+		log.Fatalf("creating app: %v", err)
+	}
 
 	err = wails.Run(&options.App{
 		Title:  "Oversite",

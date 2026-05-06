@@ -10,10 +10,9 @@ import (
 )
 
 // createDemoForRounds creates a demo record for round ingestion tests.
-func createDemoForRounds(t *testing.T, q *store.Queries, userID int64) store.Demo {
+func createDemoForRounds(t *testing.T, q *store.Queries) store.Demo {
 	t.Helper()
 	d, err := q.CreateDemo(context.Background(), store.CreateDemoParams{
-		UserID:   userID,
 		FilePath: "/test-rounds.dem",
 		FileSize: 1000,
 		Status:   "imported",
@@ -48,8 +47,7 @@ func TestIngestRounds_Basic(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	ctx := context.Background()
 
-	user := createTestUser(t, q)
-	d := createDemoForRounds(t, q, user.ID)
+	d := createDemoForRounds(t, q)
 
 	result := syntheticParseResult()
 	roundMap, err := demo.IngestRounds(ctx, db, d.ID, result)
@@ -112,8 +110,7 @@ func TestIngestRounds_PlayerRounds(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	ctx := context.Background()
 
-	user := createTestUser(t, q)
-	d := createDemoForRounds(t, q, user.ID)
+	d := createDemoForRounds(t, q)
 
 	result := syntheticParseResult()
 	roundMap, err := demo.IngestRounds(ctx, db, d.ID, result)
@@ -187,8 +184,7 @@ func TestIngestRounds_Idempotent(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	ctx := context.Background()
 
-	user := createTestUser(t, q)
-	d := createDemoForRounds(t, q, user.ID)
+	d := createDemoForRounds(t, q)
 
 	result := syntheticParseResult()
 
@@ -234,8 +230,7 @@ func TestIngestRounds_RoundMapKeys(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	ctx := context.Background()
 
-	user := createTestUser(t, q)
-	d := createDemoForRounds(t, q, user.ID)
+	d := createDemoForRounds(t, q)
 
 	result := syntheticParseResult()
 	roundMap, err := demo.IngestRounds(ctx, db, d.ID, result)

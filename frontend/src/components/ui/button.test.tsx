@@ -36,24 +36,24 @@ describe("Button", () => {
 
 describe("MSW integration", () => {
   it("intercepts API calls with default handler", async () => {
-    const res = await fetch("/api/v1/auth/me")
+    const res = await fetch("/api/v1/demos")
     const data = await res.json()
 
-    expect(data.nickname).toBe("TestPlayer")
-    expect(data.faceit_id).toBe("test-faceit-id")
+    expect(Array.isArray(data.data)).toBe(true)
+    expect(data.meta).toMatchObject({ page: 1, per_page: 20 })
   })
 
   it("supports per-test handler overrides", async () => {
     server.use(
-      http.get("/api/v1/auth/me", () => {
+      http.get("/api/v1/demos", () => {
         return HttpResponse.json(
-          { data: null, error: "unauthorized" },
-          { status: 401 },
+          { data: null, error: "unavailable" },
+          { status: 503 },
         )
       }),
     )
 
-    const res = await fetch("/api/v1/auth/me")
-    expect(res.status).toBe(401)
+    const res = await fetch("/api/v1/demos")
+    expect(res.status).toBe(503)
   })
 })

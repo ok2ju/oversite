@@ -6,10 +6,6 @@ export function DeleteDemo(arg1) {
   return window['go']['main']['App']['DeleteDemo'](arg1);
 }
 
-export function GetCurrentUser() {
-  return window['go']['main']['App']['GetCurrentUser']();
-}
-
 export function GetDemoByID(arg1) {
   return window['go']['main']['App']['GetDemoByID'](arg1);
 }
@@ -24,14 +20,6 @@ export function GetDemoRounds(arg1) {
 
 export function GetDemoTicks(arg1, arg2, arg3) {
   return window['go']['main']['App']['GetDemoTicks'](arg1, arg2, arg3);
-}
-
-export function GetFaceitMatches(arg1, arg2, arg3, arg4) {
-  return window['go']['main']['App']['GetFaceitMatches'](arg1, arg2, arg3, arg4);
-}
-
-export function GetFaceitProfile() {
-  return window['go']['main']['App']['GetFaceitProfile']();
 }
 
 export function GetHeatmapData(arg1, arg2, arg3, arg4) {
@@ -74,22 +62,6 @@ export function ImportDemoFolder() {
   return window['go']['main']['App']['ImportDemoFolder']();
 }
 
-export function ImportMatchDemo(arg1) {
-  return window['go']['main']['App']['ImportMatchDemo'](arg1);
-}
-
 export function ListDemos(arg1, arg2) {
   return window['go']['main']['App']['ListDemos'](arg1, arg2);
-}
-
-export function LoginWithFaceit() {
-  return window['go']['main']['App']['LoginWithFaceit']();
-}
-
-export function Logout() {
-  return window['go']['main']['App']['Logout']();
-}
-
-export function SyncFaceitMatches() {
-  return window['go']['main']['App']['SyncFaceitMatches']();
 }

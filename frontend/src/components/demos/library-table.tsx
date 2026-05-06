@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Play, Link2, Trash2 } from "lucide-react"
+import { Play, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useDemoStore } from "@/stores/demo"
 import type { Demo } from "@/types/demo"
-import { MapTile, resolveMap } from "@/components/dashboard/map-tile"
+import { MapTile, resolveMap } from "@/components/demos/map-tile"
 import { StatusPill, statusKey } from "@/components/demos/status-pill"
 import type { DemosFilter } from "@/components/demos/demos-toolbar"
 
@@ -76,7 +76,7 @@ export function LibraryTable({
     ) {
       const id = waitingDemoId
       setWaitingDemoId(null)
-      navigate(`/matches/${id}`)
+      navigate(`/demos/${id}`)
     }
   }, [waitingDemoId, importProgress, navigate])
 
@@ -100,7 +100,7 @@ export function LibraryTable({
       setWaitingDemoId(demo.id)
       return
     }
-    navigate(`/matches/${demo.id}`)
+    navigate(`/demos/${demo.id}`)
   }
 
   if (rows.length === 0) {
@@ -206,14 +206,6 @@ export function LibraryTable({
                       onClick={() => navigate(`/demos/${demo.id}`)}
                     >
                       <Play className="h-3 w-3" />
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      aria-label="Open match"
-                      onClick={() => navigate(`/matches/${demo.id}`)}
-                    >
-                      <Link2 className="h-3 w-3" />
                     </button>
                     <button
                       type="button"

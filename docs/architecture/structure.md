@@ -16,35 +16,30 @@
 │  │  ┌──────────────────────┐  │  │  ┌──────────────────┐  │ │
 │  │  │  App (Wails Bindings) │  │  │  │  React SPA       │  │ │
 │  │  │                      │◀─┼──┼──│  (Vite + PixiJS)  │  │ │
-│  │  │  - DemoService       │──┼──┼─▶│                  │  │ │
-│  │  │  - FaceitService     │  │  │  │  - Viewer Page   │  │ │
-│  │  │  - AuthService       │  │  │  │  - Heatmap Page  │  │ │
-│  │  │  - StoreService      │  │  │  │  - Strat Board   │  │ │
-│  │  │  - HeatmapService    │  │  │  │  - Dashboard     │  │ │
-│  │  │  - StratService      │  │  │  │  - Lineup Page   │  │ │
-│  │  │  - LineupService     │  │  │  │  - Demo Library  │  │ │
-│  │  └──────────┬───────────┘  │  │  └──────────────────┘  │ │
-│  │             │              │  │                        │ │
-│  │  ┌──────────▼───────────┐  │  └────────────────────────┘ │
-│  │  │  SQLite (WAL mode)    │  │                             │
-│  │  │  modernc.org/sqlite   │  │                             │
-│  │  └──────────────────────┘  │                             │
-│  │                            │                             │
+│  │  │  - Demo bindings     │──┼──┼─▶│                  │  │ │
+│  │  │  - Viewer bindings   │  │  │  │  - Demo Library  │  │ │
+│  │  │  - Heatmap bindings  │  │  │  │  - 2D Viewer     │  │ │
+│  │  └──────────┬───────────┘  │  │  │  - Heatmaps      │  │ │
+│  │             │              │  │  │  - Strat Board   │  │ │
+│  │  ┌──────────▼───────────┐  │  │  │  - Lineups       │  │ │
+│  │  │  SQLite (WAL mode)    │  │  │  │  - Settings      │  │ │
+│  │  │  modernc.org/sqlite   │  │  │  └──────────────────┘  │ │
+│  │  └──────────────────────┘  │  │                        │ │
+│  │                            │  └────────────────────────┘ │
 │  │  ┌──────────────────────┐  │                             │
 │  │  │  Demo Parser          │  │                             │
 │  │  │  (demoinfocs-golang)  │  │                             │
 │  │  └──────────────────────┘  │                             │
-│  │                            │                             │
 │  └────────────────────────────┘                             │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
-         │                              │
-         ▼                              ▼
-    ┌──────────┐                 ┌──────────────┐
-    │ Faceit   │                 │ Local        │
-    │ API      │                 │ Filesystem   │
-    │ (HTTPS)  │                 │ (.dem, .db)  │
-    └──────────┘                 └──────────────┘
+                              │
+                              ▼
+                       ┌──────────────┐
+                       │ Local        │
+                       │ Filesystem   │
+                       │ (.dem, .db)  │
+                       └──────────────┘
 ```
 
 ### Component Communication
@@ -54,9 +49,9 @@
 | React SPA | Go Backend | Wails bindings | Auto-generated TS functions from Go methods |
 | Go Backend | SQLite | `modernc.org/sqlite` | sqlc-generated queries; WAL mode |
 | Go Backend | Filesystem | `os` package | Read `.dem` files, manage app data dir |
-| Go Backend | Faceit API | `net/http` | REST calls for profile, matches, ELO |
-| Go Backend | OS Keychain | `zalando/go-keyring` | Store/retrieve OAuth tokens |
 | Demo Parser | SQLite | Transaction batches | 10K-row batched inserts for tick data |
+
+The app has no network dependencies at runtime — everything is local.
 
 ---
 
@@ -65,20 +60,15 @@
 ```
 oversite/
 ├── main.go                         # Wails entry point
-├── app.go                          # App struct (Startup/Shutdown)
+├── app.go                          # App struct (Startup/Shutdown, Wails bindings)
+├── types.go                        # Domain types exposed to the frontend
 ├── go.mod                          # Root Go module (github.com/ok2ju/oversite)
 ├── wails.json                      # Wails project config
 ├── internal/
-│   ├── auth/                       # OAuth loopback, keyring
-│   ├── config/                     # Env/file-based config
-│   ├── database/                   # SQLite connection, migrations
-│   ├── demo/                       # Parser, import service
-│   ├── faceit/                     # API client, sync
-│   ├── heatmap/                    # KDE generation
-│   ├── lineup/                     # Grenade lineup service
-│   ├── model/                      # Domain types
+│   ├── database/                   # SQLite connection, migration runner
+│   ├── demo/                       # Parser, importer, ingest, stats
+│   ├── logging/                    # Structured logging + rotation
 │   ├── store/                      # sqlc generated code (SQLite)
-│   ├── strat/                      # Strategy board service
 │   └── testutil/                   # Shared test helpers
 ├── migrations/                     # SQL migration files (SQLite, embedded)
 ├── queries/                        # sqlc SQL files
@@ -97,10 +87,9 @@ oversite/
 │   ├── public/maps/                # Radar images
 │   ├── index.html                  # Vite entry point
 │   └── vite.config.ts
-├── backend/                        # Web version (legacy, not used for desktop)
 ├── e2e/                            # Playwright E2E tests
 ├── Makefile                        # Root dev commands
-└── docs/                           # PRD, Architecture, Plans, ADRs
+└── docs/                           # Obsidian vault: product, architecture, decisions, plans, knowledge
 ```
 
-> **Note:** All desktop Go code lives at the root module level. The `backend/` directory contains the web version's codebase and is **not** modified for desktop development.
+> **Note:** All desktop Go code lives at the root module level. There are no separate `backend/` or web-app subprojects.

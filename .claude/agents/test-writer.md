@@ -18,29 +18,26 @@ Before writing ANY test, you MUST:
 
 | Area | File | What it provides |
 |------|------|-----------------|
-| Frontend rendering | `frontend/src/test/render.tsx` | `renderWithProviders()` — wraps with QueryClientProvider, ThemeProvider, AuthProvider. **Always use this instead of bare `render()`** for components that use queries, themes, or auth. |
+| Frontend rendering | `frontend/src/test/render.tsx` | `renderWithProviders()` — wraps with QueryClientProvider, ThemeProvider. **Always use this instead of bare `render()`** for components that use queries or themes. |
 | Frontend MSW | `frontend/src/test/msw/handlers.ts` | Default API mock handlers. Override per-test with `server.use()`. |
 | Frontend PixiJS | `frontend/src/test/mocks/pixi.ts` | `createMockPixiApp()`, `createMockSprite()`, `createMockTexture()`, `createMockAssets()` factory functions. |
 | Frontend setup | `frontend/src/test/setup.ts` | Global MSW server lifecycle, `matchMedia` stub. Already runs via vitest config — do not duplicate. |
-| Go mocks | `backend/internal/testutil/mocks.go` | `StubS3Client`, `StubSessionStore`, `StubJobQueue`, `StubFaceitAPI`. Use these — never create ad-hoc mock structs. |
-| Go containers | `backend/internal/testutil/containers.go` | `PostgresContainer()`, `RedisContainer()`, `MinIOContainer()` for integration tests. |
-| Go fixtures | `backend/internal/testutil/fixtures.go` | `LoadFixture()`, `LoadFixtureBytes()`, `TestdataPath()` for golden/fixture files. |
+| Go DB tests | `internal/testutil/db.go` | `NewTestDB(t)`, `NewTestQueries(t)` — in-memory SQLite with migrations applied. |
+| Go fixtures | `internal/testutil/golden.go` | `CompareGolden()`, `LoadFixture()` for golden files in `testdata/`. Update with `go test -update`. |
 
 ## Go Tests (backend/)
 
 ### Unit Tests
 - **Style**: Table-driven with `tt` loop variable and `t.Run(tt.name, ...)`
 - **Assertions**: stdlib `testing` package. Use `t.Errorf`/`t.Fatalf`, not testify
-- **Mocking**: Interface-based dependency injection. Use stubs from `internal/testutil/mocks.go` (`StubS3Client`, `StubSessionStore`, `StubJobQueue`, `StubFaceitAPI`)
+- **DB tests**: Use `testutil.NewTestQueries(t)` for in-memory SQLite with migrations. Never open a DB manually.
 - **Naming**: `TestFunctionName_scenario` (e.g., `TestCreateDemo_invalidFormat`)
 - **Location**: Same package as the code under test (`_test.go` suffix)
 - **Race detector**: Always run with `go test -race` — the PostToolUse hook does this automatically
 
 ### Integration Tests
-- **Build tag**: `//go:build integration` at top of file
-- **Database**: Use `testcontainers-go` for real PostgreSQL. See `internal/testutil/` for helpers
+- **Database**: Use `testutil.NewTestDB(t)` (in-memory SQLite with migrations applied) — no testcontainers
 - **Cleanup**: Use `t.Cleanup()` for teardown, not `defer`
-- **Naming**: File suffix `_integration_test.go`
 
 ### Parser Tests
 - **Golden files**: Output stored in `testdata/` directory
@@ -51,7 +48,7 @@ Before writing ANY test, you MUST:
 
 ### Component Tests
 - **Framework**: Vitest + React Testing Library
-- **Rendering**: Use `renderWithProviders()` from `src/test/render.tsx` — provides QueryClientProvider, ThemeProvider, AuthProvider. **Never create a manual QueryClientProvider wrapper.**
+- **Rendering**: Use `renderWithProviders()` from `src/test/render.tsx` — provides QueryClientProvider, ThemeProvider. **Never create a manual QueryClientProvider wrapper.**
 - **Queries**: Prefer `getByRole` > `getByLabelText` > `getByText` > `getByTestId`
 - **User events**: `@testing-library/user-event` (not `fireEvent`)
 - **Location**: Co-located `__tests__/` directory or `.test.tsx` suffix

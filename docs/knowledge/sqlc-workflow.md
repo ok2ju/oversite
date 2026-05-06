@@ -26,4 +26,4 @@ Configured for SQLite in `sqlc.yaml`. Note that sqlc's SQLite support is newer t
 
 ## Query file organization
 
-One `.sql` file per domain (demos, rounds, tick_data, events, lineups, users, faceit_matches, boards). Each file opens with schema comments describing the table's shape for readers who don't have the full DDL in mind.
+One `.sql` file per domain (demos, rounds, tick_data, events, lineups, boards). Each file opens with schema comments describing the table's shape for readers who don't have the full DDL in mind.

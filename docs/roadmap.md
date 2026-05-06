@@ -13,7 +13,7 @@
 - [[#Phase 1: Desktop Foundation]]
 - [[#Phase 2: Auth & Demo Pipeline]]
 - [[#Phase 3: Core 2D Viewer]]
-- [[#Phase 4: Faceit & Heatmaps]]
+- [[#Phase 4: Heatmaps]]
 - [[#Phase 5: Strategy Board & Lineups]]
 - [[#Phase 6: Polish & Distribute]]
 - [[#Dependency Graph]]
@@ -100,9 +100,9 @@ The project follows **Test-Driven Development** from the first line of code. Eve
 | Phase | Test Infrastructure Added | CI Gate |
 |-------|--------------------------|---------|
 | **P1** | Temp SQLite test helpers, Vitest + RTL + MSW, Playwright config | `go test` + `pnpm test` pass |
-| **P2** | Demo fixture files, golden file framework, mock keyring | Golden tests pass; auth tests pass |
+| **P2** | Demo fixture files, golden file framework | Golden tests pass; import tests pass |
 | **P3** | PixiJS screenshot test pipeline, coordinate fixture data | Screenshot comparison stable |
-| **P4** | Faceit API mock handlers (MSW), KDE test fixtures | Mock API tests pass |
+| **P4** | KDE test fixtures, heatmap aggregation tests | Heatmap unit tests pass |
 | **P5** | Drawing tool logic test fixtures | Drawing logic tests pass |
 | **P6** | Full E2E test suite, coverage reporting, cross-platform CI | Coverage targets met; all E2E pass |
 
@@ -116,23 +116,23 @@ Every phase includes a **testing milestone** (`Px-MT`) that must be met before t
 
 ```
 Phase 1          Phase 2             Phase 3           Phase 4          Phase 5            Phase 6
-Desktop          Auth & Demo         Core 2D           Faceit &         Strategy Board     Polish &
-Foundation       Pipeline            Viewer             Heatmaps         & Lineups          Distribute
+Desktop          Demo                Core 2D           Heatmaps         Strategy Board     Polish &
+Foundation       Pipeline            Viewer                              & Lineups          Distribute
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Wails scaffold   Loopback OAuth      PixiJS setup       Faceit API       Drawing canvas     Cross-platform
-SQLite setup     Keychain tokens     Map rendering      client           Drawing tools      Auto-updater
-Vite + React     Demo import         Player rendering   Auto-fetch       Strat primitives   Installers
-react-router     Demo parser         Event rendering    Heatmap KDE      Grenade catalog    Code signing
-sqlc (SQLite)    Parse → SQLite      Playback controls  Stats charts     Lineup CRUD        Performance
-CI pipeline      Demo library UI     Scoreboard         Dashboard UI     Board mgmt         Docs
+Wails scaffold   Demo import         PixiJS setup       Heatmap KDE      Drawing canvas     Cross-platform
+SQLite setup     Demo parser         Map rendering      Filter controls  Drawing tools      Auto-updater
+Vite + React     Parse → SQLite      Player rendering   Stats charts     Strat primitives   Installers
+react-router     Demo library UI     Event rendering                     Grenade catalog    Code signing
+sqlc (SQLite)                        Playback controls                   Lineup CRUD        Performance
+CI pipeline                          Scoreboard                          Board mgmt         Docs
 ```
 
 | Phase | Name | Key Milestone | Dependencies |
 |-------|------|---------------|-------------|
 | **P1** | Desktop Foundation | `wails dev` runs app; CI passes | None |
-| **P2** | Auth & Demo Pipeline | Import local `.dem` -> parsed data in SQLite | P1 |
+| **P2** | Demo Pipeline | Import local `.dem` -> parsed data in SQLite | P1 |
 | **P3** | Core 2D Viewer | Play back a demo at 60 FPS in the app | P2 |
-| **P4** | Faceit & Heatmaps | Simplified Faceit dashboard (profile + match history) + Match Details hub + KDE heatmaps render | P2, P3 |
+| **P4** | Heatmaps | KDE heatmaps render with multi-demo aggregation and filters | P2, P3 |
 | **P5** | Strategy Board & Lineups | Drawing tools + lineup catalog | P3 |
 | **P6** | Polish & Distribute | Cross-platform builds, installer, auto-updater | P4, P5 |
 
@@ -162,7 +162,7 @@ CI pipeline      Demo library UI     Scoreboard         Dashboard UI     Board m
 | P1-T03 | Configure sqlc for SQLite dialect and generate Go code | M |
 | P1-T04 | Scaffold Vite + React frontend (react-router-dom, app shell) | M |
 | P1-T05 | Configure shadcn/ui + Tailwind CSS (theme, components) | S |
-| P1-T06 | Set up Zustand stores (skeleton: viewer, strat, ui, faceit, demo) | S |
+| P1-T06 | Set up Zustand stores (skeleton: viewer, strat, ui, demo) | S |
 | P1-T07 | Set up CI pipeline (lint, test, build for Go + TS) | M |
 | P1-T08 | Create root Makefile with dev commands | S |
 | P1-T09 | Set up Go test infrastructure (temp SQLite helper, mock interfaces, test utils) | M |
@@ -170,35 +170,30 @@ CI pipeline      Demo library UI     Scoreboard         Dashboard UI     Board m
 
 ---
 
-## Phase 2: Auth & Demo Pipeline
+## Phase 2: Demo Pipeline
 
-**Goal**: Users can log in with Faceit via loopback OAuth, import local `.dem` files, and have them parsed into queryable SQLite data.
+**Goal**: Users can import local `.dem` files and have them parsed into queryable SQLite data.
 
 ### Milestones
 
 | ID | Milestone | Done When |
 |----|-----------|-----------|
-| P2-M1 | Faceit OAuth works | User can log in via system browser; tokens stored in keychain |
-| P2-M2 | Demo import works | Local `.dem` file imported; demo record in SQLite |
-| P2-M3 | Demo parsing works | Parser runs in-process; tick data + events in SQLite |
-| P2-M4 | Demo library works | UI lists user's demos with status; drag-drop works |
-| P2-MT | Tests pass | Parser golden file tests pass; auth tests pass; import tests pass |
+| P2-M1 | Demo import works | Local `.dem` file imported; demo record in SQLite |
+| P2-M2 | Demo parsing works | Parser runs in-process; tick data + events in SQLite |
+| P2-M3 | Demo library works | UI lists demos with status; drag-drop works |
+| P2-MT | Tests pass | Parser golden file tests pass; import tests pass |
 
 ### Tasks
 
 | Task | Description | Complexity |
 |------|-------------|-----------|
-| P2-T01 | Implement loopback OAuth flow (temp HTTP listener, PKCE, browser open) | M |
-| P2-T02 | Implement keychain token storage (go-keyring integration) | S |
-| P2-T03 | Create auth service (login, logout, token refresh, get current user) | M |
-| P2-T04 | Create AuthProvider + login page (React) | M |
-| P2-T05 | Implement demo import binding (file validation, SQLite insert) | M |
-| P2-T06 | **Implement demo parser core** (demoinfocs-golang integration) | **XL** |
-| P2-T07 | Parse ticks -> batch insert into SQLite (10K-row transactions) | L |
-| P2-T08 | Parse events -> insert game_events (kills, grenades, bombs) | L |
-| P2-T09 | Parse rounds -> insert rounds + player_rounds | M |
-| P2-T10 | Build demo library UI (list, grid, drag-drop, status, delete) | M |
-| P2-T11 | Implement folder import binding (recursive .dem scan) | S |
+| P2-T01 | Implement demo import binding (file validation, SQLite insert) | M |
+| P2-T02 | **Implement demo parser core** (demoinfocs-golang integration) | **XL** |
+| P2-T03 | Parse ticks -> batch insert into SQLite (10K-row transactions) | L |
+| P2-T04 | Parse events -> insert game_events (kills, grenades, bombs) | L |
+| P2-T05 | Parse rounds -> insert rounds + player_rounds | M |
+| P2-T06 | Build demo library UI (list, grid, drag-drop, status, delete) | M |
+| P2-T07 | Implement folder import binding (recursive .dem scan) | S |
 
 ### Pre-Phase 2: Demo Parser Spike
 
@@ -206,11 +201,11 @@ CI pipeline      Demo library UI     Scoreboard         Dashboard UI     Board m
 |------|-------------|-----------|
 | P2-S01 | **Demo parser spike** -- **COMPLETE** (2026-04-15). 3/3 demos pass. Findings: `docs/spike-parser-findings.md` | M |
 
-**Status**: Complete. De-risked P2-T06 successfully. Output: working prototype (`cmd/spike-parser/`), edge case inventory, performance baselines (3-7s parse, <120 MB heap for demos up to 862 MB). Identified incendiary/molotov handler gap and MaxUploadSize limit to fix in P2-T05/T06.
+**Status**: Complete. De-risked P2-T02 successfully. Output: working prototype (`cmd/spike-parser/`), edge case inventory, performance baselines (3-7s parse, <120 MB heap for demos up to 862 MB). Identified incendiary/molotov handler gap and MaxUploadSize limit to fix in P2-T01/T02.
 
 ### Critical Path Note
 
-**P2-T06 (Demo Parser Core)** is the highest-risk, highest-complexity task. The `demoinfocs-golang` library requires careful integration. This task carries over from the web version -- the parser logic is identical, only the output target changes (SQLite transactions instead of PostgreSQL via worker). **P2-S01 (spike) is complete -- T06 is unblocked.**
+**P2-T02 (Demo Parser Core)** is the highest-risk, highest-complexity task. The `demoinfocs-golang` library requires careful integration. **P2-S01 (spike) is complete -- T02 is unblocked.**
 
 ---
 
@@ -248,38 +243,26 @@ CI pipeline      Demo library UI     Scoreboard         Dashboard UI     Board m
 
 ---
 
-## Phase 4: Faceit & Heatmaps
+## Phase 4: Heatmaps
 
-**Goal**: Simplified Faceit dashboard (profile + match history only) + interactive KDE heatmaps, plus a Match Details hub that gates navigation into the 2D Viewer. Faceit sync and demo downloads both run in-process (no worker/queue).
+**Goal**: Interactive KDE heatmaps with multi-demo aggregation and filters.
 
 ### Milestones
 
 | ID | Milestone | Done When |
 |----|-----------|-----------|
-| P4-M1 | Faceit profile + recent matches | Dashboard shows ProfileHero + RecentMatches in a single column (no PerformanceGrid / RecentForm / MapPerformance / Weapons) |
-| P4-M2 | Match history → Match Details | Match rows with imported demos navigate to `/matches/:demoId`; rows with only a Faceit `demo_url` show an **Import demo** button that downloads + auto-parses; Match Details toolbar offers a **Play demo** button that opens the 2D Viewer when `status === 'ready'` |
-| P4-M3 | Match sync | In-process sync fetches Faceit matches on demand |
-| P4-M4 | Kill heatmap | KDE overlay renders correctly for a demo |
-| P4-M5 | Aggregated heatmap | Multi-demo heatmap with filters |
-| P4-MT | Tests pass | Faceit client mock tests pass; KDE algorithm unit tests pass; match-row Import + parse-wait tests pass |
+| P4-M1 | Kill heatmap | KDE overlay renders correctly for a demo |
+| P4-M2 | Aggregated heatmap | Multi-demo heatmap with filters |
+| P4-MT | Tests pass | KDE algorithm unit tests pass; aggregation query tests pass |
 
 ### Tasks
 
 | Task | Description | Complexity |
 |------|-------------|-----------|
-| P4-T01 | Implement Faceit API client (Go HTTP client) | M |
-| P4-T02 | Implement Faceit sync service (in-process, no worker) | M |
-| P4-T03 | Build Faceit dashboard page (ProfileHero + RecentMatches) | M |
-| P4-T04 | Build match history list (pagination, filters, Import-demo button, parse-wait) | M |
-| P4-T05 | Implement demo download from Faceit matches | L |
-| P4-T06 | Implement heatmap data binding (aggregation query) | M |
-| P4-T07 | Implement client-side KDE rendering on PixiJS canvas | L |
-| P4-T08 | Build heatmap filter controls (map, side, weapon, player) | M |
-| P4-T09 | Build per-demo stats view | M |
-| P4-T10 | Add Import-demo button on match rows (download progress pill) | S |
-| P4-T11 | Remove PerformanceGrid / RecentForm / MapPerformance / Weapons + `use-faceit-stats` hook | XS |
-| P4-T12 | Add **Play demo** button on Match Details toolbar | XS |
-| P4-T13 | Route Demos page rows to Match Details (with parse-wait indicator) | S |
+| P4-T01 | Implement heatmap data binding (aggregation query) | M |
+| P4-T02 | Implement client-side KDE rendering on PixiJS canvas | L |
+| P4-T03 | Build heatmap filter controls (map, side, weapon, player) | M |
+| P4-T04 | Build per-demo stats view | M |
 
 ---
 
@@ -357,7 +340,7 @@ P1 (Desktop Foundation)
          │
          ├──▶ P3 (Core 2D Viewer)
          │      │
-         │      ├──▶ P4 (Faceit & Heatmaps) ──┐
+         │      ├──▶ P4 (Heatmaps) ────────────┐
          │      │                               │
          │      └──▶ P5 (Strategy & Lineups) ──┤
          │                                      │
@@ -375,7 +358,7 @@ P1 (Desktop Foundation)
 | P4 depends on P2 | Heatmaps need parsed game events |
 | P4 depends on P3 | Heatmap canvas reuses PixiJS map layer |
 | P5 depends on P3 | Strat board reuses map rendering + coordinate system |
-| P5-T09 depends on P2-T06 | Grenade extraction extends the demo parser |
+| P5-T09 depends on P2-T02 | Grenade extraction extends the demo parser |
 | P6 depends on P4, P5 | Polish and distribute all features |
 | P2+ depends on P1-T09, P1-T10 | All TDD tasks require test infrastructure |
 
@@ -385,7 +368,6 @@ Within P1, **P1-T09** and **P1-T10** (test infrastructure) can be done in parall
 
 Once P2 is complete, P3 can begin immediately. Within P3, once the basic viewer works (P3-M2):
 
-- **P4-T01 to P4-T02**: Faceit API client (no viewer dependency)
 - **P5-T01 to P5-T02**: Drawing canvas infrastructure (independent of viewer data flow)
 
 ---

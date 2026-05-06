@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ok2ju/oversite/internal/demo"
-	"github.com/ok2ju/oversite/internal/store"
 	"github.com/ok2ju/oversite/internal/testutil"
 )
 
@@ -17,19 +16,6 @@ func cs2Header() []byte {
 	header := make([]byte, 64)
 	copy(header, "PBDEMS2\x00")
 	return header
-}
-
-// createTestUser creates a user in the test database for FK constraints.
-func createTestUser(t *testing.T, q *store.Queries) store.User {
-	t.Helper()
-	user, err := q.CreateUser(context.Background(), store.CreateUserParams{
-		FaceitID: "test-faceit-id",
-		Nickname: "testplayer",
-	})
-	if err != nil {
-		t.Fatalf("CreateUser: %v", err)
-	}
-	return user
 }
 
 // writeTempDem creates a temp .dem file with the given contents and returns its path.
@@ -47,21 +33,16 @@ func TestImportFile_Success(t *testing.T) {
 	svc := demo.NewImportService(q, db)
 	ctx := context.Background()
 
-	user := createTestUser(t, q)
-
 	tmpDir := t.TempDir()
 	demPath := writeTempDem(t, tmpDir, cs2Header())
 
-	got, err := svc.ImportFile(ctx, demPath, user.ID)
+	got, err := svc.ImportFile(ctx, demPath)
 	if err != nil {
 		t.Fatalf("ImportFile: %v", err)
 	}
 
 	if got.ID == 0 {
 		t.Error("expected non-zero demo ID")
-	}
-	if got.UserID != user.ID {
-		t.Errorf("UserID = %d, want %d", got.UserID, user.ID)
 	}
 	if got.FilePath != demPath {
 		t.Errorf("FilePath = %q, want %q", got.FilePath, demPath)
@@ -76,7 +57,6 @@ func TestImportFile_Success(t *testing.T) {
 		t.Errorf("MapName = %q, want empty", got.MapName)
 	}
 
-	// Verify persisted to DB.
 	fetched, err := q.GetDemoByID(ctx, got.ID)
 	if err != nil {
 		t.Fatalf("GetDemoByID: %v", err)
@@ -91,15 +71,13 @@ func TestImportFile_InvalidExtension(t *testing.T) {
 	svc := demo.NewImportService(q, db)
 	ctx := context.Background()
 
-	user := createTestUser(t, q)
-
 	tmpDir := t.TempDir()
 	txtPath := filepath.Join(tmpDir, "test.txt")
 	if err := os.WriteFile(txtPath, cs2Header(), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	_, err := svc.ImportFile(ctx, txtPath, user.ID)
+	_, err := svc.ImportFile(ctx, txtPath)
 	if !errors.Is(err, demo.ErrInvalidExtension) {
 		t.Errorf("ImportFile error = %v, want %v", err, demo.ErrInvalidExtension)
 	}
@@ -110,13 +88,11 @@ func TestImportFile_InvalidMagicBytes(t *testing.T) {
 	svc := demo.NewImportService(q, db)
 	ctx := context.Background()
 
-	user := createTestUser(t, q)
-
 	tmpDir := t.TempDir()
 	randomBytes := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A}
 	demPath := writeTempDem(t, tmpDir, randomBytes)
 
-	_, err := svc.ImportFile(ctx, demPath, user.ID)
+	_, err := svc.ImportFile(ctx, demPath)
 	if !errors.Is(err, demo.ErrInvalidMagicBytes) {
 		t.Errorf("ImportFile error = %v, want %v", err, demo.ErrInvalidMagicBytes)
 	}
@@ -127,9 +103,7 @@ func TestImportFile_FileNotFound(t *testing.T) {
 	svc := demo.NewImportService(q, db)
 	ctx := context.Background()
 
-	user := createTestUser(t, q)
-
-	_, err := svc.ImportFile(ctx, "/nonexistent/path/match.dem", user.ID)
+	_, err := svc.ImportFile(ctx, "/nonexistent/path/match.dem")
 	if err == nil {
 		t.Fatal("expected error for non-existent file, got nil")
 	}
@@ -191,15 +165,13 @@ func TestImportFile_CSGOMagicBytes(t *testing.T) {
 	svc := demo.NewImportService(q, db)
 	ctx := context.Background()
 
-	user := createTestUser(t, q)
-
 	header := make([]byte, 64)
 	copy(header, "HL2DEMO\x00")
 
 	tmpDir := t.TempDir()
 	demPath := writeTempDem(t, tmpDir, header)
 
-	got, err := svc.ImportFile(ctx, demPath, user.ID)
+	got, err := svc.ImportFile(ctx, demPath)
 	if err != nil {
 		t.Fatalf("ImportFile with CSGO magic: %v", err)
 	}

@@ -1,6 +1,6 @@
 # Oversite
 
-CS2 2D demo viewer and analytics platform for Faceit players. Single-binary desktop app -- import local demos, watch top-down playback, generate heatmaps, plan strategies, and track Faceit stats.
+CS2 2D demo viewer and analytics platform. Single-binary desktop app -- import local demos, watch top-down playback, generate heatmaps, and plan strategies.
 
 ## Prerequisites
 
@@ -18,8 +18,6 @@ CS2 2D demo viewer and analytics platform for Faceit players. Single-binary desk
 | macOS | Xcode Command Line Tools (`xcode-select --install`) |
 | Windows | [WebView2 Runtime](https://developer.microsoft.com/en-us/microsoft-edge/webview2/) (usually pre-installed on Windows 10+) |
 | Linux | `sudo apt install libwebkit2gtk-4.0-dev build-essential` (Ubuntu/Debian) |
-
-You also need a [Faceit Developer](https://developers.faceit.com) account with an OAuth app registered. Set the redirect URI to `http://localhost` (any port -- the app uses a loopback OAuth flow per RFC 8252).
 
 ## Quick Start
 
@@ -77,7 +75,7 @@ make clean               # Remove build artifacts
 oversite/
 ├── main.go              # Wails entry point
 ├── app.go               # App struct (Wails bindings)
-├── internal/            # Go business logic (auth, demo, faceit, heatmap, etc.)
+├── internal/            # Go business logic (database, demo, store, etc.)
 ├── migrations/          # SQLite migration files (embedded in binary)
 ├── queries/             # sqlc SQL files
 ├── frontend/            # Vite + React 19 SPA
@@ -102,7 +100,7 @@ oversite/
 | Demo Parsing | markus-wa/demoinfocs-golang v5 |
 | Database | SQLite (modernc.org/sqlite, pure Go, WAL mode) |
 | SQL | sqlc (type-safe generated Go, SQLite dialect) |
-| Auth | Faceit OAuth 2.0 + PKCE (loopback redirect), OS keychain |
+| Auth | None — single-tenant local app |
 | Packaging | Single native binary per platform (macOS, Windows, Linux) |
 
 ## Documentation

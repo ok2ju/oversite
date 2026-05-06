@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Create Migration
 
-Creates a properly numbered golang-migrate migration file pair (up + down) in `backend/migrations/`.
+Creates a properly numbered golang-migrate migration file pair (up + down) in `migrations/`.
 
 ## Arguments
 
@@ -14,11 +14,11 @@ Creates a properly numbered golang-migrate migration file pair (up + down) in `b
 
 ## Workflow
 
-1. Find the highest existing migration number in `backend/migrations/`
+1. Find the highest existing migration number in `migrations/`
 2. Increment by 1 and zero-pad to 6 digits
 3. Create both files:
-   - `backend/migrations/{number}_{name}.up.sql`
-   - `backend/migrations/{number}_{name}.down.sql`
+   - `migrations/{number}_{name}.up.sql`
+   - `migrations/{number}_{name}.down.sql`
 4. Add a header comment with the migration purpose
 5. For the up migration: include a placeholder `CREATE TABLE` or `ALTER TABLE` statement based on the name
 6. For the down migration: include the corresponding `DROP TABLE` or reverse `ALTER TABLE`
@@ -31,9 +31,9 @@ Creates a properly numbered golang-migrate migration file pair (up + down) in `b
 ## Naming Convention
 
 Migration names should be descriptive and use snake_case:
-- `create_users_table`
-- `add_elo_column_to_faceit_matches`
+- `add_match_vod_url`
 - `create_grenade_lineups_index`
+- `add_demos_status_index`
 
 ## Example
 
@@ -42,5 +42,5 @@ Migration names should be descriptive and use snake_case:
 ```
 
 Creates:
-- `backend/migrations/000005_add_match_vod_url.up.sql`
-- `backend/migrations/000005_add_match_vod_url.down.sql`
+- `migrations/000005_add_match_vod_url.up.sql`
+- `migrations/000005_add_match_vod_url.down.sql`

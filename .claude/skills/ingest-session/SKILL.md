@@ -39,7 +39,6 @@ If the session made a material architectural decision, **suggest** a new ADR usi
    - Edits to `internal/database/` or schema pragmas → `knowledge/sqlite-wal.md`
    - Edits to `queries/*.sql` or `internal/store/` → `knowledge/sqlc-workflow.md`
    - Edits to `migrations/` → `knowledge/migrations.md`
-   - Edits to `internal/auth/` or OAuth flow → `knowledge/faceit-oauth.md`
    - Edits to `frontend/src/lib/maps/` or calibration logic → `knowledge/coordinate-calibration.md`
    - Edits to `internal/demo/` or parser logic → `knowledge/demo-parser.md`
    - Edits to `*_test.go`, `*.test.tsx`, `internal/testutil/`, `src/test/` → `knowledge/testing.md`

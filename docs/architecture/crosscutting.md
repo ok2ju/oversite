@@ -22,11 +22,9 @@ Implemented in `internal/logging/` (see [ADR-0013](../decisions/0013-logging.md)
 | File | When | Contents |
 |------|------|----------|
 | `errors.txt` | Always | `slog` WARN+ records from all Go packages, plus a bridge that captures any remaining `log.Printf` calls |
-| `network.txt` | Dev builds only (`runtime.Environment(ctx).BuildType == "dev"`) | Full HTTP request/response dumps from the Faceit client, demo download client, and OAuth token exchange |
 
-- Both files rotate at 5MB with 3 backups via `lumberjack.v2` (plain `.txt`, no gzip).
+- Rotates at 5MB with 3 backups via `lumberjack.v2` (plain `.txt`, no gzip).
 - `logging.Init(dir)` runs once from `main.go` before `wails.Run`; `logging.Close()` runs from `App.Shutdown`.
-- The dev network transport is wired into HTTP clients in `App.Startup`; the `OVERSITE_DEBUG_HTTP` env flag used by the old `debug_transport` is retired.
 - Frontend: `console.error` for binding failures; no separate log file (developers use the Wails DevTools).
 
 ### Configuration
@@ -37,7 +35,6 @@ User preferences stored in `config.json` in the app data directory:
 {
   "theme": "dark",
   "watchFolder": "/path/to/cs2/demos",
-  "autoFetchFaceit": true,
   "viewerDefaults": {
     "playbackSpeed": 1.0,
     "showHealthBars": true,
@@ -64,7 +61,7 @@ The SQLite database is the sole store for all parsed demo data. Since re-parsing
 
 **Transaction discipline**: All multi-row inserts (tick data, events, rounds) are wrapped in explicit transactions. A parse failure mid-way rolls back the entire transaction — no partial demo data in the database.
 
-**Recovery path**: Since demos are stored as external `.dem` files (not copied into the database), the worst-case recovery is: delete `oversite.db`, restart the app (migrations recreate schema), re-import demos. Faceit match data can be re-synced from the API.
+**Recovery path**: Since demos are stored as external `.dem` files (not copied into the database), the worst-case recovery is: delete `oversite.db`, restart the app (migrations recreate schema), re-import demos.
 
 ### Coordinate Calibration
 

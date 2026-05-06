@@ -1,7 +1,7 @@
 # ADR-0005: Faceit OAuth 2.0 + PKCE as Sole Authentication Method
 
 **Date:** 2026-03-31
-**Status:** Accepted
+**Status:** Superseded by [ADR-0014](0014-remove-faceit-integration.md) (2026-05-06)
 
 ## Context
 
