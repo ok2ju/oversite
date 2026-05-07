@@ -6,6 +6,10 @@ Format: `YYYY-MM-DD — <summary>` with links to affected pages.
 
 ---
 
+## 2026-05-07 — Confirmation dialog before removing a demo
+
+Trash icon in `LibraryTable` now opens a shadcn `AlertDialog` showing the filename and a destructive Remove action; `onDelete(id)` only fires on confirm. Tests assert open / confirm / cancel paths. Refs: [[knowledge/testing]].
+
 ## 2026-05-07 — Shot tracers in 2D viewer
 
 Every firearm shot now renders as a tracer line in `EventLayer`. Implementation lives end-to-end across the parser and PixiJS layer:

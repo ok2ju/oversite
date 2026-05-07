@@ -7,6 +7,17 @@ import type { Demo } from "@/types/demo"
 import { MapTile, resolveMap } from "@/components/demos/map-tile"
 import { StatusPill, statusKey } from "@/components/demos/status-pill"
 import type { DemosFilter } from "@/components/demos/demos-toolbar"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { buttonVariants } from "@/components/ui/button"
 
 export function formatBytes(bytes: number): string {
   if (bytes >= 1_000_000_000) return `${(bytes / 1_000_000_000).toFixed(1)} GB`
@@ -63,10 +74,16 @@ export function LibraryTable({
   const importProgress = useDemoStore((s) => s.importProgress)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [waitingDemoId, setWaitingDemoId] = useState<number | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<Demo | null>(null)
   const rows = useMemo(
     () => filterDemos(demos, search, filter),
     [demos, search, filter],
   )
+
+  function confirmDelete() {
+    if (pendingDelete) onDelete(pendingDelete.id)
+    setPendingDelete(null)
+  }
 
   useEffect(() => {
     if (waitingDemoId == null) return
@@ -114,8 +131,36 @@ export function LibraryTable({
     )
   }
 
+  const pendingFileName =
+    pendingDelete?.file_path.split("/").pop() ?? "this demo"
+
   return (
     <div className="demos-table">
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this demo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingFileName} will be removed from your library. The demo file
+              on disk will not be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className={buttonVariants({ variant: "destructive" })}
+              onClick={confirmDelete}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <table>
         <thead>
           <tr>
@@ -211,7 +256,7 @@ export function LibraryTable({
                       type="button"
                       className="icon-btn"
                       aria-label="Delete"
-                      onClick={() => onDelete(demo.id)}
+                      onClick={() => setPendingDelete(demo)}
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>

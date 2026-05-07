@@ -40,3 +40,16 @@ Use `go test -race ./...` (not `go test ./...`) for unit tests. The race detecto
 | Wails binding hooks | Mock the auto-generated TS function from `bindings.ts` |
 | PixiJS rendering | TDD the logic; don't unit-test the render loop — use Playwright screenshot tests |
 | E2E | Written **after** the feature works, not TDD |
+
+## Gotchas
+
+### Querying portaled dialogs that echo on-page text
+
+Radix portals (`AlertDialog`, `Dialog`, `Popover`) render into `document.body`, so `screen.getByText(...)` searches both the open dialog **and** the underlying page. When the dialog repeats data already visible — e.g. a row's filename inside a "Remove this demo?" confirmation — a plain `getByText` matches two nodes and throws. Scope to the dialog:
+
+```tsx
+const dialog = screen.getByRole("alertdialog", { name: "Remove this demo?" })
+expect(within(dialog).getByText(/awesome-clutch\.dem/)).toBeInTheDocument()
+```
+
+The portaled surface is reachable via `getByRole("alertdialog" | "dialog")` with the title as `name`; pair with `within()` for any further assertions.

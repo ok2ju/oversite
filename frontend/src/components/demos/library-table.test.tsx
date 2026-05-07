@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { screen } from "@testing-library/react"
+import { screen, within } from "@testing-library/react"
 import { renderWithProviders, userEvent } from "@/test/render"
 import {
   mockAppBindings,
@@ -137,5 +137,68 @@ describe("LibraryTable row navigation", () => {
     await vi.waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith("/demos/11"),
     )
+  })
+})
+
+describe("LibraryTable delete confirmation", () => {
+  beforeEach(() => {
+    resetAllWailsMocks()
+    mockNavigate.mockReset()
+    useDemoStore.getState().reset()
+  })
+
+  function renderWithDelete(onDelete: (id: number) => void) {
+    const demo = makeDemo({
+      id: 42,
+      file_path: "/demos/awesome-clutch.dem",
+      status: "ready",
+    })
+    renderWithProviders(
+      <LibraryTable
+        demos={[demo]}
+        search=""
+        filter="all"
+        onDelete={onDelete}
+      />,
+    )
+  }
+
+  it("opens a confirmation dialog instead of deleting immediately", async () => {
+    const user = userEvent.setup()
+    const onDelete = vi.fn()
+    renderWithDelete(onDelete)
+
+    await user.click(screen.getByRole("button", { name: "Delete" }))
+
+    const dialog = screen.getByRole("alertdialog", {
+      name: "Remove this demo?",
+    })
+    expect(dialog).toBeInTheDocument()
+    expect(within(dialog).getByText(/awesome-clutch\.dem/)).toBeInTheDocument()
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
+  it("calls onDelete with the demo id when the user confirms", async () => {
+    const user = userEvent.setup()
+    const onDelete = vi.fn()
+    renderWithDelete(onDelete)
+
+    await user.click(screen.getByRole("button", { name: "Delete" }))
+    await user.click(screen.getByRole("button", { name: "Remove" }))
+
+    expect(onDelete).toHaveBeenCalledTimes(1)
+    expect(onDelete).toHaveBeenCalledWith(42)
+  })
+
+  it("does not call onDelete when the user cancels", async () => {
+    const user = userEvent.setup()
+    const onDelete = vi.fn()
+    renderWithDelete(onDelete)
+
+    await user.click(screen.getByRole("button", { name: "Delete" }))
+    await user.click(screen.getByRole("button", { name: "Cancel" }))
+
+    expect(onDelete).not.toHaveBeenCalled()
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
   })
 })
