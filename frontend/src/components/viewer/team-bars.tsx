@@ -15,6 +15,7 @@ import { useRounds } from "@/hooks/use-rounds"
 import { useRoundRoster } from "@/hooks/use-roster"
 import { useLoadoutSnapshot } from "@/hooks/use-loadout-snapshot"
 import { cn } from "@/lib/utils"
+import { formatWeaponLabel } from "@/lib/viewer/weapon-label"
 import type { Round } from "@/types/round"
 import type { TickData } from "@/types/demo"
 import type { PlayerRosterEntry, TeamSide } from "@/types/roster"
@@ -145,6 +146,7 @@ function PlayerRow({
           {player.name}
         </span>
       </div>
+      <WeaponLabelRow data={data} side={side} />
       <HealthRow data={data} side={side} />
       <div
         className={cn(
@@ -171,6 +173,34 @@ function getHealthTextClass(health: number): string {
   if (health > 60) return "text-emerald-400"
   if (health > 30) return "text-yellow-400"
   return "text-red-400"
+}
+
+function WeaponLabelRow({
+  data,
+  side,
+}: {
+  data: TickData | null
+  side: TeamSide
+}) {
+  if (!data || !data.is_alive) return null
+  const label = formatWeaponLabel(
+    data.weapon,
+    data.ammo_clip,
+    data.ammo_reserve,
+  )
+  if (!label) return null
+  const isCt = side === "CT"
+  return (
+    <div
+      data-testid={`team-bar-weapon-${data.steam_id}`}
+      className={cn(
+        "truncate px-2 py-0.5 text-[10px] font-medium tabular-nums text-white/80",
+        isCt ? "text-left" : "text-right",
+      )}
+    >
+      {label}
+    </div>
+  )
 }
 
 function HealthRow({ data, side }: { data: TickData | null; side: TeamSide }) {

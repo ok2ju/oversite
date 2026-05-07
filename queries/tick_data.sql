@@ -1,6 +1,6 @@
 -- name: InsertTickData :exec
-INSERT INTO tick_data (demo_id, tick, steam_id, x, y, z, yaw, health, armor, is_alive, weapon, money, has_helmet, has_defuser, inventory)
-VALUES (@demo_id, @tick, @steam_id, @x, @y, @z, @yaw, @health, @armor, @is_alive, @weapon, @money, @has_helmet, @has_defuser, @inventory);
+INSERT INTO tick_data (demo_id, tick, steam_id, x, y, z, yaw, health, armor, is_alive, weapon, money, has_helmet, has_defuser, inventory, ammo_clip, ammo_reserve)
+VALUES (@demo_id, @tick, @steam_id, @x, @y, @z, @yaw, @health, @armor, @is_alive, @weapon, @money, @has_helmet, @has_defuser, @inventory, @ammo_clip, @ammo_reserve);
 
 -- name: GetTickDataByRange :many
 SELECT * FROM tick_data

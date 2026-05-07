@@ -240,6 +240,8 @@ export namespace main {
 	    has_helmet: boolean;
 	    has_defuser: boolean;
 	    inventory: string[];
+	    ammo_clip: number;
+	    ammo_reserve: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new TickData(source);
@@ -261,6 +263,8 @@ export namespace main {
 	        this.has_helmet = source["has_helmet"];
 	        this.has_defuser = source["has_defuser"];
 	        this.inventory = source["inventory"];
+	        this.ammo_clip = source["ammo_clip"];
+	        this.ammo_reserve = source["ammo_reserve"];
 	    }
 	}
 	export class WeaponStat {

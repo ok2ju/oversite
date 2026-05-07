@@ -638,19 +638,21 @@ func storeGameEventToBinding(e store.GameEvent) GameEvent {
 
 func storeTickDatumToBinding(d store.TickDatum) TickData {
 	td := TickData{
-		Tick:       int(d.Tick),
-		SteamID:    d.SteamID,
-		X:          d.X,
-		Y:          d.Y,
-		Z:          d.Z,
-		Yaw:        d.Yaw,
-		Health:     int(d.Health),
-		Armor:      int(d.Armor),
-		IsAlive:    d.IsAlive != 0,
-		Money:      int(d.Money),
-		HasHelmet:  d.HasHelmet != 0,
-		HasDefuser: d.HasDefuser != 0,
-		Inventory:  splitInventory(d.Inventory),
+		Tick:        int(d.Tick),
+		SteamID:     d.SteamID,
+		X:           d.X,
+		Y:           d.Y,
+		Z:           d.Z,
+		Yaw:         d.Yaw,
+		Health:      int(d.Health),
+		Armor:       int(d.Armor),
+		IsAlive:     d.IsAlive != 0,
+		Money:       int(d.Money),
+		HasHelmet:   d.HasHelmet != 0,
+		HasDefuser:  d.HasDefuser != 0,
+		Inventory:   splitInventory(d.Inventory),
+		AmmoClip:    int(d.AmmoClip),
+		AmmoReserve: int(d.AmmoReserve),
 	}
 	if d.Weapon != "" {
 		td.Weapon = &d.Weapon

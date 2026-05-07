@@ -18,6 +18,8 @@ function makeTick(tick: number, steamId = "76561198000000001"): TickData {
     has_helmet: false,
     has_defuser: false,
     inventory: [],
+    ammo_clip: 0,
+    ammo_reserve: 0,
   }
 }
 

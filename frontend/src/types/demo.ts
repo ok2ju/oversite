@@ -33,6 +33,8 @@ export interface TickData {
   has_helmet: boolean
   has_defuser: boolean
   inventory: string[]
+  ammo_clip: number
+  ammo_reserve: number
 }
 
 export interface TickDataResponse {

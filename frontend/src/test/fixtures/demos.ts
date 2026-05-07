@@ -224,6 +224,8 @@ export function createMockTickData(
         has_helmet: false,
         has_defuser: false,
         inventory: [],
+        ammo_clip: 0,
+        ammo_reserve: 0,
       })
     }
   }

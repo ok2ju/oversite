@@ -72,6 +72,10 @@ type TickSnapshot struct {
 	// player owns at this tick (`String()` from demoinfocs Equipment), used by
 	// the team bars to render loadout icons.
 	Inventory string
+	// AmmoClip / AmmoReserve are the active weapon's clip and reserve counts.
+	// Both 0 when the active item has no ammo (e.g. knife) or no active weapon.
+	AmmoClip    int
+	AmmoReserve int
 }
 
 // GameEvent represents a parsed game event (kill, grenade, bomb, round boundary).
@@ -577,25 +581,31 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 
 			pos := player.Position()
 			weapon := ""
+			ammoClip := 0
+			ammoReserve := 0
 			if w := player.ActiveWeapon(); w != nil {
 				weapon = w.String()
+				ammoClip = w.AmmoInMagazine()
+				ammoReserve = w.AmmoReserve()
 			}
 
 			state.ticks = append(state.ticks, TickSnapshot{
-				Tick:       tick,
-				SteamID:    strconv.FormatUint(player.SteamID64, 10),
-				X:          pos.X,
-				Y:          pos.Y,
-				Z:          pos.Z,
-				Yaw:        float64(player.ViewDirectionX()),
-				Health:     player.Health(),
-				Armor:      player.Armor(),
-				IsAlive:    player.IsAlive(),
-				Weapon:     weapon,
-				Money:      player.Money(),
-				HasHelmet:  player.HasHelmet(),
-				HasDefuser: player.HasDefuseKit(),
-				Inventory:  encodeInventory(player.Weapons()),
+				Tick:        tick,
+				SteamID:     strconv.FormatUint(player.SteamID64, 10),
+				X:           pos.X,
+				Y:           pos.Y,
+				Z:           pos.Z,
+				Yaw:         float64(player.ViewDirectionX()),
+				Health:      player.Health(),
+				Armor:       player.Armor(),
+				IsAlive:     player.IsAlive(),
+				Weapon:      weapon,
+				Money:       player.Money(),
+				HasHelmet:   player.HasHelmet(),
+				HasDefuser:  player.HasDefuseKit(),
+				Inventory:   encodeInventory(player.Weapons()),
+				AmmoClip:    ammoClip,
+				AmmoReserve: ammoReserve,
 			})
 		}
 	})

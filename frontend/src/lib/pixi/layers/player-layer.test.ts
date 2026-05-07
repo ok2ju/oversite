@@ -78,6 +78,8 @@ function makeTickData(overrides: Partial<TickData> = {}): TickData {
     has_helmet: false,
     has_defuser: false,
     inventory: [],
+    ammo_clip: 0,
+    ammo_reserve: 0,
     ...overrides,
   }
 }

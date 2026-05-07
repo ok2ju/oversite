@@ -20,6 +20,8 @@ const POINTER_HALF_WIDTH = 4
 const SELECTION_RING_RADIUS = 18
 const LABEL_OFFSET_Y = 22
 const LABEL_FONT_SIZE = 13
+const WEAPON_LABEL_OFFSET_Y = LABEL_OFFSET_Y + LABEL_FONT_SIZE + 1
+const WEAPON_LABEL_FONT_SIZE = 10
 
 const HEALTH_BAR_WIDTH = 22
 const HEALTH_BAR_HEIGHT = 3
@@ -42,12 +44,14 @@ export class PlayerSprite {
   private healthBar: Graphics
   private damageRing: Graphics
   private nameLabel: Text
+  private weaponLabel: Text
 
   private _team: TeamSide | null = null
   private _isAlive: boolean | null = null
   private _isSelected: boolean | null = null
   private _name: string | null = null
   private _health: number | null = null
+  private _weaponLabelText: string | null = null
   private _damageFlashEnd = 0
 
   constructor() {
@@ -110,6 +114,25 @@ export class PlayerSprite {
     this.nameLabel.anchor.set(0.5, 0)
     this.nameLabel.y = LABEL_OFFSET_Y
 
+    this.weaponLabel = new Text({
+      text: "",
+      style: {
+        fill: 0xe5e7eb,
+        fontSize: WEAPON_LABEL_FONT_SIZE,
+        fontWeight: "500",
+        dropShadow: {
+          color: 0x000000,
+          alpha: 0.75,
+          blur: 3,
+          distance: 1,
+          angle: Math.PI / 2,
+        },
+      },
+    })
+    this.weaponLabel.anchor.set(0.5, 0)
+    this.weaponLabel.y = WEAPON_LABEL_OFFSET_Y
+    this.weaponLabel.visible = false
+
     this.container.addChild(this.body)
     this.container.addChild(this.pointer)
     this.container.addChild(this.deathMarker)
@@ -117,6 +140,7 @@ export class PlayerSprite {
     this.container.addChild(this.damageRing)
     this.container.addChild(this.healthBar)
     this.container.addChild(this.nameLabel)
+    this.container.addChild(this.weaponLabel)
   }
 
   private drawBody(team: TeamSide): void {
@@ -159,6 +183,7 @@ export class PlayerSprite {
     health: number
     isAlive: boolean
     isSelected: boolean
+    weaponLabel: string | null
   }): void {
     this.container.x = data.x
     this.container.y = data.y
@@ -172,6 +197,16 @@ export class PlayerSprite {
     if (data.name !== this._name) {
       this._name = data.name
       this.nameLabel.text = data.name
+    }
+
+    if (data.weaponLabel !== this._weaponLabelText) {
+      this._weaponLabelText = data.weaponLabel
+      if (data.weaponLabel) {
+        this.weaponLabel.text = data.weaponLabel
+        this.weaponLabel.visible = true
+      } else {
+        this.weaponLabel.visible = false
+      }
     }
 
     if (data.isAlive !== this._isAlive) {

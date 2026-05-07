@@ -237,6 +237,7 @@ describe("PlayerSprite", () => {
       health: 100,
       isAlive: true,
       isSelected: false,
+      weaponLabel: null,
       ...overrides,
     }
   }
@@ -259,8 +260,8 @@ describe("PlayerSprite", () => {
 
     it("adds all child graphics and label to the container", () => {
       const container = mockContainerInstances[0]
-      // body + pointer + deathMarker + selectionRing + damageRing + healthBar + nameLabel = 7
-      expect(container.addChild).toHaveBeenCalledTimes(7)
+      // body + pointer + deathMarker + selectionRing + damageRing + healthBar + nameLabel + weaponLabel = 8
+      expect(container.addChild).toHaveBeenCalledTimes(8)
     })
 
     it("exposes the container as a public property", () => {

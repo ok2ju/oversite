@@ -6,6 +6,16 @@ Format: `YYYY-MM-DD — <summary>` with links to affected pages.
 
 ---
 
+## 2026-05-07 — Active-weapon ammo in viewer overlay
+
+Active weapon name + clip/reserve now render as a small subtitle under each player on the 2D map and as a row in the team bars (no sprites; text only). `tick_data` migration 008 adds `ammo_clip` / `ammo_reserve` columns (default 0); demos imported before this read 0/0 until re-imported.
+
+- **Parser (`internal/demo/parser.go`):** `TickSnapshot.AmmoClip` / `AmmoReserve` populated from `player.ActiveWeapon().AmmoInMagazine()` / `AmmoReserve()`. Both 0 when there's no active weapon (knife, bomb, etc.).
+- **Frontend formatter (`frontend/src/lib/viewer/weapon-label.ts`):** single source of truth for the displayed string — `null` when no weapon, `"WEAPON  clip / reserve"` when either ammo > 0, plain `"WEAPON"` otherwise. Consumed by both `PlayerSprite` and `TeamBars`.
+- **Loadout snapshot:** `sameLoadout` in `use-loadout-snapshot.ts` extended to include the new fields; without that, ammo changes between 250 ms polls would be silently dropped from the team bars.
+
+Refs: [[knowledge/demo-parser]] (updated), [[knowledge/pixijs-viewer]] (updated). No ADR — additive feature on established patterns.
+
 ## 2026-05-07 — Grenade trajectory rendering
 
 In-flight grenades now render as a colored, lerped icon with a faint trail through bounce points. Implementation spans the parser, `effects.ts`, and `EventLayer`, plus a round-end duration cap.

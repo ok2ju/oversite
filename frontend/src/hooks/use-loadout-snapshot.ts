@@ -73,6 +73,8 @@ function sameLoadout(a: TickData, b: TickData): boolean {
     a.has_helmet === b.has_helmet &&
     a.has_defuser === b.has_defuser &&
     a.weapon === b.weapon &&
+    a.ammo_clip === b.ammo_clip &&
+    a.ammo_reserve === b.ammo_reserve &&
     a.inventory.length === b.inventory.length &&
     a.inventory.every((w, i) => w === b.inventory[i])
   )

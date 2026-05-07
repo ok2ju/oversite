@@ -145,3 +145,11 @@ Pairing a throw with its endpoint requires checking all four: `grenade_detonate`
 ### `entity_id` is a JSON number across the Wails boundary
 
 `e.Projectile.Entity.ID()` returns Go `int`. After `json.Marshal` → DB TEXT → `json.Unmarshal` → Wails struct → JSON, it lands in TypeScript as a `number`, not a `string`. Frontend pairing code that does `typeof id === "string"` will silently never match — `entity_id`-keyed maps stay empty, and any duration that depends on the pairing falls back to its default. Use the `entityKey()` helper in `event-layer.ts` to normalize.
+
+## Active-weapon ammo (2026-05-07)
+
+`TickSnapshot.AmmoClip` / `AmmoReserve` populated from `player.ActiveWeapon().AmmoInMagazine()` / `AmmoReserve()`. Both `0` when the active item has no ammo concept (knife, C4) or when there is no active weapon.
+
+### `AmmoReserve()` for grenades returns `held - 1`
+
+Per the demoinfocs docs: "Returns CWeaponCSBase.m_iPrimaryReserveAmmoCount for most weapons and 'Owner.AmmoLeft[AmmoType] - 1' for grenades." A player whose active item is a single grenade therefore reads `clip=0, reserve=0`, indistinguishable from a knife at the parser level. The viewer's formatter (`frontend/src/lib/viewer/weapon-label.ts`) hides the ammo suffix when both values are zero, so the displayed result is just the weapon name — but if you ever need true grenade counts, prefer the `Inventory` slice over inferring from ammo.
