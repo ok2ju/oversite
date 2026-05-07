@@ -14,6 +14,10 @@ function makeTick(tick: number, steamId = "76561198000000001"): TickData {
     armor: 100,
     is_alive: true,
     weapon: "ak47",
+    money: 0,
+    has_helmet: false,
+    has_defuser: false,
+    inventory: [],
   }
 }
 

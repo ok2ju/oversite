@@ -236,6 +236,10 @@ export namespace main {
 	    armor: number;
 	    is_alive: boolean;
 	    weapon?: string;
+	    money: number;
+	    has_helmet: boolean;
+	    has_defuser: boolean;
+	    inventory: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new TickData(source);
@@ -253,6 +257,10 @@ export namespace main {
 	        this.armor = source["armor"];
 	        this.is_alive = source["is_alive"];
 	        this.weapon = source["weapon"];
+	        this.money = source["money"];
+	        this.has_helmet = source["has_helmet"];
+	        this.has_defuser = source["has_defuser"];
+	        this.inventory = source["inventory"];
 	    }
 	}
 	export class WeaponStat {

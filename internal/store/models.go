@@ -99,15 +99,19 @@ type StrategyBoard struct {
 }
 
 type TickDatum struct {
-	DemoID  int64
-	Tick    int64
-	SteamID string
-	X       float64
-	Y       float64
-	Z       float64
-	Yaw     float64
-	Health  int64
-	Armor   int64
-	IsAlive int64
-	Weapon  string
+	DemoID     int64
+	Tick       int64
+	SteamID    string
+	X          float64
+	Y          float64
+	Z          float64
+	Yaw        float64
+	Health     int64
+	Armor      int64
+	IsAlive    int64
+	Weapon     string
+	Money      int64
+	HasHelmet  int64
+	HasDefuser int64
+	Inventory  string
 }

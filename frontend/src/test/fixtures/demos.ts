@@ -220,6 +220,10 @@ export function createMockTickData(
         armor: 100,
         is_alive: true,
         weapon: "ak47",
+        money: 0,
+        has_helmet: false,
+        has_defuser: false,
+        inventory: [],
       })
     }
   }

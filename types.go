@@ -64,16 +64,20 @@ type GameEvent struct {
 
 // TickData represents a player's state at a specific tick.
 type TickData struct {
-	Tick    int     `json:"tick"`
-	SteamID string  `json:"steam_id"`
-	X       float64 `json:"x"`
-	Y       float64 `json:"y"`
-	Z       float64 `json:"z"`
-	Yaw     float64 `json:"yaw"`
-	Health  int     `json:"health"`
-	Armor   int     `json:"armor"`
-	IsAlive bool    `json:"is_alive"`
-	Weapon  *string `json:"weapon"`
+	Tick       int      `json:"tick"`
+	SteamID    string   `json:"steam_id"`
+	X          float64  `json:"x"`
+	Y          float64  `json:"y"`
+	Z          float64  `json:"z"`
+	Yaw        float64  `json:"yaw"`
+	Health     int      `json:"health"`
+	Armor      int      `json:"armor"`
+	IsAlive    bool     `json:"is_alive"`
+	Weapon     *string  `json:"weapon"`
+	Money      int      `json:"money"`
+	HasHelmet  bool     `json:"has_helmet"`
+	HasDefuser bool     `json:"has_defuser"`
+	Inventory  []string `json:"inventory"`
 }
 
 // PlayerRosterEntry represents a player in a round's roster.

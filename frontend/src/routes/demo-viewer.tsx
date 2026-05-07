@@ -9,6 +9,7 @@ import { PlaybackControls } from "@/components/viewer/playback-controls"
 import { MatchHeader } from "@/components/viewer/match-header"
 import { RoundSelector } from "@/components/viewer/round-selector"
 import { Scoreboard } from "@/components/viewer/scoreboard"
+import { TeamBars } from "@/components/viewer/team-bars"
 
 export default function DemoViewerPage() {
   const { id } = useParams<{ id: string }>()
@@ -73,6 +74,7 @@ export default function DemoViewerPage() {
     >
       <ViewerCanvas />
       <MatchHeader />
+      <TeamBars />
       <PlaybackControls />
       <RoundSelector />
       <Scoreboard visible={scoreboardVisible} />

@@ -29,6 +29,10 @@ export interface TickData {
   armor: number
   is_alive: boolean
   weapon: string | null
+  money: number
+  has_helmet: boolean
+  has_defuser: boolean
+  inventory: string[]
 }
 
 export interface TickDataResponse {

@@ -57,14 +57,21 @@ type RoundParticipant struct {
 
 // TickSnapshot is one player's state at a sampled tick.
 type TickSnapshot struct {
-	Tick    int
-	SteamID string // Steam64ID as string
-	X, Y, Z float64
-	Yaw     float64
-	Health  int
-	Armor   int
-	IsAlive bool
-	Weapon  string
+	Tick       int
+	SteamID    string // Steam64ID as string
+	X, Y, Z    float64
+	Yaw        float64
+	Health     int
+	Armor      int
+	IsAlive    bool
+	Weapon     string
+	Money      int
+	HasHelmet  bool
+	HasDefuser bool
+	// Inventory is the comma-separated list of weapon/equipment names the
+	// player owns at this tick (`String()` from demoinfocs Equipment), used by
+	// the team bars to render loadout icons.
+	Inventory string
 }
 
 // GameEvent represents a parsed game event (kill, grenade, bomb, round boundary).
@@ -573,16 +580,20 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			}
 
 			state.ticks = append(state.ticks, TickSnapshot{
-				Tick:    tick,
-				SteamID: strconv.FormatUint(player.SteamID64, 10),
-				X:       pos.X,
-				Y:       pos.Y,
-				Z:       pos.Z,
-				Yaw:     float64(player.ViewDirectionX()),
-				Health:  player.Health(),
-				Armor:   player.Armor(),
-				IsAlive: player.IsAlive(),
-				Weapon:  weapon,
+				Tick:       tick,
+				SteamID:    strconv.FormatUint(player.SteamID64, 10),
+				X:          pos.X,
+				Y:          pos.Y,
+				Z:          pos.Z,
+				Yaw:        float64(player.ViewDirectionX()),
+				Health:     player.Health(),
+				Armor:      player.Armor(),
+				IsAlive:    player.IsAlive(),
+				Weapon:     weapon,
+				Money:      player.Money(),
+				HasHelmet:  player.HasHelmet(),
+				HasDefuser: player.HasDefuseKit(),
+				Inventory:  encodeInventory(player.Weapons()),
 			})
 		}
 	})
@@ -866,6 +877,35 @@ func shouldSampleTick(tick, interval int) bool {
 		return false
 	}
 	return tick%interval == 0
+}
+
+// encodeInventory serializes a player's weapons as a comma-separated list of
+// canonical names so we can decode them on the frontend without committing to
+// a JSON shape. Empty/knife-only entries are kept since the bar UI sorts and
+// filters them itself.
+func encodeInventory(weapons []*common.Equipment) string {
+	if len(weapons) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(weapons))
+	for _, w := range weapons {
+		if w == nil {
+			continue
+		}
+		s := w.String()
+		if s == "" || s == "UNKNOWN" {
+			continue
+		}
+		names = append(names, s)
+	}
+	if len(names) == 0 {
+		return ""
+	}
+	out := names[0]
+	for _, n := range names[1:] {
+		out += "," + n
+	}
+	return out
 }
 
 // shouldSkipPlayer returns true if the player should be excluded from tick snapshots.

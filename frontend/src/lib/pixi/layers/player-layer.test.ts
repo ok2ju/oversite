@@ -74,6 +74,10 @@ function makeTickData(overrides: Partial<TickData> = {}): TickData {
     armor: 100,
     is_alive: true,
     weapon: null,
+    money: 0,
+    has_helmet: false,
+    has_defuser: false,
+    inventory: [],
     ...overrides,
   }
 }

@@ -77,17 +77,21 @@ func convertTicksToParams(demoID int64, ticks []TickSnapshot) []store.InsertTick
 	params := make([]store.InsertTickDataParams, len(ticks))
 	for i, t := range ticks {
 		params[i] = store.InsertTickDataParams{
-			DemoID:  demoID,
-			Tick:    int64(t.Tick),
-			SteamID: t.SteamID,
-			X:       t.X,
-			Y:       t.Y,
-			Z:       t.Z,
-			Yaw:     t.Yaw,
-			Health:  int64(t.Health),
-			Armor:   int64(t.Armor),
-			IsAlive: boolToInt64(t.IsAlive),
-			Weapon:  t.Weapon,
+			DemoID:     demoID,
+			Tick:       int64(t.Tick),
+			SteamID:    t.SteamID,
+			X:          t.X,
+			Y:          t.Y,
+			Z:          t.Z,
+			Yaw:        t.Yaw,
+			Health:     int64(t.Health),
+			Armor:      int64(t.Armor),
+			IsAlive:    boolToInt64(t.IsAlive),
+			Weapon:     t.Weapon,
+			Money:      int64(t.Money),
+			HasHelmet:  boolToInt64(t.HasHelmet),
+			HasDefuser: boolToInt64(t.HasDefuser),
+			Inventory:  t.Inventory,
 		}
 	}
 	return params

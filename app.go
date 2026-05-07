@@ -638,18 +638,45 @@ func storeGameEventToBinding(e store.GameEvent) GameEvent {
 
 func storeTickDatumToBinding(d store.TickDatum) TickData {
 	td := TickData{
-		Tick:    int(d.Tick),
-		SteamID: d.SteamID,
-		X:       d.X,
-		Y:       d.Y,
-		Z:       d.Z,
-		Yaw:     d.Yaw,
-		Health:  int(d.Health),
-		Armor:   int(d.Armor),
-		IsAlive: d.IsAlive != 0,
+		Tick:       int(d.Tick),
+		SteamID:    d.SteamID,
+		X:          d.X,
+		Y:          d.Y,
+		Z:          d.Z,
+		Yaw:        d.Yaw,
+		Health:     int(d.Health),
+		Armor:      int(d.Armor),
+		IsAlive:    d.IsAlive != 0,
+		Money:      int(d.Money),
+		HasHelmet:  d.HasHelmet != 0,
+		HasDefuser: d.HasDefuser != 0,
+		Inventory:  splitInventory(d.Inventory),
 	}
 	if d.Weapon != "" {
 		td.Weapon = &d.Weapon
 	}
 	return td
+}
+
+// splitInventory parses the comma-separated inventory string written by the
+// parser. Returns an empty slice when the column is empty so the JSON encoder
+// emits `[]` rather than `null` and the frontend can iterate without nil checks.
+func splitInventory(s string) []string {
+	if s == "" {
+		return []string{}
+	}
+	out := make([]string, 0, 8)
+	start := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == ',' {
+			if i > start {
+				out = append(out, s[start:i])
+			}
+			start = i + 1
+		}
+	}
+	if start < len(s) {
+		out = append(out, s[start:])
+	}
+	return out
 }
