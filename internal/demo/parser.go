@@ -217,7 +217,16 @@ func (dp *DemoParser) Parse(r io.Reader) (result *ParseResult, err error) {
 		}
 	}()
 
-	p := demoinfocs.NewParser(r)
+	// IgnorePacketEntitiesPanic recovers from "unable to find existing entity"
+	// panics that fire on some POV demos when an entity update references an
+	// index missing from p.entities. Without it the whole parse aborts; with
+	// it we lose the offending packet and continue with the next.
+	// IgnoreErrBombsiteIndexNotFound is the analogous flag for game events
+	// that reference an unknown bombsite index — also non-fatal.
+	config := demoinfocs.DefaultParserConfig
+	config.IgnorePacketEntitiesPanic = true
+	config.IgnoreErrBombsiteIndexNotFound = true
+	p := demoinfocs.NewParserWithConfig(r, config)
 	defer func() {
 		if closeErr := p.Close(); closeErr != nil && err == nil {
 			err = fmt.Errorf("closing parser: %w", closeErr)
