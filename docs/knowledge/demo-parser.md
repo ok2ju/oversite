@@ -87,3 +87,45 @@ The previous `isOvertime(roundNum > 24)` hardcoded MR12 and broke under MR15, Wi
 ### Pin the demoinfocs minor version
 
 The score-read fragility above depends on v5's `ScoreUpdated` → `RoundEnd` ordering. Pin the minor version in `go.mod` and document the assumed firing order near the `ScoreUpdated` handler in `parser.go`. A patch release bumping that order would silently break score capture.
+
+## Shot tracers (2026-05-07)
+
+Adds `weapon_fire` events plus a post-processing pass that pairs each shot with its `player_hurt` to give the 2D viewer exact impact endpoints. Both live in `parser.go` and the new `internal/demo/shot_impacts.go`.
+
+### `WeaponFire` fires for grenades and knives — filter by `Equipment.Class()`
+
+`p.RegisterEventHandler(func(e events.WeaponFire) {...})` fires for **every** weapon use, including grenade throws and knife slashes. The handler must filter to firearm classes only:
+
+```go
+switch e.Weapon.Class() {
+case common.EqClassPistols, common.EqClassSMG, common.EqClassHeavy, common.EqClassRifle:
+default:
+    return
+}
+```
+
+Without this filter, smoke throws and decoy tosses would emit `weapon_fire` events and show up as tracers in the viewer.
+
+### `PlayerHurt.X/Y/Z` were historically zero — now populated
+
+Until this change, the `player_hurt` handler emitted `GameEvent` with `X = Y = Z = 0`. Nothing read those fields, so the bug was invisible. The shot-impact pairing pass needs the victim's position, so the handler now writes `e.Player.Position()` into the event. Anything new that consumes `player_hurt` should expect populated coordinates.
+
+### Bullet impact data: what demoinfocs v5.1.2 exposes
+
+| Event | Endpoint data | Limitations |
+|-------|---------------|-------------|
+| `PlayerHurt` | victim `Player.Position()` | player hits only |
+| `BulletDamage` | `Distance` + `DamageDirX/Y/Z` | CS2 demos post-2024-07-22 only; not always present |
+| `Kill` | victim `Position()` (already used) | terminal hit only |
+| `bullet_impact` user message | wall/world impacts | **not surfaced as a Go event** |
+
+CS2's `bullet_impact` user message (which carries actual wall/object impact coordinates) is in the demo format but not parsed by demoinfocs v5. Surfacing it would require a raw user-message handler at the protobuf level — a non-trivial lift, deferred. Until then, wall hits and pure misses have no endpoint data; the viewer falls back to a fixed-length directional ray.
+
+### Pairing strategy: most-recent-prior, consume on pair
+
+`pairShotsWithImpacts` (in `shot_impacts.go`) walks events in tick order and maintains `lastShotIdx[attackerSteamID]`. Each `weapon_fire` overwrites the entry; each matching `player_hurt` consumes it. Trade-offs:
+
+- ✅ Spray with mixed hits/misses works — each new shot replaces the lastShot record, so a `player_hurt` always pairs with the closest prior shot.
+- ✅ Cross-attacker isolation is automatic.
+- ❌ Wallbangs (one shot, multiple `player_hurt` events for different victims) only pair the first hurt; subsequent ones are dropped.
+- ❌ Window is 16 ticks (~250ms @ 64Hz) — long enough for any in-map bullet flight, short enough that a stale record from an old shot can't pair with an unrelated `player_hurt` after a reload.

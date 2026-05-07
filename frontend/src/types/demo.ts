@@ -41,6 +41,7 @@ export interface TickDataResponse {
 
 export type GameEventType =
   | "kill"
+  | "weapon_fire"
   | "player_hurt"
   | "grenade_throw"
   | "grenade_detonate"

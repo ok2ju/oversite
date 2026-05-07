@@ -4,6 +4,7 @@ import {
   computeHEState,
   computeFlashState,
   computeKillState,
+  computeShotState,
   computeBombPlantState,
   computeBombDefuseState,
   worldRadiusToPixel,
@@ -16,6 +17,7 @@ import {
   FLASH_DURATION_TICKS,
   FLASH_RADIUS,
   KILL_DURATION_TICKS,
+  SHOT_DURATION_TICKS,
   BOMB_FLASH_INTERVAL_TICKS,
   BOMB_DEFUSE_TICKS,
   BOMB_DEFUSE_KIT_TICKS,
@@ -162,6 +164,26 @@ describe("computeKillState", () => {
 
   it("is inactive at KILL_DURATION_TICKS", () => {
     expect(computeKillState(KILL_DURATION_TICKS).active).toBe(false)
+  })
+})
+
+describe("computeShotState", () => {
+  it("is inactive before tick 0", () => {
+    expect(computeShotState(-1).active).toBe(false)
+  })
+
+  it("alpha starts at 1 and fades linearly", () => {
+    const start = computeShotState(0)
+    expect(start.active).toBe(true)
+    expect(start.alpha).toBeCloseTo(1)
+
+    const mid = computeShotState(Math.floor(SHOT_DURATION_TICKS / 2))
+    expect(mid.alpha).toBeLessThan(start.alpha)
+    expect(mid.alpha).toBeGreaterThan(0)
+  })
+
+  it("is inactive at SHOT_DURATION_TICKS", () => {
+    expect(computeShotState(SHOT_DURATION_TICKS).active).toBe(false)
   })
 })
 

@@ -4,6 +4,7 @@ import type { MapCalibration } from "@/lib/maps/calibration"
 import { worldToPixel } from "@/lib/maps/calibration"
 import {
   KILL_DURATION_TICKS,
+  SHOT_DURATION_TICKS,
   HE_DURATION_TICKS,
   FLASH_DURATION_TICKS,
   SMOKE_DURATION_TICKS,
@@ -12,13 +13,16 @@ import {
   SMOKE_RADIUS,
   FLASH_RADIUS,
   BOMB_ICON_RADIUS,
+  SHOT_TRACER_LENGTH,
   COLOR_KILL,
+  COLOR_SHOT,
   COLOR_SMOKE,
   COLOR_HE,
   COLOR_FLASH,
   COLOR_BOMB_PLANT,
   COLOR_BOMB_DEFUSE,
   computeKillState,
+  computeShotState,
   computeSmokeState,
   computeHEState,
   computeFlashState,
@@ -34,6 +38,7 @@ import {
 
 type EffectType =
   | "kill"
+  | "shot"
   | "smoke"
   | "he"
   | "flash"
@@ -48,6 +53,9 @@ interface ScheduledEffect {
   y: number
   attackerX?: number
   attackerY?: number
+  yaw?: number
+  hitX?: number
+  hitY?: number
   hasKit?: boolean
   smokeDuration?: number
 }
@@ -118,6 +126,65 @@ function drawKill(
     .stroke({ color: COLOR_KILL, width: 2, alpha: state.alpha })
 }
 
+// Segment count for the gradient ray used when a shot has no recorded
+// impact — PixiJS Graphics has no native gradient strokes, so we approximate
+// with stacked short segments fading toward the unknown endpoint.
+const SHOT_TRACER_SEGMENTS = 16
+const SHOT_HIT_MARKER_SIZE = 3
+
+function drawShot(
+  g: Graphics,
+  state: EffectState,
+  effect: ScheduledEffect,
+  calibration: MapCalibration,
+): void {
+  const start = worldToPixel({ x: effect.x, y: effect.y }, calibration)
+  g.clear()
+
+  // Known impact (parser paired this shot with a player_hurt) — draw a solid
+  // line ending exactly at the victim, plus a small marker on the impact.
+  if (effect.hitX !== undefined && effect.hitY !== undefined) {
+    const end = worldToPixel({ x: effect.hitX, y: effect.hitY }, calibration)
+    g.moveTo(start.x, start.y)
+      .lineTo(end.x, end.y)
+      .stroke({ color: COLOR_SHOT, width: 1, alpha: state.alpha })
+    g.circle(end.x, end.y, SHOT_HIT_MARKER_SIZE).fill({
+      color: COLOR_SHOT,
+      alpha: state.alpha,
+    })
+    return
+  }
+
+  // No impact recorded — draw a directional gradient ray that fades into the
+  // unknown.
+  const yawRad = ((effect.yaw ?? 0) * Math.PI) / 180
+  const cos = Math.cos(yawRad)
+  const sin = Math.sin(yawRad)
+
+  for (let i = 0; i < SHOT_TRACER_SEGMENTS; i++) {
+    const t0 = i / SHOT_TRACER_SEGMENTS
+    const t1 = (i + 1) / SHOT_TRACER_SEGMENTS
+    const segStart = worldToPixel(
+      {
+        x: effect.x + SHOT_TRACER_LENGTH * t0 * cos,
+        y: effect.y + SHOT_TRACER_LENGTH * t0 * sin,
+      },
+      calibration,
+    )
+    const segEnd = worldToPixel(
+      {
+        x: effect.x + SHOT_TRACER_LENGTH * t1 * cos,
+        y: effect.y + SHOT_TRACER_LENGTH * t1 * sin,
+      },
+      calibration,
+    )
+    const segmentAlpha = state.alpha * (1 - t0)
+    g.moveTo(segStart.x, segStart.y)
+      .lineTo(segEnd.x, segEnd.y)
+      .stroke({ color: COLOR_SHOT, width: 1, alpha: segmentAlpha })
+  }
+}
+
 function drawSmoke(
   g: Graphics,
   state: EffectState,
@@ -186,6 +253,8 @@ function computeState(
   switch (effect.type) {
     case "kill":
       return computeKillState(tickOffset)
+    case "shot":
+      return computeShotState(tickOffset)
     case "smoke":
       return computeSmokeState(
         tickOffset,
@@ -211,6 +280,8 @@ function drawEffect(
   switch (effect.type) {
     case "kill":
       return drawKill(g, state, effect, calibration)
+    case "shot":
+      return drawShot(g, state, effect, calibration)
     case "smoke":
       return drawSmoke(g, state, effect, calibration)
     case "he":
@@ -338,6 +409,26 @@ function buildScheduled(events: GameEvent[]): ScheduledEffect[] {
         ) {
           effect.attackerX = extra.attacker_x
           effect.attackerY = extra.attacker_y
+        }
+        scheduled.push(effect)
+        break
+      }
+      case "weapon_fire": {
+        const extra = e.extra_data
+        const yawRaw = extra?.yaw
+        const hitXRaw = extra?.hit_x
+        const hitYRaw = extra?.hit_y
+        const effect: ScheduledEffect = {
+          type: "shot",
+          startTick: e.tick,
+          durationTicks: SHOT_DURATION_TICKS,
+          x,
+          y,
+          yaw: typeof yawRaw === "number" ? yawRaw : 0,
+        }
+        if (typeof hitXRaw === "number" && typeof hitYRaw === "number") {
+          effect.hitX = hitXRaw
+          effect.hitY = hitYRaw
         }
         scheduled.push(effect)
         break

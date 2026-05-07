@@ -6,6 +6,17 @@ Format: `YYYY-MM-DD — <summary>` with links to affected pages.
 
 ---
 
+## 2026-05-07 — Shot tracers in 2D viewer
+
+Every firearm shot now renders as a tracer line in `EventLayer`. Implementation lives end-to-end across the parser and PixiJS layer:
+
+- **Backend (`internal/demo/parser.go`):** new `WeaponFire` handler emits `weapon_fire` events with shooter X/Y/Z and yaw/pitch. Filtered by `Equipment.Class()` to firearm classes (`EqClassPistols/SMG/Heavy/Rifle`) — `WeaponFire` also fires for grenade throws and knife slashes, which would otherwise pollute the tracer layer.
+- **Backend (`internal/demo/shot_impacts.go`, new):** `pairShotsWithImpacts` walks events in tick order and pairs each `weapon_fire` with the most recent prior unpaired shot from the same attacker when a `player_hurt` arrives within 16 ticks (~250ms). On pair, writes `hit_x`/`hit_y` into the shot's `extra_data`. One shot pairs with at most one hurt event (wallbangs through multiple players record only the first impact).
+- **Backend (`player_hurt` handler):** previously left `X/Y/Z` as zero; now populated with `e.Player.Position()` so the pairing pass has a usable endpoint.
+- **Frontend (`frontend/src/lib/pixi/layers/event-layer.ts`):** `drawShot` branches on `hit_x`/`hit_y`. When set: solid line shooter→impact + small filled circle at the impact, full alpha. When absent: 16-segment gradient ray of fixed length (`SHOT_TRACER_LENGTH = 2000` world units) fading toward the unknown endpoint — PixiJS Graphics has no native gradient strokes, so segment stacking approximates it.
+
+Refs: [[knowledge/demo-parser]] (updated), [[knowledge/pixijs-viewer]] (updated). Existing demos must be re-imported to populate `weapon_fire` events. No ADR — feature addition with established patterns.
+
 ## 2026-05-07 — Demo parser quality fixes
 
 Implemented six independent fixes from `.claude/temp/parser-quality-plan.md`:

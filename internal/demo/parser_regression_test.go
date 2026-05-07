@@ -81,4 +81,41 @@ func TestParseDemo_NoKnifeRounds(t *testing.T) {
 			t.Errorf("round %d survived filter but all %d kills are knife kills", round, len(weapons))
 		}
 	}
+
+	// Sanity-check weapon_fire output: every live round in a real match has
+	// many shots, no shot may use a grenade or knife (the parser filters by
+	// EquipmentClass), and every shot must carry a finite yaw in extra_data.
+	var fireCount int
+	firesByRound := make(map[int]int)
+	for _, ev := range result.Events {
+		if ev.Type != "weapon_fire" {
+			continue
+		}
+		fireCount++
+		firesByRound[ev.RoundNumber]++
+
+		lw := strings.ToLower(ev.Weapon)
+		if strings.Contains(lw, "grenade") || strings.Contains(lw, "molotov") ||
+			strings.Contains(lw, "flashbang") || strings.Contains(lw, "decoy") ||
+			strings.Contains(lw, "knife") || strings.Contains(lw, "bayonet") {
+			t.Errorf("weapon_fire emitted for non-firearm %q at tick %d", ev.Weapon, ev.Tick)
+		}
+
+		yaw, ok := ev.ExtraData["yaw"].(float64)
+		if !ok {
+			t.Errorf("weapon_fire at tick %d missing numeric yaw in extra_data", ev.Tick)
+			continue
+		}
+		if yaw != yaw { // NaN check
+			t.Errorf("weapon_fire at tick %d has NaN yaw", ev.Tick)
+		}
+	}
+	if fireCount == 0 {
+		t.Error("expected at least some weapon_fire events in a 24-round match, got 0")
+	}
+	for round := 1; round <= len(result.Rounds); round++ {
+		if firesByRound[round] == 0 {
+			t.Errorf("round %d has no weapon_fire events", round)
+		}
+	}
 }

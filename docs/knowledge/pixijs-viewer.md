@@ -23,7 +23,7 @@ React UI components call Zustand actions (`setPlaying(true)`) without touching P
 
 - **MapLayer** — radar image at the base
 - **PlayerLayer** — circles + view cones; redrawn per tick
-- **EventLayer** — kill lines, smoke fades, flash bursts (lifetime-driven sprites)
+- **EventLayer** — kill lines, shot tracers, smoke fades, flash bursts (lifetime-driven sprites)
 - **UILayer** — scoreboard overlay, timeline markers
 
 ## Tick rendering loop
@@ -35,3 +35,5 @@ Current tick drives everything. The app buffers a range of ticks from `GetTicks(
 - **Don't recreate the app on every render.** The effect dependency array should be empty (or stable).
 - **Destroy cleanly.** Missed `destroy(true)` leaks WebGL contexts; Chrome caps you at ~16.
 - **Don't call React setState from the render loop.** It triggers React reconciliation on every frame.
+- **PixiJS `Graphics` has no gradient strokes.** When you need a fading line (e.g., the `weapon_fire` tracer that fades toward an unknown endpoint), approximate it with stacked short segments and a per-segment `alpha`. See `drawShot` in `event-layer.ts` — 16 segments was a good balance between visual smoothness and per-shot draw cost.
+- **`drawShot` has two visual paths** keyed on the shot's `hit_x`/`hit_y` (populated by the parser's shot-impact pairing pass): solid line + impact dot when an exact endpoint is known, gradient ray otherwise. The fallback length (`SHOT_TRACER_LENGTH`) is in world units; PixiJS clips to viewport so an over-long ray is harmless on small maps but wastes draw calls — keep it modest (~2000 units, ~half a typical CS map).

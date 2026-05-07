@@ -6,6 +6,7 @@ export const FLASH_DURATION_TICKS = 19
 export const HE_DURATION_TICKS = 32
 export const HE_EXPAND_TICKS = 13
 export const KILL_DURATION_TICKS = 192
+export const SHOT_DURATION_TICKS = 12
 export const BOMB_FLASH_INTERVAL_TICKS = 32
 export const BOMB_DEFUSE_TICKS = 640
 export const BOMB_DEFUSE_KIT_TICKS = 320
@@ -15,12 +16,17 @@ export const SMOKE_RADIUS = 144
 export const HE_RADIUS = 350
 export const FLASH_RADIUS = 200
 export const BOMB_ICON_RADIUS = 30
+// Fallback length for unpaired shots (misses or wall hits — the demo format
+// does not expose non-player impact points). For shots that hit a player, the
+// parser writes hit_x/hit_y so the tracer ends at the exact impact instead.
+export const SHOT_TRACER_LENGTH = 2000
 
 // Colors (PixiJS hex)
 export const COLOR_SMOKE = 0x888888
 export const COLOR_HE = 0xff3333
 export const COLOR_FLASH = 0xffff00
 export const COLOR_KILL = 0xff0000
+export const COLOR_SHOT = 0xffcc00
 export const COLOR_BOMB_PLANT = 0xff4444
 export const COLOR_BOMB_DEFUSE = 0x4444ff
 
@@ -94,6 +100,19 @@ export function computeFlashState(tickOffset: number): EffectState {
     alpha,
     radius: FLASH_RADIUS,
     progress: tickOffset / FLASH_DURATION_TICKS,
+  }
+}
+
+export function computeShotState(tickOffset: number): EffectState {
+  if (tickOffset < 0 || tickOffset >= SHOT_DURATION_TICKS) return INACTIVE
+
+  const alpha = 1 - tickOffset / SHOT_DURATION_TICKS
+
+  return {
+    active: true,
+    alpha,
+    radius: 0,
+    progress: tickOffset / SHOT_DURATION_TICKS,
   }
 }
 

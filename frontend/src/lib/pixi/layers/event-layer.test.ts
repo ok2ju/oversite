@@ -59,6 +59,7 @@ import { EventLayer } from "./event-layer"
 import type { GameEvent } from "@/types/demo"
 import {
   KILL_DURATION_TICKS,
+  SHOT_DURATION_TICKS,
   SMOKE_DURATION_TICKS,
   HE_DURATION_TICKS,
   FLASH_DURATION_TICKS,
@@ -207,6 +208,108 @@ describe("EventLayer", () => {
       const g = mockGraphicsInstances[0]
       layer.update(100 + KILL_DURATION_TICKS, mockCalibration)
       expect(g.removeFromParent).toHaveBeenCalled()
+    })
+  })
+
+  describe("update — shots", () => {
+    it("activates shot graphics at weapon_fire tick", () => {
+      layer.setEvents([
+        makeEvent({
+          event_type: "weapon_fire",
+          tick: 100,
+          extra_data: { yaw: 0 },
+        }),
+      ])
+
+      layer.update(99, mockCalibration)
+      expect(mockGraphicsInstances.length).toBe(0)
+
+      layer.update(100, mockCalibration)
+      expect(mockGraphicsInstances.length).toBe(1)
+      expect(container.addChild).toHaveBeenCalledTimes(1)
+    })
+
+    it("draws a directional tracer made of multiple gradient segments", () => {
+      layer.setEvents([
+        makeEvent({
+          event_type: "weapon_fire",
+          tick: 100,
+          x: -500,
+          y: 1000,
+          extra_data: { yaw: 90 },
+        }),
+      ])
+      layer.update(100, mockCalibration)
+
+      const g = mockGraphicsInstances[0]
+      expect(g.clear).toHaveBeenCalled()
+      expect(g.moveTo.mock.calls.length).toBeGreaterThan(1)
+      expect(g.lineTo.mock.calls.length).toEqual(g.moveTo.mock.calls.length)
+      expect(g.stroke.mock.calls.length).toEqual(g.moveTo.mock.calls.length)
+      // Per-segment alpha should fade — first segment brighter than last.
+      const strokes = g.stroke.mock.calls.map((c) => c[0].alpha as number)
+      expect(strokes[0]).toBeGreaterThan(strokes[strokes.length - 1])
+    })
+
+    it("releases shot graphics after SHOT_DURATION_TICKS", () => {
+      layer.setEvents([
+        makeEvent({
+          event_type: "weapon_fire",
+          tick: 100,
+          extra_data: { yaw: 0 },
+        }),
+      ])
+      layer.update(100, mockCalibration)
+
+      const g = mockGraphicsInstances[0]
+      layer.update(100 + SHOT_DURATION_TICKS, mockCalibration)
+      expect(g.removeFromParent).toHaveBeenCalled()
+    })
+
+    it("draws a single solid line and impact marker when hit_x/hit_y are present", () => {
+      layer.setEvents([
+        makeEvent({
+          event_type: "weapon_fire",
+          tick: 100,
+          x: -500,
+          y: 1000,
+          extra_data: { yaw: 0, hit_x: -300, hit_y: 1100 },
+        }),
+      ])
+      layer.update(100, mockCalibration)
+
+      const g = mockGraphicsInstances[0]
+      // One stroke for the solid line + one fill for the impact dot.
+      expect(g.moveTo).toHaveBeenCalledTimes(1)
+      expect(g.lineTo).toHaveBeenCalledTimes(1)
+      expect(g.stroke).toHaveBeenCalledTimes(1)
+      expect(g.circle).toHaveBeenCalledTimes(1)
+      expect(g.fill).toHaveBeenCalledTimes(1)
+    })
+
+    it("renders one tracer per fire event", () => {
+      layer.setEvents([
+        makeEvent({
+          id: "shot-1",
+          event_type: "weapon_fire",
+          tick: 100,
+          extra_data: { yaw: 0 },
+        }),
+        makeEvent({
+          id: "shot-2",
+          event_type: "weapon_fire",
+          tick: 102,
+          extra_data: { yaw: 45 },
+        }),
+        makeEvent({
+          id: "shot-3",
+          event_type: "weapon_fire",
+          tick: 104,
+          extra_data: { yaw: 90 },
+        }),
+      ])
+      layer.update(105, mockCalibration)
+      expect(mockGraphicsInstances.length).toBe(3)
     })
   })
 

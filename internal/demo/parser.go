@@ -78,7 +78,7 @@ type TickSnapshot struct {
 type GameEvent struct {
 	Tick            int
 	RoundNumber     int
-	Type            string // "kill", "player_hurt", "grenade_throw", "grenade_detonate", "smoke_start", "smoke_expired", "decoy_start", "fire_start", "bomb_plant", "bomb_defuse", "bomb_explode"
+	Type            string // "kill", "weapon_fire", "player_hurt", "grenade_throw", "grenade_detonate", "smoke_start", "smoke_expired", "decoy_start", "fire_start", "bomb_plant", "bomb_defuse", "bomb_explode"
 	AttackerSteamID string
 	VictimSteamID   string
 	Weapon          string
@@ -245,6 +245,8 @@ func (dp *DemoParser) Parse(r io.Reader) (result *ParseResult, err error) {
 	}
 
 	rounds, events := dropKnifeRounds(state.rounds, state.events, state.knifeRoundNumbers)
+
+	pairShotsWithImpacts(events)
 
 	lineups := ExtractGrenadeLineups(state.mapName, events)
 
@@ -662,6 +664,41 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 		})
 	})
 
+	// Weapon fire events — every shot, used to render shot tracers in the
+	// 2D viewer. WeaponFire fires for grenades and knife slashes too, so
+	// filter to firearm classes only.
+	p.RegisterEventHandler(func(e events.WeaponFire) {
+		if dp.skipWarmup && p.GameState().IsWarmupPeriod() {
+			return
+		}
+		if e.Shooter == nil || e.Weapon == nil {
+			return
+		}
+		switch e.Weapon.Class() {
+		case common.EqClassPistols, common.EqClassSMG, common.EqClassHeavy, common.EqClassRifle:
+		default:
+			return
+		}
+
+		pos := e.Shooter.Position()
+		extra := map[string]interface{}{
+			"yaw":   float64(e.Shooter.ViewDirectionX()),
+			"pitch": float64(e.Shooter.ViewDirectionY()),
+		}
+
+		state.events = append(state.events, GameEvent{
+			Tick:            p.GameState().IngameTick(),
+			RoundNumber:     state.currentRound,
+			Type:            "weapon_fire",
+			AttackerSteamID: strconv.FormatUint(e.Shooter.SteamID64, 10),
+			Weapon:          e.Weapon.String(),
+			X:               pos.X,
+			Y:               pos.Y,
+			Z:               pos.Z,
+			ExtraData:       extra,
+		})
+	})
+
 	// Player hurt events (for damage tracking).
 	p.RegisterEventHandler(func(e events.PlayerHurt) {
 		if dp.skipWarmup && p.GameState().IsWarmupPeriod() {
@@ -679,10 +716,13 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			extra["attacker_name"] = e.Attacker.Name
 			extra["attacker_team"] = teamSideString(e.Attacker.Team)
 		}
+		var x, y, z float64
 		if e.Player != nil {
 			victimID = strconv.FormatUint(e.Player.SteamID64, 10)
 			extra["victim_name"] = e.Player.Name
 			extra["victim_team"] = teamSideString(e.Player.Team)
+			pos := e.Player.Position()
+			x, y, z = pos.X, pos.Y, pos.Z
 		}
 
 		weaponName := ""
@@ -697,6 +737,9 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			AttackerSteamID: attackerID,
 			VictimSteamID:   victimID,
 			Weapon:          weaponName,
+			X:               x,
+			Y:               y,
+			Z:               z,
 			ExtraData:       extra,
 		})
 	})
