@@ -1,24 +1,14 @@
 import { useMemo } from "react"
-import {
-  Bomb,
-  Cloud,
-  Flame,
-  HardHat,
-  KeyRound,
-  Shield,
-  Sparkles,
-  Swords,
-  Zap,
-} from "lucide-react"
+import { Shield } from "lucide-react"
 import { useViewerStore } from "@/stores/viewer"
 import { useRounds } from "@/hooks/use-rounds"
 import { useRoundRoster } from "@/hooks/use-roster"
 import { useLoadoutSnapshot } from "@/hooks/use-loadout-snapshot"
 import { cn } from "@/lib/utils"
-import { formatWeaponLabel } from "@/lib/viewer/weapon-label"
 import type { Round } from "@/types/round"
 import type { TickData } from "@/types/demo"
 import type { PlayerRosterEntry, TeamSide } from "@/types/roster"
+import { WeaponIcon } from "./weapon-icon"
 
 interface PlayerLoadout {
   steamId: string
@@ -182,23 +172,17 @@ function WeaponLabelRow({
   data: TickData | null
   side: TeamSide
 }) {
-  if (!data || !data.is_alive) return null
-  const label = formatWeaponLabel(
-    data.weapon,
-    data.ammo_clip,
-    data.ammo_reserve,
-  )
-  if (!label) return null
+  if (!data || !data.is_alive || !data.weapon) return null
   const isCt = side === "CT"
   return (
     <div
       data-testid={`team-bar-weapon-${data.steam_id}`}
       className={cn(
-        "truncate px-2 py-0.5 text-[10px] font-medium tabular-nums text-white/80",
-        isCt ? "text-left" : "text-right",
+        "flex items-center px-2 py-0.5",
+        isCt ? "flex-row justify-start" : "flex-row-reverse justify-start",
       )}
     >
-      {label}
+      <WeaponIcon name={data.weapon} className="h-3 w-auto opacity-90" />
     </div>
   )
 }
@@ -257,6 +241,19 @@ function HealthRow({ data, side }: { data: TickData | null; side: TeamSide }) {
   )
 }
 
+const ICON_PROPS = { className: "h-3 w-auto opacity-90" } as const
+
+function EquipmentIcon({ path }: { path: string }) {
+  return (
+    <img
+      src={path}
+      alt=""
+      draggable={false}
+      className="h-3 w-auto select-none object-contain opacity-90"
+    />
+  )
+}
+
 function LoadoutIcons({
   data,
   side,
@@ -274,37 +271,39 @@ function LoadoutIcons({
         reverse ? "flex-row-reverse" : "flex-row",
       )}
     >
-      {data.has_helmet && <HardHat className="h-3 w-3 text-white/80" />}
-      {data.has_defuser && <KeyRound className="h-3 w-3 text-emerald-400" />}
+      {data.has_helmet && <EquipmentIcon path="/equipment/helmet.svg" />}
+      {data.has_defuser && <EquipmentIcon path="/equipment/defuser.svg" />}
       {hasWeapon(data.inventory, "Kevlar Vest") && !data.has_helmet && (
-        <Shield className="h-3 w-3 text-white/60" />
+        <EquipmentIcon path="/equipment/kevlar.svg" />
       )}
       {hasWeapon(data.inventory, "C4") && (
-        <Bomb className="h-3 w-3 text-amber-300" />
+        <WeaponIcon name="C4" {...ICON_PROPS} />
       )}
       {hasWeapon(data.inventory, "Zeus x27") && (
-        <Zap className="h-3 w-3 text-cyan-300" />
+        <WeaponIcon name="Zeus x27" {...ICON_PROPS} />
       )}
       {hasWeapon(data.inventory, "Smoke Grenade") && (
-        <Cloud className="h-3 w-3 text-white/80" />
+        <WeaponIcon name="Smoke Grenade" {...ICON_PROPS} />
       )}
       {flashCount > 0 && (
         <span className="flex items-center gap-0.5 text-white/80">
-          <Sparkles className="h-3 w-3" />
+          <WeaponIcon name="Flashbang" {...ICON_PROPS} />
           {flashCount > 1 && (
             <span className="text-[10px] leading-none">×{flashCount}</span>
           )}
         </span>
       )}
       {hasWeapon(data.inventory, "HE Grenade") && (
-        <Bomb className="h-3 w-3 text-rose-400" />
+        <WeaponIcon name="HE Grenade" {...ICON_PROPS} />
       )}
-      {(hasWeapon(data.inventory, "Molotov") ||
-        hasWeapon(data.inventory, "Incendiary Grenade")) && (
-        <Flame className="h-3 w-3 text-orange-400" />
+      {hasWeapon(data.inventory, "Molotov") && (
+        <WeaponIcon name="Molotov" {...ICON_PROPS} />
+      )}
+      {hasWeapon(data.inventory, "Incendiary Grenade") && (
+        <WeaponIcon name="Incendiary Grenade" {...ICON_PROPS} />
       )}
       {hasWeapon(data.inventory, "Decoy Grenade") && (
-        <Cloud className="h-3 w-3 text-purple-300" />
+        <WeaponIcon name="Decoy Grenade" {...ICON_PROPS} />
       )}
     </div>
   )
@@ -379,11 +378,4 @@ function countInventory(
     if (predicate(w)) count++
   }
   return count
-}
-
-function WeaponIcon({ name, className }: { name: string; className?: string }) {
-  if (PRIMARY_WEAPONS.has(name) || SECONDARY_WEAPONS.has(name)) {
-    return <Swords className={className} />
-  }
-  return <Swords className={className} />
 }

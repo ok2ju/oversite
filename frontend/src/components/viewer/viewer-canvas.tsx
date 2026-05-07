@@ -27,11 +27,14 @@ export function ViewerCanvas() {
   const eventLayerRef = useRef<EventLayer | null>(null)
   const engineRef = useRef<PlaybackEngine | null>(null)
   const roundsRef = useRef<ReturnType<typeof useRounds>["data"]>(undefined)
+  const gameEventsRef =
+    useRef<ReturnType<typeof useGameEvents>["data"]>(undefined)
 
   const demoId = useViewerStore((s) => s.demoId)
   const { data: gameEventsData } = useGameEvents(demoId)
   const { data: roundsData } = useRounds(demoId)
   roundsRef.current = roundsData
+  gameEventsRef.current = gameEventsData
 
   // Feed event data into the EventLayer whenever events or rounds change.
   // Rounds are needed so per-effect durations can be capped at round-end
@@ -116,6 +119,13 @@ export function ViewerCanvas() {
       const eventContainer = app.addLayer("events", camera.container)
       eventLayer = new EventLayer(eventContainer)
       eventLayerRef.current = eventLayer
+
+      // Events may have arrived from React Query before the EventLayer existed;
+      // the gameEventsData useEffect can't push them retroactively because it
+      // doesn't depend on the ref. Push any cached events now.
+      if (gameEventsRef.current) {
+        eventLayer.setEvents(gameEventsRef.current, roundsRef.current)
+      }
 
       // Track ticks written by the engine to avoid seek feedback loops
       let engineSetTick = -1

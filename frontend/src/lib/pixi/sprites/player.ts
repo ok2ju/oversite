@@ -1,5 +1,6 @@
-import { Container, Graphics, Text } from "pixi.js"
+import { Container, Graphics, Sprite, Text, type Texture } from "pixi.js"
 import type { TeamSide } from "@/types/roster"
+import { getWeaponTexture } from "./weapon-textures"
 
 export function getTeamColor(team: TeamSide): number {
   return team === "CT" ? 0x5b9bd5 : 0xe67e22
@@ -20,14 +21,16 @@ const POINTER_HALF_WIDTH = 4
 const SELECTION_RING_RADIUS = 18
 const LABEL_OFFSET_Y = 22
 const LABEL_FONT_SIZE = 13
-const WEAPON_LABEL_OFFSET_Y = LABEL_OFFSET_Y + LABEL_FONT_SIZE + 1
-const WEAPON_LABEL_FONT_SIZE = 10
 
 const HEALTH_BAR_WIDTH = 22
 const HEALTH_BAR_HEIGHT = 3
 const HEALTH_BAR_OFFSET_Y = -(BODY_RADIUS + 6)
 const DAMAGE_RING_RADIUS = BODY_RADIUS + 4
 const DAMAGE_FLASH_DURATION_MS = 450
+
+// Weapon icon sits above the health bar, centered on the player.
+const WEAPON_SPRITE_HEIGHT = 9
+const WEAPON_OVERLAY_OFFSET_Y = HEALTH_BAR_OFFSET_Y - 8
 
 export function getHealthColor(health: number): number {
   if (health > 60) return 0x22c55e
@@ -44,14 +47,14 @@ export class PlayerSprite {
   private healthBar: Graphics
   private damageRing: Graphics
   private nameLabel: Text
-  private weaponLabel: Text
+  private weaponSprite: Sprite
 
   private _team: TeamSide | null = null
   private _isAlive: boolean | null = null
   private _isSelected: boolean | null = null
   private _name: string | null = null
   private _health: number | null = null
-  private _weaponLabelText: string | null = null
+  private _weaponTexture: Texture | null = null
   private _damageFlashEnd = 0
 
   constructor() {
@@ -114,24 +117,10 @@ export class PlayerSprite {
     this.nameLabel.anchor.set(0.5, 0)
     this.nameLabel.y = LABEL_OFFSET_Y
 
-    this.weaponLabel = new Text({
-      text: "",
-      style: {
-        fill: 0xe5e7eb,
-        fontSize: WEAPON_LABEL_FONT_SIZE,
-        fontWeight: "500",
-        dropShadow: {
-          color: 0x000000,
-          alpha: 0.75,
-          blur: 3,
-          distance: 1,
-          angle: Math.PI / 2,
-        },
-      },
-    })
-    this.weaponLabel.anchor.set(0.5, 0)
-    this.weaponLabel.y = WEAPON_LABEL_OFFSET_Y
-    this.weaponLabel.visible = false
+    this.weaponSprite = new Sprite()
+    this.weaponSprite.anchor.set(0.5, 0.5)
+    this.weaponSprite.y = WEAPON_OVERLAY_OFFSET_Y
+    this.weaponSprite.visible = false
 
     this.container.addChild(this.body)
     this.container.addChild(this.pointer)
@@ -140,7 +129,7 @@ export class PlayerSprite {
     this.container.addChild(this.damageRing)
     this.container.addChild(this.healthBar)
     this.container.addChild(this.nameLabel)
-    this.container.addChild(this.weaponLabel)
+    this.container.addChild(this.weaponSprite)
   }
 
   private drawBody(team: TeamSide): void {
@@ -174,6 +163,30 @@ export class PlayerSprite {
       .fill(getHealthColor(clamped))
   }
 
+  private updateWeaponSprite(weapon: string | null, isAlive: boolean): void {
+    if (!weapon || !isAlive) {
+      this.weaponSprite.visible = false
+      this._weaponTexture = null
+      return
+    }
+
+    // getWeaponTexture is sync from cache; missing entries kick off background
+    // loads and return null, so we re-check every tick until the texture lands.
+    const texture = getWeaponTexture(weapon)
+    if (!texture) {
+      this.weaponSprite.visible = false
+      return
+    }
+
+    if (texture !== this._weaponTexture) {
+      this._weaponTexture = texture
+      this.weaponSprite.texture = texture
+      const scale = WEAPON_SPRITE_HEIGHT / texture.height
+      this.weaponSprite.scale.set(scale)
+    }
+    this.weaponSprite.visible = true
+  }
+
   update(data: {
     x: number
     y: number
@@ -183,7 +196,7 @@ export class PlayerSprite {
     health: number
     isAlive: boolean
     isSelected: boolean
-    weaponLabel: string | null
+    weapon: string | null
   }): void {
     this.container.x = data.x
     this.container.y = data.y
@@ -199,15 +212,7 @@ export class PlayerSprite {
       this.nameLabel.text = data.name
     }
 
-    if (data.weaponLabel !== this._weaponLabelText) {
-      this._weaponLabelText = data.weaponLabel
-      if (data.weaponLabel) {
-        this.weaponLabel.text = data.weaponLabel
-        this.weaponLabel.visible = true
-      } else {
-        this.weaponLabel.visible = false
-      }
-    }
+    this.updateWeaponSprite(data.weapon, data.isAlive)
 
     if (data.isAlive !== this._isAlive) {
       this._isAlive = data.isAlive

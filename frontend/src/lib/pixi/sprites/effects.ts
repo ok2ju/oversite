@@ -34,8 +34,11 @@ export const COLOR_DECOY = 0xaa44ff
 export const COLOR_FIRE = 0xff6600
 export const COLOR_GRENADE_DEFAULT = 0xffffff
 
-// Grenade in-flight icon (pixel-space, doesn't scale with map)
+// Grenade in-flight icon (pixel-space, doesn't scale with map). The colored
+// dot is the fallback while the SVG sprite loads (or for unmapped weapons);
+// the height is the rendered icon height once the texture is ready.
 export const GRENADE_ICON_RADIUS = 4
+export const GRENADE_ICON_HEIGHT = 14
 export const GRENADE_TRAIL_ALPHA = 0.35
 
 // Molotov / Incendiary burn duration (~7s × 64 tick rate)

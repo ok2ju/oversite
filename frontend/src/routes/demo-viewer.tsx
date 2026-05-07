@@ -10,6 +10,7 @@ import { MatchHeader } from "@/components/viewer/match-header"
 import { RoundSelector } from "@/components/viewer/round-selector"
 import { Scoreboard } from "@/components/viewer/scoreboard"
 import { TeamBars } from "@/components/viewer/team-bars"
+import { KillLog } from "@/components/viewer/kill-log"
 
 export default function DemoViewerPage() {
   const { id } = useParams<{ id: string }>()
@@ -75,6 +76,7 @@ export default function DemoViewerPage() {
       <ViewerCanvas />
       <MatchHeader />
       <TeamBars />
+      <KillLog />
       <PlaybackControls />
       <RoundSelector />
       <Scoreboard visible={scoreboardVisible} />

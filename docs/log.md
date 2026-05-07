@@ -6,6 +6,17 @@ Format: `YYYY-MM-DD — <summary>` with links to affected pages.
 
 ---
 
+## 2026-05-07 — Grenade sprites + kill-log ordering
+
+In-flight grenade icons swapped from colored dots to CS2 weapon SVG sprites; kill log now renders oldest→newest so the latest kill lands at the bottom of the feed.
+
+- **Frontend (`event-layer.ts`):** added `SpritePool` alongside `GraphicsPool`. Each active `grenade_traj` effect acquires *both* a `Graphics` (trail polyline) and a `Sprite` (weapon icon at the lerped head); `drawEffect` / `drawGrenadeTrajectory` thread the optional `Sprite` through, and both pools are released in lock-step on expiry/clear/destroy.
+- **Async-texture fallback:** `getWeaponTexture(weapon)` is sync-from-cache and returns `null` on first call (kicks off background `Assets.load`). The drawer falls back to the legacy colored dot when sprite or texture is missing, so the grenade is never invisible during the load delay or for unmapped weapons.
+- **Pool-acquire reset:** `sprite.texture = null` on acquire so the per-tick `if (sprite.texture !== texture)` branch fires for the new effect's weapon and re-applies `GRENADE_ICON_HEIGHT / texture.height` scale — otherwise a pooled sprite carries over the previous grenade's texture/scale.
+- **Kill log (`lib/viewer/kill-log.ts`):** `selectVisibleKills` switched from `sort desc → slice(0, N)` to `sort asc → slice(-N)`. Same N most-recent entries, but emitted oldest-first so React renders the latest kill last in the flex column.
+
+Refs: [[knowledge/pixijs-viewer]] (updated). No ADR — UX/rendering tweaks on established patterns.
+
 ## 2026-05-07 — Active-weapon ammo in viewer overlay
 
 Active weapon name + clip/reserve now render as a small subtitle under each player on the 2D map and as a row in the team bars (no sprites; text only). `tick_data` migration 008 adds `ammo_clip` / `ammo_reserve` columns (default 0); demos imported before this read 0/0 until re-imported.

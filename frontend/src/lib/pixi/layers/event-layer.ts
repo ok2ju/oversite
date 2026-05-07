@@ -1,7 +1,8 @@
-import { Graphics, type Container } from "pixi.js"
+import { Graphics, Sprite, type Container, type Texture } from "pixi.js"
 import type { GameEvent } from "@/types/demo"
 import type { MapCalibration } from "@/lib/maps/calibration"
 import { worldToPixel } from "@/lib/maps/calibration"
+import { getWeaponTexture } from "../sprites/weapon-textures"
 import {
   KILL_DURATION_TICKS,
   SHOT_DURATION_TICKS,
@@ -17,6 +18,7 @@ import {
   BOMB_ICON_RADIUS,
   SHOT_TRACER_LENGTH,
   GRENADE_ICON_RADIUS,
+  GRENADE_ICON_HEIGHT,
   GRENADE_TRAIL_ALPHA,
   COLOR_KILL,
   COLOR_SHOT,
@@ -72,14 +74,19 @@ interface ScheduledEffect {
   hasKit?: boolean
   smokeDuration?: number
   // Grenade trajectory: ordered waypoints from throw → bounces → detonation,
-  // and the rendering color picked by grenadeColor().
+  // and the rendering color picked by grenadeColor(). The weapon name drives
+  // the sprite texture lookup for the in-flight icon.
   waypoints?: readonly TrajectoryWaypoint[]
   color?: number
+  weapon?: string | null
 }
 
 interface ActiveEffect {
   effect: ScheduledEffect
   graphics: Graphics
+  // Grenade trajectories overlay a Sprite for the weapon icon on top of the
+  // Graphics-drawn trail. Other effect types leave this undefined.
+  sprite?: Sprite
 }
 
 // ---------------------------------------------------------------------------
@@ -102,6 +109,32 @@ class GraphicsPool {
   dispose(): void {
     for (const g of this.free) {
       g.destroy()
+    }
+    this.free = []
+  }
+}
+
+// Sprites are cheaper to keep than reconstruct — pool them like Graphics so
+// rapid-fire grenade throws don't churn allocations.
+class SpritePool {
+  private free: Sprite[] = []
+
+  acquire(): Sprite {
+    if (this.free.length > 0) return this.free.pop()!
+    const s = new Sprite()
+    s.anchor.set(0.5, 0.5)
+    return s
+  }
+
+  release(s: Sprite): void {
+    s.removeFromParent()
+    s.visible = false
+    this.free.push(s)
+  }
+
+  dispose(): void {
+    for (const s of this.free) {
+      s.destroy()
     }
     this.free = []
   }
@@ -274,11 +307,14 @@ function drawFire(
   g.clear().circle(p.x, p.y, r).fill({ color: COLOR_FIRE, alpha: state.alpha })
 }
 
-// Renders an in-flight grenade as a colored dot moving along its trajectory,
+// Renders an in-flight grenade with the weapon's CS2 sprite at the head,
 // trailed by a faint line through the bounce points it has already passed.
-// Position is lerped between waypoints so the dot doesn't teleport at bounces.
+// Position is lerped between waypoints so the icon doesn't teleport at
+// bounces. Falls back to a colored dot while the SVG texture is still loading
+// or when the weapon name is unmapped.
 function drawGrenadeTrajectory(
   g: Graphics,
+  sprite: Sprite | undefined,
   state: EffectState,
   effect: ScheduledEffect,
   calibration: MapCalibration,
@@ -320,13 +356,28 @@ function drawGrenadeTrajectory(
     })
   }
 
-  // Current grenade position — fixed pixel-space radius so the icon stays
-  // legible regardless of zoom level.
   const head = worldToPixel({ x: wx, y: wy }, calibration)
-  g.circle(head.x, head.y, GRENADE_ICON_RADIUS).fill({
-    color,
-    alpha: state.alpha,
-  })
+  const texture = sprite ? getWeaponTexture(effect.weapon) : null
+
+  if (sprite && texture) {
+    if (sprite.texture !== texture) {
+      sprite.texture = texture
+      const scale = GRENADE_ICON_HEIGHT / texture.height
+      sprite.scale.set(scale)
+    }
+    sprite.x = head.x
+    sprite.y = head.y
+    sprite.alpha = state.alpha
+    sprite.visible = true
+  } else {
+    if (sprite) sprite.visible = false
+    // Texture not loaded yet (or no mapping) — show the legacy colored dot so
+    // the grenade is never invisible.
+    g.circle(head.x, head.y, GRENADE_ICON_RADIUS).fill({
+      color,
+      alpha: state.alpha,
+    })
+  }
 }
 
 function computeState(
@@ -360,6 +411,7 @@ function computeState(
 
 function drawEffect(
   g: Graphics,
+  sprite: Sprite | undefined,
   state: EffectState,
   effect: ScheduledEffect,
   calibration: MapCalibration,
@@ -379,7 +431,14 @@ function drawEffect(
     case "fire":
       return drawFire(g, state, effect, calibration)
     case "grenade_traj":
-      return drawGrenadeTrajectory(g, state, effect, calibration, tickOffset)
+      return drawGrenadeTrajectory(
+        g,
+        sprite,
+        state,
+        effect,
+        calibration,
+        tickOffset,
+      )
     case "bomb_plant":
       return drawBombPlant(g, state, effect, calibration)
     case "bomb_defuse":
@@ -401,6 +460,7 @@ export interface RoundBound {
 export class EventLayer {
   private container: Container
   private pool = new GraphicsPool()
+  private spritePool = new SpritePool()
   private scheduled: ScheduledEffect[] = []
   private active: ActiveEffect[] = []
   private nextIdx = 0
@@ -433,39 +493,46 @@ export class EventLayer {
       if (tickOffset < effect.durationTicks) {
         const g = this.pool.acquire()
         this.container.addChild(g)
-        this.active.push({ effect, graphics: g })
+        let sprite: Sprite | undefined
+        if (effect.type === "grenade_traj") {
+          sprite = this.spritePool.acquire()
+          // Reset texture so the per-tick assignment in drawGrenadeTrajectory
+          // re-applies scale for whatever the new effect's weapon resolves to.
+          sprite.texture = null as unknown as Texture
+          this.container.addChild(sprite)
+        }
+        this.active.push({ effect, graphics: g, sprite })
       }
       this.nextIdx++
     }
 
     // Update active effects, remove expired
     for (let i = this.active.length - 1; i >= 0; i--) {
-      const { effect, graphics } = this.active[i]
+      const { effect, graphics, sprite } = this.active[i]
       const tickOffset = currentTick - effect.startTick
       const state = computeState(effect, tickOffset)
       if (state.active) {
-        drawEffect(graphics, state, effect, calibration, tickOffset)
+        drawEffect(graphics, sprite, state, effect, calibration, tickOffset)
       } else {
         this.pool.release(graphics)
+        if (sprite) this.spritePool.release(sprite)
         this.active.splice(i, 1)
       }
     }
   }
 
   clear(): void {
-    for (const { graphics } of this.active) {
+    for (const { graphics, sprite } of this.active) {
       this.pool.release(graphics)
+      if (sprite) this.spritePool.release(sprite)
     }
     this.active = []
   }
 
   destroy(): void {
     this.clear()
-    // Destroy all pooled graphics
-    for (const { graphics } of this.active) {
-      graphics.destroy()
-    }
     this.pool.dispose()
+    this.spritePool.dispose()
   }
 }
 
@@ -629,6 +696,7 @@ function buildScheduled(
             y,
             waypoints,
             color: grenadeColor(e.weapon),
+            weapon: e.weapon,
           }),
         )
         break

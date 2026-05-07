@@ -3,7 +3,6 @@ import { PlayerSprite } from "../sprites/player"
 import { worldToPixel, type MapCalibration } from "@/lib/maps/calibration"
 import type { TickData } from "@/types/demo"
 import type { PlayerRosterEntry, TeamSide } from "@/types/roster"
-import { formatWeaponLabel } from "@/lib/viewer/weapon-label"
 
 // Shortest-arc lerp on a degree angle. ViewDirectionX wraps at 360, so naive
 // lerp across the 359→0 boundary would spin the sprite the long way around.
@@ -74,9 +73,7 @@ export class PlayerLayer {
         health: cur.health,
         isAlive: cur.is_alive,
         isSelected: cur.steam_id === selectedSteamId,
-        weaponLabel: cur.is_alive
-          ? formatWeaponLabel(cur.weapon, cur.ammo_clip, cur.ammo_reserve)
-          : null,
+        weapon: cur.weapon,
       })
     }
 

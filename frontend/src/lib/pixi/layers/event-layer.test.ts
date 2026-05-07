@@ -13,7 +13,24 @@ type MockGraphics = {
   visible: boolean
 }
 
-const { mockGraphicsInstances, createMockGraphics } = vi.hoisted(() => {
+type MockSprite = {
+  texture: { width: number; height: number } | null
+  anchor: { set: ReturnType<typeof vi.fn> }
+  scale: { set: ReturnType<typeof vi.fn> }
+  destroy: ReturnType<typeof vi.fn>
+  removeFromParent: ReturnType<typeof vi.fn>
+  visible: boolean
+  alpha: number
+  x: number
+  y: number
+}
+
+const {
+  mockGraphicsInstances,
+  createMockGraphics,
+  mockSpriteInstances,
+  createMockSprite,
+} = vi.hoisted(() => {
   const mockGraphicsInstances: MockGraphics[] = []
 
   function createMockGraphics(): MockGraphics {
@@ -40,12 +57,48 @@ const { mockGraphicsInstances, createMockGraphics } = vi.hoisted(() => {
     return g
   }
 
-  return { mockGraphicsInstances, createMockGraphics }
+  const mockSpriteInstances: MockSprite[] = []
+  function createMockSprite(): MockSprite {
+    const s: MockSprite = {
+      texture: null,
+      anchor: { set: vi.fn() },
+      scale: { set: vi.fn() },
+      destroy: vi.fn(),
+      removeFromParent: vi.fn(),
+      visible: true,
+      alpha: 1,
+      x: 0,
+      y: 0,
+    }
+    mockSpriteInstances.push(s)
+    return s
+  }
+
+  return {
+    mockGraphicsInstances,
+    createMockGraphics,
+    mockSpriteInstances,
+    createMockSprite,
+  }
 })
+
+const { mockGetWeaponTexture } = vi.hoisted(() => ({
+  mockGetWeaponTexture: vi.fn<(name: string | null | undefined) => unknown>(
+    () => null,
+  ),
+}))
+
+vi.mock("../sprites/weapon-textures", () => ({
+  getWeaponTexture: mockGetWeaponTexture,
+  _resetWeaponTextureCache: vi.fn(),
+}))
 
 vi.mock("pixi.js", () => ({
   Graphics: vi.fn().mockImplementation(function () {
     return createMockGraphics()
+  }),
+  Sprite: vi.fn().mockImplementation(function () {
+    return createMockSprite()
   }),
   Container: vi.fn().mockImplementation(function () {
     return {
@@ -106,6 +159,9 @@ describe("EventLayer", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGraphicsInstances.length = 0
+    mockSpriteInstances.length = 0
+    mockGetWeaponTexture.mockReset()
+    mockGetWeaponTexture.mockReturnValue(null)
     container = createMockContainer()
     layer = new EventLayer(container as never)
   })
@@ -517,6 +573,107 @@ describe("EventLayer", () => {
       // expires; the smoke detonation activates as a separate effect.
       layer.update(132, mockCalibration)
       expect(trajectoryGraphics.removeFromParent).toHaveBeenCalled()
+    })
+
+    it("renders the weapon sprite at the head once the texture loads", () => {
+      const fakeTexture = { width: 32, height: 32 }
+      mockGetWeaponTexture.mockImplementation((w) =>
+        w === "HE Grenade" ? fakeTexture : null,
+      )
+
+      layer.setEvents([
+        makeEvent({
+          id: "throw",
+          event_type: "grenade_throw",
+          tick: 100,
+          weapon: "HE Grenade",
+          x: 0,
+          y: 0,
+          extra_data: { entity_id: 42 },
+        }),
+        makeEvent({
+          id: "detonate",
+          event_type: "grenade_detonate",
+          tick: 130,
+          weapon: "HE Grenade",
+          x: 100,
+          y: 100,
+          extra_data: { entity_id: 42 },
+        }),
+      ])
+
+      layer.update(115, mockCalibration)
+
+      // A sprite was acquired alongside Graphics for the trajectory.
+      expect(mockSpriteInstances.length).toBe(1)
+      const sprite = mockSpriteInstances[0]
+      expect(sprite.texture).toBe(fakeTexture)
+      expect(sprite.scale.set).toHaveBeenCalled()
+      expect(sprite.visible).toBe(true)
+
+      // No fallback dot when the texture is ready — only the trail stroke.
+      const g = mockGraphicsInstances[0]
+      expect(g.fill).not.toHaveBeenCalled()
+      expect(g.stroke).toHaveBeenCalled()
+    })
+
+    it("falls back to a colored dot while the texture is still loading", () => {
+      mockGetWeaponTexture.mockReturnValue(null)
+
+      layer.setEvents([
+        makeEvent({
+          id: "throw",
+          event_type: "grenade_throw",
+          tick: 100,
+          weapon: "HE Grenade",
+          x: 0,
+          y: 0,
+          extra_data: { entity_id: 42 },
+        }),
+        makeEvent({
+          id: "detonate",
+          event_type: "grenade_detonate",
+          tick: 130,
+          weapon: "HE Grenade",
+          x: 100,
+          y: 100,
+          extra_data: { entity_id: 42 },
+        }),
+      ])
+
+      layer.update(115, mockCalibration)
+
+      const g = mockGraphicsInstances[0]
+      expect(g.circle).toHaveBeenCalled()
+      expect(g.fill).toHaveBeenCalled()
+      const sprite = mockSpriteInstances[0]
+      expect(sprite.visible).toBe(false)
+    })
+
+    it("releases both graphics and sprite when the trajectory expires", () => {
+      layer.setEvents([
+        makeEvent({
+          id: "throw",
+          event_type: "grenade_throw",
+          tick: 100,
+          weapon: "HE Grenade",
+          extra_data: { entity_id: 42 },
+        }),
+        makeEvent({
+          id: "detonate",
+          event_type: "grenade_detonate",
+          tick: 130,
+          weapon: "HE Grenade",
+          extra_data: { entity_id: 42 },
+        }),
+      ])
+      layer.update(100, mockCalibration)
+      const g = mockGraphicsInstances[0]
+      const sprite = mockSpriteInstances[0]
+
+      layer.update(130, mockCalibration)
+      expect(g.removeFromParent).toHaveBeenCalled()
+      expect(sprite.removeFromParent).toHaveBeenCalled()
     })
 
     it("includes bounce points so the path passes through them", () => {

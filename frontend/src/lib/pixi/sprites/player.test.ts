@@ -26,6 +26,17 @@ type MockText = {
   height: number
   anchor: { set: ReturnType<typeof vi.fn> }
   destroy: ReturnType<typeof vi.fn>
+  visible: boolean
+  x: number
+  y: number
+}
+
+type MockSprite = {
+  texture: { width: number; height: number } | null
+  anchor: { set: ReturnType<typeof vi.fn> }
+  scale: { set: ReturnType<typeof vi.fn> }
+  destroy: ReturnType<typeof vi.fn>
+  visible: boolean
   x: number
   y: number
 }
@@ -47,6 +58,8 @@ const {
   createMockGraphics,
   mockTextInstances,
   createMockText,
+  mockSpriteInstances,
+  createMockSprite,
   mockContainerInstances,
   createMockContainer,
 } = vi.hoisted(() => {
@@ -81,10 +94,26 @@ const {
       height: 12,
       anchor: { set: vi.fn() },
       destroy: vi.fn(),
+      visible: true,
       x: 0,
       y: 0,
     }
     mockTextInstances.push(instance)
+    return instance
+  }
+
+  const mockSpriteInstances: MockSprite[] = []
+  const createMockSprite = (): MockSprite => {
+    const instance: MockSprite = {
+      texture: null,
+      anchor: { set: vi.fn() },
+      scale: { set: vi.fn() },
+      destroy: vi.fn(),
+      visible: true,
+      x: 0,
+      y: 0,
+    }
+    mockSpriteInstances.push(instance)
     return instance
   }
 
@@ -110,10 +139,23 @@ const {
     createMockGraphics,
     mockTextInstances,
     createMockText,
+    mockSpriteInstances,
+    createMockSprite,
     mockContainerInstances,
     createMockContainer,
   }
 })
+
+const { mockGetWeaponTexture } = vi.hoisted(() => ({
+  mockGetWeaponTexture: vi.fn<(name: string | null) => unknown | null>(
+    () => null,
+  ),
+}))
+
+vi.mock("./weapon-textures", () => ({
+  getWeaponTexture: mockGetWeaponTexture,
+  _resetWeaponTextureCache: vi.fn(),
+}))
 
 vi.mock("pixi.js", () => ({
   Container: vi.fn().mockImplementation(function () {
@@ -125,6 +167,10 @@ vi.mock("pixi.js", () => ({
   Text: vi.fn().mockImplementation(function () {
     return createMockText()
   }),
+  Sprite: vi.fn().mockImplementation(function () {
+    return createMockSprite()
+  }),
+  Texture: { EMPTY: { width: 1, height: 1 } },
 }))
 
 import { MAP_TEST_COORDINATES } from "@/lib/maps/__tests__/fixtures/coordinate-pairs"
@@ -237,15 +283,18 @@ describe("PlayerSprite", () => {
       health: 100,
       isAlive: true,
       isSelected: false,
-      weaponLabel: null,
+      weapon: null,
       ...overrides,
     }
   }
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetWeaponTexture.mockReset()
+    mockGetWeaponTexture.mockReturnValue(null)
     mockGraphicsInstances.length = 0
     mockTextInstances.length = 0
+    mockSpriteInstances.length = 0
     mockContainerInstances.length = 0
     sprite = new PlayerSprite()
   })
@@ -260,7 +309,8 @@ describe("PlayerSprite", () => {
 
     it("adds all child graphics and label to the container", () => {
       const container = mockContainerInstances[0]
-      // body + pointer + deathMarker + selectionRing + damageRing + healthBar + nameLabel + weaponLabel = 8
+      // body + pointer + deathMarker + selectionRing + damageRing + healthBar
+      // + nameLabel + weaponSprite = 8
       expect(container.addChild).toHaveBeenCalledTimes(8)
     })
 
@@ -438,6 +488,41 @@ describe("PlayerSprite", () => {
       sprite.update(defaults({ health: 80 }))
       expect(mockGraphicsInstances[DAMAGE_RING].visible).toBe(true)
       expect(mockGraphicsInstances[DAMAGE_RING].alpha).toBeGreaterThan(0)
+    })
+  })
+
+  describe("weapon sprite", () => {
+    function getWeaponSprite() {
+      return mockSpriteInstances[0]
+    }
+
+    it("starts hidden", () => {
+      expect(getWeaponSprite().visible).toBe(false)
+    })
+
+    it("hides weapon sprite when player has no weapon", () => {
+      mockGetWeaponTexture.mockReturnValue({ width: 88, height: 32 })
+      sprite.update(defaults({ weapon: null }))
+      expect(getWeaponSprite().visible).toBe(false)
+    })
+
+    it("hides weapon sprite when player is dead", () => {
+      mockGetWeaponTexture.mockReturnValue({ width: 88, height: 32 })
+      sprite.update(defaults({ weapon: "AK-47", isAlive: false }))
+      expect(getWeaponSprite().visible).toBe(false)
+    })
+
+    it("shows weapon sprite once the texture finishes loading", () => {
+      // First tick: still loading → null → sprite stays hidden
+      mockGetWeaponTexture.mockReturnValueOnce(null)
+      sprite.update(defaults({ weapon: "AK-47" }))
+      expect(getWeaponSprite().visible).toBe(false)
+
+      // Subsequent tick: texture is now in cache
+      mockGetWeaponTexture.mockReturnValueOnce({ width: 88, height: 32 })
+      sprite.update(defaults({ weapon: "AK-47" }))
+      expect(getWeaponSprite().visible).toBe(true)
+      expect(getWeaponSprite().texture).toEqual({ width: 88, height: 32 })
     })
   })
 
