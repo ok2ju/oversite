@@ -145,6 +145,7 @@ function PlayerRow({
           {player.name}
         </span>
       </div>
+      <HealthRow data={data} side={side} />
       <div
         className={cn(
           "flex items-center justify-between gap-2 px-2 py-0.5",
@@ -155,6 +156,72 @@ function PlayerRow({
           {moneyText}
         </span>
         <LoadoutIcons data={data} side={side} />
+      </div>
+    </div>
+  )
+}
+
+function getHealthBarClass(health: number): string {
+  if (health > 60) return "bg-emerald-500"
+  if (health > 30) return "bg-yellow-500"
+  return "bg-red-500"
+}
+
+function getHealthTextClass(health: number): string {
+  if (health > 60) return "text-emerald-400"
+  if (health > 30) return "text-yellow-400"
+  return "text-red-400"
+}
+
+function HealthRow({ data, side }: { data: TickData | null; side: TeamSide }) {
+  if (!data) return null
+  const health = Math.max(0, Math.min(100, data.health))
+  const armor = Math.max(0, Math.min(100, data.armor))
+  const isCt = side === "CT"
+  const fillPct = `${health}%`
+
+  return (
+    <div
+      data-testid={`team-bar-health-${data.steam_id}`}
+      className={cn(
+        "flex items-center gap-2 px-2 py-1",
+        isCt ? "flex-row" : "flex-row-reverse",
+      )}
+    >
+      <span
+        className={cn(
+          "w-7 shrink-0 font-mono tabular-nums",
+          getHealthTextClass(health),
+          isCt ? "text-left" : "text-right",
+        )}
+      >
+        {health}
+      </span>
+      <div className="relative h-1.5 flex-1 overflow-hidden rounded-sm bg-zinc-800/80">
+        <div
+          data-testid={`team-bar-health-fill-${data.steam_id}`}
+          className={cn(
+            "h-full transition-[width] duration-150 ease-out",
+            getHealthBarClass(health),
+            !isCt && "ml-auto",
+          )}
+          style={{ width: fillPct }}
+        />
+      </div>
+      <div
+        className={cn(
+          "flex w-9 shrink-0 items-center gap-0.5 font-mono tabular-nums text-white/70",
+          isCt ? "flex-row justify-end" : "flex-row-reverse justify-end",
+        )}
+        title={`Armor ${armor}`}
+      >
+        <Shield
+          className={cn(
+            "h-3 w-3",
+            armor > 0 ? "text-sky-300" : "text-white/30",
+          )}
+        />
+        <span className="text-[10px]">{armor}</span>
       </div>
     </div>
   )

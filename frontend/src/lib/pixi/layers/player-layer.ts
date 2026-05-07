@@ -70,6 +70,7 @@ export class PlayerLayer {
         yaw,
         team,
         name,
+        health: cur.health,
         isAlive: cur.is_alive,
         isSelected: cur.steam_id === selectedSteamId,
       })

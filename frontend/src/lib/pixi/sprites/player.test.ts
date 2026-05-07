@@ -15,6 +15,7 @@ type MockGraphics = {
   destroy: ReturnType<typeof vi.fn>
   visible: boolean
   rotation: number
+  alpha: number
   x: number
   y: number
 }
@@ -64,6 +65,7 @@ const {
       destroy: vi.fn(),
       visible: true,
       rotation: 0,
+      alpha: 1,
       x: 0,
       y: 0,
     }
@@ -131,6 +133,7 @@ import { worldToPixel } from "@/lib/maps/calibration"
 import {
   getTeamColor,
   getTeamOutlineColor,
+  getHealthColor,
   yawToRadians,
   PlayerSprite,
 } from "./player"
@@ -190,6 +193,23 @@ describe("worldToPixel (de_dust2 landmarks)", () => {
   })
 })
 
+describe("getHealthColor", () => {
+  it("returns green when health is above 60", () => {
+    expect(getHealthColor(100)).toBe(0x22c55e)
+    expect(getHealthColor(61)).toBe(0x22c55e)
+  })
+
+  it("returns yellow when health is between 31 and 60", () => {
+    expect(getHealthColor(60)).toBe(0xeab308)
+    expect(getHealthColor(31)).toBe(0xeab308)
+  })
+
+  it("returns red when health is 30 or below", () => {
+    expect(getHealthColor(30)).toBe(0xef4444)
+    expect(getHealthColor(1)).toBe(0xef4444)
+  })
+})
+
 describe("PlayerSprite", () => {
   let sprite: PlayerSprite
 
@@ -198,10 +218,28 @@ describe("PlayerSprite", () => {
   //   1: pointer (direction triangle)
   //   2: deathMarker
   //   3: selectionRing
+  //   4: healthBar
+  //   5: damageRing
   const BODY = 0
   const POINTER = 1
   const DEATH_MARKER = 2
   const SELECTION_RING = 3
+  const HEALTH_BAR = 4
+  const DAMAGE_RING = 5
+
+  function defaults(overrides: Record<string, unknown> = {}) {
+    return {
+      x: 0,
+      y: 0,
+      yaw: 0,
+      team: "CT" as const,
+      name: "p",
+      health: 100,
+      isAlive: true,
+      isSelected: false,
+      ...overrides,
+    }
+  }
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -221,8 +259,8 @@ describe("PlayerSprite", () => {
 
     it("adds all child graphics and label to the container", () => {
       const container = mockContainerInstances[0]
-      // body + pointer + deathMarker + selectionRing + nameLabel = 5
-      expect(container.addChild).toHaveBeenCalledTimes(5)
+      // body + pointer + deathMarker + selectionRing + damageRing + healthBar + nameLabel = 7
+      expect(container.addChild).toHaveBeenCalledTimes(7)
     })
 
     it("exposes the container as a public property", () => {
@@ -251,190 +289,154 @@ describe("PlayerSprite", () => {
 
   describe("update()", () => {
     it("sets container x and y position", () => {
-      sprite.update({
-        x: 100,
-        y: 200,
-        yaw: 0,
-        team: "CT",
-        name: "player1",
-        isAlive: true,
-        isSelected: false,
-      })
+      sprite.update(defaults({ x: 100, y: 200, name: "player1" }))
       const container = mockContainerInstances[0]
       expect(container.x).toBe(100)
       expect(container.y).toBe(200)
     })
 
     it("sets alpha 1.0 for alive player", () => {
-      sprite.update({
-        x: 0,
-        y: 0,
-        yaw: 0,
-        team: "CT",
-        name: "p",
-        isAlive: true,
-        isSelected: false,
-      })
+      sprite.update(defaults({ isAlive: true }))
       expect(mockContainerInstances[0].alpha).toBe(1.0)
     })
 
     it("sets alpha 0.3 for dead player", () => {
-      sprite.update({
-        x: 0,
-        y: 0,
-        yaw: 0,
-        team: "CT",
-        name: "p",
-        isAlive: false,
-        isSelected: false,
-      })
+      sprite.update(defaults({ isAlive: false }))
       expect(mockContainerInstances[0].alpha).toBe(0.3)
     })
 
     it("shows death marker when dead", () => {
-      sprite.update({
-        x: 0,
-        y: 0,
-        yaw: 0,
-        team: "CT",
-        name: "p",
-        isAlive: false,
-        isSelected: false,
-      })
+      sprite.update(defaults({ isAlive: false }))
       expect(mockGraphicsInstances[DEATH_MARKER].visible).toBe(true)
     })
 
     it("hides death marker when alive", () => {
-      sprite.update({
-        x: 0,
-        y: 0,
-        yaw: 0,
-        team: "CT",
-        name: "p",
-        isAlive: true,
-        isSelected: false,
-      })
+      sprite.update(defaults({ isAlive: true }))
       expect(mockGraphicsInstances[DEATH_MARKER].visible).toBe(false)
     })
 
     it("shows selection ring when selected", () => {
-      sprite.update({
-        x: 0,
-        y: 0,
-        yaw: 0,
-        team: "CT",
-        name: "p",
-        isAlive: true,
-        isSelected: true,
-      })
+      sprite.update(defaults({ isSelected: true }))
       expect(mockGraphicsInstances[SELECTION_RING].visible).toBe(true)
     })
 
     it("hides selection ring when not selected", () => {
-      sprite.update({
-        x: 0,
-        y: 0,
-        yaw: 0,
-        team: "CT",
-        name: "p",
-        isAlive: true,
-        isSelected: false,
-      })
+      sprite.update(defaults({ isSelected: false }))
       expect(mockGraphicsInstances[SELECTION_RING].visible).toBe(false)
     })
 
     it("draws body as a circle filled with CT team color", () => {
-      sprite.update({
-        x: 0,
-        y: 0,
-        yaw: 0,
-        team: "CT",
-        name: "p",
-        isAlive: true,
-        isSelected: false,
-      })
+      sprite.update(defaults({ team: "CT" }))
       const body = mockGraphicsInstances[BODY]
       expect(body.circle).toHaveBeenCalled()
       expect(body.fill).toHaveBeenCalledWith(0x5b9bd5)
     })
 
     it("draws body as a circle filled with T team color", () => {
-      sprite.update({
-        x: 0,
-        y: 0,
-        yaw: 0,
-        team: "T",
-        name: "p",
-        isAlive: true,
-        isSelected: false,
-      })
+      sprite.update(defaults({ team: "T" }))
       const body = mockGraphicsInstances[BODY]
       expect(body.circle).toHaveBeenCalled()
       expect(body.fill).toHaveBeenCalledWith(0xe67e22)
     })
 
     it("strokes body with darker team outline", () => {
-      sprite.update({
-        x: 0,
-        y: 0,
-        yaw: 0,
-        team: "CT",
-        name: "p",
-        isAlive: true,
-        isSelected: false,
-      })
+      sprite.update(defaults({ team: "CT" }))
       expect(mockGraphicsInstances[BODY].stroke).toHaveBeenCalledWith(
         expect.objectContaining({ color: 0x1e3a5f }),
       )
     })
 
     it("sets the name label text", () => {
-      sprite.update({
-        x: 0,
-        y: 0,
-        yaw: 0,
-        team: "CT",
-        name: "mezii",
-        isAlive: true,
-        isSelected: false,
-      })
+      sprite.update(defaults({ name: "mezii" }))
       expect(mockTextInstances[0].text).toBe("mezii")
     })
 
     it("rotates the pointer based on yaw", () => {
-      sprite.update({
-        x: 0,
-        y: 0,
-        yaw: 90,
-        team: "CT",
-        name: "p",
-        isAlive: true,
-        isSelected: false,
-      })
+      sprite.update(defaults({ yaw: 90 }))
       expect(mockGraphicsInstances[POINTER].rotation).toBeCloseTo(-Math.PI / 2)
     })
 
     it("transitions alive to dead correctly", () => {
-      sprite.update({
-        x: 0,
-        y: 0,
-        yaw: 0,
-        team: "CT",
-        name: "p",
-        isAlive: true,
-        isSelected: false,
-      })
-      sprite.update({
-        x: 0,
-        y: 0,
-        yaw: 0,
-        team: "CT",
-        name: "p",
-        isAlive: false,
-        isSelected: false,
-      })
+      sprite.update(defaults({ isAlive: true }))
+      sprite.update(defaults({ isAlive: false }))
       expect(mockContainerInstances[0].alpha).toBe(0.3)
       expect(mockGraphicsInstances[DEATH_MARKER].visible).toBe(true)
+    })
+  })
+
+  describe("health bar", () => {
+    it("shows the bar when player is alive with HP > 0", () => {
+      sprite.update(defaults({ health: 100, isAlive: true }))
+      expect(mockGraphicsInstances[HEALTH_BAR].visible).toBe(true)
+    })
+
+    it("hides the bar when player is dead", () => {
+      sprite.update(defaults({ health: 0, isAlive: false }))
+      expect(mockGraphicsInstances[HEALTH_BAR].visible).toBe(false)
+    })
+
+    it("hides the bar when health is 0 even if marked alive", () => {
+      sprite.update(defaults({ health: 0, isAlive: true }))
+      expect(mockGraphicsInstances[HEALTH_BAR].visible).toBe(false)
+    })
+
+    it("fills the bar with green when HP is high", () => {
+      sprite.update(defaults({ health: 100 }))
+      expect(mockGraphicsInstances[HEALTH_BAR].fill).toHaveBeenCalledWith(
+        0x22c55e,
+      )
+    })
+
+    it("fills the bar with yellow when HP is medium", () => {
+      sprite.update(defaults({ health: 50 }))
+      expect(mockGraphicsInstances[HEALTH_BAR].fill).toHaveBeenCalledWith(
+        0xeab308,
+      )
+    })
+
+    it("fills the bar with red when HP is low", () => {
+      sprite.update(defaults({ health: 20 }))
+      expect(mockGraphicsInstances[HEALTH_BAR].fill).toHaveBeenCalledWith(
+        0xef4444,
+      )
+    })
+
+    it("redraws the bar when health changes", () => {
+      sprite.update(defaults({ health: 100 }))
+      const bar = mockGraphicsInstances[HEALTH_BAR]
+      const callsBefore = bar.clear.mock.calls.length
+      sprite.update(defaults({ health: 60 }))
+      expect(bar.clear.mock.calls.length).toBeGreaterThan(callsBefore)
+    })
+  })
+
+  describe("damage ring", () => {
+    it("starts hidden", () => {
+      expect(mockGraphicsInstances[DAMAGE_RING].visible).toBe(false)
+    })
+
+    it("does not flash on the first update (no prior baseline)", () => {
+      sprite.update(defaults({ health: 100 }))
+      expect(mockGraphicsInstances[DAMAGE_RING].visible).toBe(false)
+    })
+
+    it("does not flash when health stays the same", () => {
+      sprite.update(defaults({ health: 100 }))
+      sprite.update(defaults({ health: 100 }))
+      expect(mockGraphicsInstances[DAMAGE_RING].visible).toBe(false)
+    })
+
+    it("does not flash when health increases (respawn / heal)", () => {
+      sprite.update(defaults({ health: 30 }))
+      sprite.update(defaults({ health: 100 }))
+      expect(mockGraphicsInstances[DAMAGE_RING].visible).toBe(false)
+    })
+
+    it("becomes visible when health drops between updates", () => {
+      sprite.update(defaults({ health: 100 }))
+      sprite.update(defaults({ health: 80 }))
+      expect(mockGraphicsInstances[DAMAGE_RING].visible).toBe(true)
+      expect(mockGraphicsInstances[DAMAGE_RING].alpha).toBeGreaterThan(0)
     })
   })
 

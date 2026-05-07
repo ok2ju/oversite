@@ -21,18 +21,34 @@ const SELECTION_RING_RADIUS = 18
 const LABEL_OFFSET_Y = 22
 const LABEL_FONT_SIZE = 13
 
+const HEALTH_BAR_WIDTH = 22
+const HEALTH_BAR_HEIGHT = 3
+const HEALTH_BAR_OFFSET_Y = -(BODY_RADIUS + 6)
+const DAMAGE_RING_RADIUS = BODY_RADIUS + 4
+const DAMAGE_FLASH_DURATION_MS = 450
+
+export function getHealthColor(health: number): number {
+  if (health > 60) return 0x22c55e
+  if (health > 30) return 0xeab308
+  return 0xef4444
+}
+
 export class PlayerSprite {
   container: Container
   private body: Graphics
   private pointer: Graphics
   private deathMarker: Graphics
   private selectionRing: Graphics
+  private healthBar: Graphics
+  private damageRing: Graphics
   private nameLabel: Text
 
   private _team: TeamSide | null = null
   private _isAlive: boolean | null = null
   private _isSelected: boolean | null = null
   private _name: string | null = null
+  private _health: number | null = null
+  private _damageFlashEnd = 0
 
   constructor() {
     this.container = new Container()
@@ -66,6 +82,16 @@ export class PlayerSprite {
       .stroke({ color: 0xffffff, width: 2 })
     this.selectionRing.visible = false
 
+    this.healthBar = new Graphics()
+    this.healthBar.visible = false
+
+    this.damageRing = new Graphics()
+    this.damageRing
+      .circle(0, 0, DAMAGE_RING_RADIUS)
+      .stroke({ color: 0xff3030, width: 2.5 })
+    this.damageRing.visible = false
+    this.damageRing.alpha = 0
+
     this.nameLabel = new Text({
       text: "",
       style: {
@@ -88,6 +114,8 @@ export class PlayerSprite {
     this.container.addChild(this.pointer)
     this.container.addChild(this.deathMarker)
     this.container.addChild(this.selectionRing)
+    this.container.addChild(this.damageRing)
+    this.container.addChild(this.healthBar)
     this.container.addChild(this.nameLabel)
   }
 
@@ -99,12 +127,36 @@ export class PlayerSprite {
       .stroke({ color: getTeamOutlineColor(team), width: OUTLINE_WIDTH })
   }
 
+  private drawHealthBar(health: number): void {
+    this.healthBar.clear()
+    if (health <= 0) return
+
+    const clamped = Math.min(100, Math.max(0, health))
+    const fillWidth = (clamped / 100) * HEALTH_BAR_WIDTH
+    const x = -HEALTH_BAR_WIDTH / 2
+
+    this.healthBar
+      .roundRect(
+        x - 0.5,
+        HEALTH_BAR_OFFSET_Y - 0.5,
+        HEALTH_BAR_WIDTH + 1,
+        HEALTH_BAR_HEIGHT + 1,
+        1.5,
+      )
+      .fill({ color: 0x000000, alpha: 0.7 })
+
+    this.healthBar
+      .roundRect(x, HEALTH_BAR_OFFSET_Y, fillWidth, HEALTH_BAR_HEIGHT, 1)
+      .fill(getHealthColor(clamped))
+  }
+
   update(data: {
     x: number
     y: number
     yaw: number
     team: TeamSide
     name: string
+    health: number
     isAlive: boolean
     isSelected: boolean
   }): void {
@@ -131,6 +183,29 @@ export class PlayerSprite {
     if (data.isSelected !== this._isSelected) {
       this._isSelected = data.isSelected
       this.selectionRing.visible = data.isSelected
+    }
+
+    // Trigger a damage ring pulse when HP drops between samples. Skip on the
+    // first update (no prior baseline) and on respawn (alive=false → alive=true
+    // happens elsewhere; flash here only when health strictly decreases).
+    if (this._health !== null && data.health < this._health) {
+      this._damageFlashEnd = Date.now() + DAMAGE_FLASH_DURATION_MS
+    }
+
+    if (data.health !== this._health) {
+      this._health = data.health
+      this.drawHealthBar(data.health)
+    }
+
+    this.healthBar.visible = data.isAlive && data.health > 0
+
+    const flashRemaining = this._damageFlashEnd - Date.now()
+    if (flashRemaining > 0) {
+      this.damageRing.visible = true
+      this.damageRing.alpha = flashRemaining / DAMAGE_FLASH_DURATION_MS
+    } else if (this.damageRing.visible) {
+      this.damageRing.visible = false
+      this.damageRing.alpha = 0
     }
   }
 
