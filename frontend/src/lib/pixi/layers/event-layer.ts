@@ -8,17 +8,23 @@ import {
   HE_DURATION_TICKS,
   FLASH_DURATION_TICKS,
   SMOKE_DURATION_TICKS,
+  FIRE_DURATION_TICKS,
   BOMB_DEFUSE_TICKS,
   BOMB_DEFUSE_KIT_TICKS,
   SMOKE_RADIUS,
   FLASH_RADIUS,
+  FIRE_RADIUS,
   BOMB_ICON_RADIUS,
   SHOT_TRACER_LENGTH,
+  GRENADE_ICON_RADIUS,
+  GRENADE_TRAIL_ALPHA,
   COLOR_KILL,
   COLOR_SHOT,
   COLOR_SMOKE,
   COLOR_HE,
   COLOR_FLASH,
+  COLOR_FIRE,
+  COLOR_GRENADE_DEFAULT,
   COLOR_BOMB_PLANT,
   COLOR_BOMB_DEFUSE,
   computeKillState,
@@ -26,10 +32,15 @@ import {
   computeSmokeState,
   computeHEState,
   computeFlashState,
+  computeFireState,
+  computeGrenadeTrajectoryState,
   computeBombPlantState,
   computeBombDefuseState,
+  grenadeColor,
+  interpolateTrajectory,
   worldRadiusToPixel,
   type EffectState,
+  type TrajectoryWaypoint,
 } from "../sprites/effects"
 
 // ---------------------------------------------------------------------------
@@ -42,6 +53,8 @@ type EffectType =
   | "smoke"
   | "he"
   | "flash"
+  | "fire"
+  | "grenade_traj"
   | "bomb_plant"
   | "bomb_defuse"
 
@@ -58,6 +71,10 @@ interface ScheduledEffect {
   hitY?: number
   hasKit?: boolean
   smokeDuration?: number
+  // Grenade trajectory: ordered waypoints from throw → bounces → detonation,
+  // and the rendering color picked by grenadeColor().
+  waypoints?: readonly TrajectoryWaypoint[]
+  color?: number
 }
 
 interface ActiveEffect {
@@ -246,6 +263,72 @@ function drawBombDefuse(
     .fill({ color: COLOR_BOMB_DEFUSE, alpha: state.progress })
 }
 
+function drawFire(
+  g: Graphics,
+  state: EffectState,
+  effect: ScheduledEffect,
+  calibration: MapCalibration,
+): void {
+  const p = worldToPixel({ x: effect.x, y: effect.y }, calibration)
+  const r = worldRadiusToPixel(FIRE_RADIUS, calibration.scale)
+  g.clear().circle(p.x, p.y, r).fill({ color: COLOR_FIRE, alpha: state.alpha })
+}
+
+// Renders an in-flight grenade as a colored dot moving along its trajectory,
+// trailed by a faint line through the bounce points it has already passed.
+// Position is lerped between waypoints so the dot doesn't teleport at bounces.
+function drawGrenadeTrajectory(
+  g: Graphics,
+  state: EffectState,
+  effect: ScheduledEffect,
+  calibration: MapCalibration,
+  tickOffset: number,
+): void {
+  const waypoints = effect.waypoints
+  if (!waypoints || waypoints.length === 0) return
+
+  const currentTick = effect.startTick + tickOffset
+  const {
+    x: wx,
+    y: wy,
+    segmentIndex,
+  } = interpolateTrajectory(waypoints, currentTick)
+  const color = effect.color ?? COLOR_GRENADE_DEFAULT
+
+  g.clear()
+
+  // Trail through completed waypoints + partial segment to the current head.
+  if (waypoints.length > 1) {
+    const start = worldToPixel(
+      { x: waypoints[0].x, y: waypoints[0].y },
+      calibration,
+    )
+    g.moveTo(start.x, start.y)
+    for (let i = 1; i <= segmentIndex; i++) {
+      const p = worldToPixel(
+        { x: waypoints[i].x, y: waypoints[i].y },
+        calibration,
+      )
+      g.lineTo(p.x, p.y)
+    }
+    const head = worldToPixel({ x: wx, y: wy }, calibration)
+    g.lineTo(head.x, head.y)
+    g.stroke({
+      color,
+      width: 1,
+      alpha: state.alpha * GRENADE_TRAIL_ALPHA,
+    })
+  }
+
+  // Current grenade position — fixed pixel-space radius so the icon stays
+  // legible regardless of zoom level.
+  const head = worldToPixel({ x: wx, y: wy }, calibration)
+  g.circle(head.x, head.y, GRENADE_ICON_RADIUS).fill({
+    color,
+    alpha: state.alpha,
+  })
+}
+
 function computeState(
   effect: ScheduledEffect,
   tickOffset: number,
@@ -264,6 +347,10 @@ function computeState(
       return computeHEState(tickOffset)
     case "flash":
       return computeFlashState(tickOffset)
+    case "fire":
+      return computeFireState(tickOffset, effect.durationTicks)
+    case "grenade_traj":
+      return computeGrenadeTrajectoryState(tickOffset, effect.durationTicks)
     case "bomb_plant":
       return computeBombPlantState(tickOffset, effect.durationTicks)
     case "bomb_defuse":
@@ -276,6 +363,7 @@ function drawEffect(
   state: EffectState,
   effect: ScheduledEffect,
   calibration: MapCalibration,
+  tickOffset: number,
 ): void {
   switch (effect.type) {
     case "kill":
@@ -288,6 +376,10 @@ function drawEffect(
       return drawHE(g, state, effect, calibration)
     case "flash":
       return drawFlash(g, state, effect, calibration)
+    case "fire":
+      return drawFire(g, state, effect, calibration)
+    case "grenade_traj":
+      return drawGrenadeTrajectory(g, state, effect, calibration, tickOffset)
     case "bomb_plant":
       return drawBombPlant(g, state, effect, calibration)
     case "bomb_defuse":
@@ -298,6 +390,13 @@ function drawEffect(
 // ---------------------------------------------------------------------------
 // EventLayer
 // ---------------------------------------------------------------------------
+
+// Minimal round shape consumed by the layer — keeps EventLayer decoupled
+// from the full database row.
+export interface RoundBound {
+  start_tick: number
+  end_tick: number
+}
 
 export class EventLayer {
   private container: Container
@@ -311,9 +410,9 @@ export class EventLayer {
     this.container = container
   }
 
-  setEvents(events: GameEvent[]): void {
+  setEvents(events: GameEvent[], rounds?: readonly RoundBound[]): void {
     this.clear()
-    this.scheduled = buildScheduled(events)
+    this.scheduled = buildScheduled(events, rounds)
     this.nextIdx = 0
     this.lastTick = -1
   }
@@ -345,7 +444,7 @@ export class EventLayer {
       const tickOffset = currentTick - effect.startTick
       const state = computeState(effect, tickOffset)
       if (state.active) {
-        drawEffect(graphics, state, effect, calibration)
+        drawEffect(graphics, state, effect, calibration, tickOffset)
       } else {
         this.pool.release(graphics)
         this.active.splice(i, 1)
@@ -374,17 +473,85 @@ export class EventLayer {
 // Event preprocessing
 // ---------------------------------------------------------------------------
 
-function buildScheduled(events: GameEvent[]): ScheduledEffect[] {
-  const scheduled: ScheduledEffect[] = []
+// Normalize entity_id from extra_data to a string map key. Go's
+// Entity.ID() ships through JSON as a number, so accepting both shapes
+// keeps the pairing robust to upstream type changes.
+function entityKey(extra: GameEvent["extra_data"]): string | null {
+  const id = extra?.entity_id
+  if (typeof id === "number") return String(id)
+  if (typeof id === "string") return id
+  return null
+}
 
-  // Index smoke_expired events by entity_id for pairing
-  const smokeExpired = new Map<string, number>() // entity_id → tick
-  for (const e of events) {
-    if (e.event_type === "smoke_expired") {
-      const entityId = e.extra_data?.entity_id
-      if (typeof entityId === "string") {
-        smokeExpired.set(entityId, e.tick)
+// Locate the index of the round containing `tick` (or the round it most
+// recently entered). Returns -1 when the tick is before any round, e.g.
+// warmup events.
+function findRoundIndex(rounds: readonly RoundBound[], tick: number): number {
+  for (let i = rounds.length - 1; i >= 0; i--) {
+    if (tick >= rounds[i].start_tick) return i
+  }
+  return -1
+}
+
+function buildScheduled(
+  events: GameEvent[],
+  rounds?: readonly RoundBound[],
+): ScheduledEffect[] {
+  const scheduled: ScheduledEffect[] = []
+  const haveRounds = !!rounds && rounds.length > 0
+
+  // Cap each effect's duration so it cannot outlive the round that started
+  // it. Without this, smokes (~18 s) and molotov fires (~7 s) thrown near
+  // round-end would persist into the next round's freeze time, mismatching
+  // CS2's own world cleanup. Trajectories are normally short enough not to
+  // matter, but the cap defends against any throw-without-detonation slip.
+  const cap = (effect: ScheduledEffect): ScheduledEffect => {
+    if (!haveRounds || !rounds) return effect
+    const idx = findRoundIndex(rounds, effect.startTick)
+    if (idx < 0) return effect
+    const maxDuration = rounds[idx].end_tick - effect.startTick
+    if (maxDuration > 0 && maxDuration < effect.durationTicks) {
+      return {
+        ...effect,
+        durationTicks: maxDuration,
+        // Keep smokeDuration consistent so the alpha curve still fades in/out
+        // proportionally over the (now shorter) visible window.
+        ...(effect.type === "smoke" && { smokeDuration: maxDuration }),
       }
+    }
+    return effect
+  }
+
+  // First pass: index pairing data by entity_id.
+  //   - smokeExpired: terminating tick for active smoke clouds
+  //   - bounces: ordered list of in-flight bounce points
+  //   - terminations: the event that ended the projectile (detonate /
+  //     smoke_start / fire_start / decoy_start), used to bookend trajectories
+  const smokeExpired = new Map<string, number>()
+  const bounces = new Map<string, GameEvent[]>()
+  const terminations = new Map<string, GameEvent>()
+
+  for (const e of events) {
+    const key = entityKey(e.extra_data)
+    if (!key) continue
+    switch (e.event_type) {
+      case "smoke_expired":
+        smokeExpired.set(key, e.tick)
+        break
+      case "grenade_bounce": {
+        const arr = bounces.get(key)
+        if (arr) arr.push(e)
+        else bounces.set(key, [e])
+        break
+      }
+      case "grenade_detonate":
+      case "smoke_start":
+      case "fire_start":
+      case "decoy_start":
+        // Each entity has at most one terminating event, but if a demo somehow
+        // surfaces duplicates we keep the first to bound the trajectory tightly.
+        if (!terminations.has(key)) terminations.set(key, e)
+        break
     }
   }
 
@@ -410,7 +577,7 @@ function buildScheduled(events: GameEvent[]): ScheduledEffect[] {
           effect.attackerX = extra.attacker_x
           effect.attackerY = extra.attacker_y
         }
-        scheduled.push(effect)
+        scheduled.push(cap(effect))
         break
       }
       case "weapon_fire": {
@@ -430,70 +597,126 @@ function buildScheduled(events: GameEvent[]): ScheduledEffect[] {
           effect.hitX = hitXRaw
           effect.hitY = hitYRaw
         }
-        scheduled.push(effect)
+        scheduled.push(cap(effect))
+        break
+      }
+      case "grenade_throw": {
+        const key = entityKey(e.extra_data)
+        if (!key) break
+        const term = terminations.get(key)
+        // Skip orphaned throws (demo truncated mid-flight) — without an
+        // endpoint we can't bound the duration, and rendering a forever-flying
+        // grenade would be worse than rendering nothing.
+        if (!term) break
+        if (term.tick <= e.tick) break
+
+        const segs = bounces.get(key) ?? []
+        const waypoints: TrajectoryWaypoint[] = [
+          { tick: e.tick, x, y },
+          ...segs.map((b) => ({
+            tick: b.tick,
+            x: b.x ?? 0,
+            y: b.y ?? 0,
+          })),
+          { tick: term.tick, x: term.x ?? 0, y: term.y ?? 0 },
+        ]
+        scheduled.push(
+          cap({
+            type: "grenade_traj",
+            startTick: e.tick,
+            durationTicks: term.tick - e.tick,
+            x,
+            y,
+            waypoints,
+            color: grenadeColor(e.weapon),
+          }),
+        )
         break
       }
       case "smoke_start": {
-        const entityId = e.extra_data?.entity_id
+        const key = entityKey(e.extra_data)
         let smokeDuration = SMOKE_DURATION_TICKS
-        if (typeof entityId === "string" && smokeExpired.has(entityId)) {
-          smokeDuration = smokeExpired.get(entityId)! - e.tick
+        if (key && smokeExpired.has(key)) {
+          smokeDuration = smokeExpired.get(key)! - e.tick
         }
-        scheduled.push({
-          type: "smoke",
-          startTick: e.tick,
-          durationTicks: smokeDuration,
-          smokeDuration,
-          x,
-          y,
-        })
+        scheduled.push(
+          cap({
+            type: "smoke",
+            startTick: e.tick,
+            durationTicks: smokeDuration,
+            smokeDuration,
+            x,
+            y,
+          }),
+        )
+        break
+      }
+      case "fire_start": {
+        scheduled.push(
+          cap({
+            type: "fire",
+            startTick: e.tick,
+            durationTicks: FIRE_DURATION_TICKS,
+            x,
+            y,
+          }),
+        )
         break
       }
       case "grenade_detonate": {
         if (e.weapon === "HE Grenade") {
-          scheduled.push({
-            type: "he",
-            startTick: e.tick,
-            durationTicks: HE_DURATION_TICKS,
-            x,
-            y,
-          })
+          scheduled.push(
+            cap({
+              type: "he",
+              startTick: e.tick,
+              durationTicks: HE_DURATION_TICKS,
+              x,
+              y,
+            }),
+          )
         } else if (e.weapon === "Flashbang") {
-          scheduled.push({
-            type: "flash",
-            startTick: e.tick,
-            durationTicks: FLASH_DURATION_TICKS,
-            x,
-            y,
-          })
+          scheduled.push(
+            cap({
+              type: "flash",
+              startTick: e.tick,
+              durationTicks: FLASH_DURATION_TICKS,
+              x,
+              y,
+            }),
+          )
         }
         break
       }
       case "bomb_plant": {
-        scheduled.push({
-          type: "bomb_plant",
-          startTick: e.tick,
-          // Bomb plant stays visible until defused/exploded; use defuse time as upper bound
-          durationTicks: BOMB_DEFUSE_TICKS,
-          x,
-          y,
-        })
+        scheduled.push(
+          cap({
+            type: "bomb_plant",
+            startTick: e.tick,
+            // Bomb plant stays visible until defused/exploded; use defuse time as upper bound
+            durationTicks: BOMB_DEFUSE_TICKS,
+            x,
+            y,
+          }),
+        )
         break
       }
       case "bomb_defuse": {
         const hasKit = e.extra_data?.has_kit === true
         const duration = hasKit ? BOMB_DEFUSE_KIT_TICKS : BOMB_DEFUSE_TICKS
-        scheduled.push({
-          type: "bomb_defuse",
-          startTick: e.tick,
-          durationTicks: duration,
-          hasKit,
-          x,
-          y,
-        })
+        scheduled.push(
+          cap({
+            type: "bomb_defuse",
+            startTick: e.tick,
+            durationTicks: duration,
+            hasKit,
+            x,
+            y,
+          }),
+        )
         break
       }
-      // Ignored: player_hurt, grenade_throw, smoke_expired, decoy_start, bomb_explode
+      // Ignored: player_hurt, grenade_bounce (consumed in first pass),
+      // smoke_expired, bomb_explode
       default:
         break
     }

@@ -6,6 +6,18 @@ Format: `YYYY-MM-DD — <summary>` with links to affected pages.
 
 ---
 
+## 2026-05-07 — Grenade trajectory rendering
+
+In-flight grenades now render as a colored, lerped icon with a faint trail through bounce points. Implementation spans the parser, `effects.ts`, and `EventLayer`, plus a round-end duration cap.
+
+- **Backend (`internal/demo/parser.go`):** new `GrenadeProjectileBounce` handler emits `grenade_bounce` events with `entity_id` + position. Without bounce capture the icon would teleport between throw and detonation.
+- **Frontend (`frontend/src/lib/pixi/sprites/effects.ts`):** added `progress()` lerp (from the Healey article), `interpolateTrajectory(waypoints, currentTick)`, `computeGrenadeTrajectoryState`, `computeFireState`, and `grenadeColor()` per weapon type.
+- **Frontend (`frontend/src/lib/pixi/layers/event-layer.ts`):** new `grenade_traj` + `fire` effect types. Two-pass `buildScheduled` indexes throws + bounces + terminations by `entity_id` (across `grenade_detonate` / `smoke_start` / `fire_start` / `decoy_start`), materializes a waypoint list per throw. Drawer paints a polyline through completed waypoints + a colored dot at the lerped head.
+- **Round-end cap:** `setEvents(events, rounds?)` now caps each effect's `durationTicks` to the `end_tick` of its containing round. Smokes (~18 s), molotov fires (~7 s), and late-round trajectories used to persist into the next round's freeze; the cap mirrors CS2's natural round cleanup.
+- **Side fix:** `entity_id` flows through Wails as a JSON `number`, not a `string` (Go's `Entity.ID()` is `int`). The pre-existing smoke-pairing's `typeof === "string"` check silently never matched, so smokes always used `SMOKE_DURATION_TICKS` instead of the actual `smoke_expired` tick. New `entityKey()` helper accepts both shapes.
+
+Refs: [[knowledge/demo-parser]] (updated), [[knowledge/pixijs-viewer]] (updated). Existing demos must be re-imported to populate `grenade_bounce` events. No ADR — additive feature with a localized rendering-layer decision.
+
 ## 2026-05-07 — Confirmation dialog before removing a demo
 
 Trash icon in `LibraryTable` now opens a shadcn `AlertDialog` showing the filename and a destructive Remove action; `onDelete(id)` only fires on confirm. Tests assert open / confirm / cancel paths. Refs: [[knowledge/testing]].

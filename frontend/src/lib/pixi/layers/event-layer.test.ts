@@ -63,6 +63,7 @@ import {
   SMOKE_DURATION_TICKS,
   HE_DURATION_TICKS,
   FLASH_DURATION_TICKS,
+  FIRE_DURATION_TICKS,
 } from "../sprites/effects"
 
 const mockCalibration = {
@@ -443,6 +444,271 @@ describe("EventLayer", () => {
 
       layer.update(400, mockCalibration)
       expect(mockGraphicsInstances.length).toBe(1)
+    })
+  })
+
+  describe("update — grenade trajectory", () => {
+    it("renders nothing for an orphaned throw with no termination", () => {
+      layer.setEvents([
+        makeEvent({
+          event_type: "grenade_throw",
+          tick: 100,
+          weapon: "HE Grenade",
+          extra_data: { entity_id: 42 },
+        }),
+      ])
+      layer.update(110, mockCalibration)
+      expect(mockGraphicsInstances.length).toBe(0)
+    })
+
+    it("activates a trajectory between throw and detonation", () => {
+      layer.setEvents([
+        makeEvent({
+          id: "throw",
+          event_type: "grenade_throw",
+          tick: 100,
+          weapon: "HE Grenade",
+          x: 0,
+          y: 0,
+          extra_data: { entity_id: 42 },
+        }),
+        makeEvent({
+          id: "detonate",
+          event_type: "grenade_detonate",
+          tick: 130,
+          weapon: "HE Grenade",
+          x: 100,
+          y: 100,
+          extra_data: { entity_id: 42 },
+        }),
+      ])
+
+      layer.update(99, mockCalibration)
+      // Throw not yet active.
+      expect(mockGraphicsInstances.length).toBe(0)
+
+      layer.update(115, mockCalibration)
+      // Trajectory effect now drawing — stroke (trail) + fill (icon).
+      expect(mockGraphicsInstances.length).toBe(1)
+      const g = mockGraphicsInstances[0]
+      expect(g.stroke).toHaveBeenCalled()
+      expect(g.fill).toHaveBeenCalled()
+    })
+
+    it("releases the trajectory at the detonation tick", () => {
+      layer.setEvents([
+        makeEvent({
+          id: "throw",
+          event_type: "grenade_throw",
+          tick: 100,
+          weapon: "Smoke Grenade",
+          extra_data: { entity_id: 7 },
+        }),
+        makeEvent({
+          id: "smoke",
+          event_type: "smoke_start",
+          tick: 132,
+          extra_data: { entity_id: 7 },
+        }),
+      ])
+      layer.update(100, mockCalibration)
+      const trajectoryGraphics = mockGraphicsInstances[0]
+      // At tick 132 the trajectory's tickOffset (32) equals its duration, so it
+      // expires; the smoke detonation activates as a separate effect.
+      layer.update(132, mockCalibration)
+      expect(trajectoryGraphics.removeFromParent).toHaveBeenCalled()
+    })
+
+    it("includes bounce points so the path passes through them", () => {
+      layer.setEvents([
+        makeEvent({
+          id: "throw",
+          event_type: "grenade_throw",
+          tick: 100,
+          weapon: "Flashbang",
+          x: 0,
+          y: 0,
+          extra_data: { entity_id: 9 },
+        }),
+        makeEvent({
+          id: "bounce",
+          event_type: "grenade_bounce",
+          tick: 110,
+          x: 50,
+          y: 50,
+          extra_data: { entity_id: 9, bounce_nr: 1 },
+        }),
+        makeEvent({
+          id: "detonate",
+          event_type: "grenade_detonate",
+          tick: 120,
+          weapon: "Flashbang",
+          x: 100,
+          y: 0,
+          extra_data: { entity_id: 9 },
+        }),
+      ])
+
+      layer.update(115, mockCalibration)
+      const g = mockGraphicsInstances[0]
+      // Trail is drawn through throw → bounce → current head, so the polyline
+      // has at least one moveTo and two lineTo segments.
+      expect(g.moveTo).toHaveBeenCalledTimes(1)
+      expect(g.lineTo.mock.calls.length).toBeGreaterThanOrEqual(2)
+    })
+  })
+
+  describe("update — fire (Molotov / Incendiary)", () => {
+    it("activates at fire_start tick", () => {
+      layer.setEvents([
+        makeEvent({
+          event_type: "fire_start",
+          tick: 200,
+          weapon: "Molotov",
+        }),
+      ])
+      layer.update(199, mockCalibration)
+      expect(mockGraphicsInstances.length).toBe(0)
+
+      layer.update(200, mockCalibration)
+      expect(mockGraphicsInstances.length).toBe(1)
+    })
+
+    it("releases after FIRE_DURATION_TICKS", () => {
+      layer.setEvents([
+        makeEvent({
+          event_type: "fire_start",
+          tick: 200,
+          weapon: "Incendiary Grenade",
+        }),
+      ])
+      layer.update(200, mockCalibration)
+      const g = mockGraphicsInstances[0]
+      layer.update(200 + FIRE_DURATION_TICKS, mockCalibration)
+      expect(g.removeFromParent).toHaveBeenCalled()
+    })
+  })
+
+  describe("round-end duration cap", () => {
+    const rounds = [
+      { start_tick: 0, end_tick: 1000 },
+      { start_tick: 1100, end_tick: 2000 },
+    ]
+
+    it("caps a smoke that would otherwise bleed into the next round", () => {
+      // Smoke starts at tick 950, would last 1152 ticks naturally (ending
+      // at 2102), but round 1 ends at 1000 — cap to 50 ticks.
+      layer.setEvents(
+        [
+          makeEvent({
+            event_type: "smoke_start",
+            tick: 950,
+            extra_data: { entity_id: 1 },
+          }),
+        ],
+        rounds,
+      )
+
+      // Active mid-round.
+      layer.update(950, mockCalibration)
+      expect(mockGraphicsInstances.length).toBe(1)
+      const g = mockGraphicsInstances[0]
+
+      // Past round-end → released.
+      layer.update(1000, mockCalibration)
+      expect(g.removeFromParent).toHaveBeenCalled()
+    })
+
+    it("caps a fire that would otherwise bleed into the next round", () => {
+      layer.setEvents(
+        [
+          makeEvent({
+            event_type: "fire_start",
+            tick: 980,
+            weapon: "Molotov",
+          }),
+        ],
+        rounds,
+      )
+      layer.update(980, mockCalibration)
+      const g = mockGraphicsInstances[0]
+      layer.update(1000, mockCalibration)
+      expect(g.removeFromParent).toHaveBeenCalled()
+    })
+
+    it("caps a grenade trajectory whose detonation lands after round end", () => {
+      // Throw at 990, "detonation" at 1500 (next round) — cap to 10 ticks.
+      // Should release at tick 1000 (round 1 end), not 1500.
+      layer.setEvents(
+        [
+          makeEvent({
+            id: "throw",
+            event_type: "grenade_throw",
+            tick: 990,
+            weapon: "HE Grenade",
+            extra_data: { entity_id: 99 },
+          }),
+          makeEvent({
+            id: "detonate",
+            event_type: "grenade_detonate",
+            tick: 1500,
+            weapon: "HE Grenade",
+            extra_data: { entity_id: 99 },
+          }),
+        ],
+        rounds,
+      )
+      layer.update(990, mockCalibration)
+      const g = mockGraphicsInstances[0]
+      // tickOffset 10 == capped duration → released.
+      layer.update(1000, mockCalibration)
+      expect(g.removeFromParent).toHaveBeenCalled()
+    })
+
+    it("leaves effects that finish within their round untouched", () => {
+      // Smoke at 100 with explicit 200-tick duration — well within round 1.
+      layer.setEvents(
+        [
+          makeEvent({
+            id: "smoke",
+            event_type: "smoke_start",
+            tick: 100,
+            extra_data: { entity_id: 5 },
+          }),
+          makeEvent({
+            id: "smoke-end",
+            event_type: "smoke_expired",
+            tick: 300,
+            extra_data: { entity_id: 5 },
+          }),
+        ],
+        rounds,
+      )
+      layer.update(100, mockCalibration)
+      const g = mockGraphicsInstances[0]
+
+      // Still active at 250.
+      layer.update(250, mockCalibration)
+      expect(g.removeFromParent).not.toHaveBeenCalled()
+
+      // Released at the natural smoke_expired pairing at tick 300.
+      layer.update(300, mockCalibration)
+      expect(g.removeFromParent).toHaveBeenCalled()
+    })
+
+    it("leaves durations alone when no rounds are passed", () => {
+      layer.setEvents([
+        makeEvent({
+          event_type: "smoke_start",
+          tick: 950,
+          extra_data: { entity_id: 7 },
+        }),
+      ])
+      layer.update(950, mockCalibration)
+      const g = mockGraphicsInstances[0]
+      // Without round info, smoke runs the full default duration.
+      layer.update(950 + SMOKE_DURATION_TICKS - 1, mockCalibration)
+      expect(g.removeFromParent).not.toHaveBeenCalled()
     })
   })
 

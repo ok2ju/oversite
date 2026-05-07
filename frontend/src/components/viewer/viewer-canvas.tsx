@@ -33,12 +33,14 @@ export function ViewerCanvas() {
   const { data: roundsData } = useRounds(demoId)
   roundsRef.current = roundsData
 
-  // Feed event data into the EventLayer whenever the query result changes.
+  // Feed event data into the EventLayer whenever events or rounds change.
+  // Rounds are needed so per-effect durations can be capped at round-end
+  // (smokes / fires / trajectories shouldn't bleed into the next round).
   useEffect(() => {
     if (gameEventsData && eventLayerRef.current) {
-      eventLayerRef.current.setEvents(gameEventsData)
+      eventLayerRef.current.setEvents(gameEventsData, roundsData)
     }
-  }, [gameEventsData])
+  }, [gameEventsData, roundsData])
 
   // Push freeze windows into the engine so it auto-skips freeze time on
   // initial load, seek, and round transitions during live playback.

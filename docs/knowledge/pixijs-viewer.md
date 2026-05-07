@@ -37,3 +37,15 @@ Current tick drives everything. The app buffers a range of ticks from `GetTicks(
 - **Don't call React setState from the render loop.** It triggers React reconciliation on every frame.
 - **PixiJS `Graphics` has no gradient strokes.** When you need a fading line (e.g., the `weapon_fire` tracer that fades toward an unknown endpoint), approximate it with stacked short segments and a per-segment `alpha`. See `drawShot` in `event-layer.ts` — 16 segments was a good balance between visual smoothness and per-shot draw cost.
 - **`drawShot` has two visual paths** keyed on the shot's `hit_x`/`hit_y` (populated by the parser's shot-impact pairing pass): solid line + impact dot when an exact endpoint is known, gradient ray otherwise. The fallback length (`SHOT_TRACER_LENGTH`) is in world units; PixiJS clips to viewport so an over-long ray is harmless on small maps but wastes draw calls — keep it modest (~2000 units, ~half a typical CS map).
+- **Effect durations must be capped to round-end.** Pass `rounds` to `EventLayer.setEvents(events, rounds)`. Without the cap, long-lived effects (smoke ~18 s, molotov fire ~7 s, mid-flight trajectories thrown right before round end) persist into the next round's freeze. CS2 itself wipes world state at round transitions; the viewer mirrors that via the `cap()` helper inside `buildScheduled`, which clamps every pushed effect's `durationTicks` to its containing round's `end_tick`.
+- **`extra_data.entity_id` is a JSON number, not a string.** Go's `Entity.ID()` is `int`; it survives Wails as a JS `number`. Frontend code that does `typeof id === "string"` will silently never match. Use the `entityKey()` helper in `event-layer.ts` to normalize before lookups.
+
+## Grenade trajectory rendering
+
+In-flight grenades render as a colored dot lerped along a waypoint list (throw → bounces → termination), with a faint trail of the path traveled so far. Pattern in `event-layer.ts`:
+
+1. **First pass** indexes events by `entity_id`: smoke expirations, bounce points, and terminations (`grenade_detonate` / `smoke_start` / `fire_start` / `decoy_start`).
+2. **Second pass** — on each `grenade_throw`, look up the matching termination and materialize `[throw, ...bounces, termination]` as `TrajectoryWaypoint[]`. Orphaned throws (no termination — truncated demo) are skipped to avoid forever-flying icons.
+3. **Drawer** uses `interpolateTrajectory(waypoints, currentTick)` to find the active segment and `progress(a.tick, b.tick, currentTick)` to lerp position. The trail is a polyline through completed waypoints + the lerped head; the icon is `grenadeColor(weapon)` (Molotov → orange, Decoy → purple, others reuse the detonation color).
+
+`drawEffect` was extended with a `tickOffset` parameter because `state.progress` (0..1) loses the precision needed to reconstruct `currentTick` for interpolation.

@@ -78,7 +78,7 @@ type TickSnapshot struct {
 type GameEvent struct {
 	Tick            int
 	RoundNumber     int
-	Type            string // "kill", "weapon_fire", "player_hurt", "grenade_throw", "grenade_detonate", "smoke_start", "smoke_expired", "decoy_start", "fire_start", "bomb_plant", "bomb_defuse", "bomb_explode"
+	Type            string // "kill", "weapon_fire", "player_hurt", "grenade_throw", "grenade_bounce", "grenade_detonate", "smoke_start", "smoke_expired", "decoy_start", "fire_start", "bomb_plant", "bomb_defuse", "bomb_explode"
 	AttackerSteamID string
 	VictimSteamID   string
 	Weapon          string
@@ -777,6 +777,49 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			Tick:            p.GameState().IngameTick(),
 			RoundNumber:     state.currentRound,
 			Type:            "grenade_throw",
+			AttackerSteamID: throwerID,
+			Weapon:          grenadeType,
+			X:               pos.X,
+			Y:               pos.Y,
+			Z:               pos.Z,
+			ExtraData:       extra,
+		})
+	})
+
+	// Grenade bounce — intermediate trajectory points between throw and
+	// detonation. Without these, in-flight rendering would teleport between
+	// the throw and detonation positions instead of curving along the actual
+	// path (off walls, floors, props).
+	p.RegisterEventHandler(func(e events.GrenadeProjectileBounce) {
+		if dp.skipWarmup && p.GameState().IsWarmupPeriod() {
+			return
+		}
+		if e.Projectile == nil {
+			return
+		}
+
+		var throwerID string
+		if e.Projectile.Thrower != nil {
+			throwerID = strconv.FormatUint(e.Projectile.Thrower.SteamID64, 10)
+		}
+
+		pos := e.Projectile.Position()
+		grenadeType := ""
+		if e.Projectile.WeaponInstance != nil {
+			grenadeType = e.Projectile.WeaponInstance.String()
+		}
+
+		extra := map[string]interface{}{
+			"bounce_nr": e.BounceNr,
+		}
+		if e.Projectile.Entity != nil {
+			extra["entity_id"] = e.Projectile.Entity.ID()
+		}
+
+		state.events = append(state.events, GameEvent{
+			Tick:            p.GameState().IngameTick(),
+			RoundNumber:     state.currentRound,
+			Type:            "grenade_bounce",
 			AttackerSteamID: throwerID,
 			Weapon:          grenadeType,
 			X:               pos.X,

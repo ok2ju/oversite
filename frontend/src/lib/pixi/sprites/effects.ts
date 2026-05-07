@@ -29,6 +29,20 @@ export const COLOR_KILL = 0xff0000
 export const COLOR_SHOT = 0xffcc00
 export const COLOR_BOMB_PLANT = 0xff4444
 export const COLOR_BOMB_DEFUSE = 0x4444ff
+export const COLOR_MOLOTOV = 0xff8800
+export const COLOR_DECOY = 0xaa44ff
+export const COLOR_FIRE = 0xff6600
+export const COLOR_GRENADE_DEFAULT = 0xffffff
+
+// Grenade in-flight icon (pixel-space, doesn't scale with map)
+export const GRENADE_ICON_RADIUS = 4
+export const GRENADE_TRAIL_ALPHA = 0.35
+
+// Molotov / Incendiary burn duration (~7s × 64 tick rate)
+export const FIRE_DURATION_TICKS = 448
+export const FIRE_FADE_IN_TICKS = 16
+export const FIRE_FADE_OUT_TICKS = 64
+export const FIRE_RADIUS = 120
 
 export interface EffectState {
   active: boolean
@@ -169,4 +183,118 @@ export function computeBombDefuseState(
 
 export function worldRadiusToPixel(worldRadius: number, scale: number): number {
   return worldRadius / scale
+}
+
+// Clamped lerp factor — fraction of the way through [start, end] at `current`,
+// pinned to [0, 1] outside the range. Lifted from the Healey article;
+// consumed by grenade trajectory + fire interpolation.
+export function progress(start: number, end: number, current: number): number {
+  if (end <= start) return 1
+  const pct = (current - start) / (end - start)
+  if (pct < 0) return 0
+  if (pct > 1) return 1
+  return pct
+}
+
+export interface TrajectoryWaypoint {
+  tick: number
+  x: number
+  y: number
+}
+
+// Linear-interpolate a position along ordered trajectory waypoints. Waypoints
+// must be sorted ascending by tick. Returns the endpoint position when
+// `currentTick` falls outside the bounds — callers gate by tickOffset before
+// drawing, so out-of-range queries shouldn't happen during normal playback.
+export function interpolateTrajectory(
+  waypoints: readonly TrajectoryWaypoint[],
+  currentTick: number,
+): { x: number; y: number; segmentIndex: number } {
+  if (waypoints.length === 0) {
+    return { x: 0, y: 0, segmentIndex: 0 }
+  }
+  if (waypoints.length === 1 || currentTick <= waypoints[0].tick) {
+    return { x: waypoints[0].x, y: waypoints[0].y, segmentIndex: 0 }
+  }
+  const last = waypoints.length - 1
+  if (currentTick >= waypoints[last].tick) {
+    return {
+      x: waypoints[last].x,
+      y: waypoints[last].y,
+      segmentIndex: last - 1,
+    }
+  }
+
+  let i = 0
+  while (i < last && waypoints[i + 1].tick <= currentTick) {
+    i++
+  }
+  const a = waypoints[i]
+  const b = waypoints[i + 1]
+  const t = progress(a.tick, b.tick, currentTick)
+  return {
+    x: a.x + (b.x - a.x) * t,
+    y: a.y + (b.y - a.y) * t,
+    segmentIndex: i,
+  }
+}
+
+// In-flight grenade icon — fully visible while the projectile lives, then
+// vanishes when it detonates (no fade; the detonation effect takes over).
+export function computeGrenadeTrajectoryState(
+  tickOffset: number,
+  durationTicks: number,
+): EffectState {
+  if (tickOffset < 0 || tickOffset >= durationTicks) return INACTIVE
+  return {
+    active: true,
+    alpha: 1,
+    radius: GRENADE_ICON_RADIUS,
+    progress: durationTicks > 0 ? tickOffset / durationTicks : 0,
+  }
+}
+
+// Molotov / Incendiary burn — fade in fast, hold, fade out at end. Mirrors
+// the smoke shape, just shorter and oranger.
+export function computeFireState(
+  tickOffset: number,
+  durationTicks = FIRE_DURATION_TICKS,
+): EffectState {
+  if (tickOffset < 0 || tickOffset >= durationTicks) return INACTIVE
+
+  let alpha: number
+  if (tickOffset < FIRE_FADE_IN_TICKS) {
+    alpha = tickOffset / FIRE_FADE_IN_TICKS
+  } else if (tickOffset < durationTicks - FIRE_FADE_OUT_TICKS) {
+    alpha = 1
+  } else {
+    alpha = (durationTicks - tickOffset) / FIRE_FADE_OUT_TICKS
+  }
+
+  return {
+    active: true,
+    alpha,
+    radius: FIRE_RADIUS,
+    progress: tickOffset / durationTicks,
+  }
+}
+
+// Map demoinfocs weapon names to the rendering color used for the in-flight
+// icon and trail. Falls back to white for unrecognized weapons.
+export function grenadeColor(weapon: string | null | undefined): number {
+  switch (weapon) {
+    case "HE Grenade":
+      return COLOR_HE
+    case "Flashbang":
+      return COLOR_FLASH
+    case "Smoke Grenade":
+      return COLOR_SMOKE
+    case "Molotov":
+    case "Incendiary Grenade":
+      return COLOR_MOLOTOV
+    case "Decoy Grenade":
+      return COLOR_DECOY
+    default:
+      return COLOR_GRENADE_DEFAULT
+  }
 }

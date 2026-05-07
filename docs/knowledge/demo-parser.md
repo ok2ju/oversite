@@ -129,3 +129,19 @@ CS2's `bullet_impact` user message (which carries actual wall/object impact coor
 - ✅ Cross-attacker isolation is automatic.
 - ❌ Wallbangs (one shot, multiple `player_hurt` events for different victims) only pair the first hurt; subsequent ones are dropped.
 - ❌ Window is 16 ticks (~250ms @ 64Hz) — long enough for any in-map bullet flight, short enough that a stale record from an old shot can't pair with an unrelated `player_hurt` after a reload.
+
+## Grenade trajectories (2026-05-07)
+
+Adds a `GrenadeProjectileBounce` handler so the 2D viewer can curve in-flight grenade icons through their actual path instead of teleporting from throw to detonation.
+
+### `GrenadeProjectileBounce` is the practical way to get bounce points
+
+`Projectile.Trajectory` is populated over the projectile's lifetime but only fully readable on `GrenadeProjectileDestroy`, which would require holding live projectile references and snapshotting at destroy. The shape that fits the existing event-driven storage is to register `events.GrenadeProjectileBounce` directly and emit a per-bounce `GameEvent` carrying `entity_id` + `bounce_nr`. Each event lands in `game_events`; the frontend reassembles trajectories by `entity_id`.
+
+### Four event types terminate a grenade trajectory
+
+Pairing a throw with its endpoint requires checking all four: `grenade_detonate` (HE / Flashbang), `smoke_start`, `fire_start` (Molotov / Incendiary), and `decoy_start`. The viewer's `buildScheduled` indexes terminations by `entity_id` and skips orphaned throws (no termination ⇒ truncated demo).
+
+### `entity_id` is a JSON number across the Wails boundary
+
+`e.Projectile.Entity.ID()` returns Go `int`. After `json.Marshal` → DB TEXT → `json.Unmarshal` → Wails struct → JSON, it lands in TypeScript as a `number`, not a `string`. Frontend pairing code that does `typeof id === "string"` will silently never match — `entity_id`-keyed maps stay empty, and any duration that depends on the pairing falls back to its default. Use the `entityKey()` helper in `event-layer.ts` to normalize.
