@@ -1,5 +1,5 @@
 // Package logging provides the application's persistent log setup: an
-// always-on errors.txt at WARN+ level, and a dev-only network.txt that
+// always-on errors.txt at INFO+ level, and a dev-only network.txt that
 // captures full HTTP request/response dumps.
 //
 // Files live under {AppDataDir}/logs/ and are size-rotated via lumberjack.
@@ -34,9 +34,13 @@ var (
 	initialized bool
 )
 
-// Init opens {dir}/errors.txt, wires slog.Default() to a WARN-level text
+// Init opens {dir}/errors.txt, wires slog.Default() to an INFO-level text
 // handler that tees to the file and stderr, and redirects the stdlib log
 // package so bare log.Printf calls are captured as slog WARNs.
+//
+// INFO is the floor (not WARN) so parse-pipeline breadcrumbs ("starting tick
+// ingestion", round-end progress, etc.) land in errors.txt — without them, a
+// stuck or crashing parse looks identical to a successful one in the logs.
 //
 // Safe to call only once per process. A second call is a no-op.
 func Init(dir string) error {
@@ -63,7 +67,7 @@ func initWith(dir string, maxSizeMB, maxBackups int) error {
 	}
 
 	multi := io.MultiWriter(lj, os.Stderr)
-	handler := slog.NewTextHandler(multi, &slog.HandlerOptions{Level: slog.LevelWarn})
+	handler := slog.NewTextHandler(multi, &slog.HandlerOptions{Level: slog.LevelInfo})
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 

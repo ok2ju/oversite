@@ -31,15 +31,16 @@ func NewTickIngester(db *sql.DB, batchSize int) *TickIngester {
 
 // Ingest writes tick snapshots for a demo into the database, replacing any existing
 // tick data for the given demoID. It returns the total number of rows inserted.
+//
+// Conversion to InsertTickDataParams happens row-by-row inside the insert
+// loop rather than up-front: pre-building the full params slice doubles peak
+// memory during ingestion of large demos (300K+ rows can be hundreds of MB).
 func (ti *TickIngester) Ingest(ctx context.Context, demoID int64, ticks []TickSnapshot) (int64, error) {
 	if len(ticks) == 0 {
 		return 0, nil
 	}
 
 	slog.Info("starting tick ingestion", "demo_id", demoID, "tick_count", len(ticks))
-
-	params := convertTicksToParams(demoID, ticks)
-	batches := chunkTickParams(params, ti.batchSize)
 
 	tx, err := ti.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -54,14 +55,19 @@ func (ti *TickIngester) Ingest(ctx context.Context, demoID int64, ticks []TickSn
 	}
 
 	var total int64
-	for i, batch := range batches {
-		slog.Debug("inserting batch", "batch", i+1, "size", len(batch), "demo_id", demoID)
-		for _, p := range batch {
-			if err := q.InsertTickData(ctx, p); err != nil {
-				return 0, fmt.Errorf("insert tick data (batch %d): %w", i+1, err)
+	for i := 0; i < len(ticks); i += ti.batchSize {
+		end := i + ti.batchSize
+		if end > len(ticks) {
+			end = len(ticks)
+		}
+		slog.Info("tick ingestion batch", "demo_id", demoID,
+			"start", i, "end", end, "of", len(ticks))
+		for j := i; j < end; j++ {
+			if err := q.InsertTickData(ctx, tickToParams(demoID, ticks[j])); err != nil {
+				return 0, fmt.Errorf("insert tick data (row %d): %w", j, err)
 			}
 		}
-		total += int64(len(batch))
+		total += int64(end - i)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -72,31 +78,28 @@ func (ti *TickIngester) Ingest(ctx context.Context, demoID int64, ticks []TickSn
 	return total, nil
 }
 
-// convertTicksToParams maps parser TickSnapshots to sqlc InsertTickDataParams.
-func convertTicksToParams(demoID int64, ticks []TickSnapshot) []store.InsertTickDataParams {
-	params := make([]store.InsertTickDataParams, len(ticks))
-	for i, t := range ticks {
-		params[i] = store.InsertTickDataParams{
-			DemoID:      demoID,
-			Tick:        int64(t.Tick),
-			SteamID:     t.SteamID,
-			X:           t.X,
-			Y:           t.Y,
-			Z:           t.Z,
-			Yaw:         t.Yaw,
-			Health:      int64(t.Health),
-			Armor:       int64(t.Armor),
-			IsAlive:     boolToInt64(t.IsAlive),
-			Weapon:      t.Weapon,
-			Money:       int64(t.Money),
-			HasHelmet:   boolToInt64(t.HasHelmet),
-			HasDefuser:  boolToInt64(t.HasDefuser),
-			Inventory:   t.Inventory,
-			AmmoClip:    int64(t.AmmoClip),
-			AmmoReserve: int64(t.AmmoReserve),
-		}
+// tickToParams converts a single TickSnapshot to InsertTickDataParams without
+// allocating an intermediate slice. Used by the streaming insert path.
+func tickToParams(demoID int64, t TickSnapshot) store.InsertTickDataParams {
+	return store.InsertTickDataParams{
+		DemoID:      demoID,
+		Tick:        int64(t.Tick),
+		SteamID:     t.SteamID,
+		X:           t.X,
+		Y:           t.Y,
+		Z:           t.Z,
+		Yaw:         t.Yaw,
+		Health:      int64(t.Health),
+		Armor:       int64(t.Armor),
+		IsAlive:     boolToInt64(t.IsAlive),
+		Weapon:      t.Weapon,
+		Money:       int64(t.Money),
+		HasHelmet:   boolToInt64(t.HasHelmet),
+		HasDefuser:  boolToInt64(t.HasDefuser),
+		Inventory:   t.Inventory,
+		AmmoClip:    int64(t.AmmoClip),
+		AmmoReserve: int64(t.AmmoReserve),
 	}
-	return params
 }
 
 // chunkTickParams splits rows into batches of at most n elements.

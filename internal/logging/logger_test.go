@@ -23,7 +23,7 @@ func reset(t *testing.T) {
 	initialized = false
 }
 
-func TestInit_WritesWarnAndError(t *testing.T) {
+func TestInit_WritesInfoAndAbove(t *testing.T) {
 	t.Cleanup(func() { reset(t) })
 
 	dir := t.TempDir()
@@ -31,7 +31,8 @@ func TestInit_WritesWarnAndError(t *testing.T) {
 		t.Fatalf("Init: %v", err)
 	}
 
-	slog.Info("should-not-appear")
+	slog.Debug("should-not-appear")
+	slog.Info("info-message", "k", "v")
 	slog.Warn("warn-message", "k", "v")
 	slog.Error("error-message", "err", "boom")
 
@@ -46,7 +47,10 @@ func TestInit_WritesWarnAndError(t *testing.T) {
 	content := string(data)
 
 	if strings.Contains(content, "should-not-appear") {
-		t.Errorf("INFO message leaked into errors.txt:\n%s", content)
+		t.Errorf("DEBUG message leaked into errors.txt:\n%s", content)
+	}
+	if !strings.Contains(content, "info-message") {
+		t.Errorf("INFO message missing from errors.txt:\n%s", content)
 	}
 	if !strings.Contains(content, "warn-message") {
 		t.Errorf("WARN message missing from errors.txt:\n%s", content)

@@ -12,6 +12,29 @@ import (
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/msg"
 )
 
+// Defensive limits guarding against runaway slice growth from corrupt or
+// pathological demos. With IgnorePacketEntitiesPanic = true the parser keeps
+// running past entity-state damage that previously aborted parsing fast,
+// which has been observed to drive tick/event accumulation into the millions
+// and OOM the host. Hitting these caps fails the parse with a clear error
+// rather than letting the OS kill the app (or the whole machine, on swap).
+//
+// At 200 B/row a 5M-row tick slice is ~1 GB; 500K events at ~250 B is ~125 MB.
+// A 90-min match samples roughly 800K tick rows and emits ~50K events, so
+// these are ~6× and ~10× headroom over the worst legitimate case.
+const (
+	maxTickRows  = 5_000_000
+	maxGameEvent = 500_000
+)
+
+// ErrTickLimitExceeded indicates the parser's tick accumulator hit maxTickRows
+// before the demo finished. The demo is likely corrupt or non-standard.
+var ErrTickLimitExceeded = fmt.Errorf("tick row limit exceeded (%d): demo may be corrupt", maxTickRows)
+
+// ErrEventLimitExceeded indicates the parser's event accumulator hit
+// maxGameEvent before the demo finished.
+var ErrEventLimitExceeded = fmt.Errorf("game event limit exceeded (%d): demo may be corrupt", maxGameEvent)
+
 // ParseResult is the complete output of parsing a demo file.
 type ParseResult struct {
 	Header  MatchHeader
@@ -166,6 +189,29 @@ type parseState struct {
 	events              []GameEvent
 	lastSampledTick     int
 	knifeRoundNumbers   map[int]bool
+	limitExceeded       error // set when ticks/events exceed maxTickRows/maxGameEvent
+}
+
+// shouldStopAppending returns true once a limit has tripped. Handlers check
+// this before each append so we don't keep growing slices after Cancel() has
+// been called (Cancel takes effect at the next dispatcher pop, not synchronously).
+func (s *parseState) shouldStopAppending() bool {
+	return s.limitExceeded != nil
+}
+
+// addEvent appends an event subject to the maxGameEvent cap. Returns true on
+// success; on cap-trip it sets s.limitExceeded and returns false so the
+// caller can ask the parser to Cancel.
+func (s *parseState) addEvent(ev GameEvent) bool {
+	if s.limitExceeded != nil {
+		return false
+	}
+	if len(s.events) >= maxGameEvent {
+		s.limitExceeded = ErrEventLimitExceeded
+		return false
+	}
+	s.events = append(s.events, ev)
+	return true
 }
 
 // ensureFormat populates maxRegulationRounds from the live convar map. ConVars
@@ -247,6 +293,14 @@ func (dp *DemoParser) Parse(r io.Reader) (result *ParseResult, err error) {
 		}
 	}
 
+	// A tripped tick/event cap is fatal even if we collected partial data —
+	// the demo is corrupt or non-standard, and the partial slices may
+	// reference dropped entities. Better to surface a clear error than show
+	// the user a half-broken viewer.
+	if state.limitExceeded != nil {
+		return nil, state.limitExceeded
+	}
+
 	dp.reportProgress("parsing", 90)
 
 	tickRate := p.TickRate()
@@ -262,6 +316,13 @@ func (dp *DemoParser) Parse(r io.Reader) (result *ParseResult, err error) {
 	pairShotsWithImpacts(events)
 
 	lineups := ExtractGrenadeLineups(state.mapName, events)
+
+	slog.Info("parser: completed",
+		"rounds", len(rounds),
+		"ticks", len(state.ticks),
+		"events", len(events),
+		"map", state.mapName,
+		"total_ticks", totalTicks)
 
 	dp.reportProgress("parsing", 100)
 
@@ -563,6 +624,9 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 
 	// Player position sampling.
 	p.RegisterEventHandler(func(_ events.FrameDone) {
+		if state.shouldStopAppending() {
+			return
+		}
 		gs := p.GameState()
 		tick := gs.IngameTick()
 
@@ -586,6 +650,14 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 		for _, player := range gs.Participants().Playing() {
 			if shouldSkipPlayer(player, dp.includeBots) {
 				continue
+			}
+
+			if len(state.ticks) >= maxTickRows {
+				state.limitExceeded = ErrTickLimitExceeded
+				slog.Warn("parser: tick limit exceeded; cancelling parse",
+					"tick", tick, "ticks_captured", len(state.ticks))
+				p.Cancel()
+				return
 			}
 
 			pos := player.Position()
@@ -621,6 +693,9 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 
 	// Kill events.
 	p.RegisterEventHandler(func(e events.Kill) {
+		if state.shouldStopAppending() {
+			return
+		}
 		if dp.skipWarmup && p.GameState().IsWarmupPeriod() {
 			return
 		}
@@ -669,7 +744,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			extra["victim_team"] = teamSideString(e.Victim.Team)
 		}
 
-		state.events = append(state.events, GameEvent{
+		if !state.addEvent(GameEvent{
 			Tick:            p.GameState().IngameTick(),
 			RoundNumber:     state.currentRound,
 			Type:            "kill",
@@ -680,13 +755,18 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			Y:               y,
 			Z:               z,
 			ExtraData:       extra,
-		})
+		}) {
+			p.Cancel()
+		}
 	})
 
 	// Weapon fire events — every shot, used to render shot tracers in the
 	// 2D viewer. WeaponFire fires for grenades and knife slashes too, so
 	// filter to firearm classes only.
 	p.RegisterEventHandler(func(e events.WeaponFire) {
+		if state.shouldStopAppending() {
+			return
+		}
 		if dp.skipWarmup && p.GameState().IsWarmupPeriod() {
 			return
 		}
@@ -705,7 +785,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			"pitch": float64(e.Shooter.ViewDirectionY()),
 		}
 
-		state.events = append(state.events, GameEvent{
+		if !state.addEvent(GameEvent{
 			Tick:            p.GameState().IngameTick(),
 			RoundNumber:     state.currentRound,
 			Type:            "weapon_fire",
@@ -715,11 +795,16 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			Y:               pos.Y,
 			Z:               pos.Z,
 			ExtraData:       extra,
-		})
+		}) {
+			p.Cancel()
+		}
 	})
 
 	// Player hurt events (for damage tracking).
 	p.RegisterEventHandler(func(e events.PlayerHurt) {
+		if state.shouldStopAppending() {
+			return
+		}
 		if dp.skipWarmup && p.GameState().IsWarmupPeriod() {
 			return
 		}
@@ -749,7 +834,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			weaponName = e.Weapon.String()
 		}
 
-		state.events = append(state.events, GameEvent{
+		if !state.addEvent(GameEvent{
 			Tick:            p.GameState().IngameTick(),
 			RoundNumber:     state.currentRound,
 			Type:            "player_hurt",
@@ -760,11 +845,16 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			Y:               y,
 			Z:               z,
 			ExtraData:       extra,
-		})
+		}) {
+			p.Cancel()
+		}
 	})
 
 	// Grenade throw.
 	p.RegisterEventHandler(func(e events.GrenadeProjectileThrow) {
+		if state.shouldStopAppending() {
+			return
+		}
 		if dp.skipWarmup && p.GameState().IsWarmupPeriod() {
 			return
 		}
@@ -792,7 +882,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			extra["throw_pitch"] = float64(e.Projectile.Thrower.ViewDirectionY())
 		}
 
-		state.events = append(state.events, GameEvent{
+		if !state.addEvent(GameEvent{
 			Tick:            p.GameState().IngameTick(),
 			RoundNumber:     state.currentRound,
 			Type:            "grenade_throw",
@@ -802,7 +892,9 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			Y:               pos.Y,
 			Z:               pos.Z,
 			ExtraData:       extra,
-		})
+		}) {
+			p.Cancel()
+		}
 	})
 
 	// Grenade bounce — intermediate trajectory points between throw and
@@ -810,6 +902,9 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 	// the throw and detonation positions instead of curving along the actual
 	// path (off walls, floors, props).
 	p.RegisterEventHandler(func(e events.GrenadeProjectileBounce) {
+		if state.shouldStopAppending() {
+			return
+		}
 		if dp.skipWarmup && p.GameState().IsWarmupPeriod() {
 			return
 		}
@@ -835,7 +930,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			extra["entity_id"] = e.Projectile.Entity.ID()
 		}
 
-		state.events = append(state.events, GameEvent{
+		if !state.addEvent(GameEvent{
 			Tick:            p.GameState().IngameTick(),
 			RoundNumber:     state.currentRound,
 			Type:            "grenade_bounce",
@@ -845,12 +940,17 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			Y:               pos.Y,
 			Z:               pos.Z,
 			ExtraData:       extra,
-		})
+		}) {
+			p.Cancel()
+		}
 	})
 
 	// Grenade detonations (HE, flash, smoke, decoy).
 	registerGrenadeDetonate := func(eventType string) func(events.GrenadeEvent) {
 		return func(e events.GrenadeEvent) {
+			if state.shouldStopAppending() {
+				return
+			}
 			if dp.skipWarmup && p.GameState().IsWarmupPeriod() {
 				return
 			}
@@ -863,7 +963,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 				"entity_id": e.GrenadeEntityID,
 			}
 
-			state.events = append(state.events, GameEvent{
+			if !state.addEvent(GameEvent{
 				Tick:            p.GameState().IngameTick(),
 				RoundNumber:     state.currentRound,
 				Type:            eventType,
@@ -873,7 +973,9 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 				Y:               e.Position.Y,
 				Z:               e.Position.Z,
 				ExtraData:       extra,
-			})
+			}) {
+				p.Cancel()
+			}
 		}
 	}
 
@@ -903,6 +1005,9 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 	// All bomb events use GameState().Bomb().Position() for the bomb's world-space
 	// coordinates (planted location), since the planter may have moved or died.
 	p.RegisterEventHandler(func(e events.BombPlanted) {
+		if state.shouldStopAppending() {
+			return
+		}
 		if dp.skipWarmup && p.GameState().IsWarmupPeriod() {
 			return
 		}
@@ -912,7 +1017,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 		}
 
 		bombPos := p.GameState().Bomb().Position()
-		state.events = append(state.events, GameEvent{
+		if !state.addEvent(GameEvent{
 			Tick:            p.GameState().IngameTick(),
 			RoundNumber:     state.currentRound,
 			Type:            "bomb_plant",
@@ -923,10 +1028,15 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			ExtraData: map[string]interface{}{
 				"site": bombsiteString(e.Site),
 			},
-		})
+		}) {
+			p.Cancel()
+		}
 	})
 
 	p.RegisterEventHandler(func(e events.BombDefused) {
+		if state.shouldStopAppending() {
+			return
+		}
 		if dp.skipWarmup && p.GameState().IsWarmupPeriod() {
 			return
 		}
@@ -941,7 +1051,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 		}
 
 		bombPos := p.GameState().Bomb().Position()
-		state.events = append(state.events, GameEvent{
+		if !state.addEvent(GameEvent{
 			Tick:            p.GameState().IngameTick(),
 			RoundNumber:     state.currentRound,
 			Type:            "bomb_defuse",
@@ -953,16 +1063,21 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 				"site":    bombsiteString(e.Site),
 				"has_kit": hasKit,
 			},
-		})
+		}) {
+			p.Cancel()
+		}
 	})
 
 	p.RegisterEventHandler(func(e events.BombExplode) {
+		if state.shouldStopAppending() {
+			return
+		}
 		if dp.skipWarmup && p.GameState().IsWarmupPeriod() {
 			return
 		}
 
 		bombPos := p.GameState().Bomb().Position()
-		state.events = append(state.events, GameEvent{
+		if !state.addEvent(GameEvent{
 			Tick:        p.GameState().IngameTick(),
 			RoundNumber: state.currentRound,
 			Type:        "bomb_explode",
@@ -972,7 +1087,9 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			ExtraData: map[string]interface{}{
 				"site": bombsiteString(e.Site),
 			},
-		})
+		}) {
+			p.Cancel()
+		}
 	})
 }
 
