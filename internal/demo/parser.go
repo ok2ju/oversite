@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"runtime"
 	"strconv"
 
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
@@ -27,6 +28,23 @@ const (
 	maxGameEvent = 500_000
 )
 
+// maxHeapBytes is the soft heap ceiling enforced by the heartbeat watchdog.
+// On Windows, runaway parsing of a corrupt demo could allocate enough memory
+// to push the OS into paging and freeze the whole machine before our slice
+// caps fire (the demoinfocs parser holds substantial state beyond our slices:
+// per-frame protobuf messages buffered in the dispatch queue, accumulated
+// entity tables, etc.). Tripping this cap is fatal for the same reason as
+// maxTickRows — partial output is unreliable.
+//
+// 4 GiB is well above what a clean parse of a 90-min match needs (~500 MB)
+// and leaves headroom on a 16 GB Windows box for the WebView and OS.
+const maxHeapBytes uint64 = 4 << 30
+
+// heartbeatFrameInterval is how often the FrameDone handler logs a
+// progress/memory line and checks the heap ceiling. ~10K frames is roughly
+// every 2-3 seconds of demo time at 64 tick.
+const heartbeatFrameInterval = 10_000
+
 // ErrTickLimitExceeded indicates the parser's tick accumulator hit maxTickRows
 // before the demo finished. The demo is likely corrupt or non-standard.
 var ErrTickLimitExceeded = fmt.Errorf("tick row limit exceeded (%d): demo may be corrupt", maxTickRows)
@@ -34,6 +52,10 @@ var ErrTickLimitExceeded = fmt.Errorf("tick row limit exceeded (%d): demo may be
 // ErrEventLimitExceeded indicates the parser's event accumulator hit
 // maxGameEvent before the demo finished.
 var ErrEventLimitExceeded = fmt.Errorf("game event limit exceeded (%d): demo may be corrupt", maxGameEvent)
+
+// ErrHeapLimitExceeded indicates the parser tripped the maxHeapBytes ceiling.
+// Returned to spare the host OS from paging itself into a freeze.
+var ErrHeapLimitExceeded = fmt.Errorf("heap allocation limit exceeded (%d MiB): demo may be corrupt", maxHeapBytes>>20)
 
 // ParseResult is the complete output of parsing a demo file.
 type ParseResult struct {
@@ -190,6 +212,7 @@ type parseState struct {
 	lastSampledTick     int
 	knifeRoundNumbers   map[int]bool
 	limitExceeded       error // set when ticks/events exceed maxTickRows/maxGameEvent
+	frameCount          int   // total FrameDone events seen; drives the heartbeat
 }
 
 // shouldStopAppending returns true once a limit has tripped. Handlers check
@@ -629,6 +652,44 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 		}
 		gs := p.GameState()
 		tick := gs.IngameTick()
+
+		// Heartbeat — runs unconditionally (warmup included) so a long pre-match
+		// phase doesn't look like a hang in errors.txt and the UI doesn't sit at
+		// 0% the whole way. Also enforces the heap ceiling so a runaway parse
+		// fails loudly instead of paging the whole OS into a freeze.
+		state.frameCount++
+		if state.frameCount%heartbeatFrameInterval == 0 {
+			var mem runtime.MemStats
+			runtime.ReadMemStats(&mem)
+			slog.Info("parser: heartbeat",
+				"frames", state.frameCount,
+				"ingame_tick", tick,
+				"ticks_captured", len(state.ticks),
+				"events_captured", len(state.events),
+				"rounds_captured", len(state.rounds),
+				"heap_alloc_mb", mem.HeapAlloc>>20,
+				"heap_sys_mb", mem.HeapSys>>20,
+			)
+			if mem.HeapAlloc > maxHeapBytes {
+				state.limitExceeded = ErrHeapLimitExceeded
+				slog.Warn("parser: heap limit exceeded; cancelling parse",
+					"heap_alloc_mb", mem.HeapAlloc>>20,
+					"max_heap_mb", maxHeapBytes>>20,
+					"frames", state.frameCount,
+					"ingame_tick", tick,
+				)
+				p.Cancel()
+				return
+			}
+			// Emit a slowly-climbing "alive" progress so the UI moves while we
+			// wait for the first RoundEnd (which is when real % progress kicks
+			// in). Capped at 5 so the round-based progress can take over freely.
+			alivePct := float64(state.frameCount) / 200_000.0 * 5.0
+			if alivePct > 5 {
+				alivePct = 5
+			}
+			dp.reportProgress("parsing", alivePct)
+		}
 
 		if tick <= 0 {
 			return
