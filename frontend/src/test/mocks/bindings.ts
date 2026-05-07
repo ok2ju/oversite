@@ -122,6 +122,12 @@ export const mockAppBindings = {
       { weapon: "M4A1", kill_count: 7, hs_count: 3 },
       { weapon: "AWP", kill_count: 4, hs_count: 0 },
     ]),
+
+  LogsDir: vi
+    .fn<() => Promise<string>>()
+    .mockResolvedValue("/tmp/oversite/logs"),
+
+  OpenLogsFolder: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
 }
 
 /**

@@ -30,6 +30,7 @@ const (
 var (
 	mu          sync.Mutex
 	errorsFile  *lumberjack.Logger
+	logsDir     string
 	initialized bool
 )
 
@@ -73,8 +74,27 @@ func initWith(dir string, maxSizeMB, maxBackups int) error {
 	log.SetPrefix("")
 
 	errorsFile = lj
+	logsDir = dir
 	initialized = true
 	return nil
+}
+
+// Dir returns the directory passed to Init, or "" if Init was never called.
+func Dir() string {
+	mu.Lock()
+	defer mu.Unlock()
+	return logsDir
+}
+
+// ErrorsFile returns the absolute path to the active errors.txt, or "" if
+// logging has not been initialized.
+func ErrorsFile() string {
+	mu.Lock()
+	defer mu.Unlock()
+	if logsDir == "" {
+		return ""
+	}
+	return filepath.Join(logsDir, errorsFileName)
 }
 
 // Close flushes and closes the errors.txt file. Safe to call multiple times.
@@ -87,6 +107,7 @@ func Close() error {
 	}
 	err := errorsFile.Close()
 	errorsFile = nil
+	logsDir = ""
 	initialized = false
 	return err
 }

@@ -8,6 +8,7 @@ interface QueueRow {
   fileName: string
   percent: number
   stage: "importing" | "parsing" | "complete" | "error" | "pending"
+  error?: string
 }
 
 function StateIcon({ stage }: { stage: QueueRow["stage"] }) {
@@ -32,12 +33,21 @@ function StateIcon({ stage }: { stage: QueueRow["stage"] }) {
 
 function QueueRowView({ row }: { row: QueueRow }) {
   return (
-    <div className="grid grid-cols-[16px_1fr_80px_26px] items-center gap-3 px-4 py-2">
+    <div className="grid grid-cols-[16px_1fr_80px_26px] items-start gap-3 px-4 py-2">
       <StateIcon stage={row.stage} />
       <div className="min-w-0">
         <div className="truncate font-mono text-[12px] text-[var(--text)]">
           {row.fileName}
         </div>
+        {row.stage === "error" && row.error && (
+          <div
+            className="mt-0.5 break-words font-mono text-[11px]"
+            style={{ color: "var(--loss)" }}
+            data-testid="import-queue-error"
+          >
+            {row.error}
+          </div>
+        )}
       </div>
       <Progress value={row.percent} className="h-1.5 w-[80px]" />
       <div className="tabular text-[11px] text-[var(--text-muted)] text-right">
@@ -58,6 +68,7 @@ export function ImportQueue() {
       fileName: importProgress.fileName,
       percent: importProgress.percent,
       stage: importProgress.stage,
+      error: importProgress.error,
     },
   ]
 

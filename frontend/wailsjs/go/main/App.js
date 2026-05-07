@@ -61,3 +61,11 @@ export function ImportDemoFile() {
 export function ListDemos(arg1, arg2) {
   return window['go']['main']['App']['ListDemos'](arg1, arg2);
 }
+
+export function LogsDir() {
+  return window['go']['main']['App']['LogsDir']();
+}
+
+export function OpenLogsFolder() {
+  return window['go']['main']['App']['OpenLogsFolder']();
+}

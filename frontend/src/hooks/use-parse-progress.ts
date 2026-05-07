@@ -13,8 +13,12 @@ export function useParseProgress() {
   useEffect(() => {
     const cancel = EventsOn("demo:parse:progress", (data: ImportProgress) => {
       updateImportProgress(data)
-      if (data.stage === "complete" || data.stage === "error") {
+      if (data.stage === "complete") {
         setTimeout(() => updateImportProgress(null), 2000)
+      } else if (data.stage === "error") {
+        // Errors stay on screen long enough to read and act on. The user can
+        // also drop a new demo to replace the row.
+        setTimeout(() => updateImportProgress(null), 30000)
       }
     })
 

@@ -79,6 +79,26 @@ func (a *App) Greet(name string) string {
 }
 
 // ---------------------------------------------------------------------------
+// Diagnostics bindings
+// ---------------------------------------------------------------------------
+
+// LogsDir returns the absolute path to the directory holding errors.txt.
+// Used by the Settings UI so users can locate logs without knowing the
+// platform-specific app data path.
+func (a *App) LogsDir() string {
+	return logging.Dir()
+}
+
+// OpenLogsFolder opens the logs directory in the OS file manager.
+func (a *App) OpenLogsFolder() error {
+	dir := logging.Dir()
+	if dir == "" {
+		return fmt.Errorf("logs directory not initialized")
+	}
+	return logging.Reveal(dir)
+}
+
+// ---------------------------------------------------------------------------
 // Demo bindings
 // ---------------------------------------------------------------------------
 
@@ -180,6 +200,16 @@ func isWithinDir(dir, path string) bool {
 func (a *App) parseDemo(demoID int64, filePath string) {
 	fileName := filepath.Base(filePath)
 
+	var fileSize int64 = -1
+	if info, err := os.Stat(filePath); err == nil {
+		fileSize = info.Size()
+	}
+	logCtx := []any{
+		"demo_id", demoID,
+		"file_path", filePath,
+		"file_size", fileSize,
+	}
+
 	emitProgress := func(stage string, percent float64, errMsg ...string) {
 		payload := map[string]interface{}{
 			"demoId":   demoID,
@@ -197,15 +227,19 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		Status: "parsing",
 		ID:     demoID,
 	}); err != nil {
-		slog.Error("parseDemo: update status to parsing", "demo_id", demoID, "err", err)
+		slog.Error("parseDemo: update status to parsing", append(logCtx, "err", err)...)
 		return
 	}
+
+	// Always-on breadcrumb so errors.txt records which file kicked off a parse,
+	// even if the failure later in the pipeline doesn't reach the user.
+	slog.Warn("parseDemo: start", logCtx...)
 
 	emitProgress("parsing", 0)
 
 	f, err := os.Open(filePath)
 	if err != nil {
-		slog.Error("parseDemo: open file", "demo_id", demoID, "err", err)
+		slog.Error("parseDemo: open file", append(logCtx, "err", err)...)
 		a.failDemo(demoID, fmt.Sprintf("open file: %v", err), emitProgress)
 		return
 	}
@@ -217,27 +251,27 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 
 	result, err := parser.Parse(f)
 	if err != nil {
-		slog.Error("parseDemo: parse", "demo_id", demoID, "err", err)
+		slog.Error("parseDemo: parse", append(logCtx, "err", err)...)
 		a.failDemo(demoID, fmt.Sprintf("parse failed: %v", err), emitProgress)
 		return
 	}
 
 	roundMap, err := demo.IngestRounds(a.ctx, a.db, demoID, result)
 	if err != nil {
-		slog.Error("parseDemo: ingest rounds", "demo_id", demoID, "err", err)
+		slog.Error("parseDemo: ingest rounds", append(logCtx, "err", err)...)
 		a.failDemo(demoID, fmt.Sprintf("ingest rounds: %v", err), emitProgress)
 		return
 	}
 
 	if _, err := demo.IngestGameEvents(a.ctx, a.db, demoID, result.Events, roundMap); err != nil {
-		slog.Error("parseDemo: ingest events", "demo_id", demoID, "err", err)
+		slog.Error("parseDemo: ingest events", append(logCtx, "err", err)...)
 		a.failDemo(demoID, fmt.Sprintf("ingest events: %v", err), emitProgress)
 		return
 	}
 
 	ingester := demo.NewTickIngester(a.db, 0)
 	if _, err := ingester.Ingest(a.ctx, demoID, result.Ticks); err != nil {
-		slog.Error("parseDemo: ingest ticks", "demo_id", demoID, "err", err)
+		slog.Error("parseDemo: ingest ticks", append(logCtx, "err", err)...)
 		a.failDemo(demoID, fmt.Sprintf("ingest ticks: %v", err), emitProgress)
 		return
 	}
@@ -249,7 +283,7 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		DurationSecs: int64(result.Header.DurationSecs),
 		ID:           demoID,
 	}); err != nil {
-		slog.Error("parseDemo: update after parse", "demo_id", demoID, "err", err)
+		slog.Error("parseDemo: update after parse", append(logCtx, "err", err)...)
 		a.failDemo(demoID, fmt.Sprintf("save metadata: %v", err), emitProgress)
 		return
 	}

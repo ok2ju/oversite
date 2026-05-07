@@ -31,3 +31,7 @@ export function ImportDemoByPath(arg1:string):Promise<void>;
 export function ImportDemoFile():Promise<void>;
 
 export function ListDemos(arg1:number,arg2:number):Promise<main.DemoListResult>;
+
+export function LogsDir():Promise<string>;
+
+export function OpenLogsFolder():Promise<void>;
