@@ -170,6 +170,8 @@ export namespace main {
 	    ct_score: number;
 	    t_score: number;
 	    is_overtime: boolean;
+	    ct_team_name: string;
+	    t_team_name: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Round(source);
@@ -187,6 +189,8 @@ export namespace main {
 	        this.ct_score = source["ct_score"];
 	        this.t_score = source["t_score"];
 	        this.is_overtime = source["is_overtime"];
+	        this.ct_team_name = source["ct_team_name"];
+	        this.t_team_name = source["t_team_name"];
 	    }
 	}
 	export class ScoreboardEntry {

@@ -9,6 +9,8 @@ export interface Round {
   ct_score: number
   t_score: number
   is_overtime: boolean
+  ct_team_name: string
+  t_team_name: string
 }
 
 export interface RoundsResponse {

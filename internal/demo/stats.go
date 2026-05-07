@@ -17,6 +17,11 @@ type PlayerRoundStats struct {
 
 // CalculatePlayerRoundStats computes per-player stats for each round from
 // parsed game events. Returns a map of round number -> player stats slice.
+//
+// Players are seeded from each round's freeze-end roster so passive participants
+// (no kills, no damage, no deaths) still receive a zero-stat row. Without the
+// seed the frontend roster lookup falls back to slicing the SteamID, which
+// shows a numeric nickname for those players.
 func CalculatePlayerRoundStats(rounds []RoundData, events []GameEvent) map[int][]PlayerRoundStats {
 	// Group events by round number.
 	eventsByRound := make(map[int][]GameEvent)
@@ -28,7 +33,7 @@ func CalculatePlayerRoundStats(rounds []RoundData, events []GameEvent) map[int][
 	result := make(map[int][]PlayerRoundStats, len(rounds))
 	for _, rd := range rounds {
 		roundEvents := eventsByRound[rd.Number]
-		stats := calculateRound(roundEvents)
+		stats := calculateRound(rd.Roster, roundEvents)
 		if len(stats) > 0 {
 			result[rd.Number] = stats
 		}
@@ -51,8 +56,22 @@ type playerAccum struct {
 	firstDeath    bool
 }
 
-func calculateRound(events []GameEvent) []PlayerRoundStats {
+func calculateRound(roster []RoundParticipant, events []GameEvent) []PlayerRoundStats {
 	players := make(map[string]*playerAccum)
+
+	// Seed from the freeze-end roster — every alive participant gets a row,
+	// zero-stat or otherwise. Late joiners not in the roster still show up via
+	// the getPlayer fallback below when they appear in a kill/hurt event.
+	for _, rp := range roster {
+		if rp.SteamID == "" {
+			continue
+		}
+		players[rp.SteamID] = &playerAccum{
+			steamID:    rp.SteamID,
+			playerName: rp.PlayerName,
+			teamSide:   rp.TeamSide,
+		}
+	}
 
 	getPlayer := func(steamID, name, team string) *playerAccum {
 		if steamID == "" {

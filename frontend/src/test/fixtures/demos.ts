@@ -168,6 +168,8 @@ export const mockRounds: Round[] = [
     ct_score: 1,
     t_score: 0,
     is_overtime: false,
+    ct_team_name: "",
+    t_team_name: "",
   },
   {
     id: "round-2",
@@ -180,6 +182,8 @@ export const mockRounds: Round[] = [
     ct_score: 1,
     t_score: 1,
     is_overtime: false,
+    ct_team_name: "",
+    t_team_name: "",
   },
   {
     id: "round-3",
@@ -192,6 +196,8 @@ export const mockRounds: Round[] = [
     ct_score: 2,
     t_score: 1,
     is_overtime: false,
+    ct_team_name: "",
+    t_team_name: "",
   },
 ]
 

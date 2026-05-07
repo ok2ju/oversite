@@ -559,6 +559,137 @@ func TestCalculatePlayerRoundStats_EmptyEvents(t *testing.T) {
 	}
 }
 
+// TestCalculatePlayerRoundStats_RosterSeed verifies that every alive
+// participant gets a player_rounds row with correct name + team + zero stats
+// even when no events fire — fixing the numeric-nickname bug surfaced in the
+// viewer for passive players.
+func TestCalculatePlayerRoundStats_RosterSeed(t *testing.T) {
+	roster := []RoundParticipant{
+		{SteamID: "steam_ct1", PlayerName: "CT1", TeamSide: "CT"},
+		{SteamID: "steam_ct2", PlayerName: "CT2", TeamSide: "CT"},
+		{SteamID: "steam_ct3", PlayerName: "CT3", TeamSide: "CT"},
+		{SteamID: "steam_ct4", PlayerName: "CT4", TeamSide: "CT"},
+		{SteamID: "steam_ct5", PlayerName: "CT5", TeamSide: "CT"},
+		{SteamID: "steam_t1", PlayerName: "T1", TeamSide: "T"},
+		{SteamID: "steam_t2", PlayerName: "T2", TeamSide: "T"},
+		{SteamID: "steam_t3", PlayerName: "T3", TeamSide: "T"},
+		{SteamID: "steam_t4", PlayerName: "T4", TeamSide: "T"},
+		{SteamID: "steam_t5", PlayerName: "T5", TeamSide: "T"},
+	}
+	rounds := []RoundData{{Number: 1, Roster: roster}}
+
+	result := CalculatePlayerRoundStats(rounds, nil)
+
+	stats, ok := result[1]
+	if !ok {
+		t.Fatal("expected stats for round 1")
+	}
+	if len(stats) != 10 {
+		t.Fatalf("len(stats) = %d, want 10 (one row per roster entry)", len(stats))
+	}
+	for _, rp := range roster {
+		ps, ok := findStats(stats, rp.SteamID)
+		if !ok {
+			t.Errorf("roster member %q not present in stats", rp.SteamID)
+			continue
+		}
+		if ps.PlayerName != rp.PlayerName {
+			t.Errorf("%s name = %q, want %q", rp.SteamID, ps.PlayerName, rp.PlayerName)
+		}
+		if ps.TeamSide != rp.TeamSide {
+			t.Errorf("%s team = %q, want %q", rp.SteamID, ps.TeamSide, rp.TeamSide)
+		}
+		if ps.Kills != 0 || ps.Deaths != 0 || ps.Damage != 0 {
+			t.Errorf("%s expected zero stats, got K=%d D=%d Dmg=%d",
+				rp.SteamID, ps.Kills, ps.Deaths, ps.Damage)
+		}
+	}
+}
+
+// TestCalculatePlayerRoundStats_RosterSeedPlusKills verifies kill/death events
+// layer correctly on top of the seeded roster.
+func TestCalculatePlayerRoundStats_RosterSeedPlusKills(t *testing.T) {
+	roster := []RoundParticipant{
+		{SteamID: "steam_ct1", PlayerName: "CT1", TeamSide: "CT"},
+		{SteamID: "steam_ct2", PlayerName: "CT2", TeamSide: "CT"},
+		{SteamID: "steam_t1", PlayerName: "T1", TeamSide: "T"},
+		{SteamID: "steam_t2", PlayerName: "T2", TeamSide: "T"},
+	}
+	rounds := []RoundData{{Number: 1, Roster: roster}}
+	events := []GameEvent{
+		makeKillEvent(100, 1, "steam_ct1", "steam_t1", "ak47", false, map[string]interface{}{
+			"attacker_name": "CT1",
+			"attacker_team": "CT",
+			"victim_name":   "T1",
+			"victim_team":   "T",
+		}),
+	}
+
+	result := CalculatePlayerRoundStats(rounds, events)
+
+	stats, ok := result[1]
+	if !ok {
+		t.Fatal("expected stats for round 1")
+	}
+	if len(stats) != 4 {
+		t.Fatalf("len(stats) = %d, want 4", len(stats))
+	}
+
+	attacker, _ := findStats(stats, "steam_ct1")
+	if attacker.Kills != 1 {
+		t.Errorf("steam_ct1 kills = %d, want 1", attacker.Kills)
+	}
+	victim, _ := findStats(stats, "steam_t1")
+	if victim.Deaths != 1 {
+		t.Errorf("steam_t1 deaths = %d, want 1", victim.Deaths)
+	}
+	for _, sid := range []string{"steam_ct2", "steam_t2"} {
+		ps, _ := findStats(stats, sid)
+		if ps.Kills != 0 || ps.Deaths != 0 {
+			t.Errorf("%s should have zero stats, got K=%d D=%d", sid, ps.Kills, ps.Deaths)
+		}
+	}
+}
+
+// TestCalculatePlayerRoundStats_LateJoinerNotInRoster verifies the getPlayer
+// fallback still registers players who appear in events but were not in the
+// freeze-end roster (e.g. mid-round reconnects).
+func TestCalculatePlayerRoundStats_LateJoinerNotInRoster(t *testing.T) {
+	roster := []RoundParticipant{
+		{SteamID: "steam_ct1", PlayerName: "CT1", TeamSide: "CT"},
+	}
+	rounds := []RoundData{{Number: 1, Roster: roster}}
+	events := []GameEvent{
+		// late joiner steam_t_late was not in the freeze-end snapshot.
+		makeKillEvent(100, 1, "steam_t_late", "steam_ct1", "ak47", false, map[string]interface{}{
+			"attacker_name": "TLate",
+			"attacker_team": "T",
+			"victim_name":   "CT1",
+			"victim_team":   "CT",
+		}),
+	}
+
+	result := CalculatePlayerRoundStats(rounds, events)
+
+	stats, ok := result[1]
+	if !ok {
+		t.Fatal("expected stats for round 1")
+	}
+	if len(stats) != 2 {
+		t.Fatalf("len(stats) = %d, want 2 (1 roster + 1 late joiner)", len(stats))
+	}
+	late, ok := findStats(stats, "steam_t_late")
+	if !ok {
+		t.Fatal("late joiner not registered via getPlayer fallback")
+	}
+	if late.Kills != 1 {
+		t.Errorf("late joiner kills = %d, want 1", late.Kills)
+	}
+	if late.PlayerName != "TLate" {
+		t.Errorf("late joiner name = %q, want %q", late.PlayerName, "TLate")
+	}
+}
+
 func TestCalculatePlayerRoundStats_MultiRound(t *testing.T) {
 	rounds := []RoundData{{Number: 1}, {Number: 2}}
 	events := []GameEvent{

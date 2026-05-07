@@ -22,6 +22,8 @@ function makeRound(overrides: Partial<Round>): Round {
     ct_score: 0,
     t_score: 0,
     is_overtime: false,
+    ct_team_name: "",
+    t_team_name: "",
     ...overrides,
   }
 }

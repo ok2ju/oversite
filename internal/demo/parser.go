@@ -40,6 +40,19 @@ type RoundData struct {
 	CTScore       int
 	TScore        int
 	IsOvertime    bool
+	CTTeamName    string // clan tag for the CT team (e.g. "Astralis"); empty for matchmaking demos
+	TTeamName     string // clan tag for the T team (e.g. "NaVi"); empty for matchmaking demos
+	Roster        []RoundParticipant
+}
+
+// RoundParticipant is one alive player captured at the end of freeze time.
+// Used to seed per-round stats so passive players (no kills, no damage, no
+// deaths) still receive a player_rounds row instead of falling back to the
+// numeric SteamID slice on the frontend.
+type RoundParticipant struct {
+	SteamID    string
+	PlayerName string
+	TeamSide   string // "CT" or "T"
 }
 
 // TickSnapshot is one player's state at a sampled tick.
@@ -127,20 +140,47 @@ func NewDemoParser(opts ...Option) *DemoParser {
 
 // parseState holds mutable state tracked during parsing.
 type parseState struct {
-	mapName           string
-	inWarmup          bool
-	matchStarted      bool
-	matchStartCount   int
-	currentRound      int
-	roundStart        int
-	freezeEndTick     int
-	ctScore           int
-	tScore            int
-	rounds            []RoundData
-	ticks             []TickSnapshot
-	events            []GameEvent
-	lastSampledTick   int
-	knifeRoundNumbers map[int]bool
+	mapName             string
+	matchStarted        bool
+	matchStartCount     int
+	currentRound        int
+	roundStart          int
+	freezeEndTick       int
+	ctScore             int
+	tScore              int
+	maxRegulationRounds int // mp_maxrounds; 0 until the convar is observed.
+	currentRoster       []RoundParticipant
+	rounds              []RoundData
+	ticks               []TickSnapshot
+	events              []GameEvent
+	lastSampledTick     int
+	knifeRoundNumbers   map[int]bool
+}
+
+// ensureFormat populates maxRegulationRounds from the live convar map. ConVars
+// are streamed as the demo plays out and may be empty if read too early, so
+// this is called lazily — once the value is known we keep it.
+func (s *parseState) ensureFormat(p demoinfocs.Parser) {
+	if s.maxRegulationRounds != 0 {
+		return
+	}
+	rules := p.GameState().Rules()
+	if rules == nil {
+		return
+	}
+	cv := rules.ConVars()
+	if cv == nil {
+		return
+	}
+	v, ok := cv["mp_maxrounds"]
+	if !ok {
+		return
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		return
+	}
+	s.maxRegulationRounds = n
 }
 
 // resetForPreMatchRestart discards all captured data from the pre-match phase.
@@ -151,6 +191,7 @@ func (s *parseState) resetForPreMatchRestart() {
 	s.roundStart = 0
 	s.freezeEndTick = 0
 	s.lastSampledTick = 0
+	s.currentRoster = nil
 	s.rounds = nil
 	s.ticks = nil
 	s.events = nil
@@ -221,12 +262,14 @@ func (dp *DemoParser) Parse(r io.Reader) (result *ParseResult, err error) {
 //
 //  1. A post-start MatchStartedChanged(true) event with scores still 0-0
 //     triggers a full state reset — those rounds never reach here.
-//  2. At each freeze-time end, if every live player's inventory is a knife
-//     (optionally plus the C4), the round number is recorded in the flagged
-//     map. This is the fallback when the restart event does not fire.
+//  2. At each freeze-time end, if every live player's inventory is a knife,
+//     the round number is recorded in the flagged map. This is the fallback
+//     when the restart event does not fire.
 //
 // Remaining rounds are renumbered contiguously from 1, events are renumbered to
 // match, and scores are adjusted to cancel out the dropped knife-round wins.
+// The IsOvertime flag captured at RoundEnd survives renumbering unchanged —
+// it's sourced from the live game state, not derived from the round number.
 func dropKnifeRounds(rounds []RoundData, events []GameEvent, flagged map[int]bool) ([]RoundData, []GameEvent) {
 	if len(rounds) == 0 || len(flagged) == 0 {
 		return rounds, events
@@ -257,7 +300,6 @@ func dropKnifeRounds(rounds []RoundData, events []GameEvent, flagged map[int]boo
 		if rd.TScore < 0 {
 			rd.TScore = 0
 		}
-		rd.IsOvertime = isOvertime(newNumber)
 		filteredRounds = append(filteredRounds, rd)
 	}
 
@@ -275,28 +317,21 @@ func dropKnifeRounds(rounds []RoundData, events []GameEvent, flagged map[int]boo
 	return filteredRounds, filteredEvents
 }
 
-// isKnifeRoundByInventory returns true if every provided inventory contains only
-// a knife (and optionally the C4). Faceit knife rounds force knife-only loadouts
-// via mp_startmoney=0 + empty default secondaries; the inventory check at freeze
-// time catches them even if the restart signal is absent. Returns false for an
-// empty input to avoid flagging transient zero-player frames.
+// isKnifeRoundByInventory returns true if every provided inventory is exactly
+// {EqKnife}. Callers must pre-filter to alive participants — a dead player has
+// an empty Weapons() slice that would otherwise produce false negatives.
+//
+// Faceit knife rounds force knife-only loadouts via mp_startmoney=0 + empty
+// default secondaries; the inventory check at freeze-end catches them even
+// when the MatchStartedChanged restart signal is absent. The minimum-sample
+// guard (>= 8) avoids high-variance flagging on the rare frames where only
+// 1–2 players are in Playing() during reconnects.
 func isKnifeRoundByInventory(inventories [][]common.EquipmentType) bool {
-	if len(inventories) == 0 {
+	if len(inventories) < 8 {
 		return false
 	}
 	for _, inv := range inventories {
-		hasKnife := false
-		for _, t := range inv {
-			switch t {
-			case common.EqKnife:
-				hasKnife = true
-			case common.EqBomb:
-				// C4 is allowed — some Faceit configs still assign it on knife rounds.
-			default:
-				return false
-			}
-		}
-		if !hasKnife {
+		if len(inv) != 1 || inv[0] != common.EqKnife {
 			return false
 		}
 	}
@@ -313,11 +348,6 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 	// Map name from demo file header.
 	p.RegisterNetMessageHandler(func(m *msg.CDemoFileHeader) {
 		state.mapName = m.GetMapName()
-	})
-
-	// Warmup tracking.
-	p.RegisterEventHandler(func(e events.IsWarmupPeriodChanged) {
-		state.inWarmup = e.NewIsWarmupPeriod
 	})
 
 	// Match start tracking. A post-start MatchStartedChanged(true) re-fire with
@@ -349,20 +379,22 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 
 	// Round start.
 	p.RegisterEventHandler(func(e events.RoundStart) {
-		if dp.skipWarmup && state.inWarmup {
+		if dp.skipWarmup && p.GameState().IsWarmupPeriod() {
 			return
 		}
 		state.currentRound++
 		state.roundStart = p.GameState().IngameTick()
 		state.freezeEndTick = 0
+		state.currentRoster = nil
 	})
 
 	// Freeze time end — the round goes live. Capture the tick once per round
 	// (ignore duplicate/late events that would push it past the true end), then
-	// snapshot player inventories. If every live player holds only a knife
-	// (optionally plus the C4), flag the round for later drop in dropKnifeRounds.
+	// snapshot the alive player roster (used to seed per-round stats so passive
+	// players still get a player_rounds row) and inventories (used to flag knife
+	// rounds for later drop in dropKnifeRounds).
 	captureFreezeEnd := func() {
-		if dp.skipWarmup && state.inWarmup {
+		if dp.skipWarmup && p.GameState().IsWarmupPeriod() {
 			return
 		}
 		if state.freezeEndTick != 0 {
@@ -371,10 +403,19 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 		state.freezeEndTick = p.GameState().IngameTick()
 
 		var inventories [][]common.EquipmentType
+		var roster []RoundParticipant
 		for _, player := range p.GameState().Participants().Playing() {
 			if shouldSkipPlayer(player, dp.includeBots) {
 				continue
 			}
+			if !player.IsAlive() {
+				continue
+			}
+			roster = append(roster, RoundParticipant{
+				SteamID:    strconv.FormatUint(player.SteamID64, 10),
+				PlayerName: player.Name,
+				TeamSide:   teamSideString(player.Team),
+			})
 			weapons := player.Weapons()
 			inv := make([]common.EquipmentType, 0, len(weapons))
 			for _, w := range weapons {
@@ -385,6 +426,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			}
 			inventories = append(inventories, inv)
 		}
+		state.currentRoster = roster
 		if isKnifeRoundByInventory(inventories) {
 			if state.knifeRoundNumbers == nil {
 				state.knifeRoundNumbers = make(map[int]bool)
@@ -408,49 +450,69 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 
 	// Round end.
 	p.RegisterEventHandler(func(e events.RoundEnd) {
-		if dp.skipWarmup && state.inWarmup {
+		if dp.skipWarmup && p.GameState().IsWarmupPeriod() {
 			return
 		}
 		if state.currentRound == 0 {
 			return
 		}
 
-		winnerSide := teamSideString(e.Winner)
-
-		// In demoinfocs v5, ScoreUpdated fires BEFORE RoundEnd, so by the time
-		// this handler runs e.WinnerState.Score() already reflects the win and
-		// state.ctScore/tScore are already post-round. Read them directly.
-		// Fall back to an increment-from-state path if the event is missing
-		// authoritative team state (defensive against malformed demos).
-		ctScore := state.ctScore
-		tScore := state.tScore
-		if e.WinnerState != nil {
+		// ScoreUpdated fires before RoundEnd in v5 and is the only authoritative
+		// per-team score path; e.WinnerState.Score() is documented as not-up-to-
+		// date here. The library docs and v5 behavior contradict each other on
+		// the WinnerState read, so we don't read it. If ScoreUpdated has not yet
+		// fired (rare; malformed demos), increment from the prior captured state
+		// to keep the score monotonic and log a warn so the demo surfaces.
+		gs := p.GameState()
+		state.ensureFormat(p)
+		expectedTotal := state.currentRound
+		actualTotal := state.ctScore + state.tScore
+		if actualTotal < expectedTotal && actualTotal == expectedTotal-1 {
 			switch e.Winner {
 			case common.TeamCounterTerrorists:
-				ctScore = e.WinnerState.Score()
-				if e.LoserState != nil {
-					tScore = e.LoserState.Score()
-				}
+				state.ctScore++
 			case common.TeamTerrorists:
-				tScore = e.WinnerState.Score()
-				if e.LoserState != nil {
-					ctScore = e.LoserState.Score()
-				}
+				state.tScore++
+			default:
+				slog.Warn("round end without preceding ScoreUpdated; cannot increment",
+					"round", state.currentRound, "ct", state.ctScore, "t", state.tScore)
 			}
+			slog.Warn("round end with stale score; incremented from winner",
+				"round", state.currentRound, "ct", state.ctScore, "t", state.tScore)
 		}
-		state.ctScore = ctScore
-		state.tScore = tScore
+
+		ctClan := ""
+		tClan := ""
+		if cts := gs.TeamCounterTerrorists(); cts != nil {
+			ctClan = cts.ClanName()
+		}
+		if ts := gs.TeamTerrorists(); ts != nil {
+			tClan = ts.ClanName()
+		}
+
+		isOT := gs.OvertimeCount() > 0
+
+		// Cross-check format invariant: when the format is known and we're
+		// supposedly in regulation, the round number must not exceed
+		// mp_maxrounds. Log only — don't crash on malformed demos.
+		if !isOT && state.maxRegulationRounds > 0 && state.currentRound > state.maxRegulationRounds {
+			slog.Warn("round number exceeds mp_maxrounds but OvertimeCount is 0",
+				"round", state.currentRound, "max_rounds", state.maxRegulationRounds)
+		}
 
 		state.rounds = append(state.rounds, RoundData{
 			Number:        state.currentRound,
 			StartTick:     state.roundStart,
 			FreezeEndTick: state.freezeEndTick,
-			EndTick:       p.GameState().IngameTick(),
-			WinnerSide:    winnerSide,
+			EndTick:       gs.IngameTick(),
+			WinnerSide:    teamSideString(e.Winner),
 			WinReason:     roundEndReasonString(e.Reason),
-			CTScore:       ctScore,
-			TScore:        tScore,
-			IsOvertime:    isOvertime(state.currentRound),
+			CTScore:       state.ctScore,
+			TScore:        state.tScore,
+			IsOvertime:    isOT,
+			CTTeamName:    ctClan,
+			TTeamName:     tClan,
+			Roster:        state.currentRoster,
 		})
 
 		// Report progress proportional to rounds parsed.
@@ -804,12 +866,6 @@ func shouldSampleTick(tick, interval int) bool {
 		return false
 	}
 	return tick%interval == 0
-}
-
-// isOvertime returns true if the round number is in overtime.
-// Assumes MR12 format (24 regulation rounds) as used in Faceit competitive CS2.
-func isOvertime(roundNum int) bool {
-	return roundNum > 24
 }
 
 // shouldSkipPlayer returns true if the player should be excluded from tick snapshots.

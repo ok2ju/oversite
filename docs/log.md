@@ -6,6 +6,19 @@ Format: `YYYY-MM-DD — <summary>` with links to affected pages.
 
 ---
 
+## 2026-05-07 — Demo parser quality fixes
+
+Implemented six independent fixes from `.claude/temp/parser-quality-plan.md`:
+
+- **Numeric-nickname bug:** parser captures a per-round roster at freeze-end (`RoundData.Roster`) and `stats.calculateRound` seeds the player map from it, so passive players (no kills/damage/deaths) now get a `player_rounds` row instead of falling back to the frontend's `steam_id.slice(0, 10)`.
+- **Hardcoded MR12 overtime:** `IsOvertime` is now sourced from `p.GameState().OvertimeCount() > 0` at `RoundEnd`. Added `parseState.ensureFormat()` reading `mp_maxrounds` for a warn-only invariant check. The `isOvertime(roundNum)` helper is gone; `dropKnifeRounds` no longer recomputes the flag.
+- **Knife inventory hardening:** `captureFreezeEnd` filters `IsAlive`; `isKnifeRoundByInventory` requires pure `{EqKnife}` and `>= 8` samples (was: any subset, 1+ samples, C4-allowed).
+- **Warmup gate unification:** removed `state.inWarmup` + the `IsWarmupPeriodChanged` handler — the cached value lagged by one dispatch and let `RoundNumber=0` events leak through. Every gate now reads `p.GameState().IsWarmupPeriod()`.
+- **Score read at `RoundEnd`:** dropped `e.WinnerState.Score()` reads. `state.ctScore/tScore` (kept current by `ScoreUpdated`, which fires before `RoundEnd` in v5) is the source of truth; increment-from-winner fallback if missing.
+- **Team clan names:** migration `006_rounds_team_names` adds `ct_team_name`/`t_team_name` (default `''`), captured from `gs.TeamCounterTerrorists().ClanName()` at `RoundEnd` and threaded through sqlc → Wails binding → frontend `Round` type. `MatchHeader` prefers per-round clan name, falls back to `team_<player>` then `"CT"`/`"T"`.
+
+Refs: [[knowledge/demo-parser]] (updated). No schema/binding changes outside #6; no new ADR (bug-fix sweep, no architectural decision).
+
 ## 2026-05-06 — Faceit integration removed
 
 The app pivots away from the Faceit-account-tied desktop client to a single-tenant local tool. Removed:

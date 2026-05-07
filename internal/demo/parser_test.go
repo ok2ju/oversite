@@ -71,49 +71,6 @@ func TestShouldSampleTick(t *testing.T) {
 	}
 }
 
-func TestIsOvertime(t *testing.T) {
-	tests := []struct {
-		name     string
-		roundNum int
-		want     bool
-	}{
-		{
-			name:     "round 1 is regulation",
-			roundNum: 1,
-			want:     false,
-		},
-		{
-			name:     "round 12 is regulation",
-			roundNum: 12,
-			want:     false,
-		},
-		{
-			name:     "round 24 is last regulation round",
-			roundNum: 24,
-			want:     false,
-		},
-		{
-			name:     "round 25 is first overtime round",
-			roundNum: 25,
-			want:     true,
-		},
-		{
-			name:     "round 30 is overtime",
-			roundNum: 30,
-			want:     true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := isOvertime(tt.roundNum)
-			if got != tt.want {
-				t.Errorf("isOvertime(%d) = %v, want %v", tt.roundNum, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestShouldSkipPlayer(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -416,12 +373,12 @@ func TestProgressFunc_Callback(t *testing.T) {
 }
 
 func TestIsKnifeRoundByInventory(t *testing.T) {
-	tenKnives := func() [][]common.EquipmentType {
-		inv := make([][]common.EquipmentType, 10)
-		for i := range inv {
-			inv[i] = []common.EquipmentType{common.EqKnife}
+	repeat := func(n int, inv []common.EquipmentType) [][]common.EquipmentType {
+		out := make([][]common.EquipmentType, n)
+		for i := range out {
+			out[i] = inv
 		}
-		return inv
+		return out
 	}
 
 	tests := []struct {
@@ -430,37 +387,37 @@ func TestIsKnifeRoundByInventory(t *testing.T) {
 		want        bool
 	}{
 		{
-			name:        "all players knife-only",
-			inventories: tenKnives(),
+			name:        "10 alive players all knife-only — knife round",
+			inventories: repeat(10, []common.EquipmentType{common.EqKnife}),
 			want:        true,
 		},
 		{
-			name: "all knives plus T-side C4",
-			inventories: [][]common.EquipmentType{
-				{common.EqKnife},
-				{common.EqKnife, common.EqBomb},
-				{common.EqKnife},
-				{common.EqKnife},
-				{common.EqKnife},
-			},
-			want: true,
+			name:        "8 alive players all knife-only — at minimum-sample threshold",
+			inventories: repeat(8, []common.EquipmentType{common.EqKnife}),
+			want:        true,
+		},
+		{
+			name: "all knives plus C4 — C4 no longer allowed",
+			inventories: append(
+				repeat(9, []common.EquipmentType{common.EqKnife}),
+				[]common.EquipmentType{common.EqKnife, common.EqBomb},
+			),
+			want: false,
 		},
 		{
 			name: "one player holds a pistol",
-			inventories: [][]common.EquipmentType{
-				{common.EqKnife},
-				{common.EqKnife},
-				{common.EqGlock, common.EqKnife},
-			},
+			inventories: append(
+				repeat(9, []common.EquipmentType{common.EqKnife}),
+				[]common.EquipmentType{common.EqGlock, common.EqKnife},
+			),
 			want: false,
 		},
 		{
 			name: "one player carries an AK",
-			inventories: [][]common.EquipmentType{
-				{common.EqKnife},
-				{common.EqKnife},
-				{common.EqKnife, common.EqAK47},
-			},
+			inventories: append(
+				repeat(9, []common.EquipmentType{common.EqKnife}),
+				[]common.EquipmentType{common.EqKnife, common.EqAK47},
+			),
 			want: false,
 		},
 		{
@@ -469,12 +426,14 @@ func TestIsKnifeRoundByInventory(t *testing.T) {
 			want:        false,
 		},
 		{
-			name: "player with only C4 but no knife",
-			inventories: [][]common.EquipmentType{
-				{common.EqKnife},
-				{common.EqBomb},
-			},
-			want: false,
+			name:        "7 knives — under the minimum-sample threshold",
+			inventories: repeat(7, []common.EquipmentType{common.EqKnife}),
+			want:        false,
+		},
+		{
+			name:        "single knife inventory — far under threshold",
+			inventories: [][]common.EquipmentType{{common.EqKnife}},
+			want:        false,
 		},
 	}
 
@@ -566,12 +525,63 @@ func TestDropKnifeRounds_FlaggedButWinnerSideUnknown(t *testing.T) {
 	}
 }
 
+// TestDropKnifeRounds_PreservesIsOvertime covers the regression where the
+// previous parser recomputed IsOvertime from the renumbered round number,
+// which would silently mis-flag overtime rounds after a knife round was
+// dropped. The flag is now captured at RoundEnd from OvertimeCount() and
+// must survive renumbering unchanged.
+func TestDropKnifeRounds_PreservesIsOvertime(t *testing.T) {
+	rounds := []RoundData{
+		{Number: 1, WinnerSide: "CT", CTScore: 1, TScore: 0, IsOvertime: false}, // knife
+		{Number: 2, WinnerSide: "T", CTScore: 1, TScore: 1, IsOvertime: false},  // regulation
+		{Number: 3, WinnerSide: "CT", CTScore: 2, TScore: 1, IsOvertime: true},  // OT
+	}
+	flagged := map[int]bool{1: true}
+
+	gotRounds, _ := dropKnifeRounds(rounds, nil, flagged)
+
+	if len(gotRounds) != 2 {
+		t.Fatalf("rounds length = %d, want 2", len(gotRounds))
+	}
+	if gotRounds[0].IsOvertime {
+		t.Errorf("round 1 (renumbered) IsOvertime = true, want false")
+	}
+	if !gotRounds[1].IsOvertime {
+		t.Errorf("round 2 (renumbered) IsOvertime = false, want true (was OT before renumbering)")
+	}
+}
+
+// TestDropKnifeRounds_PreservesRoster ensures the per-round roster captured at
+// freeze-end carries through renumbering so passive players still get a
+// player_rounds row in the renumbered output.
+func TestDropKnifeRounds_PreservesRoster(t *testing.T) {
+	roster := []RoundParticipant{
+		{SteamID: "1", PlayerName: "Alice", TeamSide: "CT"},
+		{SteamID: "2", PlayerName: "Bob", TeamSide: "T"},
+	}
+	rounds := []RoundData{
+		{Number: 1, WinnerSide: "CT", CTScore: 1, TScore: 0, Roster: nil},   // knife
+		{Number: 2, WinnerSide: "T", CTScore: 1, TScore: 1, Roster: roster}, // regulation
+	}
+	flagged := map[int]bool{1: true}
+
+	gotRounds, _ := dropKnifeRounds(rounds, nil, flagged)
+
+	if len(gotRounds) != 1 {
+		t.Fatalf("rounds length = %d, want 1", len(gotRounds))
+	}
+	if len(gotRounds[0].Roster) != 2 {
+		t.Errorf("renumbered round 1 Roster length = %d, want 2", len(gotRounds[0].Roster))
+	}
+}
+
 func TestParseStateResetForPreMatchRestart(t *testing.T) {
 	state := &parseState{
 		currentRound:      1,
 		roundStart:        100,
 		freezeEndTick:     200,
 		lastSampledTick:   250,
+		currentRoster:     []RoundParticipant{{SteamID: "x", PlayerName: "p", TeamSide: "CT"}},
 		rounds:            []RoundData{{Number: 1}},
 		ticks:             []TickSnapshot{{Tick: 100}},
 		events:            []GameEvent{{Tick: 100, RoundNumber: 1, Type: "kill"}},
@@ -593,6 +603,9 @@ func TestParseStateResetForPreMatchRestart(t *testing.T) {
 	}
 	if state.lastSampledTick != 0 {
 		t.Errorf("lastSampledTick = %d, want 0", state.lastSampledTick)
+	}
+	if state.currentRoster != nil {
+		t.Errorf("currentRoster = %v, want nil", state.currentRoster)
 	}
 	if state.rounds != nil {
 		t.Errorf("rounds = %v, want nil", state.rounds)

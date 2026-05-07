@@ -85,6 +85,8 @@ type Round struct {
 	TScore        int64
 	IsOvertime    int64
 	FreezeEndTick int64
+	CtTeamName    string
+	TTeamName     string
 }
 
 type StrategyBoard struct {

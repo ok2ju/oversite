@@ -42,6 +42,8 @@ type Round struct {
 	CTScore       int    `json:"ct_score"`
 	TScore        int    `json:"t_score"`
 	IsOvertime    bool   `json:"is_overtime"`
+	CTTeamName    string `json:"ct_team_name"`
+	TTeamName     string `json:"t_team_name"`
 }
 
 // GameEvent represents a game event in a demo.

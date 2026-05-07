@@ -72,6 +72,27 @@ describe("MatchHeader", () => {
     )
   })
 
+  it("prefers per-round clan names when the demo provides them", async () => {
+    mockAppBindings.GetDemoRounds.mockResolvedValue(
+      mockRounds.map((r) => ({
+        ...r,
+        ct_team_name: "Astralis",
+        t_team_name: "NaVi",
+      })),
+    )
+    useViewerStore.getState().setDemoId("demo-1")
+    useViewerStore.getState().setTotalTicks(128000)
+    renderWithProviders(<MatchHeader />)
+
+    expect(await screen.findByTestId("match-header")).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId("match-header-team-ct")).toHaveTextContent(
+        "Astralis",
+      )
+    })
+    expect(screen.getByTestId("match-header-team-t")).toHaveTextContent("NaVi")
+  })
+
   it("swaps team labels when sides have switched in the active round", async () => {
     mockAppBindings.GetRoundRoster.mockImplementation(
       async () => swappedRoster as unknown as never[],

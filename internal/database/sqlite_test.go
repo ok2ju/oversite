@@ -81,6 +81,30 @@ func TestMigrations_AllTablesCreated(t *testing.T) {
 	}
 }
 
+// TestMigration006_RoundsTeamNames verifies the migration adds and round-trips
+// ct_team_name / t_team_name on the rounds table.
+func TestMigration006_RoundsTeamNames(t *testing.T) {
+	db := openTestDBWithMigrations(t)
+
+	for _, col := range []string{"ct_team_name", "t_team_name"} {
+		var found int
+		err := db.QueryRow(
+			"SELECT COUNT(*) FROM pragma_table_info('rounds') WHERE name = ?",
+			col,
+		).Scan(&found)
+		if err != nil {
+			t.Fatalf("query column %q: %v", col, err)
+		}
+		if found != 1 {
+			t.Errorf("rounds.%s missing after up migration", col)
+		}
+	}
+
+	if err := DownMigrations(db, migrations.FS); err != nil {
+		t.Fatalf("DownMigrations: %v", err)
+	}
+}
+
 func TestMigrations_DownRemovesTables(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "test.db")
 

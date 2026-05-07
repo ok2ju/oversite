@@ -25,7 +25,7 @@ All three demos met the targets: < 10s parse, < 500 MB heap. Even an 862 MB 54-r
 |------|----------|-------|
 | Warmup rounds | Yes | Default `skipWarmup=true`; round numbering starts at 1 post-warmup |
 | Bot presence | N/A | No bots in MR12 competitive demos |
-| Overtime | Yes | `isOvertime(roundNum > 24)` works correctly |
+| Overtime | Yes | Sourced from `gs.OvertimeCount() > 0` at `RoundEnd`; survives `dropKnifeRounds` renumbering. See "Parser quality fixes (2026-05-07)". |
 | Truncated demo | N/A | All three parsed cleanly; no `ErrUnexpectedEndOfDemo` |
 | Orphaned grenade throws | **No — bug** | ~25% orphan rate. See below. |
 | World kills (nil-killer) | Yes | Fall damage / world kills handled |
@@ -51,7 +51,39 @@ API and helpers are solid — the library itself didn't change between web and d
 - Event handler registrations (kills, hurt, grenades, bombs, rounds)
 - `DemoParser` struct with `Option` functional pattern
 - `ParseResult` / `MatchHeader` / `RoundData` / `TickSnapshot` / `GameEvent` types
-- `shouldSampleTick`, `isOvertime`, `shouldSkipPlayer`, `teamSideString` helpers
-- `CalculatePlayerRoundStats()` from `stats.go`
+- `shouldSampleTick`, `shouldSkipPlayer`, `teamSideString` helpers (`isOvertime` was removed; see "Parser quality fixes (2026-05-07)")
+- `CalculatePlayerRoundStats()` from `stats.go` — signature unchanged, but it now seeds players from `RoundData.Roster` before layering events. Roster comes from the parser, not from the stats layer.
 - Callouts resolution from `callouts.go`
 - Panic recovery and truncated-demo handling
+
+## Parser quality fixes (2026-05-07)
+
+Six gotchas surfaced by a deep review of the v5 parser; all fixed in `internal/demo/parser.go` + `stats.go` (no public API change).
+
+### Don't trust `WinnerState.Score()` at `RoundEnd`
+
+The library docs say it's not up-to-date and recommend a `+1` workaround. v5's actual behavior contradicts the docs — `ScoreUpdated` fires *before* `RoundEnd` and updates the team state in-place, so reading `WinnerState.Score()` here double-counts. **Don't read it.** Source the per-team score from `ScoreUpdated` into `state.ctScore` / `state.tScore` and consume those at `RoundEnd`. If `ScoreUpdated` is missing for a round (rare; malformed demos), increment from `e.Winner` and `slog.Warn` so the demo surfaces.
+
+### Use `IsWarmupPeriod()` everywhere — never cache the warmup flag
+
+The cached `IsWarmupPeriodChanged` value lags the live state by one event dispatch. If `IsWarmupPeriodChanged(false)` arrives a frame after `RoundStart`, `state.currentRound` stays at 0 while subsequent kill/hurt events fire — those events ship with `RoundNumber=0` and break the FK on `game_events.round_id`. Gate every handler (`RoundStart`, `RoundEnd`, `FrameDone`, kill/hurt/grenade/bomb) on `p.GameState().IsWarmupPeriod()`.
+
+### Filter `IsAlive` before reading `Weapons()`
+
+`Participants().Playing()` returns players regardless of liveness, but a dead player has an empty `Weapons()` slice. The freeze-end inventory snapshot must filter `IsAlive` upstream — otherwise `isKnifeRoundByInventory` produces false negatives for real knife rounds whenever even one player is dead at freeze-end.
+
+### Knife-round inventory needs a minimum-sample guard
+
+`isKnifeRoundByInventory` now requires `len(inventories) >= 8`. Without it, a 1–2 player frame during a reconnect can flag a real eco round as a knife round. The C4 exception was also dropped — Faceit knife configs zero out `mp_t_default_secondary`, so T-side normally won't even have a pistol on a knife round. If a future demo format violates this, re-introduce a typed exception with the demo evidence.
+
+### Detect overtime from `OvertimeCount()`, not the round number
+
+The previous `isOvertime(roundNum > 24)` hardcoded MR12 and broke under MR15, Wingman, custom `mp_maxrounds`, and after `dropKnifeRounds` renumbered rounds. Capture `gs.OvertimeCount() > 0` at `RoundEnd`; the flag survives `dropKnifeRounds` renumbering unchanged. `parseState.ensureFormat(p)` reads `mp_maxrounds` lazily from convars for a warn-only cross-check; convars are streamed during the demo, so reading too early returns empty — call `ensureFormat` from `RoundEnd`.
+
+### Seed `player_rounds` from a per-round roster
+
+`stats.CalculatePlayerRoundStats` previously registered players only when it saw a kill/hurt event for them — passive players (no kills, no damage, no deaths) got no `player_rounds` row, and the viewer's roster lookup fell back to `steam_id.slice(0, 10)`, surfacing as numeric nicknames. The parser now snapshots `(SteamID, Name, TeamSide)` for every alive non-bot player at freeze-end into `RoundData.Roster`, and `calculateRound` seeds the player map from it before layering kill/hurt events. Late joiners not in the roster still register via the existing `getPlayer` fallback.
+
+### Pin the demoinfocs minor version
+
+The score-read fragility above depends on v5's `ScoreUpdated` → `RoundEnd` ordering. Pin the minor version in `go.mod` and document the assumed firing order near the `ScoreUpdated` handler in `parser.go`. A patch release bumping that order would silently break score capture.

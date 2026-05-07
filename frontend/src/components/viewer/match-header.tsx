@@ -13,9 +13,18 @@ function getActiveRoundIndex(rounds: Round[], currentTick: number): number {
   return 0
 }
 
-function teamLabel(entries: PlayerRosterEntry[], side: "CT" | "T"): string {
-  const first = entries.find((e) => e.team_side === side)
-  return first ? `team_${first.player_name}` : side === "CT" ? "CT" : "T"
+// Per-round clan name when the demo carries one; otherwise the per-round
+// roster's first member; otherwise the side letter. Pro / FACEIT / ESEA demos
+// populate ct_team_name; matchmaking demos leave it empty.
+function teamLabel(
+  clanName: string,
+  entries: PlayerRosterEntry[] | undefined,
+  side: "CT" | "T",
+): string {
+  if (clanName) return clanName
+  const first = entries?.find((e) => e.team_side === side)
+  if (first) return `team_${first.player_name}`
+  return side
 }
 
 export function MatchHeader() {
@@ -38,6 +47,8 @@ export function MatchHeader() {
       roundNumber: active.round_number,
       ctScore: prev?.ct_score ?? 0,
       tScore: prev?.t_score ?? 0,
+      ctTeamName: active.ct_team_name,
+      tTeamName: active.t_team_name,
       roundTicks: Math.max(0, currentTick - active.start_tick),
       freezeDurationTicks,
     }
@@ -47,8 +58,8 @@ export function MatchHeader() {
 
   if (!demoId || !header) return null
 
-  const ctTeam = roster ? teamLabel(roster, "CT") : "CT"
-  const tTeam = roster ? teamLabel(roster, "T") : "T"
+  const ctTeam = teamLabel(header.ctTeamName, roster, "CT")
+  const tTeam = teamLabel(header.tTeamName, roster, "T")
 
   return (
     <div

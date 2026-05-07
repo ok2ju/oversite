@@ -598,6 +598,8 @@ func storeRoundToBinding(r store.Round) Round {
 		CTScore:       int(r.CtScore),
 		TScore:        int(r.TScore),
 		IsOvertime:    r.IsOvertime != 0,
+		CTTeamName:    r.CtTeamName,
+		TTeamName:     r.TTeamName,
 	}
 }
 

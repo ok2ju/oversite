@@ -226,6 +226,49 @@ func TestIngestRounds_EmptyRounds(t *testing.T) {
 	}
 }
 
+// TestIngestRounds_TeamNames covers the parser → schema → binding flow for
+// per-round clan names captured at RoundEnd.
+func TestIngestRounds_TeamNames(t *testing.T) {
+	q, db := testutil.NewTestQueries(t)
+	ctx := context.Background()
+
+	d := createDemoForRounds(t, q)
+
+	result := &demo.ParseResult{
+		Rounds: []demo.RoundData{
+			{
+				Number:     1,
+				StartTick:  0,
+				EndTick:    1000,
+				WinnerSide: "CT",
+				WinReason:  "CTWin",
+				CTScore:    1,
+				TScore:     0,
+				CTTeamName: "Astralis",
+				TTeamName:  "NaVi",
+			},
+		},
+	}
+
+	if _, err := demo.IngestRounds(ctx, db, d.ID, result); err != nil {
+		t.Fatalf("IngestRounds: %v", err)
+	}
+
+	rounds, err := q.GetRoundsByDemoID(ctx, d.ID)
+	if err != nil {
+		t.Fatalf("GetRoundsByDemoID: %v", err)
+	}
+	if len(rounds) != 1 {
+		t.Fatalf("rounds length = %d, want 1", len(rounds))
+	}
+	if rounds[0].CtTeamName != "Astralis" {
+		t.Errorf("ct_team_name = %q, want %q", rounds[0].CtTeamName, "Astralis")
+	}
+	if rounds[0].TTeamName != "NaVi" {
+		t.Errorf("t_team_name = %q, want %q", rounds[0].TTeamName, "NaVi")
+	}
+}
+
 func TestIngestRounds_RoundMapKeys(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	ctx := context.Background()

@@ -44,10 +44,11 @@ func TestParseDemo_NoKnifeRounds(t *testing.T) {
 	}
 
 	// Score invariant: after round N, (ct_score + t_score) must equal N for
-	// any round with a winner (no draws in Faceit MR12). The previous parser
-	// added +1 to WinnerState.Score() under the assumption scores were
-	// pre-update at RoundEnd, which double-counted when the library updated
-	// them in-place — that's what this guards against.
+	// any round with a winner (no draws in Faceit MR12). The parser sources
+	// the score from ScoreUpdated (authoritative, fires before RoundEnd in
+	// v5) and no longer reads WinnerState.Score() at all — this guards
+	// against a future library version aligning with its docs and silently
+	// double-counting.
 	for _, rd := range result.Rounds {
 		if rd.WinnerSide == "" {
 			continue
