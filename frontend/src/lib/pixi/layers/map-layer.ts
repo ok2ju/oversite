@@ -12,6 +12,7 @@ export class MapLayer {
   private _mapName: string | null = null
   private _calibration: MapCalibration | null = null
   private _loadId = 0
+  private _loadedUrl: string | null = null
 
   constructor(container: Container) {
     this.container = container
@@ -30,6 +31,7 @@ export class MapLayer {
       throw new Error(`Unknown CS2 map: "${mapName}"`)
     }
 
+    const previousUrl = this._loadedUrl
     this.clear()
 
     const loadId = ++this._loadId
@@ -51,6 +53,15 @@ export class MapLayer {
     this.sprite = sprite
     this._mapName = mapName
     this._calibration = calibration
+    this._loadedUrl = resolvedUrl
+
+    // Drop the previous radar texture from the GPU. Sprite.destroy() with
+    // default flags doesn't release the underlying Texture, so we have to
+    // ask Assets to unload it explicitly. Fire-and-forget: a failed unload
+    // shouldn't break the swap that already succeeded.
+    if (previousUrl && previousUrl !== resolvedUrl) {
+      void Assets.unload(previousUrl).catch(() => {})
+    }
   }
 
   clear(): void {

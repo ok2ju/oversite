@@ -34,6 +34,13 @@ type GameEvent struct {
 	Y               float64
 	Z               float64
 	ExtraData       string
+	Headshot        int64
+	AssisterSteamID sql.NullString
+	HealthDamage    int64
+	AttackerName    string
+	VictimName      string
+	AttackerTeam    string
+	VictimTeam      string
 }
 
 type GrenadeLineup struct {
@@ -89,6 +96,12 @@ type Round struct {
 	TTeamName     string
 }
 
+type RoundLoadout struct {
+	RoundID   int64
+	SteamID   string
+	Inventory string
+}
+
 type StrategyBoard struct {
 	ID         int64
 	Title      string
@@ -113,7 +126,6 @@ type TickDatum struct {
 	Money       int64
 	HasHelmet   int64
 	HasDefuser  int64
-	Inventory   string
 	AmmoClip    int64
 	AmmoReserve int64
 }

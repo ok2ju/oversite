@@ -1,6 +1,6 @@
-import { useMemo } from "react"
+import { memo, useMemo } from "react"
 import { useViewerStore } from "@/stores/viewer"
-import { useGameEvents } from "@/hooks/use-game-events"
+import { useKillFeed } from "@/hooks/use-game-events"
 import { cn } from "@/lib/utils"
 import { selectVisibleKills, type KillEntry } from "@/lib/viewer/kill-log"
 import { HEADSHOT_ICON_PATH } from "@/lib/viewer/weapon-icons"
@@ -21,7 +21,7 @@ export function KillLog() {
   const demoId = useViewerStore((s) => s.demoId)
   const currentTick = useViewerStore((s) => s.currentTick)
   const tickRate = useViewerStore((s) => s.tickRate)
-  const { data: events } = useGameEvents(demoId)
+  const { data: events } = useKillFeed(demoId)
 
   const visible = useMemo(
     () => selectVisibleKills(events, currentTick, { tickRate }),
@@ -42,7 +42,7 @@ export function KillLog() {
   )
 }
 
-function KillRow({ kill }: { kill: KillEntry }) {
+const KillRow = memo(function KillRow({ kill }: { kill: KillEntry }) {
   return (
     <div
       data-testid={`kill-log-row-${kill.id}`}
@@ -74,4 +74,4 @@ function KillRow({ kill }: { kill: KillEntry }) {
       </span>
     </div>
   )
-}
+})

@@ -6,6 +6,17 @@ RETURNING *;
 -- name: GetPlayerRoundsByRoundID :many
 SELECT * FROM player_rounds WHERE round_id = @round_id;
 
+-- name: GetRostersByDemoID :many
+-- Returns one row per (round, player) for the whole demo, ordered by round
+-- number and steam_id. Used by the viewer to preload every round's roster in
+-- a single Wails round-trip rather than firing GetRoundRoster on each round
+-- transition (24-30 trips per match).
+SELECT r.round_number, pr.steam_id, pr.player_name, pr.team_side
+FROM player_rounds pr
+JOIN rounds r ON pr.round_id = r.id
+WHERE r.demo_id = @demo_id
+ORDER BY r.round_number, pr.steam_id;
+
 -- name: GetPlayerRoundsBySteamID :many
 SELECT * FROM player_rounds WHERE steam_id = @steam_id
 ORDER BY round_id;
@@ -14,15 +25,21 @@ ORDER BY round_id;
 DELETE FROM player_rounds WHERE round_id = @round_id;
 
 -- name: GetPlayerStatsByDemoID :many
-SELECT pr.steam_id, pr.player_name,
-       (SELECT pr2.team_side FROM player_rounds pr2
-        JOIN rounds r2 ON pr2.round_id = r2.id
-        WHERE r2.demo_id = @demo_id AND pr2.steam_id = pr.steam_id
-        ORDER BY r2.round_number ASC LIMIT 1) as team_side,
-       SUM(pr.kills) as total_kills, SUM(pr.deaths) as total_deaths,
-       SUM(pr.assists) as total_assists, SUM(pr.damage) as total_damage,
-       SUM(pr.headshot_kills) as total_headshot_kills, COUNT(*) as rounds_played
-FROM player_rounds pr
-JOIN rounds r ON pr.round_id = r.id
-WHERE r.demo_id = @demo_id
-GROUP BY pr.steam_id, pr.player_name ORDER BY team_side, total_kills DESC;
+WITH ranked AS (
+    SELECT pr.steam_id, pr.player_name, pr.kills, pr.deaths, pr.assists,
+           pr.damage, pr.headshot_kills,
+           FIRST_VALUE(pr.team_side) OVER (
+               PARTITION BY pr.steam_id ORDER BY r.round_number
+           ) AS first_team_side
+    FROM player_rounds pr
+    JOIN rounds r ON pr.round_id = r.id
+    WHERE r.demo_id = @demo_id
+)
+SELECT steam_id, player_name,
+       CAST(first_team_side AS TEXT) as team_side,
+       SUM(kills) as total_kills, SUM(deaths) as total_deaths,
+       SUM(assists) as total_assists, SUM(damage) as total_damage,
+       SUM(headshot_kills) as total_headshot_kills, COUNT(*) as rounds_played
+FROM ranked
+GROUP BY steam_id, player_name, first_team_side
+ORDER BY team_side, total_kills DESC;

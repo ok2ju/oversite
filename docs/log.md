@@ -6,6 +6,20 @@ Format: `YYYY-MM-DD — <summary>` with links to affected pages.
 
 ---
 
+## 2026-05-08 — Cross-layer performance overhaul
+
+5-agent perf audit → ~50 items applied across parser, DB, Wails IPC, React, and PixiJS.
+
+- **Parser/ingest streaming:** ticks now flow through a bounded channel (`WithTickSink`); `app.go` runs parse + ingest concurrently via `errgroup.WithContext`. Peak tick-path heap dropped ~30× (~120 MB → ~4 MB). Events stay in `state.events` — `dropKnifeRounds`/`pairShotsWithImpacts`/`ExtractGrenadeLineups` need the full list. Watchdog kept (protobuf/entity-table state still grows on corrupt demos).
+- **Ingest speedups:** typed `EventExtra` structs replace `map[string]interface{}`; multi-row VALUES batching for `InsertTickData` (~500 rows/INSERT); prepared statements reused within ingest tx; `RETURNING *` removed from `CreateGameEvent`; `parseState.steamID(p)` caches `strconv.FormatUint`. `app.go parseDemo` calls now serialized (no more N parsers × hundreds of MB).
+- **SQLite pragmas:** `synchronous=NORMAL`, `busy_timeout=5000`, `cache_size=-64000`, `mmap_size=268435456`, `temp_store=MEMORY`, `journal_size_limit`. `MaxOpenConns` raised 1→4 — write serialization moves to `busy_timeout`, reads go concurrent. Migration 010 promotes hot `extra_data` fields (headshot, *_steam_id, *_name, *_team, health_damage, is_self_kill) to real columns; migration 011 moves `tick_data.inventory` to `round_loadouts(round_id, steam_id, inventory)`.
+- **Wails IPC:** `DemoSummary` list-vs-detail split (saves ~10–20 KB/100 rows). New bindings: `GetAllRosters`, `GetEventsByTypes`, `GetRoundLoadouts`, `CountDemos`. `GameEvent.ExtraData` ships as `json.RawMessage` (one-time decode on JS side). `emitProgress` 100 ms coalescer (terminal stages bypass). Cancellable context plumbed through Startup → parseDemo → Shutdown.
+- **React:** `React.lazy` per route. `useKillFeed` (typed query for kills only). Memoized `PlayerRow`/`WeaponLabelRow`/`HealthRow`/`LoadoutIcons`/`KillRow`/`RoundPill`. `gcTime: 60_000` global; `useDeleteDemo` removes per-demo cache keys. Game-events cache dropped after `EventLayer` consumes.
+- **PixiJS:** `_resetWeaponTextureCache()` on viewer destroy (fixes stale destroyed-Texture bug). Single shared `TickBuffer` via `frontend/src/stores/tick-buffer.ts` (was duplicated in `useLoadoutSnapshot`). Scratch-buffer reuse: `worldToPixelInto`, reused `nextById`/`activeSteamIds` Maps in `PlayerLayer`, reused `FramePair`/`SampleFrame` in `TickBuffer.getFramePair`. Map-texture unload via `Assets.unload(prevUrl)` tracking `_loadedUrl`. Timeline drag listeners + `use-parse-progress` timers + `heatmap` `setMap` race all cleaned up on unmount.
+- **Cleanup:** dropped `recharts`, dead `chunkTickParams`/`tickToParams`, redundant `idx_game_events_demo_id`. `TickData.X/Y/Z/Yaw` switched to `int16` over the wire (~150 KB/chunk savings). `CalculatePlayerRoundStats` rewritten as a single sorted-events pass (no per-round map).
+
+Refs: [[knowledge/demo-parser]] (updated), [[knowledge/sqlite-wal]] (updated), [[knowledge/wails-bindings]] (updated), [[knowledge/migrations]] (updated), [[knowledge/sqlc-workflow]] (updated), [[knowledge/pixijs-viewer]] (updated). ADR candidates: streaming parse→ingest contract, `MaxOpenConns 1→4` revision to ADR-0008.
+
 ## 2026-05-07 — Grenade sprites + kill-log ordering
 
 In-flight grenade icons swapped from colored dots to CS2 weapon SVG sprites; kill log now renders oldest→newest so the latest kill lands at the bottom of the feed.

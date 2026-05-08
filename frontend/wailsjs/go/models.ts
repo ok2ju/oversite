@@ -46,8 +46,38 @@ export namespace main {
 	        this.per_page = source["per_page"];
 	    }
 	}
+	export class DemoSummary {
+	    id: number;
+	    map_name: string;
+	    file_name: string;
+	    file_size: number;
+	    status: string;
+	    total_ticks: number;
+	    tick_rate: number;
+	    duration_secs: number;
+	    match_date: string;
+	    created_at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DemoSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.map_name = source["map_name"];
+	        this.file_name = source["file_name"];
+	        this.file_size = source["file_size"];
+	        this.status = source["status"];
+	        this.total_ticks = source["total_ticks"];
+	        this.tick_rate = source["tick_rate"];
+	        this.duration_secs = source["duration_secs"];
+	        this.match_date = source["match_date"];
+	        this.created_at = source["created_at"];
+	    }
+	}
 	export class DemoListResult {
-	    data: Demo[];
+	    data: DemoSummary[];
 	    meta: PaginationMeta;
 	
 	    static createFrom(source: any = {}) {
@@ -56,7 +86,7 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.data = this.convertValues(source["data"], Demo);
+	        this.data = this.convertValues(source["data"], DemoSummary);
 	        this.meta = this.convertValues(source["meta"], PaginationMeta);
 	    }
 	
@@ -78,6 +108,7 @@ export namespace main {
 		    return a;
 		}
 	}
+	
 	export class GameEvent {
 	    id: string;
 	    demo_id: string;
@@ -90,7 +121,14 @@ export namespace main {
 	    x?: number;
 	    y?: number;
 	    z?: number;
-	    extra_data: Record<string, any>;
+	    headshot: boolean;
+	    assister_steam_id?: string;
+	    health_damage: number;
+	    attacker_name: string;
+	    victim_name: string;
+	    attacker_team: string;
+	    victim_team: string;
+	    extra_data: number[];
 	
 	    static createFrom(source: any = {}) {
 	        return new GameEvent(source);
@@ -109,6 +147,13 @@ export namespace main {
 	        this.x = source["x"];
 	        this.y = source["y"];
 	        this.z = source["z"];
+	        this.headshot = source["headshot"];
+	        this.assister_steam_id = source["assister_steam_id"];
+	        this.health_damage = source["health_damage"];
+	        this.attacker_name = source["attacker_name"];
+	        this.victim_name = source["victim_name"];
+	        this.attacker_team = source["attacker_team"];
+	        this.victim_team = source["victim_team"];
 	        this.extra_data = source["extra_data"];
 	    }
 	}
@@ -239,7 +284,6 @@ export namespace main {
 	    money: number;
 	    has_helmet: boolean;
 	    has_defuser: boolean;
-	    inventory: string[];
 	    ammo_clip: number;
 	    ammo_reserve: number;
 	
@@ -262,7 +306,6 @@ export namespace main {
 	        this.money = source["money"];
 	        this.has_helmet = source["has_helmet"];
 	        this.has_defuser = source["has_defuser"];
-	        this.inventory = source["inventory"];
 	        this.ammo_clip = source["ammo_clip"];
 	        this.ammo_reserve = source["ammo_reserve"];
 	    }

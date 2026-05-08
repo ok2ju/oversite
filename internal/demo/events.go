@@ -38,7 +38,7 @@ func IngestGameEvents(ctx context.Context, db *sql.DB, demoID int64, events []Ga
 		if err != nil {
 			return 0, fmt.Errorf("convert event (tick %d, type %s): %w", evt.Tick, evt.Type, err)
 		}
-		if _, err := q.CreateGameEvent(ctx, params); err != nil {
+		if err := q.CreateGameEvent(ctx, params); err != nil {
 			return 0, fmt.Errorf("insert game event (tick %d, type %s): %w", evt.Tick, evt.Type, err)
 		}
 	}
@@ -52,13 +52,18 @@ func IngestGameEvents(ctx context.Context, db *sql.DB, demoID int64, events []Ga
 }
 
 // toEventParams converts a parsed GameEvent to sqlc CreateGameEventParams.
+//
+// Promoted fields (headshot, assister_steam_id, health_damage, attacker/victim
+// name+team) are pulled out of the typed extras and into top-level columns.
+// The remaining cold fields stay in the JSON extra_data blob (their
+// `json:"-"`-tagged siblings are skipped by encoding/json).
 func toEventParams(demoID int64, evt GameEvent, roundMap map[int]int64) (store.CreateGameEventParams, error) {
 	extra, err := marshalExtraData(evt.ExtraData)
 	if err != nil {
 		return store.CreateGameEventParams{}, fmt.Errorf("marshal extra data: %w", err)
 	}
 
-	return store.CreateGameEventParams{
+	params := store.CreateGameEventParams{
 		DemoID:          demoID,
 		RoundID:         resolveRoundID(evt.RoundNumber, roundMap),
 		Tick:            int64(evt.Tick),
@@ -70,7 +75,29 @@ func toEventParams(demoID int64, evt GameEvent, roundMap map[int]int64) (store.C
 		Y:               evt.Y,
 		Z:               evt.Z,
 		ExtraData:       extra,
-	}, nil
+	}
+
+	switch e := evt.ExtraData.(type) {
+	case *KillExtra:
+		if e != nil {
+			params.Headshot = boolToInt64(e.Headshot)
+			params.AssisterSteamID = nullString(e.AssisterSteamID)
+			params.AttackerName = e.AttackerName
+			params.VictimName = e.VictimName
+			params.AttackerTeam = e.AttackerTeam
+			params.VictimTeam = e.VictimTeam
+		}
+	case *PlayerHurtExtra:
+		if e != nil {
+			params.HealthDamage = int64(e.HealthDamage)
+			params.AttackerName = e.AttackerName
+			params.VictimName = e.VictimName
+			params.AttackerTeam = e.AttackerTeam
+			params.VictimTeam = e.VictimTeam
+		}
+	}
+
+	return params, nil
 }
 
 // resolveRoundID looks up the DB round ID for a given round number.
@@ -82,10 +109,14 @@ func resolveRoundID(roundNumber int, roundMap map[int]int64) int64 {
 	return roundMap[roundNumber]
 }
 
-// marshalExtraData serializes extra data to a JSON string.
-// Returns "{}" for nil or empty maps.
-func marshalExtraData(extra map[string]interface{}) (string, error) {
-	if len(extra) == 0 {
+// marshalExtraData serializes the typed extras (see extras.go) to a JSON
+// string for storage. Returns "{}" for nil so the DB column is never empty
+// — frontend readers are happy with `{}` and the heatmap query's
+// json_extract calls are happy too. Empty/zero-value structs still marshal
+// to e.g. `{"site":""}`, which is the same shape the previous map path
+// produced.
+func marshalExtraData(extra any) (string, error) {
+	if extra == nil {
 		return "{}", nil
 	}
 	data, err := json.Marshal(extra)

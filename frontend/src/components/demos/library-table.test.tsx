@@ -8,7 +8,7 @@ import {
 } from "@/test/mocks/bindings"
 import { LibraryTable, filterDemos } from "@/components/demos/library-table"
 import { useDemoStore } from "@/stores/demo"
-import type { Demo } from "@/types/demo"
+import type { DemoSummary } from "@/types/demo"
 
 vi.mock("@wailsjs/go/main/App", () => mockAppBindings)
 vi.mock("@wailsjs/runtime/runtime", () => mockRuntime)
@@ -20,11 +20,11 @@ vi.mock("react-router-dom", async () => {
   return { ...actual, useNavigate: () => mockNavigate }
 })
 
-function makeDemo(overrides: Partial<Demo>): Demo {
+function makeDemo(overrides: Partial<DemoSummary>): DemoSummary {
   return {
     id: 1,
     map_name: "de_mirage",
-    file_path: "/demos/mirage-match.dem",
+    file_name: "mirage-match.dem",
     file_size: 100_000_000,
     status: "ready",
     total_ticks: 0,
@@ -41,25 +41,25 @@ describe("filterDemos", () => {
     makeDemo({
       id: 1,
       map_name: "de_mirage",
-      file_path: "/demos/mirage-1.dem",
+      file_name: "mirage-1.dem",
       status: "ready",
     }),
     makeDemo({
       id: 2,
       map_name: "de_nuke",
-      file_path: "/demos/nuke-1.dem",
+      file_name: "nuke-1.dem",
       status: "parsing",
     }),
     makeDemo({
       id: 3,
       map_name: "de_inferno",
-      file_path: "/demos/inferno-1.dem",
+      file_name: "inferno-1.dem",
       status: "failed",
     }),
     makeDemo({
       id: 4,
       map_name: "de_mirage",
-      file_path: "/demos/mirage-2.dem",
+      file_name: "mirage-2.dem",
       status: "imported",
     }),
   ]
@@ -92,7 +92,7 @@ describe("LibraryTable row navigation", () => {
     useDemoStore.getState().reset()
   })
 
-  function render(demos: Demo[]) {
+  function render(demos: DemoSummary[]) {
     renderWithProviders(
       <LibraryTable demos={demos} search="" filter="all" onDelete={() => {}} />,
     )
@@ -150,7 +150,7 @@ describe("LibraryTable delete confirmation", () => {
   function renderWithDelete(onDelete: (id: number) => void) {
     const demo = makeDemo({
       id: 42,
-      file_path: "/demos/awesome-clutch.dem",
+      file_name: "awesome-clutch.dem",
       status: "ready",
     })
     renderWithProviders(

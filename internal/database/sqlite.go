@@ -22,8 +22,12 @@ func Open(dbPath string) (*sql.DB, error) {
 		return nil, fmt.Errorf("sql.Open: %w", err)
 	}
 
-	// Single connection — SQLite is single-writer.
-	db.SetMaxOpenConns(1)
+	// Allow a small connection pool. WAL mode lets readers proceed against the
+	// last committed snapshot while a writer holds the write lock; SQLite
+	// itself enforces single-writer at the file level, and busy_timeout=5000
+	// (set below) makes concurrent writers wait up to 5s instead of erroring.
+	// This unblocks read queries during long ingest transactions.
+	db.SetMaxOpenConns(4)
 
 	// Enable WAL mode for concurrent reads.
 	var mode string
@@ -34,6 +38,42 @@ func Open(dbPath string) (*sql.DB, error) {
 	if mode != "wal" {
 		_ = db.Close()
 		return nil, fmt.Errorf("expected journal_mode=wal, got %q", mode)
+	}
+
+	// synchronous=NORMAL is safe under WAL and avoids fsync-per-write.
+	if _, err := db.Exec("PRAGMA synchronous=NORMAL"); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("PRAGMA synchronous=NORMAL: %w", err)
+	}
+
+	// Wait up to 5s on a busy lock instead of returning SQLITE_BUSY.
+	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("PRAGMA busy_timeout=5000: %w", err)
+	}
+
+	// 64 MiB page cache (negative value = KiB).
+	if _, err := db.Exec("PRAGMA cache_size=-64000"); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("PRAGMA cache_size=-64000: %w", err)
+	}
+
+	// 256 MiB memory-mapped I/O.
+	if _, err := db.Exec("PRAGMA mmap_size=268435456"); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("PRAGMA mmap_size=268435456: %w", err)
+	}
+
+	// Keep temp tables and indices in RAM.
+	if _, err := db.Exec("PRAGMA temp_store=MEMORY"); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("PRAGMA temp_store=MEMORY: %w", err)
+	}
+
+	// Cap WAL file growth at 64 MiB.
+	if _, err := db.Exec("PRAGMA journal_size_limit=67108864"); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("PRAGMA journal_size_limit=67108864: %w", err)
 	}
 
 	// Enable foreign key enforcement.

@@ -1,11 +1,13 @@
 package demo
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
 	"runtime"
 	"strconv"
+	"strings"
 
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
@@ -58,6 +60,10 @@ var ErrEventLimitExceeded = fmt.Errorf("game event limit exceeded (%d): demo may
 var ErrHeapLimitExceeded = fmt.Errorf("heap allocation limit exceeded (%d MiB): demo may be corrupt", maxHeapBytes>>20)
 
 // ParseResult is the complete output of parsing a demo file.
+//
+// Ticks is nil when WithTickSink was passed to NewDemoParser — in the
+// streaming pipeline the snapshots are flushed through the channel during
+// parsing and never accumulated in this slice.
 type ParseResult struct {
 	Header  MatchHeader
 	Rounds  []RoundData
@@ -94,13 +100,23 @@ type RoundData struct {
 // Used to seed per-round stats so passive players (no kills, no damage, no
 // deaths) still receive a player_rounds row instead of falling back to the
 // numeric SteamID slice on the frontend.
+//
+// Inventory is the comma-separated weapon list at freeze-end (encodeInventory
+// output). Persisted into round_loadouts (migration 011) so the team bars can
+// render the player's purchased loadout without paying for tick-rate inventory
+// snapshots — mid-round pickups/drops are intentionally not tracked.
 type RoundParticipant struct {
 	SteamID    string
 	PlayerName string
 	TeamSide   string // "CT" or "T"
+	Inventory  string
 }
 
 // TickSnapshot is one player's state at a sampled tick.
+//
+// Inventory is intentionally not part of this struct: the freeze-end loadout
+// covers the team-bars use case at ~5000× fewer rows. See RoundParticipant
+// and migration 011.
 type TickSnapshot struct {
 	Tick       int
 	SteamID    string // Steam64ID as string
@@ -113,10 +129,6 @@ type TickSnapshot struct {
 	Money      int
 	HasHelmet  bool
 	HasDefuser bool
-	// Inventory is the comma-separated list of weapon/equipment names the
-	// player owns at this tick (`String()` from demoinfocs Equipment), used by
-	// the team bars to render loadout icons.
-	Inventory string
 	// AmmoClip / AmmoReserve are the active weapon's clip and reserve counts.
 	// Both 0 when the active item has no ammo (e.g. knife) or no active weapon.
 	AmmoClip    int
@@ -124,6 +136,12 @@ type TickSnapshot struct {
 }
 
 // GameEvent represents a parsed game event (kill, grenade, bomb, round boundary).
+//
+// ExtraData holds a typed pointer-to-struct from extras.go (e.g. *KillExtra,
+// *WeaponFireExtra). Using `any` rather than the EventExtra marker interface
+// keeps json.Marshal happy without forcing every reader to call a getter.
+// nil indicates "no extras" — JSON marshals it as null, same as the old empty
+// map case.
 type GameEvent struct {
 	Tick            int
 	RoundNumber     int
@@ -132,7 +150,7 @@ type GameEvent struct {
 	VictimSteamID   string
 	Weapon          string
 	X, Y, Z         float64
-	ExtraData       map[string]interface{}
+	ExtraData       any
 }
 
 // ProgressFunc is called during parsing to report progress.
@@ -173,12 +191,27 @@ func WithProgressFunc(fn ProgressFunc) Option {
 	}
 }
 
+// WithTickSink configures the parser to push each captured TickSnapshot to the
+// supplied channel instead of accumulating them into ParseResult.Ticks. The
+// caller owns reading from the channel; Parse closes it exactly once when it
+// returns (success or error). When a sink is set, ParseResult.Ticks is nil.
+//
+// This enables overlapping parse (CPU-bound on protobuf decode) with ingest
+// (I/O-bound on SQLite WAL writes) and caps peak heap by removing the
+// 100 MB+ tick slice that would otherwise live until ingestion finishes.
+func WithTickSink(sink chan<- TickSnapshot) Option {
+	return func(dp *DemoParser) {
+		dp.tickSink = sink
+	}
+}
+
 // DemoParser extracts structured data from CS2 .dem files.
 type DemoParser struct {
 	tickInterval int
 	skipWarmup   bool
 	includeBots  bool
 	progressFunc ProgressFunc
+	tickSink     chan<- TickSnapshot
 }
 
 // NewDemoParser creates a parser with the given options.
@@ -196,6 +229,7 @@ func NewDemoParser(opts ...Option) *DemoParser {
 
 // parseState holds mutable state tracked during parsing.
 type parseState struct {
+	ctx                 context.Context // cancelled by Parse's caller; checked at natural boundaries
 	mapName             string
 	matchStarted        bool
 	matchStartCount     int
@@ -207,12 +241,33 @@ type parseState struct {
 	maxRegulationRounds int // mp_maxrounds; 0 until the convar is observed.
 	currentRoster       []RoundParticipant
 	rounds              []RoundData
-	ticks               []TickSnapshot
+	ticks               []TickSnapshot      // populated only when tickSink is nil
+	tickSink            chan<- TickSnapshot // when non-nil, snapshots are pushed here instead of appended to ticks
+	tickCount           int                 // number of TickSnapshots produced (sink + slice combined); enforces maxTickRows
 	events              []GameEvent
 	lastSampledTick     int
 	knifeRoundNumbers   map[int]bool
-	limitExceeded       error // set when ticks/events exceed maxTickRows/maxGameEvent
-	frameCount          int   // total FrameDone events seen; drives the heartbeat
+	limitExceeded       error             // set when ticks/events exceed maxTickRows/maxGameEvent
+	frameCount          int               // total FrameDone events seen; drives the heartbeat
+	steamIDs            map[uint64]string // SteamID64 → decimal string cache; saves millions of strconv allocs across all event handlers
+}
+
+// steamID returns the decimal string form of p.SteamID64, cached per player.
+// Returns "" if p is nil. Safe to call from any handler since the demoinfocs
+// dispatcher is single-threaded.
+func (s *parseState) steamID(p *common.Player) string {
+	if p == nil {
+		return ""
+	}
+	if v, ok := s.steamIDs[p.SteamID64]; ok {
+		return v
+	}
+	if s.steamIDs == nil {
+		s.steamIDs = make(map[uint64]string, 16)
+	}
+	v := strconv.FormatUint(p.SteamID64, 10)
+	s.steamIDs[p.SteamID64] = v
+	return v
 }
 
 // shouldStopAppending returns true once a limit has tripped. Handlers check
@@ -234,6 +289,36 @@ func (s *parseState) addEvent(ev GameEvent) bool {
 		return false
 	}
 	s.events = append(s.events, ev)
+	return true
+}
+
+// pushTick routes a TickSnapshot to either the streaming sink (when set) or
+// the in-memory slice. Returns true on success; on cap-trip or ctx-cancel it
+// sets s.limitExceeded and returns false so the caller can ask the parser to
+// Cancel.
+//
+// The select in the streaming branch protects against a stalled ingester:
+// if the consumer goroutine errored and stopped draining, the errgroup's
+// shared ctx will already be cancelled, so we don't deadlock here.
+func (s *parseState) pushTick(t TickSnapshot) bool {
+	if s.limitExceeded != nil {
+		return false
+	}
+	if s.tickCount >= maxTickRows {
+		s.limitExceeded = ErrTickLimitExceeded
+		return false
+	}
+	if s.tickSink != nil {
+		select {
+		case s.tickSink <- t:
+		case <-s.ctx.Done():
+			s.limitExceeded = s.ctx.Err()
+			return false
+		}
+	} else {
+		s.ticks = append(s.ticks, t)
+	}
+	s.tickCount++
 	return true
 }
 
@@ -266,6 +351,14 @@ func (s *parseState) ensureFormat(p demoinfocs.Parser) {
 // resetForPreMatchRestart discards all captured data from the pre-match phase.
 // Called when MatchStartedChanged(true) re-fires with the match score still at
 // 0-0, which signals a Faceit-style knife-round → live-match transition.
+//
+// When streaming via tickSink, snapshots already pushed to the channel cannot
+// be pulled back — the ingester may have committed them. tickCount is reset
+// to 0 so the maxTickRows cap counts only post-restart frames, but the
+// DB-side cleanup is the responsibility of the next re-import (the ingester's
+// DeleteTickDataByDemoID runs first on every Ingest call). In practice the
+// pre-restart phase emits only a handful of warmup ticks, so the impact is
+// negligible.
 func (s *parseState) resetForPreMatchRestart() {
 	s.currentRound = 0
 	s.roundStart = 0
@@ -274,12 +367,24 @@ func (s *parseState) resetForPreMatchRestart() {
 	s.currentRoster = nil
 	s.rounds = nil
 	s.ticks = nil
+	s.tickCount = 0
 	s.events = nil
 	s.knifeRoundNumbers = nil
+	// Keep steamIDs across restart — same players, same SteamID64s.
 }
 
 // Parse reads a CS2 demo from r and returns all extracted data.
-func (dp *DemoParser) Parse(r io.Reader) (result *ParseResult, err error) {
+//
+// ctx is honored at natural boundaries (FrameDone handler entry); when ctx
+// is cancelled mid-parse, the underlying parser is asked to stop and Parse
+// returns ctx.Err(). When WithTickSink was set, the sink channel is closed
+// exactly once before Parse returns (success, error, panic), and
+// ParseResult.Ticks is left nil; the caller is responsible for draining the
+// channel concurrently.
+func (dp *DemoParser) Parse(ctx context.Context, r io.Reader) (result *ParseResult, err error) {
+	if dp.tickSink != nil {
+		defer close(dp.tickSink)
+	}
 	defer func() {
 		if rec := recover(); rec != nil {
 			err = fmt.Errorf("parsing demo: panic: %v", rec)
@@ -302,7 +407,10 @@ func (dp *DemoParser) Parse(r io.Reader) (result *ParseResult, err error) {
 		}
 	}()
 
-	state := &parseState{}
+	state := &parseState{
+		ctx:      ctx,
+		tickSink: dp.tickSink,
+	}
 
 	dp.registerHandlers(p, state)
 
@@ -311,15 +419,15 @@ func (dp *DemoParser) Parse(r io.Reader) (result *ParseResult, err error) {
 	if parseErr := p.ParseToEnd(); parseErr != nil {
 		// demoinfocs returns ErrUnexpectedEndOfDemo for truncated demos;
 		// treat as fatal only if we got zero data.
-		if len(state.rounds) == 0 && len(state.ticks) == 0 && len(state.events) == 0 {
+		if len(state.rounds) == 0 && state.tickCount == 0 && len(state.events) == 0 {
 			return nil, fmt.Errorf("parsing demo: %w", parseErr)
 		}
 	}
 
-	// A tripped tick/event cap is fatal even if we collected partial data —
-	// the demo is corrupt or non-standard, and the partial slices may
-	// reference dropped entities. Better to surface a clear error than show
-	// the user a half-broken viewer.
+	// A tripped tick/event cap (or ctx cancel) is fatal even if we collected
+	// partial data — the demo is corrupt or non-standard, and the partial
+	// slices may reference dropped entities. Better to surface a clear error
+	// than show the user a half-broken viewer.
 	if state.limitExceeded != nil {
 		return nil, state.limitExceeded
 	}
@@ -342,7 +450,7 @@ func (dp *DemoParser) Parse(r io.Reader) (result *ParseResult, err error) {
 
 	slog.Info("parser: completed",
 		"rounds", len(rounds),
-		"ticks", len(state.ticks),
+		"ticks", state.tickCount,
 		"events", len(events),
 		"map", state.mapName,
 		"total_ticks", totalTicks)
@@ -508,8 +616,8 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 		}
 		state.freezeEndTick = p.GameState().IngameTick()
 
-		var inventories [][]common.EquipmentType
-		var roster []RoundParticipant
+		inventories := make([][]common.EquipmentType, 0, 10)
+		roster := make([]RoundParticipant, 0, 10)
 		for _, player := range p.GameState().Participants().Playing() {
 			if shouldSkipPlayer(player, dp.includeBots) {
 				continue
@@ -517,12 +625,13 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			if !player.IsAlive() {
 				continue
 			}
+			weapons := player.Weapons()
 			roster = append(roster, RoundParticipant{
-				SteamID:    strconv.FormatUint(player.SteamID64, 10),
+				SteamID:    state.steamID(player),
 				PlayerName: player.Name,
 				TeamSide:   teamSideString(player.Team),
+				Inventory:  encodeInventory(weapons),
 			})
-			weapons := player.Weapons()
 			inv := make([]common.EquipmentType, 0, len(weapons))
 			for _, w := range weapons {
 				if w == nil {
@@ -650,6 +759,17 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 		if state.shouldStopAppending() {
 			return
 		}
+		// Honor caller's ctx at this natural boundary. The ingester goroutine
+		// (when streaming) cancels the shared errgroup ctx if it errors; we
+		// notice here on the next FrameDone and stop ourselves so demoinfocs's
+		// dispatch loop can drain.
+		if state.ctx != nil {
+			if err := state.ctx.Err(); err != nil {
+				state.limitExceeded = err
+				p.Cancel()
+				return
+			}
+		}
 		gs := p.GameState()
 		tick := gs.IngameTick()
 
@@ -664,7 +784,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			slog.Info("parser: heartbeat",
 				"frames", state.frameCount,
 				"ingame_tick", tick,
-				"ticks_captured", len(state.ticks),
+				"ticks_captured", state.tickCount,
 				"events_captured", len(state.events),
 				"rounds_captured", len(state.rounds),
 				"heap_alloc_mb", mem.HeapAlloc>>20,
@@ -713,14 +833,6 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 				continue
 			}
 
-			if len(state.ticks) >= maxTickRows {
-				state.limitExceeded = ErrTickLimitExceeded
-				slog.Warn("parser: tick limit exceeded; cancelling parse",
-					"tick", tick, "ticks_captured", len(state.ticks))
-				p.Cancel()
-				return
-			}
-
 			pos := player.Position()
 			weapon := ""
 			ammoClip := 0
@@ -731,9 +843,9 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 				ammoReserve = w.AmmoReserve()
 			}
 
-			state.ticks = append(state.ticks, TickSnapshot{
+			if !state.pushTick(TickSnapshot{
 				Tick:        tick,
-				SteamID:     strconv.FormatUint(player.SteamID64, 10),
+				SteamID:     state.steamID(player),
 				X:           pos.X,
 				Y:           pos.Y,
 				Z:           pos.Z,
@@ -745,10 +857,15 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 				Money:       player.Money(),
 				HasHelmet:   player.HasHelmet(),
 				HasDefuser:  player.HasDefuseKit(),
-				Inventory:   encodeInventory(player.Weapons()),
 				AmmoClip:    ammoClip,
 				AmmoReserve: ammoReserve,
-			})
+			}) {
+				slog.Warn("parser: tick push failed; cancelling parse",
+					"tick", tick, "ticks_captured", state.tickCount,
+					"err", state.limitExceeded)
+				p.Cancel()
+				return
+			}
 		}
 	})
 
@@ -766,10 +883,10 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 		var weaponName string
 
 		if e.Killer != nil {
-			attackerID = strconv.FormatUint(e.Killer.SteamID64, 10)
+			attackerID = state.steamID(e.Killer)
 		}
 		if e.Victim != nil {
-			victimID = strconv.FormatUint(e.Victim.SteamID64, 10)
+			victimID = state.steamID(e.Victim)
 			pos := e.Victim.Position()
 			x, y, z = pos.X, pos.Y, pos.Z
 		}
@@ -777,32 +894,33 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			weaponName = e.Weapon.String()
 		}
 
-		extra := map[string]interface{}{
-			"headshot":       e.IsHeadshot,
-			"penetrated":     e.PenetratedObjects,
-			"flash_assist":   e.AssistedFlash,
-			"through_smoke":  e.ThroughSmoke,
-			"no_scope":       e.NoScope,
-			"attacker_blind": e.AttackerBlind,
-			"wallbang":       e.IsWallBang(),
+		extra := &KillExtra{
+			Headshot:      e.IsHeadshot,
+			Penetrated:    e.PenetratedObjects,
+			FlashAssist:   e.AssistedFlash,
+			ThroughSmoke:  e.ThroughSmoke,
+			NoScope:       e.NoScope,
+			AttackerBlind: e.AttackerBlind,
+			Wallbang:      e.IsWallBang(),
 		}
 
 		if e.Assister != nil && e.Assister.SteamID64 != 0 {
-			extra["assister_steam_id"] = strconv.FormatUint(e.Assister.SteamID64, 10)
-			extra["assister_name"] = e.Assister.Name
-			extra["assister_team"] = teamSideString(e.Assister.Team)
+			extra.AssisterSteamID = state.steamID(e.Assister)
+			extra.AssisterName = e.Assister.Name
+			extra.AssisterTeam = teamSideString(e.Assister.Team)
 		}
 		if e.Killer != nil {
-			extra["attacker_name"] = e.Killer.Name
-			extra["attacker_team"] = teamSideString(e.Killer.Team)
+			extra.AttackerName = e.Killer.Name
+			extra.AttackerTeam = teamSideString(e.Killer.Team)
 			killerPos := e.Killer.Position()
-			extra["attacker_x"] = killerPos.X
-			extra["attacker_y"] = killerPos.Y
-			extra["attacker_z"] = killerPos.Z
+			ax, ay, az := killerPos.X, killerPos.Y, killerPos.Z
+			extra.AttackerX = &ax
+			extra.AttackerY = &ay
+			extra.AttackerZ = &az
 		}
 		if e.Victim != nil {
-			extra["victim_name"] = e.Victim.Name
-			extra["victim_team"] = teamSideString(e.Victim.Team)
+			extra.VictimName = e.Victim.Name
+			extra.VictimTeam = teamSideString(e.Victim.Team)
 		}
 
 		if !state.addEvent(GameEvent{
@@ -841,16 +959,16 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 		}
 
 		pos := e.Shooter.Position()
-		extra := map[string]interface{}{
-			"yaw":   float64(e.Shooter.ViewDirectionX()),
-			"pitch": float64(e.Shooter.ViewDirectionY()),
+		extra := &WeaponFireExtra{
+			Yaw:   float64(e.Shooter.ViewDirectionX()),
+			Pitch: float64(e.Shooter.ViewDirectionY()),
 		}
 
 		if !state.addEvent(GameEvent{
 			Tick:            p.GameState().IngameTick(),
 			RoundNumber:     state.currentRound,
 			Type:            "weapon_fire",
-			AttackerSteamID: strconv.FormatUint(e.Shooter.SteamID64, 10),
+			AttackerSteamID: state.steamID(e.Shooter),
 			Weapon:          e.Weapon.String(),
 			X:               pos.X,
 			Y:               pos.Y,
@@ -871,21 +989,21 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 		}
 
 		var attackerID, victimID string
-		extra := map[string]interface{}{
-			"health_damage": e.HealthDamage,
-			"armor_damage":  e.ArmorDamage,
+		extra := &PlayerHurtExtra{
+			HealthDamage: e.HealthDamage,
+			ArmorDamage:  e.ArmorDamage,
 		}
 
 		if e.Attacker != nil {
-			attackerID = strconv.FormatUint(e.Attacker.SteamID64, 10)
-			extra["attacker_name"] = e.Attacker.Name
-			extra["attacker_team"] = teamSideString(e.Attacker.Team)
+			attackerID = state.steamID(e.Attacker)
+			extra.AttackerName = e.Attacker.Name
+			extra.AttackerTeam = teamSideString(e.Attacker.Team)
 		}
 		var x, y, z float64
 		if e.Player != nil {
-			victimID = strconv.FormatUint(e.Player.SteamID64, 10)
-			extra["victim_name"] = e.Player.Name
-			extra["victim_team"] = teamSideString(e.Player.Team)
+			victimID = state.steamID(e.Player)
+			extra.VictimName = e.Player.Name
+			extra.VictimTeam = teamSideString(e.Player.Team)
 			pos := e.Player.Position()
 			x, y, z = pos.X, pos.Y, pos.Z
 		}
@@ -925,7 +1043,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 
 		var throwerID string
 		if e.Projectile.Thrower != nil {
-			throwerID = strconv.FormatUint(e.Projectile.Thrower.SteamID64, 10)
+			throwerID = state.steamID(e.Projectile.Thrower)
 		}
 
 		pos := e.Projectile.Position()
@@ -934,13 +1052,13 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			grenadeType = e.Projectile.WeaponInstance.String()
 		}
 
-		extra := map[string]interface{}{}
+		extra := &GrenadeThrowExtra{}
 		if e.Projectile.Entity != nil {
-			extra["entity_id"] = e.Projectile.Entity.ID()
+			extra.EntityID = e.Projectile.Entity.ID()
 		}
 		if e.Projectile.Thrower != nil {
-			extra["throw_yaw"] = float64(e.Projectile.Thrower.ViewDirectionX())
-			extra["throw_pitch"] = float64(e.Projectile.Thrower.ViewDirectionY())
+			extra.ThrowYaw = float64(e.Projectile.Thrower.ViewDirectionX())
+			extra.ThrowPitch = float64(e.Projectile.Thrower.ViewDirectionY())
 		}
 
 		if !state.addEvent(GameEvent{
@@ -975,7 +1093,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 
 		var throwerID string
 		if e.Projectile.Thrower != nil {
-			throwerID = strconv.FormatUint(e.Projectile.Thrower.SteamID64, 10)
+			throwerID = state.steamID(e.Projectile.Thrower)
 		}
 
 		pos := e.Projectile.Position()
@@ -984,11 +1102,11 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			grenadeType = e.Projectile.WeaponInstance.String()
 		}
 
-		extra := map[string]interface{}{
-			"bounce_nr": e.BounceNr,
+		extra := &GrenadeBounceExtra{
+			BounceNr: e.BounceNr,
 		}
 		if e.Projectile.Entity != nil {
-			extra["entity_id"] = e.Projectile.Entity.ID()
+			extra.EntityID = e.Projectile.Entity.ID()
 		}
 
 		if !state.addEvent(GameEvent{
@@ -1017,11 +1135,11 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			}
 			var throwerID string
 			if e.Thrower != nil {
-				throwerID = strconv.FormatUint(e.Thrower.SteamID64, 10)
+				throwerID = state.steamID(e.Thrower)
 			}
 
-			extra := map[string]interface{}{
-				"entity_id": e.GrenadeEntityID,
+			extra := &GrenadeDetonateExtra{
+				EntityID: e.GrenadeEntityID,
 			}
 
 			if !state.addEvent(GameEvent{
@@ -1074,7 +1192,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 		}
 		var playerID string
 		if e.Player != nil {
-			playerID = strconv.FormatUint(e.Player.SteamID64, 10)
+			playerID = state.steamID(e.Player)
 		}
 
 		bombPos := p.GameState().Bomb().Position()
@@ -1086,8 +1204,8 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			X:               bombPos.X,
 			Y:               bombPos.Y,
 			Z:               bombPos.Z,
-			ExtraData: map[string]interface{}{
-				"site": bombsiteString(e.Site),
+			ExtraData: &BombPlantExtra{
+				Site: bombsiteString(e.Site),
 			},
 		}) {
 			p.Cancel()
@@ -1103,7 +1221,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 		}
 		var playerID string
 		if e.Player != nil {
-			playerID = strconv.FormatUint(e.Player.SteamID64, 10)
+			playerID = state.steamID(e.Player)
 		}
 
 		hasKit := false
@@ -1120,9 +1238,9 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			X:               bombPos.X,
 			Y:               bombPos.Y,
 			Z:               bombPos.Z,
-			ExtraData: map[string]interface{}{
-				"site":    bombsiteString(e.Site),
-				"has_kit": hasKit,
+			ExtraData: &BombDefuseExtra{
+				Site:   bombsiteString(e.Site),
+				HasKit: hasKit,
 			},
 		}) {
 			p.Cancel()
@@ -1145,8 +1263,8 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			X:           bombPos.X,
 			Y:           bombPos.Y,
 			Z:           bombPos.Z,
-			ExtraData: map[string]interface{}{
-				"site": bombsiteString(e.Site),
+			ExtraData: &BombExplodeExtra{
+				Site: bombsiteString(e.Site),
 			},
 		}) {
 			p.Cancel()
@@ -1181,14 +1299,7 @@ func encodeInventory(weapons []*common.Equipment) string {
 		}
 		names = append(names, s)
 	}
-	if len(names) == 0 {
-		return ""
-	}
-	out := names[0]
-	for _, n := range names[1:] {
-		out += "," + n
-	}
-	return out
+	return strings.Join(names, ",")
 }
 
 // shouldSkipPlayer returns true if the player should be excluded from tick snapshots.

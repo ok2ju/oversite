@@ -179,8 +179,7 @@ type GetWeaponStatsByDemoIDRow struct {
 }
 
 const getWeaponStatsByDemoID = `
-SELECT ge.weapon, COUNT(*) AS kill_count,
-       SUM(CASE WHEN json_extract(ge.extra_data, '$.headshot') = 1 THEN 1 ELSE 0 END) AS hs_count
+SELECT ge.weapon, COUNT(*) AS kill_count, SUM(ge.headshot) AS hs_count
 FROM game_events ge
 WHERE ge.demo_id = ?
   AND ge.event_type = 'kill'

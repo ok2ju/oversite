@@ -17,7 +17,7 @@ func TestPairShotsWithImpacts(t *testing.T) {
 		{
 			name: "single fire then hurt within window",
 			events: []GameEvent{
-				{Tick: 100, Type: "weapon_fire", AttackerSteamID: "A", ExtraData: map[string]interface{}{"yaw": 0.0}},
+				{Tick: 100, Type: "weapon_fire", AttackerSteamID: "A", ExtraData: &WeaponFireExtra{Yaw: 0.0}},
 				{Tick: 103, Type: "player_hurt", AttackerSteamID: "A", VictimSteamID: "V", X: 10, Y: 20},
 			},
 			wantHits: map[int]wantHit{0: {x: 10, y: 20}},
@@ -25,7 +25,7 @@ func TestPairShotsWithImpacts(t *testing.T) {
 		{
 			name: "hurt outside window — not paired",
 			events: []GameEvent{
-				{Tick: 100, Type: "weapon_fire", AttackerSteamID: "A", ExtraData: map[string]interface{}{"yaw": 0.0}},
+				{Tick: 100, Type: "weapon_fire", AttackerSteamID: "A", ExtraData: &WeaponFireExtra{Yaw: 0.0}},
 				{Tick: 100 + shotImpactPairWindow + 1, Type: "player_hurt", AttackerSteamID: "A", VictimSteamID: "V", X: 10, Y: 20},
 			},
 			wantHits: map[int]wantHit{},
@@ -33,7 +33,7 @@ func TestPairShotsWithImpacts(t *testing.T) {
 		{
 			name: "different attackers do not cross-pair",
 			events: []GameEvent{
-				{Tick: 100, Type: "weapon_fire", AttackerSteamID: "A", ExtraData: map[string]interface{}{"yaw": 0.0}},
+				{Tick: 100, Type: "weapon_fire", AttackerSteamID: "A", ExtraData: &WeaponFireExtra{Yaw: 0.0}},
 				{Tick: 102, Type: "player_hurt", AttackerSteamID: "B", VictimSteamID: "V", X: 5, Y: 5},
 			},
 			wantHits: map[int]wantHit{},
@@ -41,9 +41,9 @@ func TestPairShotsWithImpacts(t *testing.T) {
 		{
 			name: "spray with all hits — each shot pairs with its hurt",
 			events: []GameEvent{
-				{Tick: 100, Type: "weapon_fire", AttackerSteamID: "A", ExtraData: map[string]interface{}{"yaw": 0.0}},
+				{Tick: 100, Type: "weapon_fire", AttackerSteamID: "A", ExtraData: &WeaponFireExtra{Yaw: 0.0}},
 				{Tick: 102, Type: "player_hurt", AttackerSteamID: "A", VictimSteamID: "V", X: 10, Y: 10},
-				{Tick: 106, Type: "weapon_fire", AttackerSteamID: "A", ExtraData: map[string]interface{}{"yaw": 0.0}},
+				{Tick: 106, Type: "weapon_fire", AttackerSteamID: "A", ExtraData: &WeaponFireExtra{Yaw: 0.0}},
 				{Tick: 108, Type: "player_hurt", AttackerSteamID: "A", VictimSteamID: "V", X: 11, Y: 11},
 			},
 			wantHits: map[int]wantHit{
@@ -54,8 +54,8 @@ func TestPairShotsWithImpacts(t *testing.T) {
 		{
 			name: "miss between hits — only the second shot pairs",
 			events: []GameEvent{
-				{Tick: 100, Type: "weapon_fire", AttackerSteamID: "A", ExtraData: map[string]interface{}{"yaw": 0.0}}, // miss
-				{Tick: 106, Type: "weapon_fire", AttackerSteamID: "A", ExtraData: map[string]interface{}{"yaw": 0.0}}, // hits
+				{Tick: 100, Type: "weapon_fire", AttackerSteamID: "A", ExtraData: &WeaponFireExtra{Yaw: 0.0}}, // miss
+				{Tick: 106, Type: "weapon_fire", AttackerSteamID: "A", ExtraData: &WeaponFireExtra{Yaw: 0.0}}, // hits
 				{Tick: 108, Type: "player_hurt", AttackerSteamID: "A", VictimSteamID: "V", X: 7, Y: 8},
 			},
 			// The first shot's lastShot record gets overwritten when WF #2
@@ -65,7 +65,7 @@ func TestPairShotsWithImpacts(t *testing.T) {
 		{
 			name: "wallbang — only first hurt is recorded on the shot",
 			events: []GameEvent{
-				{Tick: 100, Type: "weapon_fire", AttackerSteamID: "A", ExtraData: map[string]interface{}{"yaw": 0.0}},
+				{Tick: 100, Type: "weapon_fire", AttackerSteamID: "A", ExtraData: &WeaponFireExtra{Yaw: 0.0}},
 				{Tick: 102, Type: "player_hurt", AttackerSteamID: "A", VictimSteamID: "V1", X: 1, Y: 2},
 				{Tick: 102, Type: "player_hurt", AttackerSteamID: "A", VictimSteamID: "V2", X: 3, Y: 4},
 			},
@@ -74,7 +74,7 @@ func TestPairShotsWithImpacts(t *testing.T) {
 		{
 			name: "weapon_fire with empty attacker id is ignored",
 			events: []GameEvent{
-				{Tick: 100, Type: "weapon_fire", AttackerSteamID: "", ExtraData: map[string]interface{}{"yaw": 0.0}},
+				{Tick: 100, Type: "weapon_fire", AttackerSteamID: "", ExtraData: &WeaponFireExtra{Yaw: 0.0}},
 				{Tick: 102, Type: "player_hurt", AttackerSteamID: "", VictimSteamID: "V", X: 5, Y: 5},
 			},
 			wantHits: map[int]wantHit{},
@@ -90,11 +90,19 @@ func TestPairShotsWithImpacts(t *testing.T) {
 					continue
 				}
 				want, expected := tt.wantHits[i]
-				gotX, hasX := ev.ExtraData["hit_x"].(float64)
-				gotY, hasY := ev.ExtraData["hit_y"].(float64)
+				wf, _ := ev.ExtraData.(*WeaponFireExtra)
+				var gotX, gotY float64
+				hasX := wf != nil && wf.HitX != nil
+				hasY := wf != nil && wf.HitY != nil
+				if hasX {
+					gotX = *wf.HitX
+				}
+				if hasY {
+					gotY = *wf.HitY
+				}
 				if !expected {
 					if hasX || hasY {
-						t.Errorf("events[%d] should NOT have hit data, got hit_x=%v hit_y=%v", i, ev.ExtraData["hit_x"], ev.ExtraData["hit_y"])
+						t.Errorf("events[%d] should NOT have hit data, got hit_x=%v hit_y=%v", i, gotX, gotY)
 					}
 					continue
 				}

@@ -40,6 +40,18 @@ vi.mock("@/lib/maps/calibration", () => ({
       y: (calibration.originY - world.y) / calibration.scale,
     }),
   ),
+  worldToPixelInto: vi.fn(
+    (
+      out: { x: number; y: number },
+      worldX: number,
+      worldY: number,
+      calibration: { originX: number; originY: number; scale: number },
+    ) => {
+      out.x = (worldX - calibration.originX) / calibration.scale
+      out.y = (calibration.originY - worldY) / calibration.scale
+      return out
+    },
+  ),
 }))
 
 import { PlayerLayer } from "./player-layer"
@@ -77,7 +89,6 @@ function makeTickData(overrides: Partial<TickData> = {}): TickData {
     money: 0,
     has_helmet: false,
     has_defuser: false,
-    inventory: [],
     ammo_clip: 0,
     ammo_reserve: 0,
     ...overrides,

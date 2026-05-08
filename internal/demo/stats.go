@@ -23,17 +23,25 @@ type PlayerRoundStats struct {
 // seed the frontend roster lookup falls back to slicing the SteamID, which
 // shows a numeric nickname for those players.
 func CalculatePlayerRoundStats(rounds []RoundData, events []GameEvent) map[int][]PlayerRoundStats {
-	// Group events by round number.
-	eventsByRound := make(map[int][]GameEvent)
-	for i := range events {
-		rn := events[i].RoundNumber
-		eventsByRound[rn] = append(eventsByRound[rn], events[i])
-	}
-
+	// Events are produced by the parser in tick-monotonic order, and round
+	// numbers are monotonic with tick (knife-round renumbering preserves
+	// order). We can therefore walk events once with a cursor, slicing the
+	// contiguous range belonging to each round — no map, no per-round slice
+	// allocation.
 	result := make(map[int][]PlayerRoundStats, len(rounds))
+	cursor := 0
 	for _, rd := range rounds {
-		roundEvents := eventsByRound[rd.Number]
-		stats := calculateRound(rd.Roster, roundEvents)
+		// Skip events that precede this round (e.g. warmup events with a
+		// round number not present in the rounds slice).
+		for cursor < len(events) && events[cursor].RoundNumber < rd.Number {
+			cursor++
+		}
+		// Collect contiguous range of events for this round.
+		start := cursor
+		for cursor < len(events) && events[cursor].RoundNumber == rd.Number {
+			cursor++
+		}
+		stats := calculateRound(rd.Roster, events[start:cursor])
 		if len(stats) > 0 {
 			result[rd.Number] = stats
 		}
@@ -98,21 +106,21 @@ func calculateRound(roster []RoundParticipant, events []GameEvent) []PlayerRound
 		case "kill":
 			killEvents = append(killEvents, ev)
 			// Pre-register kill participants so they appear in the players map.
-			attackerName := getExtraDataString(ev.ExtraData, "attacker_name")
-			attackerTeam := getExtraDataString(ev.ExtraData, "attacker_team")
-			getPlayer(ev.AttackerSteamID, attackerName, attackerTeam)
-			victimName := getExtraDataString(ev.ExtraData, "victim_name")
-			victimTeam := getExtraDataString(ev.ExtraData, "victim_team")
-			getPlayer(ev.VictimSteamID, victimName, victimTeam)
-		case "player_hurt":
-			attackerName := getExtraDataString(ev.ExtraData, "attacker_name")
-			attackerTeam := getExtraDataString(ev.ExtraData, "attacker_team")
-			if p := getPlayer(ev.AttackerSteamID, attackerName, attackerTeam); p != nil {
-				p.damage += getExtraDataInt(ev.ExtraData, "health_damage")
+			k, _ := ev.ExtraData.(*KillExtra)
+			if k == nil {
+				k = &KillExtra{}
 			}
-			victimName := getExtraDataString(ev.ExtraData, "victim_name")
-			victimTeam := getExtraDataString(ev.ExtraData, "victim_team")
-			getPlayer(ev.VictimSteamID, victimName, victimTeam)
+			getPlayer(ev.AttackerSteamID, k.AttackerName, k.AttackerTeam)
+			getPlayer(ev.VictimSteamID, k.VictimName, k.VictimTeam)
+		case "player_hurt":
+			h, _ := ev.ExtraData.(*PlayerHurtExtra)
+			if h == nil {
+				h = &PlayerHurtExtra{}
+			}
+			if p := getPlayer(ev.AttackerSteamID, h.AttackerName, h.AttackerTeam); p != nil {
+				p.damage += h.HealthDamage
+			}
+			getPlayer(ev.VictimSteamID, h.VictimName, h.VictimTeam)
 		}
 	}
 
@@ -132,10 +140,14 @@ func calculateRound(roster []RoundParticipant, events []GameEvent) []PlayerRound
 	// Process kill events in order (already ordered by tick from parser).
 	firstKillProcessed := false
 	for _, ev := range killEvents {
-		attackerName := getExtraDataString(ev.ExtraData, "attacker_name")
-		attackerTeam := getExtraDataString(ev.ExtraData, "attacker_team")
-		victimName := getExtraDataString(ev.ExtraData, "victim_name")
-		victimTeam := getExtraDataString(ev.ExtraData, "victim_team")
+		k, _ := ev.ExtraData.(*KillExtra)
+		if k == nil {
+			k = &KillExtra{}
+		}
+		attackerName := k.AttackerName
+		attackerTeam := k.AttackerTeam
+		victimName := k.VictimName
+		victimTeam := k.VictimTeam
 
 		isSelfKill := ev.AttackerSteamID != "" && ev.AttackerSteamID == ev.VictimSteamID
 
@@ -144,7 +156,7 @@ func calculateRound(roster []RoundParticipant, events []GameEvent) []PlayerRound
 			attacker := getPlayer(ev.AttackerSteamID, attackerName, attackerTeam)
 			if attacker != nil {
 				attacker.kills++
-				if getExtraDataBool(ev.ExtraData, "headshot") {
+				if k.Headshot {
 					attacker.headshotKills++
 				}
 
@@ -164,10 +176,10 @@ func calculateRound(roster []RoundParticipant, events []GameEvent) []PlayerRound
 		}
 
 		// Credit assist.
-		assisterID := getExtraDataString(ev.ExtraData, "assister_steam_id")
+		assisterID := k.AssisterSteamID
 		if assisterID != "" {
-			assisterName := getExtraDataString(ev.ExtraData, "assister_name")
-			assisterTeam := getExtraDataString(ev.ExtraData, "assister_team")
+			assisterName := k.AssisterName
+			assisterTeam := k.AssisterTeam
 			if assisterTeam == "" {
 				assisterTeam = attackerTeam
 			}
@@ -235,58 +247,4 @@ func isClutching(steamID, team string, teamAlive map[string]map[string]bool) boo
 		}
 	}
 	return false
-}
-
-// getExtraDataString safely extracts a string from ExtraData.
-func getExtraDataString(extra map[string]interface{}, key string) string {
-	if extra == nil {
-		return ""
-	}
-	v, ok := extra[key]
-	if !ok {
-		return ""
-	}
-	s, ok := v.(string)
-	if !ok {
-		return ""
-	}
-	return s
-}
-
-// getExtraDataBool safely extracts a bool from ExtraData.
-func getExtraDataBool(extra map[string]interface{}, key string) bool {
-	if extra == nil {
-		return false
-	}
-	v, ok := extra[key]
-	if !ok {
-		return false
-	}
-	b, ok := v.(bool)
-	if !ok {
-		return false
-	}
-	return b
-}
-
-// getExtraDataInt safely extracts an int from ExtraData.
-// Handles both native int and JSON-decoded float64.
-func getExtraDataInt(extra map[string]interface{}, key string) int {
-	if extra == nil {
-		return 0
-	}
-	v, ok := extra[key]
-	if !ok {
-		return 0
-	}
-	switch n := v.(type) {
-	case int:
-		return n
-	case float64:
-		return int(n)
-	case int64:
-		return int(n)
-	default:
-		return 0
-	}
 }

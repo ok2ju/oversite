@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { memo, useCallback, useMemo } from "react"
 import { ArrowLeftRight, Clock } from "lucide-react"
 import { useViewerStore } from "@/stores/viewer"
 import { useRounds } from "@/hooks/use-rounds"
@@ -60,15 +60,18 @@ export function RoundSelector() {
     [rounds, currentTick],
   )
 
-  if (!demoId || isLoading || !rounds?.length) return null
+  const handleSelect = useCallback(
+    (round: Round) => {
+      setRound(round.round_number)
+      // Skip freeze time — seek to the live start of the round.
+      setTick(
+        round.freeze_end_tick > 0 ? round.freeze_end_tick : round.start_tick,
+      )
+    },
+    [setRound, setTick],
+  )
 
-  const handleSelect = (round: Round) => {
-    setRound(round.round_number)
-    // Skip freeze time — seek to the live start of the round.
-    setTick(
-      round.freeze_end_tick > 0 ? round.freeze_end_tick : round.start_tick,
-    )
-  }
+  if (!demoId || isLoading || !rounds?.length) return null
 
   return (
     <div
@@ -81,39 +84,59 @@ export function RoundSelector() {
           const prev = i > 0 ? rounds[i - 1] : null
           const marker = prev ? markerBetween(prev, round) : null
           return (
-            <div key={round.id} className="flex items-center gap-1.5">
-              {marker === "halftime" || marker === "ot-swap" ? (
-                <ArrowLeftRight
-                  size={14}
-                  className="shrink-0 text-white/50"
-                  data-testid={`round-marker-${marker}-${round.round_number}`}
-                  aria-label={
-                    marker === "halftime" ? "Halftime" : "Overtime side swap"
-                  }
-                />
-              ) : null}
-              {marker === "ot-start" ? (
-                <Clock
-                  size={14}
-                  className="shrink-0 text-white/50"
-                  data-testid={`round-marker-ot-start-${round.round_number}`}
-                  aria-label="Overtime start"
-                />
-              ) : null}
-              <button
-                type="button"
-                data-testid={`round-pill-${round.round_number}`}
-                aria-label={`Round ${round.round_number}`}
-                aria-current={isActive ? "true" : undefined}
-                onClick={() => handleSelect(round)}
-                className={`flex h-7 min-w-[1.75rem] shrink-0 items-center justify-center rounded-md border-2 px-1.5 text-xs font-semibold tabular-nums transition-colors ${pillClasses(round.winner_side, isActive)}`}
-              >
-                {round.round_number}
-              </button>
-            </div>
+            <RoundPill
+              key={round.id}
+              round={round}
+              isActive={isActive}
+              marker={marker}
+              onSelect={handleSelect}
+            />
           )
         })}
       </div>
     </div>
   )
 }
+
+const RoundPill = memo(function RoundPill({
+  round,
+  isActive,
+  marker,
+  onSelect,
+}: {
+  round: Round
+  isActive: boolean
+  marker: MarkerKind | null
+  onSelect: (round: Round) => void
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      {marker === "halftime" || marker === "ot-swap" ? (
+        <ArrowLeftRight
+          size={14}
+          className="shrink-0 text-white/50"
+          data-testid={`round-marker-${marker}-${round.round_number}`}
+          aria-label={marker === "halftime" ? "Halftime" : "Overtime side swap"}
+        />
+      ) : null}
+      {marker === "ot-start" ? (
+        <Clock
+          size={14}
+          className="shrink-0 text-white/50"
+          data-testid={`round-marker-ot-start-${round.round_number}`}
+          aria-label="Overtime start"
+        />
+      ) : null}
+      <button
+        type="button"
+        data-testid={`round-pill-${round.round_number}`}
+        aria-label={`Round ${round.round_number}`}
+        aria-current={isActive ? "true" : undefined}
+        onClick={() => onSelect(round)}
+        className={`flex h-7 min-w-[1.75rem] shrink-0 items-center justify-center rounded-md border-2 px-1.5 text-xs font-semibold tabular-nums transition-colors ${pillClasses(round.winner_side, isActive)}`}
+      >
+        {round.round_number}
+      </button>
+    </div>
+  )
+})

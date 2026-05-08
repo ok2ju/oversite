@@ -27,3 +27,16 @@ Configured for SQLite in `sqlc.yaml`. Note that sqlc's SQLite support is newer t
 ## Query file organization
 
 One `.sql` file per domain (demos, rounds, tick_data, events, lineups, boards). Each file opens with schema comments describing the table's shape for readers who don't have the full DDL in mind.
+
+## When sqlc isn't enough — `*_custom.go` files
+
+Some queries don't fit sqlc's SQLite generator cleanly. We write hand-rolled stores alongside the generated package, named `*_custom.go`:
+
+- `internal/store/heatmaps_custom.go` — heatmap aggregation with dynamic filters.
+- `internal/store/game_events_custom.go` — `GetGameEventsByTypes` uses `WHERE event_type IN (SELECT value FROM json_each(?))` to take a `[]string` parameter; sqlc can't bind a slice to an `IN (...)` list.
+
+Custom stores use the same `*Queries` receiver as the generated code, so callers don't see the difference. Keep them small and use the generated types (`store.GameEvent`, etc.) as result rows so consumers stay symmetric.
+
+## Prepared statements within an ingest tx
+
+For ingest hot loops (300K+ inserts), bare `tx.ExecContext(ctx, query, ...)` re-parses SQL on every call. Prepare once per ingest tx with `tx.PrepareContext(ctx, fullBatchSQL)` + a partial-batch statement for the remainder, then `stmt.ExecContext` per batch. `internal/demo/ingest.go` is the worked example. Don't apply this universally — only where re-parsing dominates.

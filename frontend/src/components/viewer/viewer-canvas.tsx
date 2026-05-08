@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { createViewerApp, type ViewerApp } from "@/lib/pixi/app"
 import { PlaybackEngine } from "@/lib/pixi/playback-engine"
 import { Camera } from "@/lib/pixi/camera"
@@ -8,12 +9,18 @@ import { MapLayer } from "@/lib/pixi/layers/map-layer"
 import { PlayerLayer } from "@/lib/pixi/layers/player-layer"
 import { EventLayer } from "@/lib/pixi/layers/event-layer"
 import { TickBuffer } from "@/lib/pixi/tick-buffer"
-import { fetchRoster } from "@/hooks/use-roster"
+import {
+  fetchRoster,
+  useAllRosters,
+  type RosterByRound,
+} from "@/hooks/use-roster"
 import { useViewerStore } from "@/stores/viewer"
+import { useTickBufferStore } from "@/stores/tick-buffer"
 import { useGameEvents } from "@/hooks/use-game-events"
 import { useRounds } from "@/hooks/use-rounds"
 import { shallow } from "zustand/shallow"
 import type { Round } from "@/types/round"
+import type { GameEvent } from "@/types/demo"
 
 function toFreezeWindows(rounds: Round[] | undefined) {
   return (rounds ?? []).map((r) => ({
@@ -27,23 +34,44 @@ export function ViewerCanvas() {
   const eventLayerRef = useRef<EventLayer | null>(null)
   const engineRef = useRef<PlaybackEngine | null>(null)
   const roundsRef = useRef<ReturnType<typeof useRounds>["data"]>(undefined)
-  const gameEventsRef =
-    useRef<ReturnType<typeof useGameEvents>["data"]>(undefined)
+  // The full per-round roster map is preloaded once per demo and read live by
+  // the round-change subscription via this ref, so PixiJS round transitions
+  // resolve roster locally instead of issuing one Wails call per round.
+  const allRostersRef = useRef<RosterByRound | undefined>(undefined)
 
+  const queryClient = useQueryClient()
   const demoId = useViewerStore((s) => s.demoId)
-  const { data: gameEventsData } = useGameEvents(demoId)
+  // Once the EventLayer owns the events, we disable the observer for this
+  // demoId and remove the cache. Without disabling, removeQueries would
+  // immediately trigger a re-fetch since the observer is still active —
+  // landing us with a duplicated payload again. Reset on demoId change.
+  const [consumedDemoId, setConsumedDemoId] = useState<string | null>(null)
+  const queryEnabled = consumedDemoId !== demoId
+  const { data: gameEventsData } = useGameEvents(demoId, queryEnabled)
   const { data: roundsData } = useRounds(demoId)
+  const { data: allRostersData } = useAllRosters(demoId)
   roundsRef.current = roundsData
-  gameEventsRef.current = gameEventsData
+  allRostersRef.current = allRostersData
 
   // Feed event data into the EventLayer whenever events or rounds change.
   // Rounds are needed so per-effect durations can be capped at round-end
   // (smokes / fires / trajectories shouldn't bleed into the next round).
+  // After the EventLayer holds the parsed effect timeline (8K events ×
+  // ~200 B = 1.6 MB), drop the React Query cache + disable the observer:
+  // the layer is now the single owner. If the user navigates away and back,
+  // the disabled-observer check flips on demoId change and a fresh fetch
+  // runs.
   useEffect(() => {
-    if (gameEventsData && eventLayerRef.current) {
-      eventLayerRef.current.setEvents(gameEventsData, roundsData)
+    if (!gameEventsData || !eventLayerRef.current || !demoId) return
+    eventLayerRef.current.setEvents(gameEventsData, roundsData)
+    if (consumedDemoId !== demoId) {
+      setConsumedDemoId(demoId)
+      queryClient.removeQueries({
+        queryKey: ["game-events", demoId],
+        exact: true,
+      })
     }
-  }, [gameEventsData, roundsData])
+  }, [gameEventsData, roundsData, demoId, queryClient, consumedDemoId])
 
   // Push freeze windows into the engine so it auto-skips freeze time on
   // initial load, seek, and round transitions during live playback.
@@ -73,6 +101,10 @@ export function ViewerCanvas() {
     let seekUnsub: (() => void) | null = null
     let playingUnsub: (() => void) | null = null
     let resizeObserver: ResizeObserver | null = null
+    // rAF handle for the viewport-write coalescer so cleanup can cancel a
+    // pending write if the user unmounts mid-drag. Hoisted to outer scope so
+    // the cleanup return below can see it.
+    let viewportRafHandle: number | null = null
 
     createViewerApp({ container }).then((app) => {
       if (destroyed) {
@@ -82,9 +114,28 @@ export function ViewerCanvas() {
 
       viewerApp = app
 
-      // Create camera and add its container to stage
+      // Create camera and add its container to stage. Pan/zoom drag emits
+      // onViewportChange on every pointer-move tick (~60-120 Hz). No current
+      // React subscriber re-renders on viewport changes, but a future minimap
+      // would; coalescing into one write per animation frame caps store
+      // updates at the display refresh rate without dropping the final value
+      // (the rAF callback always reads the latest viewport).
+      let pendingViewport:
+        | ReturnType<typeof useViewerStore.getState>["viewport"]
+        | null = null
       camera = new Camera(app.canvas, {
-        onViewportChange: (v) => useViewerStore.getState().setViewport(v),
+        onViewportChange: (v) => {
+          pendingViewport = v
+          if (viewportRafHandle !== null) return
+          viewportRafHandle = requestAnimationFrame(() => {
+            viewportRafHandle = null
+            if (destroyed) return
+            if (pendingViewport) {
+              useViewerStore.getState().setViewport(pendingViewport)
+              pendingViewport = null
+            }
+          })
+        },
       })
       app.stage.addChild(camera.container)
 
@@ -122,9 +173,24 @@ export function ViewerCanvas() {
 
       // Events may have arrived from React Query before the EventLayer existed;
       // the gameEventsData useEffect can't push them retroactively because it
-      // doesn't depend on the ref. Push any cached events now.
-      if (gameEventsRef.current) {
-        eventLayer.setEvents(gameEventsRef.current, roundsRef.current)
+      // doesn't see eventLayerRef changes. Pull directly from the cache once
+      // (no extra retained copy in this component) and consume the same way
+      // the useEffect would: hand off to the layer, then drop the cache and
+      // disable the observer so removeQueries doesn't spawn a refetch.
+      const cachedDemoId = useViewerStore.getState().demoId
+      if (cachedDemoId) {
+        const cached = queryClient.getQueryData<GameEvent[]>([
+          "game-events",
+          cachedDemoId,
+        ])
+        if (cached) {
+          eventLayer.setEvents(cached, roundsRef.current)
+          setConsumedDemoId(cachedDemoId)
+          queryClient.removeQueries({
+            queryKey: ["game-events", cachedDemoId],
+            exact: true,
+          })
+        }
       }
 
       // Track ticks written by the engine to avoid seek feedback loops
@@ -222,6 +288,10 @@ export function ViewerCanvas() {
         (demoId) => {
           tickBuffer?.dispose()
           tickBuffer = demoId ? new TickBuffer(demoId) : null
+          // Publish the active buffer so consumers like useLoadoutSnapshot
+          // share a single instance keyed by demoId rather than allocating
+          // their own duplicate buffer + chunk cache.
+          useTickBufferStore.getState().setBuffer(demoId, tickBuffer)
           // Reset engine state so fractionalTick doesn't carry over from previous demo
           engine?.seek(0)
           engineSetTick = 0
@@ -238,7 +308,12 @@ export function ViewerCanvas() {
           rosterAbortController?.abort()
           rosterAbortController = new AbortController()
 
-          fetchRoster(demoId, round, rosterAbortController.signal)
+          fetchRoster(
+            demoId,
+            round,
+            rosterAbortController.signal,
+            allRostersRef.current,
+          )
             .then((entries) => {
               playerLayer?.setRoster(entries)
             })
@@ -288,6 +363,10 @@ export function ViewerCanvas() {
       destroyed = true
       resizeObserver?.disconnect()
       rosterAbortController?.abort()
+      if (viewportRafHandle !== null) {
+        cancelAnimationFrame(viewportRafHandle)
+        viewportRafHandle = null
+      }
       roundUnsub?.()
       demoUnsub?.()
       seekUnsub?.()
@@ -300,6 +379,10 @@ export function ViewerCanvas() {
       engineRef.current = null
       mapUnsub?.()
       tickBuffer?.dispose()
+      // Clear the published buffer so stale references can't be read after
+      // unmount. demoUnsub.unsubscribe is already called above so the store
+      // won't get re-populated by a late demoId change.
+      useTickBufferStore.getState().setBuffer(null, null)
       playerLayer?.destroy()
       eventLayer?.destroy()
       eventLayerRef.current = null

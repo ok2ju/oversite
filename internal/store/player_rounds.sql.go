@@ -158,18 +158,24 @@ func (q *Queries) GetPlayerRoundsBySteamID(ctx context.Context, steamID string) 
 }
 
 const getPlayerStatsByDemoID = `-- name: GetPlayerStatsByDemoID :many
-SELECT pr.steam_id, pr.player_name,
-       (SELECT pr2.team_side FROM player_rounds pr2
-        JOIN rounds r2 ON pr2.round_id = r2.id
-        WHERE r2.demo_id = ?1 AND pr2.steam_id = pr.steam_id
-        ORDER BY r2.round_number ASC LIMIT 1) as team_side,
-       SUM(pr.kills) as total_kills, SUM(pr.deaths) as total_deaths,
-       SUM(pr.assists) as total_assists, SUM(pr.damage) as total_damage,
-       SUM(pr.headshot_kills) as total_headshot_kills, COUNT(*) as rounds_played
-FROM player_rounds pr
-JOIN rounds r ON pr.round_id = r.id
-WHERE r.demo_id = ?1
-GROUP BY pr.steam_id, pr.player_name ORDER BY team_side, total_kills DESC
+WITH ranked AS (
+    SELECT pr.steam_id, pr.player_name, pr.kills, pr.deaths, pr.assists,
+           pr.damage, pr.headshot_kills,
+           FIRST_VALUE(pr.team_side) OVER (
+               PARTITION BY pr.steam_id ORDER BY r.round_number
+           ) AS first_team_side
+    FROM player_rounds pr
+    JOIN rounds r ON pr.round_id = r.id
+    WHERE r.demo_id = ?1
+)
+SELECT steam_id, player_name,
+       CAST(first_team_side AS TEXT) as team_side,
+       SUM(kills) as total_kills, SUM(deaths) as total_deaths,
+       SUM(assists) as total_assists, SUM(damage) as total_damage,
+       SUM(headshot_kills) as total_headshot_kills, COUNT(*) as rounds_played
+FROM ranked
+GROUP BY steam_id, player_name, first_team_side
+ORDER BY team_side, total_kills DESC
 `
 
 type GetPlayerStatsByDemoIDRow struct {
@@ -203,6 +209,53 @@ func (q *Queries) GetPlayerStatsByDemoID(ctx context.Context, demoID int64) ([]G
 			&i.TotalDamage,
 			&i.TotalHeadshotKills,
 			&i.RoundsPlayed,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getRostersByDemoID = `-- name: GetRostersByDemoID :many
+SELECT r.round_number, pr.steam_id, pr.player_name, pr.team_side
+FROM player_rounds pr
+JOIN rounds r ON pr.round_id = r.id
+WHERE r.demo_id = ?1
+ORDER BY r.round_number, pr.steam_id
+`
+
+type GetRostersByDemoIDRow struct {
+	RoundNumber int64
+	SteamID     string
+	PlayerName  string
+	TeamSide    string
+}
+
+// Returns one row per (round, player) for the whole demo, ordered by round
+// number and steam_id. Used by the viewer to preload every round's roster in
+// a single Wails round-trip rather than firing GetRoundRoster on each round
+// transition (24-30 trips per match).
+func (q *Queries) GetRostersByDemoID(ctx context.Context, demoID int64) ([]GetRostersByDemoIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getRostersByDemoID, demoID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetRostersByDemoIDRow
+	for rows.Next() {
+		var i GetRostersByDemoIDRow
+		if err := rows.Scan(
+			&i.RoundNumber,
+			&i.SteamID,
+			&i.PlayerName,
+			&i.TeamSide,
 		); err != nil {
 			return nil, err
 		}

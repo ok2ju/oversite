@@ -10,10 +10,20 @@ import (
 	"database/sql"
 )
 
-const createGameEvent = `-- name: CreateGameEvent :one
-INSERT INTO game_events (demo_id, round_id, tick, event_type, attacker_steam_id, victim_steam_id, weapon, x, y, z, extra_data)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
-RETURNING id, demo_id, round_id, tick, event_type, attacker_steam_id, victim_steam_id, weapon, x, y, z, extra_data
+const createGameEvent = `-- name: CreateGameEvent :exec
+INSERT INTO game_events (
+    demo_id, round_id, tick, event_type,
+    attacker_steam_id, victim_steam_id, weapon, x, y, z,
+    headshot, assister_steam_id, health_damage,
+    attacker_name, victim_name, attacker_team, victim_team,
+    extra_data
+) VALUES (
+    ?1, ?2, ?3, ?4,
+    ?5, ?6, ?7, ?8, ?9, ?10,
+    ?11, ?12, ?13,
+    ?14, ?15, ?16, ?17,
+    ?18
+)
 `
 
 type CreateGameEventParams struct {
@@ -27,11 +37,18 @@ type CreateGameEventParams struct {
 	X               float64
 	Y               float64
 	Z               float64
+	Headshot        int64
+	AssisterSteamID sql.NullString
+	HealthDamage    int64
+	AttackerName    string
+	VictimName      string
+	AttackerTeam    string
+	VictimTeam      string
 	ExtraData       string
 }
 
-func (q *Queries) CreateGameEvent(ctx context.Context, arg CreateGameEventParams) (GameEvent, error) {
-	row := q.db.QueryRowContext(ctx, createGameEvent,
+func (q *Queries) CreateGameEvent(ctx context.Context, arg CreateGameEventParams) error {
+	_, err := q.db.ExecContext(ctx, createGameEvent,
 		arg.DemoID,
 		arg.RoundID,
 		arg.Tick,
@@ -42,37 +59,36 @@ func (q *Queries) CreateGameEvent(ctx context.Context, arg CreateGameEventParams
 		arg.X,
 		arg.Y,
 		arg.Z,
+		arg.Headshot,
+		arg.AssisterSteamID,
+		arg.HealthDamage,
+		arg.AttackerName,
+		arg.VictimName,
+		arg.AttackerTeam,
+		arg.VictimTeam,
 		arg.ExtraData,
 	)
-	var i GameEvent
-	err := row.Scan(
-		&i.ID,
-		&i.DemoID,
-		&i.RoundID,
-		&i.Tick,
-		&i.EventType,
-		&i.AttackerSteamID,
-		&i.VictimSteamID,
-		&i.Weapon,
-		&i.X,
-		&i.Y,
-		&i.Z,
-		&i.ExtraData,
-	)
-	return i, err
+	return err
 }
 
 const deleteGameEventsByDemoID = `-- name: DeleteGameEventsByDemoID :exec
+
 DELETE FROM game_events WHERE demo_id = ?1
 `
 
+// GetGameEventsByTypes is implemented manually in
+// internal/store/game_events_custom.go because sqlc's SQLite engine cannot
+// bind parameters inside json_each() table-valued function calls. See
+// internal/store/heatmaps_custom.go for the same pattern. Callers pass a
+// JSON array of event_type strings so unused rows are never loaded and
+// their extra_data JSON is never decoded.
 func (q *Queries) DeleteGameEventsByDemoID(ctx context.Context, demoID int64) error {
 	_, err := q.db.ExecContext(ctx, deleteGameEventsByDemoID, demoID)
 	return err
 }
 
 const getGameEventsByDemoAndRound = `-- name: GetGameEventsByDemoAndRound :many
-SELECT id, demo_id, round_id, tick, event_type, attacker_steam_id, victim_steam_id, weapon, x, y, z, extra_data FROM game_events WHERE demo_id = ?1 AND round_id = ?2 ORDER BY tick
+SELECT id, demo_id, round_id, tick, event_type, attacker_steam_id, victim_steam_id, weapon, x, y, z, extra_data, headshot, assister_steam_id, health_damage, attacker_name, victim_name, attacker_team, victim_team FROM game_events WHERE demo_id = ?1 AND round_id = ?2 ORDER BY tick
 `
 
 type GetGameEventsByDemoAndRoundParams struct {
@@ -102,6 +118,13 @@ func (q *Queries) GetGameEventsByDemoAndRound(ctx context.Context, arg GetGameEv
 			&i.Y,
 			&i.Z,
 			&i.ExtraData,
+			&i.Headshot,
+			&i.AssisterSteamID,
+			&i.HealthDamage,
+			&i.AttackerName,
+			&i.VictimName,
+			&i.AttackerTeam,
+			&i.VictimTeam,
 		); err != nil {
 			return nil, err
 		}
@@ -117,7 +140,7 @@ func (q *Queries) GetGameEventsByDemoAndRound(ctx context.Context, arg GetGameEv
 }
 
 const getGameEventsByDemoID = `-- name: GetGameEventsByDemoID :many
-SELECT id, demo_id, round_id, tick, event_type, attacker_steam_id, victim_steam_id, weapon, x, y, z, extra_data FROM game_events WHERE demo_id = ?1 ORDER BY tick
+SELECT id, demo_id, round_id, tick, event_type, attacker_steam_id, victim_steam_id, weapon, x, y, z, extra_data, headshot, assister_steam_id, health_damage, attacker_name, victim_name, attacker_team, victim_team FROM game_events WHERE demo_id = ?1 ORDER BY tick
 `
 
 func (q *Queries) GetGameEventsByDemoID(ctx context.Context, demoID int64) ([]GameEvent, error) {
@@ -142,6 +165,13 @@ func (q *Queries) GetGameEventsByDemoID(ctx context.Context, demoID int64) ([]Ga
 			&i.Y,
 			&i.Z,
 			&i.ExtraData,
+			&i.Headshot,
+			&i.AssisterSteamID,
+			&i.HealthDamage,
+			&i.AttackerName,
+			&i.VictimName,
+			&i.AttackerTeam,
+			&i.VictimTeam,
 		); err != nil {
 			return nil, err
 		}
@@ -157,7 +187,7 @@ func (q *Queries) GetGameEventsByDemoID(ctx context.Context, demoID int64) ([]Ga
 }
 
 const getGameEventsByType = `-- name: GetGameEventsByType :many
-SELECT id, demo_id, round_id, tick, event_type, attacker_steam_id, victim_steam_id, weapon, x, y, z, extra_data FROM game_events WHERE demo_id = ?1 AND event_type = ?2 ORDER BY tick
+SELECT id, demo_id, round_id, tick, event_type, attacker_steam_id, victim_steam_id, weapon, x, y, z, extra_data, headshot, assister_steam_id, health_damage, attacker_name, victim_name, attacker_team, victim_team FROM game_events WHERE demo_id = ?1 AND event_type = ?2 ORDER BY tick
 `
 
 type GetGameEventsByTypeParams struct {
@@ -187,6 +217,13 @@ func (q *Queries) GetGameEventsByType(ctx context.Context, arg GetGameEventsByTy
 			&i.Y,
 			&i.Z,
 			&i.ExtraData,
+			&i.Headshot,
+			&i.AssisterSteamID,
+			&i.HealthDamage,
+			&i.AttackerName,
+			&i.VictimName,
+			&i.AttackerTeam,
+			&i.VictimTeam,
 		); err != nil {
 			return nil, err
 		}

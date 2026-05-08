@@ -1,9 +1,10 @@
-import { useMemo } from "react"
+import { memo, useMemo } from "react"
 import { Shield } from "lucide-react"
 import { useViewerStore } from "@/stores/viewer"
 import { useRounds } from "@/hooks/use-rounds"
 import { useRoundRoster } from "@/hooks/use-roster"
 import { useLoadoutSnapshot } from "@/hooks/use-loadout-snapshot"
+import { useRoundLoadouts } from "@/hooks/use-round-loadouts"
 import { cn } from "@/lib/utils"
 import type { Round } from "@/types/round"
 import type { TickData } from "@/types/demo"
@@ -14,7 +15,13 @@ interface PlayerLoadout {
   steamId: string
   name: string
   data: TickData | null
+  // inventory comes from round_loadouts (migration 011) — captured at
+  // freeze-end and stable across the round, separate from the per-tick
+  // mutable fields on `data`.
+  inventory: string[]
 }
+
+const EMPTY_INVENTORY: string[] = []
 
 function getActiveRoundIndex(
   rounds: Round[] | undefined,
@@ -30,6 +37,7 @@ function getActiveRoundIndex(
 function joinRoster(
   roster: PlayerRosterEntry[] | undefined,
   loadouts: Record<string, TickData>,
+  inventories: Record<string, string[]> | undefined,
   side: TeamSide,
 ): PlayerLoadout[] {
   if (!roster) return []
@@ -39,6 +47,7 @@ function joinRoster(
       steamId: r.steam_id,
       name: r.player_name,
       data: loadouts[r.steam_id] ?? null,
+      inventory: inventories?.[r.steam_id] ?? EMPTY_INVENTORY,
     }))
 }
 
@@ -58,14 +67,18 @@ export function TeamBars() {
   )
 
   const loadouts = useLoadoutSnapshot()
+  const { data: roundLoadouts } = useRoundLoadouts(demoId)
+  const activeInventories = activeRound
+    ? roundLoadouts?.[activeRound.round_number]
+    : undefined
 
   const ctPlayers = useMemo(
-    () => joinRoster(roster, loadouts, "CT"),
-    [roster, loadouts],
+    () => joinRoster(roster, loadouts, activeInventories, "CT"),
+    [roster, loadouts, activeInventories],
   )
   const tPlayers = useMemo(
-    () => joinRoster(roster, loadouts, "T"),
-    [roster, loadouts],
+    () => joinRoster(roster, loadouts, activeInventories, "T"),
+    [roster, loadouts, activeInventories],
   )
 
   if (!demoId || !roster) return null
@@ -92,7 +105,7 @@ export function TeamBars() {
   )
 }
 
-function PlayerRow({
+const PlayerRow = memo(function PlayerRow({
   player,
   side,
 }: {
@@ -105,7 +118,7 @@ function PlayerRow({
   const tone = isCt ? "bg-sky-500" : "bg-orange-500"
   const align = isCt ? "items-start text-left" : "items-end text-right"
   const moneyText = data ? `$${data.money}` : ""
-  const weapon = pickPrimary(data)
+  const weapon = pickPrimary(data, player.inventory)
 
   return (
     <div
@@ -147,11 +160,11 @@ function PlayerRow({
         <span className={cn("font-mono text-emerald-400", !isCt && "order-2")}>
           {moneyText}
         </span>
-        <LoadoutIcons data={data} side={side} />
+        <LoadoutIcons data={data} inventory={player.inventory} side={side} />
       </div>
     </div>
   )
-}
+})
 
 function getHealthBarClass(health: number): string {
   if (health > 60) return "bg-emerald-500"
@@ -165,7 +178,7 @@ function getHealthTextClass(health: number): string {
   return "text-red-400"
 }
 
-function WeaponLabelRow({
+const WeaponLabelRow = memo(function WeaponLabelRow({
   data,
   side,
 }: {
@@ -185,9 +198,15 @@ function WeaponLabelRow({
       <WeaponIcon name={data.weapon} className="h-3 w-auto opacity-90" />
     </div>
   )
-}
+})
 
-function HealthRow({ data, side }: { data: TickData | null; side: TeamSide }) {
+const HealthRow = memo(function HealthRow({
+  data,
+  side,
+}: {
+  data: TickData | null
+  side: TeamSide
+}) {
   if (!data) return null
   const health = Math.max(0, Math.min(100, data.health))
   const armor = Math.max(0, Math.min(100, data.armor))
@@ -239,7 +258,7 @@ function HealthRow({ data, side }: { data: TickData | null; side: TeamSide }) {
       </div>
     </div>
   )
-}
+})
 
 const ICON_PROPS = { className: "h-3 w-auto opacity-90" } as const
 
@@ -254,15 +273,17 @@ function EquipmentIcon({ path }: { path: string }) {
   )
 }
 
-function LoadoutIcons({
+const LoadoutIcons = memo(function LoadoutIcons({
   data,
+  inventory,
   side,
 }: {
   data: TickData | null
+  inventory: string[]
   side: TeamSide
 }) {
   if (!data) return null
-  const flashCount = countInventory(data.inventory, isFlash)
+  const flashCount = countInventory(inventory, isFlash)
   const reverse = side === "T"
   return (
     <div
@@ -273,16 +294,14 @@ function LoadoutIcons({
     >
       {data.has_helmet && <EquipmentIcon path="/equipment/helmet.svg" />}
       {data.has_defuser && <EquipmentIcon path="/equipment/defuser.svg" />}
-      {hasWeapon(data.inventory, "Kevlar Vest") && !data.has_helmet && (
+      {hasWeapon(inventory, "Kevlar Vest") && !data.has_helmet && (
         <EquipmentIcon path="/equipment/kevlar.svg" />
       )}
-      {hasWeapon(data.inventory, "C4") && (
-        <WeaponIcon name="C4" {...ICON_PROPS} />
-      )}
-      {hasWeapon(data.inventory, "Zeus x27") && (
+      {hasWeapon(inventory, "C4") && <WeaponIcon name="C4" {...ICON_PROPS} />}
+      {hasWeapon(inventory, "Zeus x27") && (
         <WeaponIcon name="Zeus x27" {...ICON_PROPS} />
       )}
-      {hasWeapon(data.inventory, "Smoke Grenade") && (
+      {hasWeapon(inventory, "Smoke Grenade") && (
         <WeaponIcon name="Smoke Grenade" {...ICON_PROPS} />
       )}
       {flashCount > 0 && (
@@ -293,21 +312,21 @@ function LoadoutIcons({
           )}
         </span>
       )}
-      {hasWeapon(data.inventory, "HE Grenade") && (
+      {hasWeapon(inventory, "HE Grenade") && (
         <WeaponIcon name="HE Grenade" {...ICON_PROPS} />
       )}
-      {hasWeapon(data.inventory, "Molotov") && (
+      {hasWeapon(inventory, "Molotov") && (
         <WeaponIcon name="Molotov" {...ICON_PROPS} />
       )}
-      {hasWeapon(data.inventory, "Incendiary Grenade") && (
+      {hasWeapon(inventory, "Incendiary Grenade") && (
         <WeaponIcon name="Incendiary Grenade" {...ICON_PROPS} />
       )}
-      {hasWeapon(data.inventory, "Decoy Grenade") && (
+      {hasWeapon(inventory, "Decoy Grenade") && (
         <WeaponIcon name="Decoy Grenade" {...ICON_PROPS} />
       )}
     </div>
   )
-}
+})
 
 const PRIMARY_WEAPONS = new Set([
   "AK-47",
@@ -349,15 +368,17 @@ const SECONDARY_WEAPONS = new Set([
   "Dual Berettas",
 ])
 
-function pickPrimary(data: TickData | null): string | null {
-  if (!data) return null
-  for (const w of data.inventory) {
+function pickPrimary(
+  data: TickData | null,
+  inventory: string[],
+): string | null {
+  for (const w of inventory) {
     if (PRIMARY_WEAPONS.has(w)) return w
   }
-  for (const w of data.inventory) {
+  for (const w of inventory) {
     if (SECONDARY_WEAPONS.has(w)) return w
   }
-  if (data.weapon && data.weapon !== "Knife") return data.weapon
+  if (data?.weapon && data.weapon !== "Knife") return data.weapon
   return null
 }
 

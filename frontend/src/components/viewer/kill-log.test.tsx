@@ -32,13 +32,14 @@ function makeKill(opts: {
     x: 0,
     y: 0,
     z: 0,
-    extra_data: {
-      headshot: opts.headshot ?? false,
-      attacker_name: opts.attackerName,
-      attacker_team: opts.attackerSide,
-      victim_name: opts.victimName,
-      victim_team: opts.victimSide,
-    },
+    headshot: opts.headshot ?? false,
+    assister_steam_id: null,
+    health_damage: 0,
+    attacker_name: opts.attackerName,
+    attacker_team: opts.attackerSide,
+    victim_name: opts.victimName,
+    victim_team: opts.victimSide,
+    extra_data: {},
   }
 }
 
@@ -49,7 +50,7 @@ describe("KillLog", () => {
 
   afterEach(() => {
     cleanup()
-    mockAppBindings.GetDemoEvents.mockClear()
+    mockAppBindings.GetEventsByTypes.mockClear()
   })
 
   it("renders nothing when there is no demo", () => {
@@ -58,7 +59,7 @@ describe("KillLog", () => {
   })
 
   it("renders nothing when no kills are inside the rolling window", async () => {
-    mockAppBindings.GetDemoEvents.mockResolvedValueOnce([
+    mockAppBindings.GetEventsByTypes.mockResolvedValueOnce([
       makeKill({
         id: "old",
         tick: 0,
@@ -74,13 +75,13 @@ describe("KillLog", () => {
     renderWithProviders(<KillLog />)
     // Wait for the query to resolve.
     await waitFor(() => {
-      expect(mockAppBindings.GetDemoEvents).toHaveBeenCalled()
+      expect(mockAppBindings.GetEventsByTypes).toHaveBeenCalled()
     })
     expect(screen.queryByTestId("kill-log")).not.toBeInTheDocument()
   })
 
   it("renders kills in the rolling window with side colors and headshot icon", async () => {
-    mockAppBindings.GetDemoEvents.mockResolvedValueOnce([
+    mockAppBindings.GetEventsByTypes.mockResolvedValueOnce([
       makeKill({
         id: "k1",
         tick: 64 * 1, // 1s ago
@@ -135,7 +136,7 @@ describe("KillLog", () => {
   })
 
   it("hides kills that haven't happened yet at currentTick", async () => {
-    mockAppBindings.GetDemoEvents.mockResolvedValueOnce([
+    mockAppBindings.GetEventsByTypes.mockResolvedValueOnce([
       makeKill({
         id: "future",
         tick: 64 * 100,
@@ -150,13 +151,13 @@ describe("KillLog", () => {
 
     renderWithProviders(<KillLog />)
     await waitFor(() => {
-      expect(mockAppBindings.GetDemoEvents).toHaveBeenCalled()
+      expect(mockAppBindings.GetEventsByTypes).toHaveBeenCalled()
     })
     expect(screen.queryByTestId("kill-log")).not.toBeInTheDocument()
   })
 
   it("updates rolling kill list as currentTick advances", async () => {
-    mockAppBindings.GetDemoEvents.mockResolvedValueOnce([
+    mockAppBindings.GetEventsByTypes.mockResolvedValueOnce([
       makeKill({
         id: "k1",
         tick: 100,

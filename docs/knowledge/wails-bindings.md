@@ -37,3 +37,21 @@ Wrap bindings in `useQuery` with stable query keys so TanStack Query handles cac
 ```typescript
 const { data } = useQuery({ queryKey: ['demos'], queryFn: () => ListDemos({}) });
 ```
+
+## Patterns
+
+### List vs. detail type split
+
+The viewer needs the full `Demo` (path, size, etc.); the library list only needs a name + counts. `types.go` exposes both `Demo` and `DemoSummary`; `ListDemos` returns `[]DemoSummary`, `GetDemoByID` returns `*Demo`. Saves ~10–20 KB on a 100-row page and avoids leaking `FilePath` to anything that doesn't need it.
+
+### `json.RawMessage` for opaque blobs
+
+`GameEvent.ExtraData` is typed `json.RawMessage` so the SQLite TEXT column passes through to Wails' JSON encoder verbatim — no per-row `map[string]any` allocation on the Go side. The frontend decodes once. Use this whenever the binding doesn't need to inspect the JSON.
+
+### Coalesce progress emits
+
+`runtime.EventsEmit` is cheap individually but cumulative. `app.go emitProgress` skips emits within 100 ms of the previous emit *for the same stage*; errors and terminal stages (`complete`, `error`) bypass the throttle. Defensive — current callers (round boundaries + 10K-frame heartbeat) wouldn't hit it, but a future per-tick caller would generate 64K+ emits/match.
+
+### Cancellable context plumbed through
+
+`Startup` wraps the Wails ctx in `context.WithCancel`; `Shutdown` cancels before `db.Close` so in-flight DB work bails out instead of fighting a closed pool. Pass the derived ctx into any new long-running binding.

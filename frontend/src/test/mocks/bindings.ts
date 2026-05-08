@@ -5,6 +5,15 @@ import {
   mockRounds,
   mockScoreboardEntries,
 } from "@/test/fixtures"
+import type { Demo, DemoSummary } from "@/types/demo"
+
+function toSummary(d: Demo): DemoSummary {
+  const { file_path: _path, ...rest } = d
+  return {
+    ...rest,
+    file_name: _path.split("/").pop() ?? "",
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Wails App binding mocks (wailsjs/go/main/App)
@@ -25,13 +34,13 @@ export const mockAppBindings = {
         page: number,
         perPage: number,
       ) => Promise<{
-        data: typeof mockDemos
+        data: DemoSummary[]
         meta: { total: number; page: number; per_page: number }
       }>
     >()
     .mockImplementation((page = 1, perPage = 20) => {
       const start = (page - 1) * perPage
-      const sliced = mockDemos.slice(start, start + perPage)
+      const sliced = mockDemos.slice(start, start + perPage).map(toSummary)
       return Promise.resolve({
         data: sliced,
         meta: { total: mockDemos.length, page, per_page: perPage },
@@ -65,6 +74,20 @@ export const mockAppBindings = {
     .mockImplementation((demoId: string) =>
       Promise.resolve(createMockEvents(demoId)),
     ),
+
+  GetEventsByTypes: vi
+    .fn<
+      (
+        demoId: string,
+        eventTypes: string[],
+      ) => Promise<ReturnType<typeof createMockEvents>>
+    >()
+    .mockImplementation((demoId: string, eventTypes: string[]) => {
+      const all = createMockEvents(demoId)
+      if (!eventTypes?.length) return Promise.resolve([])
+      const set = new Set(eventTypes)
+      return Promise.resolve(all.filter((e) => set.has(e.event_type)))
+    }),
 
   GetDemoTicks: vi
     .fn<

@@ -1,7 +1,7 @@
 # Demo Parser
 
 **Library:** `github.com/markus-wa/demoinfocs-golang/v5`
-**Related:** [[sqlite-wal]] · [[wails-bindings]] · [plans/p2-auth-demo-pipeline](../plans/p2-auth-demo-pipeline.md)
+**Related:** [[sqlite-wal]] · [[wails-bindings]] · [ADR-0015](../decisions/0015-streaming-parse-ingest-pipeline.md) · [plans/p2-auth-demo-pipeline](../plans/p2-auth-demo-pipeline.md)
 
 > Note: this page describes the parser as it runs against MR12 competitive CS2 demos (24 regulation rounds + optional overtime, no bots). Casual / bot-laden demos are out of scope.
 
@@ -153,3 +153,27 @@ Pairing a throw with its endpoint requires checking all four: `grenade_detonate`
 ### `AmmoReserve()` for grenades returns `held - 1`
 
 Per the demoinfocs docs: "Returns CWeaponCSBase.m_iPrimaryReserveAmmoCount for most weapons and 'Owner.AmmoLeft[AmmoType] - 1' for grenades." A player whose active item is a single grenade therefore reads `clip=0, reserve=0`, indistinguishable from a knife at the parser level. The viewer's formatter (`frontend/src/lib/viewer/weapon-label.ts`) hides the ammo suffix when both values are zero, so the displayed result is just the weapon name — but if you ever need true grenade counts, prefer the `Inventory` slice over inferring from ammo.
+
+## Streaming parse → ingest pipeline (2026-05-08)
+
+`Parse(ctx, r)` now accepts a `WithTickSink(chan<- TickSnapshot)` option. Ticks flow into a bounded channel; `app.go parseDemo` runs parse + ingest concurrently under `errgroup.WithContext` with `DefaultTickSinkBuffer = 5000`. Peak tick-path heap dropped from ~120 MB to ~4 MB.
+
+### Don't try to stream events too
+
+Events remain accumulated in `state.events`. `dropKnifeRounds`, `pairShotsWithImpacts`, and `ExtractGrenadeLineups` all need the full forward-correlated list (e.g. shot pairing walks ticks while owning a `lastShotIdx[attackerSteamID]` map across the entire match). A previous attempt to stream events broke knife-round detection silently — only ticks stream.
+
+### `IngestStream` is the canonical path; `Ingest` is a thin wrapper
+
+`IngestStream(ctx, demoID, ticksIn)` owns the single ingest tx + ctx-cancel + recover. The slice-based `Ingest(demoID, ticks)` exists only as a fan-into-channel adapter so the batch logic lives in one place.
+
+### Don't drop the heap watchdog
+
+The 4 GiB `maxHeapBytes` watchdog stayed in. Streaming ticks bounds the **tick** path, but `demoinfocs`'s internal protobuf/entity-table state still grows on corrupt demos and that's where the watchdog earns its keep.
+
+### Cache `strconv.FormatUint(SteamID64)` per player
+
+`parseState.steamID(p *common.Player)` lazily fills a `map[uint64]string` on first reference. Replaces 13 call sites that each allocated ~24 B per call × 10 players × ticks.
+
+### Typed event extras, not `map[string]interface{}`
+
+Per-kind structs in `internal/demo/extras.go` (`KillExtra`, `WeaponFireExtra`, `PlayerHurtExtra`, `GrenadeThrowExtra`, etc.) implement an `EventExtra` marker. Parser allocates one pointer-to-struct per event; `marshalExtraData` in `events.go` JSON-encodes at the ingest boundary. The wire format to the frontend is unchanged — this is purely an allocation reduction in the hot path.

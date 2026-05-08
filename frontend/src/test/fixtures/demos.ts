@@ -2,6 +2,19 @@ import type { Demo, GameEvent, TickData } from "@/types/demo"
 import type { Round } from "@/types/round"
 import type { ScoreboardEntry } from "@/types/scoreboard"
 
+// Default values for the promoted-to-column fields on GameEvent. Tests that
+// don't care about these (most non-kill / non-hurt events) pick them up
+// here so each fixture object stays focused on its event-specific shape.
+const PROMOTED_DEFAULTS = {
+  headshot: false,
+  assister_steam_id: null,
+  health_damage: 0,
+  attacker_name: "",
+  victim_name: "",
+  attacker_team: "",
+  victim_team: "",
+} as const
+
 export const mockDemos: Demo[] = [
   {
     id: 1,
@@ -56,6 +69,7 @@ export const mockDemos: Demo[] = [
 export function createMockEvents(demoId: string): GameEvent[] {
   return [
     {
+      ...PROMOTED_DEFAULTS,
       id: "evt-kill-1",
       demo_id: demoId,
       round_id: null,
@@ -67,9 +81,11 @@ export function createMockEvents(demoId: string): GameEvent[] {
       x: -500,
       y: 1000,
       z: 100,
-      extra_data: { attacker_x: -600, attacker_y: 800, headshot: true },
+      headshot: true,
+      extra_data: { attacker_x: -600, attacker_y: 800 },
     },
     {
+      ...PROMOTED_DEFAULTS,
       id: "evt-smoke-start-1",
       demo_id: demoId,
       round_id: null,
@@ -84,6 +100,7 @@ export function createMockEvents(demoId: string): GameEvent[] {
       extra_data: { entity_id: "smoke-entity-1" },
     },
     {
+      ...PROMOTED_DEFAULTS,
       id: "evt-smoke-expired-1",
       demo_id: demoId,
       round_id: null,
@@ -98,6 +115,7 @@ export function createMockEvents(demoId: string): GameEvent[] {
       extra_data: { entity_id: "smoke-entity-1" },
     },
     {
+      ...PROMOTED_DEFAULTS,
       id: "evt-he-1",
       demo_id: demoId,
       round_id: null,
@@ -112,6 +130,7 @@ export function createMockEvents(demoId: string): GameEvent[] {
       extra_data: null,
     },
     {
+      ...PROMOTED_DEFAULTS,
       id: "evt-flash-1",
       demo_id: demoId,
       round_id: null,
@@ -126,6 +145,7 @@ export function createMockEvents(demoId: string): GameEvent[] {
       extra_data: null,
     },
     {
+      ...PROMOTED_DEFAULTS,
       id: "evt-bomb-plant-1",
       demo_id: demoId,
       round_id: null,
@@ -140,6 +160,7 @@ export function createMockEvents(demoId: string): GameEvent[] {
       extra_data: null,
     },
     {
+      ...PROMOTED_DEFAULTS,
       id: "evt-bomb-defuse-1",
       demo_id: demoId,
       round_id: null,
@@ -223,7 +244,6 @@ export function createMockTickData(
         money: 0,
         has_helmet: false,
         has_defuser: false,
-        inventory: [],
         ammo_clip: 0,
         ammo_reserve: 0,
       })

@@ -40,13 +40,16 @@ func pairShotsWithImpacts(events []GameEvent) {
 				delete(lastShotIdx, ev.AttackerSteamID)
 				continue
 			}
-			if shot.ExtraData == nil {
-				shot.ExtraData = make(map[string]interface{})
+			extra, _ := shot.ExtraData.(*WeaponFireExtra)
+			if extra == nil {
+				extra = &WeaponFireExtra{}
+				shot.ExtraData = extra
 			}
-			shot.ExtraData["hit_x"] = ev.X
-			shot.ExtraData["hit_y"] = ev.Y
+			hx, hy := ev.X, ev.Y
+			extra.HitX = &hx
+			extra.HitY = &hy
 			if ev.VictimSteamID != "" {
-				shot.ExtraData["hit_victim_steam_id"] = ev.VictimSteamID
+				extra.HitVictimSteamID = ev.VictimSteamID
 			}
 			delete(lastShotIdx, ev.AttackerSteamID)
 		}

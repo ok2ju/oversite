@@ -77,6 +77,24 @@ func IngestRounds(ctx context.Context, db *sql.DB, demoID int64, result *ParseRe
 				return nil, fmt.Errorf("insert player round (round %d, steam %s): %w", rd.Number, ps.SteamID, err)
 			}
 		}
+
+		// Insert per-round loadouts captured at freeze-end (parser.go
+		// captureFreezeEnd populates RoundParticipant.Inventory). Skipping
+		// participants with empty inventory keeps the table sparse without
+		// affecting the frontend lookup — a missing row is rendered as "no
+		// loadout known," same as a freeze-end before any weapon spawn.
+		for _, rp := range rd.Roster {
+			if rp.Inventory == "" {
+				continue
+			}
+			if err := q.CreateRoundLoadout(ctx, store.CreateRoundLoadoutParams{
+				RoundID:   round.ID,
+				SteamID:   rp.SteamID,
+				Inventory: rp.Inventory,
+			}); err != nil {
+				return nil, fmt.Errorf("insert round loadout (round %d, steam %s): %w", rd.Number, rp.SteamID, err)
+			}
+		}
 	}
 
 	if err := tx.Commit(); err != nil {

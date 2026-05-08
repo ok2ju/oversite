@@ -59,7 +59,7 @@ func TestIngestGameEvents_Basic(t *testing.T) {
 			X:               1.0,
 			Y:               2.0,
 			Z:               3.0,
-			ExtraData:       map[string]interface{}{"headshot": true, "weapon": "ak47"},
+			ExtraData:       &demo.KillExtra{Headshot: true},
 		},
 		{
 			Tick:            200,
@@ -70,7 +70,7 @@ func TestIngestGameEvents_Basic(t *testing.T) {
 			X:               10.0,
 			Y:               20.0,
 			Z:               30.0,
-			ExtraData:       map[string]interface{}{},
+			ExtraData:       nil,
 		},
 		{
 			Tick:            300,
@@ -80,7 +80,7 @@ func TestIngestGameEvents_Basic(t *testing.T) {
 			X:               50.0,
 			Y:               60.0,
 			Z:               70.0,
-			ExtraData:       map[string]interface{}{"site": "A"},
+			ExtraData:       &demo.BombPlantExtra{Site: "A"},
 		},
 	}
 
@@ -238,13 +238,19 @@ func TestIngestGameEvents_ExtraData(t *testing.T) {
 
 	roundMap := map[int]int64{1: round.ID}
 
-	extra := map[string]interface{}{"headshot": true, "weapon": "ak47"}
 	events := []demo.GameEvent{
 		{
 			Tick:        100,
 			RoundNumber: 1,
 			Type:        "kill",
-			ExtraData:   extra,
+			ExtraData: &demo.KillExtra{
+				Headshot:     true,
+				Penetrated:   2,
+				AttackerName: "Alice",
+				AttackerTeam: "CT",
+				VictimName:   "Bob",
+				VictimTeam:   "T",
+			},
 		},
 	}
 
@@ -261,26 +267,37 @@ func TestIngestGameEvents_ExtraData(t *testing.T) {
 		t.Fatalf("stored events = %d, want 1", len(stored))
 	}
 
-	// Round-trip: unmarshal the stored JSON and check values.
+	// Promoted fields: read from columns, not extra_data.
+	if stored[0].Headshot != 1 {
+		t.Errorf("Headshot column = %d, want 1", stored[0].Headshot)
+	}
+	if stored[0].AttackerName != "Alice" {
+		t.Errorf("AttackerName column = %q, want %q", stored[0].AttackerName, "Alice")
+	}
+	if stored[0].VictimName != "Bob" {
+		t.Errorf("VictimName column = %q, want %q", stored[0].VictimName, "Bob")
+	}
+	if stored[0].AttackerTeam != "CT" {
+		t.Errorf("AttackerTeam column = %q, want %q", stored[0].AttackerTeam, "CT")
+	}
+	if stored[0].VictimTeam != "T" {
+		t.Errorf("VictimTeam column = %q, want %q", stored[0].VictimTeam, "T")
+	}
+
+	// extra_data should still hold the cold fields and NOT carry the promoted
+	// keys (proves we don't double-write).
 	var decoded map[string]interface{}
 	if err := json.Unmarshal([]byte(stored[0].ExtraData), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal ExtraData: %v", err)
 	}
-
-	headshot, ok := decoded["headshot"]
-	if !ok {
-		t.Fatal("missing key 'headshot' in ExtraData")
+	if _, ok := decoded["headshot"]; ok {
+		t.Error("'headshot' should not appear in extra_data after promotion")
 	}
-	if headshot != true {
-		t.Errorf("headshot = %v, want true", headshot)
+	if _, ok := decoded["attacker_name"]; ok {
+		t.Error("'attacker_name' should not appear in extra_data after promotion")
 	}
-
-	weapon, ok := decoded["weapon"]
-	if !ok {
-		t.Fatal("missing key 'weapon' in ExtraData")
-	}
-	if weapon != "ak47" {
-		t.Errorf("weapon = %v, want %q", weapon, "ak47")
+	if pen, ok := decoded["penetrated"]; !ok || pen != float64(2) {
+		t.Errorf("penetrated in extra_data = %v, want 2", pen)
 	}
 }
 
@@ -394,24 +411,27 @@ func TestResolveRoundID(t *testing.T) {
 func TestMarshalExtraData(t *testing.T) {
 	tests := []struct {
 		name    string
-		extra   map[string]interface{}
+		extra   any
 		want    string
 		wantErr bool
 	}{
 		{
-			name:  "nil map returns empty JSON object",
+			name:  "nil interface returns empty JSON object",
 			extra: nil,
 			want:  "{}",
 		},
 		{
-			name:  "empty map returns empty JSON object",
-			extra: map[string]interface{}{},
-			want:  "{}",
+			name:  "bomb plant returns site JSON",
+			extra: &demo.BombPlantExtra{Site: "A"},
+			want:  `{"site":"A"}`,
 		},
 		{
-			name:  "non-empty map returns valid JSON",
-			extra: map[string]interface{}{"key": "value"},
-			want:  `{"key":"value"}`,
+			// Promoted fields (Headshot, names, teams, assister) carry json:"-"
+			// so they never appear in the JSON blob; they live in dedicated
+			// columns instead.
+			name:  "kill extra returns cold-fields-only JSON",
+			extra: &demo.KillExtra{Headshot: true, Penetrated: 1},
+			want:  `{"penetrated":1,"flash_assist":false,"through_smoke":false,"no_scope":false,"attacker_blind":false,"wallbang":false}`,
 		},
 	}
 

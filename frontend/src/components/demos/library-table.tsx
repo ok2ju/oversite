@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { Play, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useDemoStore } from "@/stores/demo"
-import type { Demo } from "@/types/demo"
+import type { DemoSummary } from "@/types/demo"
 import { MapTile, resolveMap } from "@/components/demos/map-tile"
 import { StatusPill, statusKey } from "@/components/demos/status-pill"
 import type { DemosFilter } from "@/components/demos/demos-toolbar"
@@ -42,23 +42,23 @@ export function formatDate(iso: string): string {
 }
 
 export function filterDemos(
-  demos: Demo[],
+  demos: DemoSummary[],
   search: string,
   filter: DemosFilter,
-): Demo[] {
+): DemoSummary[] {
   const q = search.trim().toLowerCase()
   return demos.filter((demo) => {
     if (filter === "parsing" && demo.status !== "parsing") return false
     // 'wins' / 'losses' are spec labels without backing match-result data on
     // the Demo model yet — treat them as no-ops alongside 'all'.
     if (!q) return true
-    const haystack = `${demo.map_name} ${demo.file_path}`.toLowerCase()
+    const haystack = `${demo.map_name} ${demo.file_name}`.toLowerCase()
     return haystack.includes(q)
   })
 }
 
 interface LibraryTableProps {
-  demos: Demo[]
+  demos: DemoSummary[]
   search: string
   filter: DemosFilter
   onDelete: (id: number) => void
@@ -74,7 +74,7 @@ export function LibraryTable({
   const importProgress = useDemoStore((s) => s.importProgress)
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [waitingDemoId, setWaitingDemoId] = useState<number | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<Demo | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<DemoSummary | null>(null)
   const rows = useMemo(
     () => filterDemos(demos, search, filter),
     [demos, search, filter],
@@ -112,7 +112,7 @@ export function LibraryTable({
     )
   }
 
-  function handleRowClick(demo: Demo) {
+  function handleRowClick(demo: DemoSummary) {
     if (demo.status === "parsing") {
       setWaitingDemoId(demo.id)
       return
@@ -131,8 +131,7 @@ export function LibraryTable({
     )
   }
 
-  const pendingFileName =
-    pendingDelete?.file_path.split("/").pop() ?? "this demo"
+  const pendingFileName = pendingDelete?.file_name ?? "this demo"
 
   return (
     <div className="demos-table">
@@ -185,7 +184,7 @@ export function LibraryTable({
           {rows.map((demo) => {
             const isSelected = selected.has(demo.id)
             const meta = resolveMap(demo.map_name)
-            const fileName = demo.file_path.split("/").pop() ?? ""
+            const fileName = demo.file_name
             const isParsing = demo.status === "parsing"
             const isWaiting = waitingDemoId === demo.id
             return (

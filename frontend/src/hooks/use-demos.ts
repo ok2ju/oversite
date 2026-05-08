@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   ListDemos,
+  CountDemos,
   ImportDemoFile,
   ImportDemoByPath,
   DeleteDemo,
@@ -19,6 +20,13 @@ export function useDemos(page = 1, perPage = 20) {
       )
       return hasActive ? 5000 : false
     },
+  })
+}
+
+export function useDemoCount() {
+  return useQuery({
+    queryKey: ["demos", "count"],
+    queryFn: () => CountDemos() as Promise<number>,
   })
 }
 
@@ -62,8 +70,13 @@ export function useDeleteDemo() {
 
   return useMutation({
     mutationFn: (id: number) => DeleteDemo(id),
-    onSuccess: () => {
+    onSuccess: (_data, deletedId) => {
       queryClient.invalidateQueries({ queryKey: ["demos"] })
+      queryClient.removeQueries({ queryKey: ["demo", deletedId] })
+      queryClient.removeQueries({ queryKey: ["rounds", deletedId] })
+      queryClient.removeQueries({ queryKey: ["scoreboard", deletedId] })
+      queryClient.removeQueries({ queryKey: ["game-events", deletedId] })
+      queryClient.removeQueries({ queryKey: ["round-roster", deletedId] })
     },
   })
 }

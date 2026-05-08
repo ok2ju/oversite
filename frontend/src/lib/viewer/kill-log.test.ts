@@ -26,13 +26,14 @@ function killEvent(opts: {
     x: 0,
     y: 0,
     z: 0,
-    extra_data: {
-      headshot: opts.headshot ?? false,
-      attacker_name: opts.attackerName ?? "Killer",
-      attacker_team: opts.attackerSide ?? "T",
-      victim_name: opts.victimName ?? "Victim",
-      victim_team: opts.victimSide ?? "CT",
-    },
+    headshot: opts.headshot ?? false,
+    assister_steam_id: null,
+    health_damage: 0,
+    attacker_name: opts.attackerName ?? "Killer",
+    attacker_team: opts.attackerSide ?? "T",
+    victim_name: opts.victimName ?? "Victim",
+    victim_team: opts.victimSide ?? "CT",
+    extra_data: {},
   }
 }
 
@@ -109,6 +110,13 @@ describe("selectVisibleKills", () => {
         x: 0,
         y: 0,
         z: 0,
+        headshot: false,
+        assister_steam_id: null,
+        health_damage: 0,
+        attacker_name: "",
+        attacker_team: "",
+        victim_name: "",
+        victim_team: "",
         extra_data: null,
       },
     ]

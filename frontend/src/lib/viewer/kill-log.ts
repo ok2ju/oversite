@@ -27,25 +27,12 @@ export interface SelectKillsOptions {
   tickRate?: number
 }
 
-function readString(
-  extra: Record<string, unknown> | null,
-  key: string,
-): string {
-  const v = extra?.[key]
-  return typeof v === "string" ? v : ""
-}
-
 function readBool(extra: Record<string, unknown> | null, key: string): boolean {
   return extra?.[key] === true
 }
 
-function readSide(
-  extra: Record<string, unknown> | null,
-  key: string,
-): TeamSide | null {
-  const v = extra?.[key]
-  if (v === "CT" || v === "T") return v
-  return null
+function toSide(value: string): TeamSide | null {
+  return value === "CT" || value === "T" ? value : null
 }
 
 // Filter all kill events to those that should be visible at currentTick: kills
@@ -53,6 +40,11 @@ function readSide(
 // most recent and returned oldest-first so the latest kill renders at the
 // bottom of the on-screen feed. Suicides and team-kills with no attacker are
 // skipped.
+//
+// Hot fields (attacker_name, victim_name, attacker_team, victim_team,
+// headshot) are read straight off the event — they live in dedicated columns
+// after migration 010. Cold fields (no_scope, penetrated, through_smoke,
+// attacker_blind) still come from extra_data.
 export function selectVisibleKills(
   events: GameEvent[] | undefined,
   currentTick: number,
@@ -75,12 +67,12 @@ export function selectVisibleKills(
     recent.push({
       id: e.id,
       tick: e.tick,
-      attackerName: readString(e.extra_data, "attacker_name"),
-      attackerSide: readSide(e.extra_data, "attacker_team"),
-      victimName: readString(e.extra_data, "victim_name"),
-      victimSide: readSide(e.extra_data, "victim_team"),
+      attackerName: e.attacker_name,
+      attackerSide: toSide(e.attacker_team),
+      victimName: e.victim_name,
+      victimSide: toSide(e.victim_team),
       weapon: e.weapon,
-      headshot: readBool(e.extra_data, "headshot"),
+      headshot: e.headshot,
       noScope: readBool(e.extra_data, "no_scope"),
       penetrated:
         ((e.extra_data?.["penetrated"] as number | undefined) ?? 0) > 0,

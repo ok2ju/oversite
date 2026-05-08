@@ -17,7 +17,6 @@ function makeTick(tick: number, steamId = "76561198000000001"): TickData {
     money: 0,
     has_helmet: false,
     has_defuser: false,
-    inventory: [],
     ammo_clip: 0,
     ammo_reserve: 0,
   }
@@ -329,6 +328,56 @@ describe("TickBuffer", () => {
       // After dispose, getTickData should return null (cache cleared)
       const result = buffer.getTickData(0)
       expect(result).toBeNull()
+    })
+  })
+
+  describe("getFramePair", () => {
+    it("returns null pair when chunk is not yet loaded", () => {
+      fetchFn.mockResolvedValue([])
+      const pair = buffer.getFramePair(50)
+      expect(pair.current).toBeNull()
+      expect(pair.next).toBeNull()
+    })
+
+    it("returns the sample at-or-before and the next sample after", async () => {
+      // Sparse: samples every 4th tick. fractionalTick=5.5 should pair
+      // (current=4, next=8).
+      const sparse: TickData[] = []
+      for (let t = 0; t < 100; t += 4) {
+        sparse.push(makeTick(t, "76561198000000001"))
+      }
+      fetchFn.mockResolvedValue(sparse)
+      buffer.getTickData(0)
+      await vi.waitFor(() => expect(buffer.getTickData(0)).not.toBeNull())
+
+      const pair = buffer.getFramePair(5.5)
+      expect(pair.current?.tick).toBe(4)
+      expect(pair.next?.tick).toBe(8)
+    })
+
+    it("reuses the same FramePair and SampleFrame objects across calls", async () => {
+      // Allocation contract: callers must consume references synchronously
+      // and not retain them. This test guards that we keep the contract by
+      // reusing the buffer-owned scratch slots.
+      const sparse: TickData[] = []
+      for (let t = 0; t < 100; t += 4) {
+        sparse.push(makeTick(t, "76561198000000001"))
+      }
+      fetchFn.mockResolvedValue(sparse)
+      buffer.getTickData(0)
+      await vi.waitFor(() => expect(buffer.getTickData(0)).not.toBeNull())
+
+      const pairA = buffer.getFramePair(5.5)
+      const currentA = pairA.current
+      const nextA = pairA.next
+      const pairB = buffer.getFramePair(9.5)
+      // Same FramePair wrapper — refs reused
+      expect(pairB).toBe(pairA)
+      // Same SampleFrame slots, but their fields advance with the call
+      expect(pairB.current).toBe(currentA)
+      expect(pairB.next).toBe(nextA)
+      expect(pairB.current?.tick).toBe(8)
+      expect(pairB.next?.tick).toBe(12)
     })
   })
 })

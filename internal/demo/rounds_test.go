@@ -35,10 +35,10 @@ func syntheticParseResult() *demo.ParseResult {
 		},
 		Events: []demo.GameEvent{
 			// Round 1: hurt + kill so CalculatePlayerRoundStats produces data.
-			{Tick: 100, RoundNumber: 1, Type: "player_hurt", AttackerSteamID: "steam1", VictimSteamID: "steam2", ExtraData: map[string]interface{}{"health_damage": 80, "attacker_name": "Player1", "attacker_team": "CT", "victim_name": "Player2", "victim_team": "T"}},
-			{Tick: 200, RoundNumber: 1, Type: "kill", AttackerSteamID: "steam1", VictimSteamID: "steam2", Weapon: "ak47", ExtraData: map[string]interface{}{"headshot": true, "attacker_name": "Player1", "attacker_team": "CT", "victim_name": "Player2", "victim_team": "T"}},
+			{Tick: 100, RoundNumber: 1, Type: "player_hurt", AttackerSteamID: "steam1", VictimSteamID: "steam2", ExtraData: &demo.PlayerHurtExtra{HealthDamage: 80, AttackerName: "Player1", AttackerTeam: "CT", VictimName: "Player2", VictimTeam: "T"}},
+			{Tick: 200, RoundNumber: 1, Type: "kill", AttackerSteamID: "steam1", VictimSteamID: "steam2", Weapon: "ak47", ExtraData: &demo.KillExtra{Headshot: true, AttackerName: "Player1", AttackerTeam: "CT", VictimName: "Player2", VictimTeam: "T"}},
 			// Round 2: another kill.
-			{Tick: 1100, RoundNumber: 2, Type: "kill", AttackerSteamID: "steam2", VictimSteamID: "steam1", Weapon: "awp", ExtraData: map[string]interface{}{"headshot": false, "attacker_name": "Player2", "attacker_team": "T", "victim_name": "Player1", "victim_team": "CT"}},
+			{Tick: 1100, RoundNumber: 2, Type: "kill", AttackerSteamID: "steam2", VictimSteamID: "steam1", Weapon: "awp", ExtraData: &demo.KillExtra{Headshot: false, AttackerName: "Player2", AttackerTeam: "T", VictimName: "Player1", VictimTeam: "CT"}},
 		},
 	}
 }

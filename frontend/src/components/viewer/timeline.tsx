@@ -30,6 +30,17 @@ export function Timeline({
   const trackRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
   const seekRef = useRef<(clientX: number) => void>(null)
+  // Track the active document-level listener pair so we can detach them
+  // even if the component unmounts mid-drag (otherwise the listeners leak
+  // and keep firing into a destroyed React tree).
+  const activeMouseListenersRef = useRef<{
+    move: (ev: MouseEvent) => void
+    up: () => void
+  } | null>(null)
+  const activeTouchListenersRef = useRef<{
+    move: (ev: TouchEvent) => void
+    end: () => void
+  } | null>(null)
 
   const percent = tickToPercent(currentTick, totalTicks)
   const markers = roundBoundaryPositions(roundBoundaries, totalTicks)
@@ -47,6 +58,26 @@ export function Timeline({
     }
   }, [totalTicks, onSeek])
 
+  // Detach any in-flight document listeners on unmount so a drag that's
+  // still active when the component goes away doesn't leak handlers.
+  useEffect(() => {
+    return () => {
+      const mouse = activeMouseListenersRef.current
+      if (mouse) {
+        document.removeEventListener("mousemove", mouse.move)
+        document.removeEventListener("mouseup", mouse.up)
+        activeMouseListenersRef.current = null
+      }
+      const touch = activeTouchListenersRef.current
+      if (touch) {
+        document.removeEventListener("touchmove", touch.move)
+        document.removeEventListener("touchend", touch.end)
+        activeTouchListenersRef.current = null
+      }
+      draggingRef.current = false
+    }
+  }, [])
+
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       draggingRef.current = true
@@ -63,10 +94,15 @@ export function Timeline({
         draggingRef.current = false
         document.removeEventListener("mousemove", handleMouseMove)
         document.removeEventListener("mouseup", handleMouseUp)
+        activeMouseListenersRef.current = null
       }
 
       document.addEventListener("mousemove", handleMouseMove)
       document.addEventListener("mouseup", handleMouseUp)
+      activeMouseListenersRef.current = {
+        move: handleMouseMove,
+        up: handleMouseUp,
+      }
     },
     [onScrubStart],
   )
@@ -88,12 +124,17 @@ export function Timeline({
         draggingRef.current = false
         document.removeEventListener("touchmove", handleTouchMove)
         document.removeEventListener("touchend", handleTouchEnd)
+        activeTouchListenersRef.current = null
       }
 
       document.addEventListener("touchmove", handleTouchMove, {
         passive: false,
       })
       document.addEventListener("touchend", handleTouchEnd)
+      activeTouchListenersRef.current = {
+        move: handleTouchMove,
+        end: handleTouchEnd,
+      }
     },
     [onScrubStart],
   )

@@ -38,8 +38,16 @@ interface ChunkState {
 // Uses the Wails binding directly instead of TanStack Query because TickBuffer
 // manages its own imperative LRU chunk cache with abort-on-seek — outside
 // React's lifecycle.
+//
+// Inventory used to be normalized here (CSV → string[]) but moved to per-round
+// storage in migration 011 — see useRoundLoadouts. Tick data is now a flat
+// pass-through, no per-row mutation.
 const defaultFetchFn: FetchTicksFn = async (demoId, startTick, endTick) => {
-  return GetDemoTicks(demoId, startTick, endTick) as Promise<TickData[]>
+  return (await GetDemoTicks(
+    demoId,
+    startTick,
+    endTick,
+  )) as unknown as TickData[]
 }
 
 export class TickBuffer {
@@ -52,6 +60,18 @@ export class TickBuffer {
   private cache = new Map<number, ChunkState>()
   private inFlight = new Map<number, AbortController>()
   private failedChunks = new Set<number>()
+
+  // Reused per-call SampleFrame slots returned from getFramePair. The caller
+  // (viewer-canvas tickerFn) destructures and consumes both within the same
+  // synchronous frame and never stores the SampleFrame references — only the
+  // inner `.data` arrays (which are owned by the chunk cache, not the slots).
+  // Reusing the wrappers eliminates ~128 small-object allocs/sec at 64 Hz.
+  private currentScratch: SampleFrame = { tick: 0, data: [] }
+  private nextScratch: SampleFrame = { tick: 0, data: [] }
+  // Returned object reuses the same shape so callers can keep destructuring;
+  // its fields point to the scratch slots above (or null when no sample).
+  private framePair: { current: SampleFrame | null; next: SampleFrame | null } =
+    { current: null, next: null }
 
   constructor(demoId: string, options: TickBufferOptions = {}) {
     this.demoId = demoId
@@ -89,6 +109,15 @@ export class TickBuffer {
   // next sample strictly after it, so the renderer can interpolate positions
   // between snapshots. Returns { current: null, next: null } if the containing
   // chunk is not yet loaded (fetch is triggered).
+  //
+  // ALLOCATION CONTRACT: The returned FramePair object and its non-null
+  // SampleFrame slots are reused across calls (this.framePair / this.*Scratch).
+  // Callers must consume `current.tick`, `current.data`, `next.tick`,
+  // `next.data` synchronously within the same tick and MUST NOT retain the
+  // FramePair or SampleFrame references across frames. The inner `.data`
+  // arrays remain owned by the chunk cache and are safe to forward to a
+  // consumer (e.g. PlayerLayer.update) for the duration of the synchronous
+  // frame.
   getFramePair(fractionalTick: number): FramePair {
     const intTick = Math.floor(fractionalTick)
     const chunkStart = this.chunkStartFor(intTick)
@@ -96,36 +125,45 @@ export class TickBuffer {
 
     if (!cached) {
       this.fetchChunk(chunkStart)
-      return { current: null, next: null }
+      this.framePair.current = null
+      this.framePair.next = null
+      return this.framePair
     }
     cached.lastAccessed = Date.now()
     this.maybePrefetchNext(intTick, chunkStart)
 
     const chunkEnd = chunkStart + this.chunkSize - 1
 
-    let current: SampleFrame | null = null
+    // Walk back from intTick to find the most recent sample; write into the
+    // pre-allocated currentScratch instead of constructing a fresh literal.
+    let currentFound = false
     const backFloor = Math.max(chunkStart, intTick - MAX_SAMPLE_WALK)
     for (let t = intTick; t >= backFloor; t--) {
       const d = cached.data.get(t)
       if (d) {
-        current = { tick: t, data: d }
+        this.currentScratch.tick = t
+        this.currentScratch.data = d
+        currentFound = true
         break
       }
     }
+    this.framePair.current = currentFound ? this.currentScratch : null
 
-    let next: SampleFrame | null = null
+    let nextFound = false
     const forwardCeiling = Math.min(chunkEnd, intTick + MAX_SAMPLE_WALK)
     for (let t = intTick + 1; t <= forwardCeiling; t++) {
       const d = cached.data.get(t)
       if (d) {
-        next = { tick: t, data: d }
+        this.nextScratch.tick = t
+        this.nextScratch.data = d
+        nextFound = true
         break
       }
     }
 
     // At the tail of a chunk, fall through to the next chunk if it's cached so
     // playback stays smooth across the boundary. We don't fetch here.
-    if (!next && intTick + MAX_SAMPLE_WALK > chunkEnd) {
+    if (!nextFound && intTick + MAX_SAMPLE_WALK > chunkEnd) {
       const nextChunkStart = chunkStart + this.chunkSize
       const nextCached = this.cache.get(nextChunkStart)
       if (nextCached) {
@@ -134,14 +172,17 @@ export class TickBuffer {
         for (let t = nextChunkStart; t <= ceiling; t++) {
           const d = nextCached.data.get(t)
           if (d) {
-            next = { tick: t, data: d }
+            this.nextScratch.tick = t
+            this.nextScratch.data = d
+            nextFound = true
             break
           }
         }
       }
     }
+    this.framePair.next = nextFound ? this.nextScratch : null
 
-    return { current, next }
+    return this.framePair
   }
 
   seek(tick: number): void {

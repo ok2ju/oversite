@@ -25,6 +25,11 @@ export function HeatmapCanvas() {
 
   const mapLayerRef = useRef<MapLayer | null>(null)
   const heatmapLayerRef = useRef<HeatmapLayer | null>(null)
+  // Monotonic counter incremented on every selectedMap effect run. The async
+  // setMap promise captures the run id at start; if a newer effect (or
+  // unmount) has bumped the ref by the time it resolves, we ignore the
+  // result to avoid touching a stale/destroyed layer.
+  const setMapRunIdRef = useRef(0)
 
   // Initialize PixiJS app
   useEffect(() => {
@@ -68,10 +73,23 @@ export function HeatmapCanvas() {
     const mapLayer = mapLayerRef.current
     if (!mapLayer) return
 
+    const runId = ++setMapRunIdRef.current
+
     if (selectedMap) {
-      mapLayer.setMap(selectedMap).catch(console.error)
+      mapLayer.setMap(selectedMap).catch((err) => {
+        // Drop the error if a newer run (or unmount) superseded this one;
+        // otherwise the old request can log noise after the layer is gone.
+        if (runId !== setMapRunIdRef.current) return
+        console.error(err)
+      })
     } else {
       mapLayer.clear()
+    }
+
+    return () => {
+      // Bump the id so any in-flight setMap() resolves into a no-op branch
+      // and can't poke a destroyed/stale MapLayer.
+      setMapRunIdRef.current++
     }
   }, [selectedMap])
 

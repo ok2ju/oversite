@@ -2,6 +2,7 @@ package demo
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"strings"
 	"testing"
@@ -672,5 +673,85 @@ func TestMidMatchRestart_NoResetAndWarnLogged(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "mid-match restart detected") {
 		t.Errorf("expected warn log containing 'mid-match restart detected', got: %q", buf.String())
+	}
+}
+
+// TestPushTick_SlicePath verifies the default (no-sink) behavior: ticks land
+// in state.ticks and tickCount tracks the slice length.
+func TestPushTick_SlicePath(t *testing.T) {
+	state := &parseState{ctx: context.Background()}
+
+	for i := 0; i < 3; i++ {
+		if !state.pushTick(TickSnapshot{Tick: i, SteamID: "p"}) {
+			t.Fatalf("pushTick (%d) returned false", i)
+		}
+	}
+	if len(state.ticks) != 3 {
+		t.Errorf("len(state.ticks) = %d, want 3", len(state.ticks))
+	}
+	if state.tickCount != 3 {
+		t.Errorf("state.tickCount = %d, want 3", state.tickCount)
+	}
+}
+
+// TestPushTick_SinkPath verifies that when WithTickSink is configured, ticks
+// flow into the channel and state.ticks stays nil — this is the path that
+// avoids the 100+ MB heap accumulation in production.
+func TestPushTick_SinkPath(t *testing.T) {
+	sink := make(chan TickSnapshot, 4)
+	state := &parseState{ctx: context.Background(), tickSink: sink}
+
+	for i := 0; i < 3; i++ {
+		if !state.pushTick(TickSnapshot{Tick: i, SteamID: "p"}) {
+			t.Fatalf("pushTick (%d) returned false", i)
+		}
+	}
+	close(sink)
+
+	got := make([]TickSnapshot, 0, 3)
+	for s := range sink {
+		got = append(got, s)
+	}
+	if len(got) != 3 {
+		t.Errorf("ticks received from sink = %d, want 3", len(got))
+	}
+	if state.ticks != nil {
+		t.Errorf("state.ticks = %v, want nil (streaming path must not append)", state.ticks)
+	}
+	if state.tickCount != 3 {
+		t.Errorf("state.tickCount = %d, want 3", state.tickCount)
+	}
+}
+
+// TestPushTick_SinkPath_CtxCancel exercises the select-on-ctx escape hatch:
+// when the consumer goroutine has stopped draining the channel and the
+// shared ctx is cancelled, pushTick must not deadlock — it returns false
+// with limitExceeded set so the caller can Cancel the parser.
+func TestPushTick_SinkPath_CtxCancel(t *testing.T) {
+	sink := make(chan TickSnapshot) // unbuffered: send will block until ctx fires
+	ctx, cancel := context.WithCancel(context.Background())
+	state := &parseState{ctx: ctx, tickSink: sink}
+
+	cancel() // pre-cancel so the select picks the Done branch immediately
+
+	if state.pushTick(TickSnapshot{Tick: 1}) {
+		t.Errorf("pushTick returned true after ctx cancel; expected false")
+	}
+	if state.limitExceeded == nil {
+		t.Errorf("limitExceeded = nil, want context.Canceled-derived error")
+	}
+	if state.tickCount != 0 {
+		t.Errorf("state.tickCount = %d, want 0 (push must not have succeeded)", state.tickCount)
+	}
+}
+
+// TestWithTickSink_OptionWiresField is a smoke test for the constructor
+// option — guards against a typo that would silently fall back to the slice
+// path and re-introduce the heap regression.
+func TestWithTickSink_OptionWiresField(t *testing.T) {
+	sink := make(chan TickSnapshot, 1)
+	dp := NewDemoParser(WithTickSink(sink))
+	if dp.tickSink == nil {
+		t.Errorf("WithTickSink: tickSink is nil, want non-nil")
 	}
 }

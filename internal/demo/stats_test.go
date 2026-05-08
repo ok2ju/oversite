@@ -16,22 +16,22 @@ func findStats(stats []PlayerRoundStats, steamID string) (PlayerRoundStats, bool
 
 // -- synthetic event builders --------------------------------------------------
 
-func makeKillEvent(tick, round int, attackerID, victimID, weapon string, headshot bool, extra map[string]interface{}) GameEvent {
+func makeKillEvent(tick, round int, attackerID, victimID, weapon string, headshot bool, extra *KillExtra) GameEvent {
 	if extra == nil {
-		extra = map[string]interface{}{}
+		extra = &KillExtra{}
 	}
-	extra["headshot"] = headshot
-	if _, ok := extra["attacker_name"]; !ok {
-		extra["attacker_name"] = "Attacker"
+	extra.Headshot = headshot
+	if extra.AttackerName == "" {
+		extra.AttackerName = "Attacker"
 	}
-	if _, ok := extra["attacker_team"]; !ok {
-		extra["attacker_team"] = "CT"
+	if extra.AttackerTeam == "" {
+		extra.AttackerTeam = "CT"
 	}
-	if _, ok := extra["victim_name"]; !ok {
-		extra["victim_name"] = "Victim"
+	if extra.VictimName == "" {
+		extra.VictimName = "Victim"
 	}
-	if _, ok := extra["victim_team"]; !ok {
-		extra["victim_team"] = "T"
+	if extra.VictimTeam == "" {
+		extra.VictimTeam = "T"
 	}
 	return GameEvent{
 		Tick:            tick,
@@ -51,166 +51,13 @@ func makeHurtEvent(tick, round int, attackerID, victimID string, healthDamage in
 		Type:            "player_hurt",
 		AttackerSteamID: attackerID,
 		VictimSteamID:   victimID,
-		ExtraData: map[string]interface{}{
-			"health_damage": healthDamage,
-			"attacker_name": "Attacker",
-			"attacker_team": attackerTeam,
-			"victim_name":   "Victim",
-			"victim_team":   victimTeam,
+		ExtraData: &PlayerHurtExtra{
+			HealthDamage: healthDamage,
+			AttackerName: "Attacker",
+			AttackerTeam: attackerTeam,
+			VictimName:   "Victim",
+			VictimTeam:   victimTeam,
 		},
-	}
-}
-
-// -- TestGetExtraDataString ---------------------------------------------------
-
-func TestGetExtraDataString(t *testing.T) {
-	tests := []struct {
-		name  string
-		extra map[string]interface{}
-		key   string
-		want  string
-	}{
-		{
-			name:  "existing string key",
-			extra: map[string]interface{}{"weapon": "ak47"},
-			key:   "weapon",
-			want:  "ak47",
-		},
-		{
-			name:  "missing key",
-			extra: map[string]interface{}{"weapon": "ak47"},
-			key:   "missing",
-			want:  "",
-		},
-		{
-			name:  "non-string value (int)",
-			extra: map[string]interface{}{"damage": 80},
-			key:   "damage",
-			want:  "",
-		},
-		{
-			name:  "nil map",
-			extra: nil,
-			key:   "weapon",
-			want:  "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := getExtraDataString(tt.extra, tt.key)
-			if got != tt.want {
-				t.Errorf("getExtraDataString(%v, %q) = %q, want %q", tt.extra, tt.key, got, tt.want)
-			}
-		})
-	}
-}
-
-// -- TestGetExtraDataBool -----------------------------------------------------
-
-func TestGetExtraDataBool(t *testing.T) {
-	tests := []struct {
-		name  string
-		extra map[string]interface{}
-		key   string
-		want  bool
-	}{
-		{
-			name:  "existing bool key true",
-			extra: map[string]interface{}{"headshot": true},
-			key:   "headshot",
-			want:  true,
-		},
-		{
-			name:  "existing bool key false",
-			extra: map[string]interface{}{"headshot": false},
-			key:   "headshot",
-			want:  false,
-		},
-		{
-			name:  "missing key",
-			extra: map[string]interface{}{"headshot": true},
-			key:   "missing",
-			want:  false,
-		},
-		{
-			name:  "non-bool value (string \"true\")",
-			extra: map[string]interface{}{"headshot": "true"},
-			key:   "headshot",
-			want:  false,
-		},
-		{
-			name:  "nil map",
-			extra: nil,
-			key:   "headshot",
-			want:  false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := getExtraDataBool(tt.extra, tt.key)
-			if got != tt.want {
-				t.Errorf("getExtraDataBool(%v, %q) = %v, want %v", tt.extra, tt.key, got, tt.want)
-			}
-		})
-	}
-}
-
-// -- TestGetExtraDataInt ------------------------------------------------------
-
-func TestGetExtraDataInt(t *testing.T) {
-	tests := []struct {
-		name  string
-		extra map[string]interface{}
-		key   string
-		want  int
-	}{
-		{
-			name:  "native int",
-			extra: map[string]interface{}{"damage": 80},
-			key:   "damage",
-			want:  80,
-		},
-		{
-			name:  "float64 (JSON decoded)",
-			extra: map[string]interface{}{"damage": float64(45)},
-			key:   "damage",
-			want:  45,
-		},
-		{
-			name:  "int64",
-			extra: map[string]interface{}{"damage": int64(100)},
-			key:   "damage",
-			want:  100,
-		},
-		{
-			name:  "missing key",
-			extra: map[string]interface{}{"damage": 80},
-			key:   "missing",
-			want:  0,
-		},
-		{
-			name:  "non-numeric value (string)",
-			extra: map[string]interface{}{"damage": "80"},
-			key:   "damage",
-			want:  0,
-		},
-		{
-			name:  "nil map",
-			extra: nil,
-			key:   "damage",
-			want:  0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := getExtraDataInt(tt.extra, tt.key)
-			if got != tt.want {
-				t.Errorf("getExtraDataInt(%v, %q) = %d, want %d", tt.extra, tt.key, got, tt.want)
-			}
-		})
 	}
 }
 
@@ -289,11 +136,11 @@ func TestCalculatePlayerRoundStats_BasicKillDeath(t *testing.T) {
 	rounds := []RoundData{{Number: 1}}
 	events := []GameEvent{
 		makeKillEvent(100, 1, "steamA", "steamB", "ak47", true, nil),
-		makeKillEvent(200, 1, "steamA", "steamC", "ak47", false, map[string]interface{}{
-			"attacker_name": "PlayerA",
-			"attacker_team": "CT",
-			"victim_name":   "PlayerC",
-			"victim_team":   "T",
+		makeKillEvent(200, 1, "steamA", "steamC", "ak47", false, &KillExtra{
+			AttackerName: "PlayerA",
+			AttackerTeam: "CT",
+			VictimName:   "PlayerC",
+			VictimTeam:   "T",
 		}),
 	}
 
@@ -358,14 +205,14 @@ func TestCalculatePlayerRoundStats_DamageTracking(t *testing.T) {
 func TestCalculatePlayerRoundStats_Assists(t *testing.T) {
 	rounds := []RoundData{{Number: 1}}
 	events := []GameEvent{
-		makeKillEvent(100, 1, "steamA", "steamB", "ak47", false, map[string]interface{}{
-			"attacker_name":     "PlayerA",
-			"attacker_team":     "CT",
-			"victim_name":       "PlayerB",
-			"victim_team":       "T",
-			"assister_steam_id": "steamC",
-			"assister_name":     "PlayerC",
-			"assister_team":     "CT",
+		makeKillEvent(100, 1, "steamA", "steamB", "ak47", false, &KillExtra{
+			AttackerName:     "PlayerA",
+			AttackerTeam:     "CT",
+			VictimName:       "PlayerB",
+			VictimTeam:       "T",
+			AssisterSteamID: "steamC",
+			AssisterName:     "PlayerC",
+			AssisterTeam:     "CT",
 		}),
 	}
 
@@ -388,23 +235,23 @@ func TestCalculatePlayerRoundStats_Assists(t *testing.T) {
 func TestCalculatePlayerRoundStats_FirstKillDeath(t *testing.T) {
 	rounds := []RoundData{{Number: 1}}
 	events := []GameEvent{
-		makeKillEvent(100, 1, "steamA", "steamB", "ak47", false, map[string]interface{}{
-			"attacker_name": "PlayerA",
-			"attacker_team": "CT",
-			"victim_name":   "PlayerB",
-			"victim_team":   "T",
+		makeKillEvent(100, 1, "steamA", "steamB", "ak47", false, &KillExtra{
+			AttackerName: "PlayerA",
+			AttackerTeam: "CT",
+			VictimName:   "PlayerB",
+			VictimTeam:   "T",
 		}),
-		makeKillEvent(200, 1, "steamC", "steamD", "m4a1", false, map[string]interface{}{
-			"attacker_name": "PlayerC",
-			"attacker_team": "CT",
-			"victim_name":   "PlayerD",
-			"victim_team":   "T",
+		makeKillEvent(200, 1, "steamC", "steamD", "m4a1", false, &KillExtra{
+			AttackerName: "PlayerC",
+			AttackerTeam: "CT",
+			VictimName:   "PlayerD",
+			VictimTeam:   "T",
 		}),
-		makeKillEvent(300, 1, "steamE", "steamF", "awp", false, map[string]interface{}{
-			"attacker_name": "PlayerE",
-			"attacker_team": "CT",
-			"victim_name":   "PlayerF",
-			"victim_team":   "T",
+		makeKillEvent(300, 1, "steamE", "steamF", "awp", false, &KillExtra{
+			AttackerName: "PlayerE",
+			AttackerTeam: "CT",
+			VictimName:   "PlayerF",
+			VictimTeam:   "T",
 		}),
 	}
 
@@ -453,11 +300,11 @@ func TestCalculatePlayerRoundStats_FirstKillDeath(t *testing.T) {
 func TestCalculatePlayerRoundStats_SelfKill(t *testing.T) {
 	rounds := []RoundData{{Number: 1}}
 	events := []GameEvent{
-		makeKillEvent(100, 1, "steamA", "steamA", "world", false, map[string]interface{}{
-			"attacker_name": "PlayerA",
-			"attacker_team": "CT",
-			"victim_name":   "PlayerA",
-			"victim_team":   "CT",
+		makeKillEvent(100, 1, "steamA", "steamA", "world", false, &KillExtra{
+			AttackerName: "PlayerA",
+			AttackerTeam: "CT",
+			VictimName:   "PlayerA",
+			VictimTeam:   "CT",
 		}),
 	}
 
@@ -499,36 +346,36 @@ func TestCalculatePlayerRoundStats_ClutchKills(t *testing.T) {
 
 	// Kill 4 CT players (CT1 survives).
 	events = append(events,
-		makeKillEvent(60, 1, "steamT1", "steamCT2", "ak47", false, map[string]interface{}{
-			"attacker_name": "T1",
-			"attacker_team": "T",
-			"victim_name":   "CT2",
-			"victim_team":   "CT",
+		makeKillEvent(60, 1, "steamT1", "steamCT2", "ak47", false, &KillExtra{
+			AttackerName: "T1",
+			AttackerTeam: "T",
+			VictimName:   "CT2",
+			VictimTeam:   "CT",
 		}),
-		makeKillEvent(70, 1, "steamT2", "steamCT3", "ak47", false, map[string]interface{}{
-			"attacker_name": "T2",
-			"attacker_team": "T",
-			"victim_name":   "CT3",
-			"victim_team":   "CT",
+		makeKillEvent(70, 1, "steamT2", "steamCT3", "ak47", false, &KillExtra{
+			AttackerName: "T2",
+			AttackerTeam: "T",
+			VictimName:   "CT3",
+			VictimTeam:   "CT",
 		}),
-		makeKillEvent(80, 1, "steamT3", "steamCT4", "ak47", false, map[string]interface{}{
-			"attacker_name": "T3",
-			"attacker_team": "T",
-			"victim_name":   "CT4",
-			"victim_team":   "CT",
+		makeKillEvent(80, 1, "steamT3", "steamCT4", "ak47", false, &KillExtra{
+			AttackerName: "T3",
+			AttackerTeam: "T",
+			VictimName:   "CT4",
+			VictimTeam:   "CT",
 		}),
-		makeKillEvent(90, 1, "steamT4", "steamCT5", "ak47", false, map[string]interface{}{
-			"attacker_name": "T4",
-			"attacker_team": "T",
-			"victim_name":   "CT5",
-			"victim_team":   "CT",
+		makeKillEvent(90, 1, "steamT4", "steamCT5", "ak47", false, &KillExtra{
+			AttackerName: "T4",
+			AttackerTeam: "T",
+			VictimName:   "CT5",
+			VictimTeam:   "CT",
 		}),
 		// Now CT1 is the last CT alive; kills T1 → clutch kill.
-		makeKillEvent(100, 1, "steamCT1", "steamT1", "deagle", false, map[string]interface{}{
-			"attacker_name": "CT1",
-			"attacker_team": "CT",
-			"victim_name":   "T1",
-			"victim_team":   "T",
+		makeKillEvent(100, 1, "steamCT1", "steamT1", "deagle", false, &KillExtra{
+			AttackerName: "CT1",
+			AttackerTeam: "CT",
+			VictimName:   "T1",
+			VictimTeam:   "T",
 		}),
 	)
 
@@ -617,11 +464,11 @@ func TestCalculatePlayerRoundStats_RosterSeedPlusKills(t *testing.T) {
 	}
 	rounds := []RoundData{{Number: 1, Roster: roster}}
 	events := []GameEvent{
-		makeKillEvent(100, 1, "steam_ct1", "steam_t1", "ak47", false, map[string]interface{}{
-			"attacker_name": "CT1",
-			"attacker_team": "CT",
-			"victim_name":   "T1",
-			"victim_team":   "T",
+		makeKillEvent(100, 1, "steam_ct1", "steam_t1", "ak47", false, &KillExtra{
+			AttackerName: "CT1",
+			AttackerTeam: "CT",
+			VictimName:   "T1",
+			VictimTeam:   "T",
 		}),
 	}
 
@@ -661,11 +508,11 @@ func TestCalculatePlayerRoundStats_LateJoinerNotInRoster(t *testing.T) {
 	rounds := []RoundData{{Number: 1, Roster: roster}}
 	events := []GameEvent{
 		// late joiner steam_t_late was not in the freeze-end snapshot.
-		makeKillEvent(100, 1, "steam_t_late", "steam_ct1", "ak47", false, map[string]interface{}{
-			"attacker_name": "TLate",
-			"attacker_team": "T",
-			"victim_name":   "CT1",
-			"victim_team":   "CT",
+		makeKillEvent(100, 1, "steam_t_late", "steam_ct1", "ak47", false, &KillExtra{
+			AttackerName: "TLate",
+			AttackerTeam: "T",
+			VictimName:   "CT1",
+			VictimTeam:   "CT",
 		}),
 	}
 
@@ -693,17 +540,17 @@ func TestCalculatePlayerRoundStats_LateJoinerNotInRoster(t *testing.T) {
 func TestCalculatePlayerRoundStats_MultiRound(t *testing.T) {
 	rounds := []RoundData{{Number: 1}, {Number: 2}}
 	events := []GameEvent{
-		makeKillEvent(100, 1, "steamA", "steamB", "ak47", false, map[string]interface{}{
-			"attacker_name": "PlayerA",
-			"attacker_team": "CT",
-			"victim_name":   "PlayerB",
-			"victim_team":   "T",
+		makeKillEvent(100, 1, "steamA", "steamB", "ak47", false, &KillExtra{
+			AttackerName: "PlayerA",
+			AttackerTeam: "CT",
+			VictimName:   "PlayerB",
+			VictimTeam:   "T",
 		}),
-		makeKillEvent(200, 2, "steamC", "steamD", "m4a1", false, map[string]interface{}{
-			"attacker_name": "PlayerC",
-			"attacker_team": "T",
-			"victim_name":   "PlayerD",
-			"victim_team":   "CT",
+		makeKillEvent(200, 2, "steamC", "steamD", "m4a1", false, &KillExtra{
+			AttackerName: "PlayerC",
+			AttackerTeam: "T",
+			VictimName:   "PlayerD",
+			VictimTeam:   "CT",
 		}),
 	}
 

@@ -1,6 +1,10 @@
 import type { Container } from "pixi.js"
 import { PlayerSprite } from "../sprites/player"
-import { worldToPixel, type MapCalibration } from "@/lib/maps/calibration"
+import {
+  worldToPixelInto,
+  type MapCalibration,
+  type PixelCoord,
+} from "@/lib/maps/calibration"
 import type { TickData } from "@/types/demo"
 import type { PlayerRosterEntry, TeamSide } from "@/types/roster"
 
@@ -17,6 +21,17 @@ export class PlayerLayer {
   private roster: Map<string, PlayerRosterEntry> | null = null
   private clickCallback: ((steamId: string) => void) | null = null
 
+  // Scratch collections reused across update() calls. The map indexes the
+  // current frame's `next` ticks by steam_id for O(1) pairing; the set tracks
+  // which steam_ids appeared in `current` so we can prune stale sprites.
+  // Both are .clear()'d (not reallocated) every tick to avoid GC churn.
+  // Safe to reuse because update() finishes consuming both before returning,
+  // and no caller retains a reference to either collection.
+  private nextById = new Map<string, TickData>()
+  private activeSteamIds = new Set<string>()
+  // Per-layer scratch slot for worldToPixelInto — never escapes update().
+  private pixelScratch: PixelCoord = { x: 0, y: 0 }
+
   constructor(container: Container) {
     this.container = container
   }
@@ -32,16 +47,19 @@ export class PlayerLayer {
     calibration: MapCalibration,
     selectedSteamId: string | null,
   ): void {
-    const nextById = new Map<string, TickData>()
+    // Reuse the index map; clear leftovers from the previous tick before we
+    // repopulate. A fresh `new Map()` per frame would allocate ~10 entries +
+    // backing storage at 64 Hz.
+    this.nextById.clear()
     if (next) {
-      for (const t of next) nextById.set(t.steam_id, t)
+      for (const t of next) this.nextById.set(t.steam_id, t)
     }
 
-    const activeSteamIds = new Set<string>()
+    this.activeSteamIds.clear()
     const canInterpolate = next !== null && alpha > 0
 
     for (const cur of current) {
-      activeSteamIds.add(cur.steam_id)
+      this.activeSteamIds.add(cur.steam_id)
 
       let sprite = this.players.get(cur.steam_id)
       if (!sprite) {
@@ -57,16 +75,18 @@ export class PlayerLayer {
       const team: TeamSide = rosterEntry?.team_side ?? "CT"
       const name = rosterEntry?.player_name ?? cur.steam_id.slice(0, 10)
 
-      const nxt = canInterpolate ? nextById.get(cur.steam_id) : undefined
+      const nxt = canInterpolate ? this.nextById.get(cur.steam_id) : undefined
       const worldX = nxt ? cur.x + (nxt.x - cur.x) * alpha : cur.x
       const worldY = nxt ? cur.y + (nxt.y - cur.y) * alpha : cur.y
       const yaw = nxt ? lerpAngle(cur.yaw, nxt.yaw, alpha) : cur.yaw
 
-      const pixel = worldToPixel({ x: worldX, y: worldY }, calibration)
+      // Write into the layer-owned scratch object instead of allocating a
+      // fresh {x, y} literal per player per tick.
+      worldToPixelInto(this.pixelScratch, worldX, worldY, calibration)
 
       sprite.update({
-        x: pixel.x,
-        y: pixel.y,
+        x: this.pixelScratch.x,
+        y: this.pixelScratch.y,
         yaw,
         team,
         name,
@@ -79,7 +99,7 @@ export class PlayerLayer {
 
     // Remove sprites for players no longer in tick data.
     for (const [steamId, sprite] of this.players) {
-      if (!activeSteamIds.has(steamId)) {
+      if (!this.activeSteamIds.has(steamId)) {
         this.container.removeChild(sprite.container)
         sprite.destroy()
         this.players.delete(steamId)

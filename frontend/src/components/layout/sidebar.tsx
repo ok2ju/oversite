@@ -1,7 +1,7 @@
 import { NavLink } from "react-router-dom"
 import { Folder, Crosshair, Goal, Star, Settings } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useDemos } from "@/hooks/use-demos"
+import { useDemoCount } from "@/hooks/use-demos"
 import { Logo } from "@/components/brand/logo"
 
 type NavItem = {
@@ -61,8 +61,8 @@ function SideNavLink({
 }
 
 export function Sidebar() {
-  const demos = useDemos(1, 1)
-  const demoCount = demos.data?.meta.total ?? 0
+  const demoCountQuery = useDemoCount()
+  const demoCount = demoCountQuery.data ?? 0
 
   return (
     <aside className="sidebar">

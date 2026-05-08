@@ -33,3 +33,11 @@ Migrations run automatically at startup in `internal/database/sqlite.go` → `Ru
 ## Testing migrations
 
 `testutil.NewTestDB(t)` from `internal/testutil/db.go` creates a fresh in-memory SQLite with all migrations applied. Use this for any test that touches the store. Never open a test DB manually.
+
+## Pattern: promoting hot JSON fields to columns
+
+When an `extra_data` (or similar TEXT-JSON) field becomes a query hotspot — `json_extract(...)` in a `WHERE` or `GROUP BY`, or a frontend hot read — promote it to a real column. Migration 010 (`game_events_promoted_columns`) is the worked example: `headshot`, `assister_steam_id`, `health_damage`, `attacker_name`, `victim_name`, `attacker_team`, `victim_team`, `is_self_kill` moved out of `extra_data`. Eliminates triple JSON serialization (SQLite TEXT → Go decode → Wails → JS), enables an index, and keeps the remaining `extra_data` blob as the JSON catch-all.
+
+## Pattern: per-N storage for rarely-changing fields
+
+Migration 011 (`round_loadouts`) moved `tick_data.inventory` from per-tick to per-round. 1.28M rows × ~30 B → 250 rows × ~30 B per demo. Apply this whenever a per-tick column only changes on round boundaries.

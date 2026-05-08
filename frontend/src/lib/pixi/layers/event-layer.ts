@@ -1,8 +1,17 @@
 import { Graphics, Sprite, type Container, type Texture } from "pixi.js"
 import type { GameEvent } from "@/types/demo"
-import type { MapCalibration } from "@/lib/maps/calibration"
-import { worldToPixel } from "@/lib/maps/calibration"
+import type { MapCalibration, PixelCoord } from "@/lib/maps/calibration"
+import { worldToPixelInto } from "@/lib/maps/calibration"
 import { getWeaponTexture } from "../sprites/weapon-textures"
+
+// Module-scoped scratch slots reused by every per-frame draw helper below.
+// EventLayer.update() runs serially per frame, so two slots cover any draw
+// function that needs two pixel coords live at the same time (kill: attacker
+// + victim, shot: start + end, shot tracer segments: segStart + segEnd).
+// Other draws use only `scratchA`. The values never escape the draw call —
+// each helper consumes them before returning, so reuse is allocation-free.
+const scratchA: PixelCoord = { x: 0, y: 0 }
+const scratchB: PixelCoord = { x: 0, y: 0 }
 import {
   KILL_DURATION_TICKS,
   SHOT_DURATION_TICKS,
@@ -152,13 +161,15 @@ function drawKill(
   effect: ScheduledEffect,
   calibration: MapCalibration,
 ): void {
-  const vp = worldToPixel({ x: effect.x, y: effect.y }, calibration)
+  const vp = worldToPixelInto(scratchA, effect.x, effect.y, calibration)
   g.clear()
 
   // Attacker → victim line
   if (effect.attackerX !== undefined && effect.attackerY !== undefined) {
-    const ap = worldToPixel(
-      { x: effect.attackerX, y: effect.attackerY },
+    const ap = worldToPixelInto(
+      scratchB,
+      effect.attackerX,
+      effect.attackerY,
       calibration,
     )
     g.moveTo(ap.x, ap.y)
@@ -188,14 +199,25 @@ function drawShot(
   effect: ScheduledEffect,
   calibration: MapCalibration,
 ): void {
-  const start = worldToPixel({ x: effect.x, y: effect.y }, calibration)
+  // Known-impact branch needs only sx/sy / ex/ey scalars — copy out of
+  // scratchA before reusing for `end` so we don't keep two scratches alive
+  // for the full span. The hit branch returns early; the tracer branch reuses
+  // both scratches per segment.
+  worldToPixelInto(scratchA, effect.x, effect.y, calibration)
+  const startX = scratchA.x
+  const startY = scratchA.y
   g.clear()
 
   // Known impact (parser paired this shot with a player_hurt) — draw a solid
   // line ending exactly at the victim, plus a small marker on the impact.
   if (effect.hitX !== undefined && effect.hitY !== undefined) {
-    const end = worldToPixel({ x: effect.hitX, y: effect.hitY }, calibration)
-    g.moveTo(start.x, start.y)
+    const end = worldToPixelInto(
+      scratchB,
+      effect.hitX,
+      effect.hitY,
+      calibration,
+    )
+    g.moveTo(startX, startY)
       .lineTo(end.x, end.y)
       .stroke({ color: COLOR_SHOT, width: 1, alpha: state.alpha })
     g.circle(end.x, end.y, SHOT_HIT_MARKER_SIZE).fill({
@@ -214,18 +236,16 @@ function drawShot(
   for (let i = 0; i < SHOT_TRACER_SEGMENTS; i++) {
     const t0 = i / SHOT_TRACER_SEGMENTS
     const t1 = (i + 1) / SHOT_TRACER_SEGMENTS
-    const segStart = worldToPixel(
-      {
-        x: effect.x + SHOT_TRACER_LENGTH * t0 * cos,
-        y: effect.y + SHOT_TRACER_LENGTH * t0 * sin,
-      },
+    const segStart = worldToPixelInto(
+      scratchA,
+      effect.x + SHOT_TRACER_LENGTH * t0 * cos,
+      effect.y + SHOT_TRACER_LENGTH * t0 * sin,
       calibration,
     )
-    const segEnd = worldToPixel(
-      {
-        x: effect.x + SHOT_TRACER_LENGTH * t1 * cos,
-        y: effect.y + SHOT_TRACER_LENGTH * t1 * sin,
-      },
+    const segEnd = worldToPixelInto(
+      scratchB,
+      effect.x + SHOT_TRACER_LENGTH * t1 * cos,
+      effect.y + SHOT_TRACER_LENGTH * t1 * sin,
       calibration,
     )
     const segmentAlpha = state.alpha * (1 - t0)
@@ -241,7 +261,7 @@ function drawSmoke(
   effect: ScheduledEffect,
   calibration: MapCalibration,
 ): void {
-  const p = worldToPixel({ x: effect.x, y: effect.y }, calibration)
+  const p = worldToPixelInto(scratchA, effect.x, effect.y, calibration)
   const r = worldRadiusToPixel(SMOKE_RADIUS, calibration.scale)
   g.clear().circle(p.x, p.y, r).fill({ color: COLOR_SMOKE, alpha: state.alpha })
 }
@@ -252,7 +272,7 @@ function drawHE(
   effect: ScheduledEffect,
   calibration: MapCalibration,
 ): void {
-  const p = worldToPixel({ x: effect.x, y: effect.y }, calibration)
+  const p = worldToPixelInto(scratchA, effect.x, effect.y, calibration)
   const r = worldRadiusToPixel(state.radius, calibration.scale)
   g.clear()
     .circle(p.x, p.y, Math.max(1, r))
@@ -265,7 +285,7 @@ function drawFlash(
   effect: ScheduledEffect,
   calibration: MapCalibration,
 ): void {
-  const p = worldToPixel({ x: effect.x, y: effect.y }, calibration)
+  const p = worldToPixelInto(scratchA, effect.x, effect.y, calibration)
   const r = worldRadiusToPixel(FLASH_RADIUS, calibration.scale)
   g.clear().circle(p.x, p.y, r).fill({ color: COLOR_FLASH, alpha: state.alpha })
 }
@@ -276,7 +296,7 @@ function drawBombPlant(
   effect: ScheduledEffect,
   calibration: MapCalibration,
 ): void {
-  const p = worldToPixel({ x: effect.x, y: effect.y }, calibration)
+  const p = worldToPixelInto(scratchA, effect.x, effect.y, calibration)
   const r = worldRadiusToPixel(BOMB_ICON_RADIUS, calibration.scale)
   g.clear()
     .circle(p.x, p.y, r)
@@ -289,7 +309,7 @@ function drawBombDefuse(
   effect: ScheduledEffect,
   calibration: MapCalibration,
 ): void {
-  const p = worldToPixel({ x: effect.x, y: effect.y }, calibration)
+  const p = worldToPixelInto(scratchA, effect.x, effect.y, calibration)
   const r = worldRadiusToPixel(BOMB_ICON_RADIUS, calibration.scale)
   g.clear()
     .circle(p.x, p.y, r)
@@ -302,7 +322,7 @@ function drawFire(
   effect: ScheduledEffect,
   calibration: MapCalibration,
 ): void {
-  const p = worldToPixel({ x: effect.x, y: effect.y }, calibration)
+  const p = worldToPixelInto(scratchA, effect.x, effect.y, calibration)
   const r = worldRadiusToPixel(FIRE_RADIUS, calibration.scale)
   g.clear().circle(p.x, p.y, r).fill({ color: COLOR_FIRE, alpha: state.alpha })
 }
@@ -334,21 +354,27 @@ function drawGrenadeTrajectory(
   g.clear()
 
   // Trail through completed waypoints + partial segment to the current head.
+  // Each draw call consumes the scratch's x/y immediately, so a single
+  // module-level scratch slot serves the start, every bounce, and the head.
   if (waypoints.length > 1) {
-    const start = worldToPixel(
-      { x: waypoints[0].x, y: waypoints[0].y },
+    const start = worldToPixelInto(
+      scratchA,
+      waypoints[0].x,
+      waypoints[0].y,
       calibration,
     )
     g.moveTo(start.x, start.y)
     for (let i = 1; i <= segmentIndex; i++) {
-      const p = worldToPixel(
-        { x: waypoints[i].x, y: waypoints[i].y },
+      const p = worldToPixelInto(
+        scratchA,
+        waypoints[i].x,
+        waypoints[i].y,
         calibration,
       )
       g.lineTo(p.x, p.y)
     }
-    const head = worldToPixel({ x: wx, y: wy }, calibration)
-    g.lineTo(head.x, head.y)
+    const trailHead = worldToPixelInto(scratchA, wx, wy, calibration)
+    g.lineTo(trailHead.x, trailHead.y)
     g.stroke({
       color,
       width: 1,
@@ -356,7 +382,7 @@ function drawGrenadeTrajectory(
     })
   }
 
-  const head = worldToPixel({ x: wx, y: wy }, calibration)
+  const head = worldToPixelInto(scratchA, wx, wy, calibration)
   const texture = sprite ? getWeaponTexture(effect.weapon) : null
 
   if (sprite && texture) {

@@ -3,6 +3,7 @@ package demo_test
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/ok2ju/oversite/internal/demo"
@@ -200,64 +201,166 @@ func TestTickIngester_BoolConversion(t *testing.T) {
 	}
 }
 
-func TestChunkTickParams(t *testing.T) {
-	// Build 10 dummy params.
-	params := make([]store.InsertTickDataParams, 10)
-	for i := range params {
-		params[i] = store.InsertTickDataParams{Tick: int64(i)}
+// TestTickIngester_IngestStream covers the streaming path used by the
+// parse → channel → ingest pipeline in app.parseDemo. The buffer is
+// intentionally smaller than the input so the producer goroutine has to
+// block on the consumer at least once, exercising the backpressure path.
+func TestTickIngester_IngestStream(t *testing.T) {
+	q, db := testutil.NewTestQueries(t)
+	ctx := context.Background()
+
+	d := createTestDemo(t, q)
+
+	ticks := makeSyntheticTicks(5, 30) // 150 ticks total
+	ch := make(chan demo.TickSnapshot, 16)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer close(ch)
+		for _, t := range ticks {
+			ch <- t
+		}
+	}()
+
+	ingester := demo.NewTickIngester(db, 50)
+	count, err := ingester.IngestStream(ctx, d.ID, ch)
+	if err != nil {
+		t.Fatalf("IngestStream: %v", err)
+	}
+	wg.Wait()
+
+	if count != int64(len(ticks)) {
+		t.Errorf("IngestStream count = %d, want %d", count, len(ticks))
 	}
 
-	tests := []struct {
-		name     string
-		input    []store.InsertTickDataParams
-		n        int
-		wantLens []int
-	}{
-		{
-			name:     "even split",
-			input:    params[:6],
-			n:        3,
-			wantLens: []int{3, 3},
-		},
-		{
-			name:     "uneven split",
-			input:    params,
-			n:        3,
-			wantLens: []int{3, 3, 3, 1},
-		},
-		{
-			name:     "single batch",
-			input:    params[:5],
-			n:        10,
-			wantLens: []int{5},
-		},
-		{
-			name:     "empty input",
-			input:    nil,
-			n:        3,
-			wantLens: nil,
-		},
+	rows, err := q.GetTickDataByRange(ctx, store.GetTickDataByRangeParams{
+		DemoID:    d.ID,
+		StartTick: 0,
+		EndTick:   1000,
+	})
+	if err != nil {
+		t.Fatalf("GetTickDataByRange: %v", err)
+	}
+	if len(rows) != len(ticks) {
+		t.Errorf("DB row count = %d, want %d", len(rows), len(ticks))
+	}
+}
+
+// TestTickIngester_IngestStream_PartialBatch ensures the partial-batch flush
+// fires when the row count is not a multiple of the batch size — the easiest
+// place for a streaming bug to drop the last <batchSize rows.
+func TestTickIngester_IngestStream_PartialBatch(t *testing.T) {
+	q, db := testutil.NewTestQueries(t)
+	ctx := context.Background()
+
+	d := createTestDemo(t, q)
+
+	// 7 ticks with batch size 5: one full batch, one partial of 2.
+	ticks := makeSyntheticTicks(1, 7)
+	ch := make(chan demo.TickSnapshot, len(ticks))
+	for _, t := range ticks {
+		ch <- t
+	}
+	close(ch)
+
+	ingester := demo.NewTickIngester(db, 5)
+	count, err := ingester.IngestStream(ctx, d.ID, ch)
+	if err != nil {
+		t.Fatalf("IngestStream: %v", err)
+	}
+	if count != int64(len(ticks)) {
+		t.Errorf("IngestStream count = %d, want %d", count, len(ticks))
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := demo.ChunkTickParamsForTest(tt.input, tt.n)
-
-			if tt.wantLens == nil {
-				if got != nil {
-					t.Errorf("expected nil, got %d chunks", len(got))
-				}
-				return
-			}
-
-			if len(got) != len(tt.wantLens) {
-				t.Fatalf("chunk count = %d, want %d", len(got), len(tt.wantLens))
-			}
-			for i, wantLen := range tt.wantLens {
-				if len(got[i]) != wantLen {
-					t.Errorf("chunk[%d] len = %d, want %d", i, len(got[i]), wantLen)
-				}
-			}
-		})
+	rows, err := q.GetTickDataByRange(ctx, store.GetTickDataByRangeParams{
+		DemoID:    d.ID,
+		StartTick: 0,
+		EndTick:   1000,
+	})
+	if err != nil {
+		t.Fatalf("GetTickDataByRange: %v", err)
 	}
+	if len(rows) != len(ticks) {
+		t.Errorf("DB row count = %d, want %d (partial-batch flush dropped rows?)", len(rows), len(ticks))
+	}
+}
+
+// TestTickIngester_IngestStream_EmptyChannel covers the case where the parser
+// closes the channel before sending anything (e.g. an empty / extremely short
+// demo). The transaction must commit cleanly with zero rows.
+func TestTickIngester_IngestStream_EmptyChannel(t *testing.T) {
+	_, db := testutil.NewTestQueries(t)
+	ctx := context.Background()
+
+	ch := make(chan demo.TickSnapshot)
+	close(ch)
+
+	ingester := demo.NewTickIngester(db, 100)
+	count, err := ingester.IngestStream(ctx, 999, ch)
+	if err != nil {
+		t.Fatalf("IngestStream empty: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("count = %d, want 0", count)
+	}
+}
+
+// TestTickIngester_IngestStream_CtxCancel verifies that a ctx-cancel mid-stream
+// causes IngestStream to return ctx.Err() promptly, with the deferred rollback
+// undoing any partial inserts. This is the path the parser→ingester errgroup
+// uses to abort when the producer fails.
+func TestTickIngester_IngestStream_CtxCancel(t *testing.T) {
+	q, db := testutil.NewTestQueries(t)
+
+	d := createTestDemo(t, q)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	ch := make(chan demo.TickSnapshot, 4)
+
+	// Cancel before any reads happen — the ingester's select picks up Done()
+	// instead of pulling from ch and returns ctx.Err().
+	cancel()
+
+	ingester := demo.NewTickIngester(db, 50)
+	_, err := ingester.IngestStream(ctx, d.ID, ch)
+	if err == nil {
+		t.Fatalf("expected ctx-cancel error, got nil")
+	}
+	if !errorIsCanceled(err) {
+		t.Errorf("expected context.Canceled-derived error, got %v", err)
+	}
+
+	// Verify rollback wiped any inserts. The DeleteTickDataByDemoID call ran
+	// inside the tx, so a clean rollback leaves any pre-existing rows alone —
+	// since we never inserted any to begin with, the row count is 0.
+	rows, err := q.GetTickDataByRange(context.Background(), store.GetTickDataByRangeParams{
+		DemoID:    d.ID,
+		StartTick: 0,
+		EndTick:   1000,
+	})
+	if err != nil {
+		t.Fatalf("GetTickDataByRange: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("DB row count after rollback = %d, want 0", len(rows))
+	}
+}
+
+// errorIsCanceled returns true if err's chain includes context.Canceled,
+// allowing the test to be tolerant of database/sql wrapping the ctx error.
+func errorIsCanceled(err error) bool {
+	for e := err; e != nil; {
+		if e == context.Canceled || e.Error() == context.Canceled.Error() {
+			return true
+		}
+		type unwrapper interface{ Unwrap() error }
+		u, ok := e.(unwrapper)
+		if !ok {
+			return false
+		}
+		e = u.Unwrap()
+	}
+	return false
 }

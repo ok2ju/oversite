@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"strconv"
@@ -170,7 +171,7 @@ func TestGetDemoEvents(t *testing.T) {
 	rounds := seedRounds(t, q, demo.ID)
 	ctx := context.Background()
 
-	_, err := q.CreateGameEvent(ctx, store.CreateGameEventParams{
+	err := q.CreateGameEvent(ctx, store.CreateGameEventParams{
 		DemoID: demo.ID, RoundID: rounds[0].ID, Tick: 100,
 		EventType:       "kill",
 		AttackerSteamID: sql.NullString{String: "STEAM_A", Valid: true},
@@ -182,7 +183,7 @@ func TestGetDemoEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateGameEvent: %v", err)
 	}
-	_, err = q.CreateGameEvent(ctx, store.CreateGameEventParams{
+	err = q.CreateGameEvent(ctx, store.CreateGameEventParams{
 		DemoID: demo.ID, RoundID: rounds[0].ID, Tick: 200,
 		EventType: "bomb_plant",
 		ExtraData: "",
@@ -233,8 +234,8 @@ func TestGetDemoEvents(t *testing.T) {
 	if e.ExtraData == nil {
 		t.Fatal("ExtraData should not be nil")
 	}
-	if hs, ok := e.ExtraData["headshot"]; !ok || hs != true {
-		t.Errorf("ExtraData[headshot] = %v, want true", hs)
+	if !bytes.Contains(e.ExtraData, []byte(`"headshot":true`)) {
+		t.Errorf("ExtraData = %s, want to contain headshot:true", e.ExtraData)
 	}
 
 	e2 := events[1]
@@ -246,6 +247,94 @@ func TestGetDemoEvents(t *testing.T) {
 	}
 	if e2.ExtraData != nil {
 		t.Error("expected nil ExtraData for empty string")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// GetEventsByTypes
+// ---------------------------------------------------------------------------
+
+func TestGetEventsByTypes(t *testing.T) {
+	app, q := newTestApp(t)
+	demo := seedDemo(t, q)
+	rounds := seedRounds(t, q, demo.ID)
+	ctx := context.Background()
+
+	events := []store.CreateGameEventParams{
+		{DemoID: demo.ID, RoundID: rounds[0].ID, Tick: 100, EventType: "kill",
+			AttackerSteamID: sql.NullString{String: "STEAM_A", Valid: true},
+			VictimSteamID:   sql.NullString{String: "STEAM_B", Valid: true},
+			Weapon:          sql.NullString{String: "ak47", Valid: true},
+			ExtraData:       `{"headshot":true}`},
+		{DemoID: demo.ID, RoundID: rounds[0].ID, Tick: 200, EventType: "bomb_plant"},
+		{DemoID: demo.ID, RoundID: rounds[0].ID, Tick: 300, EventType: "kill",
+			AttackerSteamID: sql.NullString{String: "STEAM_A", Valid: true},
+			VictimSteamID:   sql.NullString{String: "STEAM_C", Valid: true},
+			Weapon:          sql.NullString{String: "awp", Valid: true},
+			ExtraData:       `{"headshot":false}`},
+		{DemoID: demo.ID, RoundID: rounds[0].ID, Tick: 400, EventType: "smoke_start"},
+	}
+	for _, ep := range events {
+		if err := q.CreateGameEvent(ctx, ep); err != nil {
+			t.Fatalf("CreateGameEvent: %v", err)
+		}
+	}
+
+	tests := []struct {
+		name    string
+		demoID  string
+		types   []string
+		wantLen int
+		wantErr bool
+	}{
+		{"single type", "1", []string{"kill"}, 2, false},
+		{"multiple types", "1", []string{"kill", "bomb_plant"}, 3, false},
+		{"unmatched type", "1", []string{"round_end"}, 0, false},
+		{"empty types returns empty", "1", []string{}, 0, false},
+		{"invalid id", "abc", []string{"kill"}, 0, true},
+		{"empty demo", "9999", []string{"kill"}, 0, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := app.GetEventsByTypes(tt.demoID, tt.types)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(got) != tt.wantLen {
+				t.Fatalf("len = %d, want %d", len(got), tt.wantLen)
+			}
+		})
+	}
+
+	// Confirm extra_data is decoded for kills (the whole point of the binding).
+	kills, err := app.GetEventsByTypes("1", []string{"kill"})
+	if err != nil {
+		t.Fatalf("GetEventsByTypes(kill): %v", err)
+	}
+	if len(kills) != 2 {
+		t.Fatalf("len(kills) = %d, want 2", len(kills))
+	}
+	if kills[0].EventType != "kill" {
+		t.Errorf("EventType = %q, want kill", kills[0].EventType)
+	}
+	if kills[0].ExtraData == nil {
+		t.Fatal("ExtraData should not be nil for kill event")
+	}
+	if !bytes.Contains(kills[0].ExtraData, []byte(`"headshot":true`)) {
+		t.Errorf("ExtraData = %s, want to contain headshot:true", kills[0].ExtraData)
+	}
+	// Ordered by tick.
+	if kills[0].Tick != 100 {
+		t.Errorf("kills[0].Tick = %d, want 100", kills[0].Tick)
+	}
+	if kills[1].Tick != 300 {
+		t.Errorf("kills[1].Tick = %d, want 300", kills[1].Tick)
 	}
 }
 
@@ -493,7 +582,7 @@ func seedKillEvents(t *testing.T, q *store.Queries, demoID int64, rounds []store
 			X:               300.0, Y: 400.0, Z: 5.0, ExtraData: `{"headshot":true}`},
 	}
 	for _, ep := range events {
-		if _, err := q.CreateGameEvent(ctx, ep); err != nil {
+		if err := q.CreateGameEvent(ctx, ep); err != nil {
 			t.Fatalf("CreateGameEvent: %v", err)
 		}
 	}
@@ -660,22 +749,25 @@ func TestGetWeaponStats(t *testing.T) {
 		t.Fatalf("CreatePlayerRound: %v", err)
 	}
 
+	// `headshot` was promoted to a real column in migration 010; it no longer
+	// rides inside extra_data and the weapon-stats query reads the column
+	// directly.
 	events := []store.CreateGameEventParams{
 		{DemoID: demo.ID, RoundID: rounds[0].ID, Tick: 100, EventType: "kill",
 			AttackerSteamID: sql.NullString{String: "STEAM_A", Valid: true},
 			Weapon:          sql.NullString{String: "AK-47", Valid: true},
-			X:               100, Y: 200, Z: 10, ExtraData: `{"headshot":true}`},
+			X:               100, Y: 200, Z: 10, Headshot: 1, ExtraData: `{}`},
 		{DemoID: demo.ID, RoundID: rounds[0].ID, Tick: 200, EventType: "kill",
 			AttackerSteamID: sql.NullString{String: "STEAM_A", Valid: true},
 			Weapon:          sql.NullString{String: "AK-47", Valid: true},
-			X:               100, Y: 200, Z: 10, ExtraData: `{"headshot":false}`},
+			X:               100, Y: 200, Z: 10, Headshot: 0, ExtraData: `{}`},
 		{DemoID: demo.ID, RoundID: rounds[0].ID, Tick: 300, EventType: "kill",
 			AttackerSteamID: sql.NullString{String: "STEAM_A", Valid: true},
 			Weapon:          sql.NullString{String: "AWP", Valid: true},
-			X:               300, Y: 400, Z: 5, ExtraData: `{"headshot":true}`},
+			X:               300, Y: 400, Z: 5, Headshot: 1, ExtraData: `{}`},
 	}
 	for _, ep := range events {
-		if _, err := q.CreateGameEvent(ctx, ep); err != nil {
+		if err := q.CreateGameEvent(ctx, ep); err != nil {
 			t.Fatalf("CreateGameEvent: %v", err)
 		}
 	}

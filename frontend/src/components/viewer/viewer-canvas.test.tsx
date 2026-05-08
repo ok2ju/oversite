@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { render, screen, cleanup } from "@testing-library/react"
+import { screen, cleanup } from "@testing-library/react"
+import { renderWithProviders as render } from "@/test/render"
 import { useViewerStore } from "@/stores/viewer"
 
 const mockDestroy = vi.fn()
@@ -84,6 +85,7 @@ vi.mock("@/lib/pixi/layers/event-layer", () => {
 
 vi.mock("@/hooks/use-roster", () => ({
   fetchRoster: vi.fn().mockResolvedValue([]),
+  useAllRosters: vi.fn().mockReturnValue({ data: undefined }),
 }))
 
 const mockTickBufferDispose = vi.fn()

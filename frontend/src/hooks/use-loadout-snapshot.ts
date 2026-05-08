@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { useViewerStore } from "@/stores/viewer"
-import { TickBuffer } from "@/lib/pixi/tick-buffer"
+import { useTickBufferStore } from "@/stores/tick-buffer"
 import type { TickData } from "@/types/demo"
 
 const POLL_INTERVAL_MS = 250
@@ -11,28 +11,32 @@ const POLL_INTERVAL_MS = 250
 // without having to walk back through the buffer ourselves.
 export type LoadoutSnapshot = Record<string, TickData>
 
-// useLoadoutSnapshot owns a dedicated TickBuffer (separate from the one inside
-// ViewerCanvas) and polls the buffer at 4Hz so the team bars don't re-render
+// useLoadoutSnapshot polls the shared TickBuffer (owned by ViewerCanvas and
+// published via useTickBufferStore) at 4Hz so the team bars don't re-render
 // every PixiJS frame. The polled tick is read from the viewer store via
 // `getState()` to avoid making the hook itself re-render whenever the tick
-// advances.
+// advances. We deliberately do NOT allocate our own TickBuffer — that would
+// double the frame-buffer memory and duplicate the network/decode work for
+// the same demoId.
 export function useLoadoutSnapshot(): LoadoutSnapshot {
   const demoId = useViewerStore((s) => s.demoId)
   const [snapshot, setSnapshot] = useState<LoadoutSnapshot>({})
-  const bufferRef = useRef<TickBuffer | null>(null)
 
   useEffect(() => {
     if (!demoId) {
       setSnapshot({})
-      bufferRef.current = null
       return
     }
 
-    const buffer = new TickBuffer(demoId)
-    bufferRef.current = buffer
-
     let lastTick = -1
     const interval = window.setInterval(() => {
+      // Read the buffer fresh on each tick — viewer-canvas may not have
+      // mounted yet, or may have just swapped to a new demo. The store's
+      // demoId guards against reading a buffer that belongs to a previous
+      // demo if a stale tick fires during the swap.
+      const { demoId: bufferDemoId, buffer } = useTickBufferStore.getState()
+      if (!buffer || bufferDemoId !== demoId) return
+
       const currentTick = useViewerStore.getState().currentTick
       if (currentTick === lastTick) return
       lastTick = currentTick
@@ -56,14 +60,15 @@ export function useLoadoutSnapshot(): LoadoutSnapshot {
 
     return () => {
       window.clearInterval(interval)
-      buffer.dispose()
-      bufferRef.current = null
     }
   }, [demoId])
 
   return snapshot
 }
 
+// Inventory intentionally omitted: it's per-round (migration 011) and
+// supplied separately via useRoundLoadouts, so the per-tick equality check
+// only covers fields that actually mutate during a round.
 function sameLoadout(a: TickData, b: TickData): boolean {
   return (
     a.is_alive === b.is_alive &&
@@ -74,8 +79,6 @@ function sameLoadout(a: TickData, b: TickData): boolean {
     a.has_defuser === b.has_defuser &&
     a.weapon === b.weapon &&
     a.ammo_clip === b.ammo_clip &&
-    a.ammo_reserve === b.ammo_reserve &&
-    a.inventory.length === b.inventory.length &&
-    a.inventory.every((w, i) => w === b.inventory[i])
+    a.ammo_reserve === b.ammo_reserve
   )
 }

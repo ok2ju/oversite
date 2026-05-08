@@ -1,4 +1,5 @@
 import { Application, Container } from "pixi.js"
+import { _resetWeaponTextureCache } from "./sprites/weapon-textures"
 
 export interface ViewerAppOptions {
   container: HTMLElement
@@ -72,6 +73,10 @@ export class ViewerApp {
   }
 
   destroy(): void {
+    // Drop our cached weapon-texture references BEFORE app.destroy() nukes
+    // the underlying Texture instances. Otherwise the Map keeps stale,
+    // destroyed Texture refs across viewer remounts.
+    _resetWeaponTextureCache()
     this.app.destroy(
       { removeView: true },
       { children: true, texture: true, textureSource: true },

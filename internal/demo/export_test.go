@@ -8,6 +8,3 @@ var ResolveRoundIDForTest = resolveRoundID
 
 // MarshalExtraDataForTest exposes marshalExtraData for external tests.
 var MarshalExtraDataForTest = marshalExtraData
-
-// ChunkTickParamsForTest exposes chunkTickParams for external tests.
-var ChunkTickParamsForTest = chunkTickParams

@@ -7,10 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/ok2ju/oversite/internal/database"
 	"github.com/ok2ju/oversite/internal/demo"
@@ -18,15 +21,22 @@ import (
 	"github.com/ok2ju/oversite/internal/store"
 	"github.com/ok2ju/oversite/migrations"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	"golang.org/x/sync/errgroup"
 )
 
 // App struct holds application state and is bound to the frontend.
 type App struct {
 	ctx           context.Context
+	cancel        context.CancelFunc
 	db            *sql.DB
 	queries       *store.Queries
 	importService *demo.ImportService
 	demosDir      string
+	// parseMu serializes parseDemo runs. With MaxOpenConns(4) the DB can serve
+	// reads during a write tx, but each parser holds hundreds of MB of state —
+	// importing N files at once would N× peak memory. One parse at a time keeps
+	// RAM bounded and matches the single-writer guarantee SQLite gives us.
+	parseMu sync.Mutex
 }
 
 // NewApp opens the database, runs migrations, and returns an App ready to be
@@ -59,14 +69,20 @@ func NewApp() (*App, error) {
 	}, nil
 }
 
-// Startup is called by Wails after the window is created. It replaces the
-// background context with the Wails-aware one needed by runtime.EventsEmit.
+// Startup is called by Wails after the window is created. It wraps the
+// Wails-aware context (needed by runtime.EventsEmit) in a cancellable one so
+// Shutdown can interrupt in-flight parse/ingest work that's holding the DB.
 func (a *App) Startup(ctx context.Context) {
-	a.ctx = ctx
+	a.ctx, a.cancel = context.WithCancel(ctx)
 }
 
-// Shutdown is called when the app is closing.
+// Shutdown is called when the app is closing. It cancels the root context
+// before closing the DB so any pending parseDemo goroutines bail out of their
+// long-running queries instead of fighting a closed connection pool.
 func (a *App) Shutdown(_ context.Context) {
+	if a.cancel != nil {
+		a.cancel()
+	}
 	if a.db != nil {
 		_ = a.db.Close()
 	}
@@ -118,9 +134,9 @@ func (a *App) ListDemos(page, perPage int) (*DemoListResult, error) {
 		return nil, fmt.Errorf("counting demos: %w", err)
 	}
 
-	data := make([]Demo, len(demos))
+	data := make([]DemoSummary, len(demos))
 	for i, d := range demos {
-		data[i] = storeDemoToBinding(d)
+		data[i] = storeDemoToSummary(d)
 	}
 
 	return &DemoListResult{
@@ -131,6 +147,17 @@ func (a *App) ListDemos(page, perPage int) (*DemoListResult, error) {
 			PerPage: perPage,
 		},
 	}, nil
+}
+
+// CountDemos returns the total number of imported demos. Cheap fan-in for
+// callers that only need the count (e.g. sidebar badge) — avoids the
+// ListDemos round-trip and JSON marshal of an unused row payload.
+func (a *App) CountDemos() (int, error) {
+	total, err := a.queries.CountDemos(a.ctx)
+	if err != nil {
+		return 0, fmt.Errorf("counting demos: %w", err)
+	}
+	return int(total), nil
 }
 
 // ImportDemoFile opens a native file dialog and imports the selected .dem file.
@@ -152,7 +179,7 @@ func (a *App) ImportDemoFile() error {
 	if err != nil {
 		return err
 	}
-	go a.parseDemo(d.ID, d.FilePath)
+	go a.runParseSerialized(d.ID, d.FilePath)
 	return nil
 }
 
@@ -162,8 +189,17 @@ func (a *App) ImportDemoByPath(filePath string) error {
 	if err != nil {
 		return err
 	}
-	go a.parseDemo(d.ID, d.FilePath)
+	go a.runParseSerialized(d.ID, d.FilePath)
 	return nil
+}
+
+// runParseSerialized acquires parseMu before running parseDemo so concurrent
+// imports are processed one at a time. Callers spawn this in a goroutine so
+// the Wails binding returns immediately; queued parses block on the mutex.
+func (a *App) runParseSerialized(demoID int64, filePath string) {
+	a.parseMu.Lock()
+	defer a.parseMu.Unlock()
+	a.parseDemo(demoID, filePath)
 }
 
 // DeleteDemo removes a demo by ID and also removes its file copy from the
@@ -210,14 +246,32 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		"file_size", fileSize,
 	}
 
+	// Coalesce same-stage progress emits to at most one per coalesceWindow.
+	// Always-emit cases: error (errMsg present), stage change, and terminal stages
+	// ("complete"/"error"). Without this, a future per-tick caller could generate
+	// 64K+ Wails events per match and flood the IPC bridge.
+	const coalesceWindow = 100 * time.Millisecond
+	var (
+		lastEmit  time.Time
+		lastStage string
+	)
 	emitProgress := func(stage string, percent float64, errMsg ...string) {
+		hasErr := len(errMsg) > 0 && errMsg[0] != ""
+		isTerminal := stage == "complete" || stage == "error"
+		stageChanged := stage != lastStage
+		if !hasErr && !isTerminal && !stageChanged && time.Since(lastEmit) < coalesceWindow {
+			return
+		}
+		lastEmit = time.Now()
+		lastStage = stage
+
 		payload := map[string]interface{}{
 			"demoId":   demoID,
 			"fileName": fileName,
 			"percent":  percent,
 			"stage":    stage,
 		}
-		if len(errMsg) > 0 && errMsg[0] != "" {
+		if hasErr {
 			payload["error"] = errMsg[0]
 		}
 		wailsRuntime.EventsEmit(a.ctx, "demo:parse:progress", payload)
@@ -245,14 +299,54 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 	}
 	defer f.Close() //nolint:errcheck
 
-	parser := demo.NewDemoParser(demo.WithProgressFunc(func(stage string, percent float64) {
-		emitProgress(stage, percent)
-	}))
+	// Streaming pipeline: parser pushes each TickSnapshot into ticksCh, the
+	// ingester drains it and writes batched INSERTs in a single transaction.
+	// This overlaps protobuf decode (CPU-bound) with SQLite WAL writes
+	// (I/O-bound) and caps peak heap by removing the 100+ MB tick slice that
+	// would otherwise live in memory until parsing finished.
+	//
+	// Events stay in memory because the post-parse pipeline (dropKnifeRounds,
+	// pairShotsWithImpacts, ExtractGrenadeLineups) needs the full event list
+	// for forward-lookup correlations — events are only ~12 MB at the cap so
+	// the win wouldn't pay for the redesign.
+	ticksCh := make(chan demo.TickSnapshot, demo.DefaultTickSinkBuffer)
+	parser := demo.NewDemoParser(
+		demo.WithProgressFunc(func(stage string, percent float64) {
+			emitProgress(stage, percent)
+		}),
+		demo.WithTickSink(ticksCh),
+	)
+	ingester := demo.NewTickIngester(a.db, 0)
 
-	result, err := parser.Parse(f)
-	if err != nil {
-		slog.Error("parseDemo: parse", append(logCtx, "err", err)...)
+	g, gctx := errgroup.WithContext(a.ctx)
+	var result *demo.ParseResult
+
+	g.Go(func() error {
+		// errgroup synchronizes on g.Wait, so writing result here and reading
+		// after Wait is happens-before-correct without a mutex.
+		res, parseErr := parser.Parse(gctx, f)
+		result = res
+		return parseErr
+	})
+
+	g.Go(func() error {
+		_, ingestErr := ingester.IngestStream(gctx, demoID, ticksCh)
+		return ingestErr
+	})
+
+	if err := g.Wait(); err != nil {
+		// Either parser or ingester errored; the ctx-cancellation contract
+		// means the other goroutine has already bailed out. Orphaned partial
+		// tick rows (if the ingester committed before the parser failed) get
+		// wiped on the next re-import via DeleteTickDataByDemoID.
+		slog.Error("parseDemo: parse/ingest pipeline", append(logCtx, "err", err)...)
 		a.failDemo(demoID, fmt.Sprintf("parse failed: %v", err), emitProgress)
+		return
+	}
+	if result == nil {
+		// Defensive: should be unreachable since Parse only returns nil on error.
+		slog.Error("parseDemo: parse returned nil result without error", logCtx...)
+		a.failDemo(demoID, "parse returned no result", emitProgress)
 		return
 	}
 
@@ -266,13 +360,6 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 	if _, err := demo.IngestGameEvents(a.ctx, a.db, demoID, result.Events, roundMap); err != nil {
 		slog.Error("parseDemo: ingest events", append(logCtx, "err", err)...)
 		a.failDemo(demoID, fmt.Sprintf("ingest events: %v", err), emitProgress)
-		return
-	}
-
-	ingester := demo.NewTickIngester(a.db, 0)
-	if _, err := ingester.Ingest(a.ctx, demoID, result.Ticks); err != nil {
-		slog.Error("parseDemo: ingest ticks", append(logCtx, "err", err)...)
-		a.failDemo(demoID, fmt.Sprintf("ingest ticks: %v", err), emitProgress)
 		return
 	}
 
@@ -359,6 +446,38 @@ func (a *App) GetDemoEvents(demoID string) ([]GameEvent, error) {
 	return result, nil
 }
 
+// GetEventsByTypes returns only the game events whose event_type is in the
+// supplied list. Lets callers like the kill-log avoid loading every event
+// (and per-row extra_data JSON decode) when they render a small subset.
+// Returns an empty slice when eventTypes is empty rather than every event,
+// since "no types requested" almost certainly means the caller is in a
+// loading state and we shouldn't accidentally fall back to the full payload.
+func (a *App) GetEventsByTypes(demoID string, eventTypes []string) ([]GameEvent, error) {
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid demo id: %w", err)
+	}
+	if len(eventTypes) == 0 {
+		return []GameEvent{}, nil
+	}
+
+	typesJSON, err := json.Marshal(eventTypes)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling event types: %w", err)
+	}
+
+	events, err := a.queries.GetGameEventsByTypes(a.ctx, id, string(typesJSON))
+	if err != nil {
+		return nil, fmt.Errorf("getting events by types: %w", err)
+	}
+
+	result := make([]GameEvent, len(events))
+	for i, e := range events {
+		result[i] = storeGameEventToBinding(e)
+	}
+	return result, nil
+}
+
 // GetDemoTicks returns player tick data for a range of ticks within a demo.
 func (a *App) GetDemoTicks(demoID string, startTick, endTick int) ([]TickData, error) {
 	id, err := strconv.ParseInt(demoID, 10, 64)
@@ -412,6 +531,60 @@ func (a *App) GetRoundRoster(demoID string, roundNumber int) ([]PlayerRosterEntr
 			PlayerName: p.PlayerName,
 			TeamSide:   p.TeamSide,
 		}
+	}
+	return result, nil
+}
+
+// GetAllRosters returns every round's roster for a demo in a single call,
+// keyed by round_number. The viewer uses this on demo open so PixiJS round
+// transitions can look the roster up locally instead of issuing a fresh
+// Wails round-trip per round (24-30 per match). 150-300 rows total at ~100 B
+// each is well under any payload threshold worth paginating.
+func (a *App) GetAllRosters(demoID string) (map[int][]PlayerRosterEntry, error) {
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid demo id: %w", err)
+	}
+
+	rows, err := a.queries.GetRostersByDemoID(a.ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting all rosters: %w", err)
+	}
+
+	result := make(map[int][]PlayerRosterEntry)
+	for _, r := range rows {
+		round := int(r.RoundNumber)
+		result[round] = append(result[round], PlayerRosterEntry{
+			SteamID:    r.SteamID,
+			PlayerName: r.PlayerName,
+			TeamSide:   r.TeamSide,
+		})
+	}
+	return result, nil
+}
+
+// GetRoundLoadouts returns the freeze-end loadout for every (round, player)
+// in a demo, keyed by round_number. The viewer fetches this once at demo
+// open and the team bars look up the current round's loadout instead of
+// reading inventory off each tick (migration 011).
+func (a *App) GetRoundLoadouts(demoID string) (map[int][]RoundLoadoutEntry, error) {
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid demo id: %w", err)
+	}
+
+	rows, err := a.queries.GetRoundLoadoutsByDemoID(a.ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting round loadouts: %w", err)
+	}
+
+	result := make(map[int][]RoundLoadoutEntry)
+	for _, r := range rows {
+		round := int(r.RoundNumber)
+		result[round] = append(result[round], RoundLoadoutEntry{
+			SteamID:   r.SteamID,
+			Inventory: r.Inventory,
+		})
 	}
 	return result, nil
 }
@@ -586,6 +759,21 @@ func storeDemoToBinding(d store.Demo) Demo {
 	}
 }
 
+func storeDemoToSummary(d store.Demo) DemoSummary {
+	return DemoSummary{
+		ID:           d.ID,
+		MapName:      d.MapName,
+		FileName:     filepath.Base(d.FilePath),
+		FileSize:     d.FileSize,
+		Status:       d.Status,
+		TotalTicks:   int(d.TotalTicks),
+		TickRate:     int(d.TickRate),
+		DurationSecs: int(d.DurationSecs),
+		MatchDate:    d.MatchDate,
+		CreatedAt:    d.CreatedAt,
+	}
+}
+
 func storeRoundToBinding(r store.Round) Round {
 	return Round{
 		ID:            strconv.FormatInt(r.ID, 10),
@@ -606,13 +794,19 @@ func storeRoundToBinding(r store.Round) Round {
 func storeGameEventToBinding(e store.GameEvent) GameEvent {
 	x, y, z := e.X, e.Y, e.Z
 	ge := GameEvent{
-		ID:        strconv.FormatInt(e.ID, 10),
-		DemoID:    strconv.FormatInt(e.DemoID, 10),
-		Tick:      int(e.Tick),
-		EventType: e.EventType,
-		X:         &x,
-		Y:         &y,
-		Z:         &z,
+		ID:           strconv.FormatInt(e.ID, 10),
+		DemoID:       strconv.FormatInt(e.DemoID, 10),
+		Tick:         int(e.Tick),
+		EventType:    e.EventType,
+		X:            &x,
+		Y:            &y,
+		Z:            &z,
+		Headshot:     e.Headshot != 0,
+		HealthDamage: int(e.HealthDamage),
+		AttackerName: e.AttackerName,
+		VictimName:   e.VictimName,
+		AttackerTeam: e.AttackerTeam,
+		VictimTeam:   e.VictimTeam,
 	}
 	if e.RoundID != 0 {
 		rid := strconv.FormatInt(e.RoundID, 10)
@@ -627,11 +821,15 @@ func storeGameEventToBinding(e store.GameEvent) GameEvent {
 	if e.Weapon.Valid {
 		ge.Weapon = &e.Weapon.String
 	}
+	if e.AssisterSteamID.Valid {
+		ge.AssisterSteamID = &e.AssisterSteamID.String
+	}
 	if e.ExtraData != "" {
-		var m map[string]any
-		if err := json.Unmarshal([]byte(e.ExtraData), &m); err == nil {
-			ge.ExtraData = m
-		}
+		// Pass through as raw JSON: Wails will emit these bytes verbatim into the
+		// outer payload, skipping a round-trip through map[string]any (per-row
+		// map alloc + per-key string allocs + per-value boxing) on a hot path
+		// that runs once per game event.
+		ge.ExtraData = json.RawMessage(e.ExtraData)
 	}
 	return ge
 }
@@ -640,17 +838,16 @@ func storeTickDatumToBinding(d store.TickDatum) TickData {
 	td := TickData{
 		Tick:        int(d.Tick),
 		SteamID:     d.SteamID,
-		X:           d.X,
-		Y:           d.Y,
-		Z:           d.Z,
-		Yaw:         d.Yaw,
+		X:           roundToInt16(d.X),
+		Y:           roundToInt16(d.Y),
+		Z:           roundToInt16(d.Z),
+		Yaw:         roundToInt16(d.Yaw),
 		Health:      int(d.Health),
 		Armor:       int(d.Armor),
 		IsAlive:     d.IsAlive != 0,
 		Money:       int(d.Money),
 		HasHelmet:   d.HasHelmet != 0,
 		HasDefuser:  d.HasDefuser != 0,
-		Inventory:   splitInventory(d.Inventory),
 		AmmoClip:    int(d.AmmoClip),
 		AmmoReserve: int(d.AmmoReserve),
 	}
@@ -660,25 +857,17 @@ func storeTickDatumToBinding(d store.TickDatum) TickData {
 	return td
 }
 
-// splitInventory parses the comma-separated inventory string written by the
-// parser. Returns an empty slice when the column is empty so the JSON encoder
-// emits `[]` rather than `null` and the frontend can iterate without nil checks.
-func splitInventory(s string) []string {
-	if s == "" {
-		return []string{}
+// roundToInt16 clamps and rounds a float to the int16 range. CS2 world
+// coordinates fit comfortably in ±32k units (a unit ≈ 2.5 cm), and yaw is in
+// degrees ±180 — both well inside int16. Out-of-range values (e.g. clipped
+// players outside the playable space) are clamped instead of overflowing.
+func roundToInt16(v float64) int16 {
+	r := math.Round(v)
+	if r > math.MaxInt16 {
+		return math.MaxInt16
 	}
-	out := make([]string, 0, 8)
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == ',' {
-			if i > start {
-				out = append(out, s[start:i])
-			}
-			start = i + 1
-		}
+	if r < math.MinInt16 {
+		return math.MinInt16
 	}
-	if start < len(s) {
-		out = append(out, s[start:])
-	}
-	return out
+	return int16(r)
 }

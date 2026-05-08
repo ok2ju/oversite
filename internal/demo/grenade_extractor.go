@@ -62,13 +62,9 @@ func ExtractGrenadeLineups(mapName string, events []GameEvent) []GrenadeLineup {
 		key := throwKey{steamID: ev.AttackerSteamID, entityID: eid}
 
 		var yaw, pitch float64
-		if ev.ExtraData != nil {
-			if v, ok := ev.ExtraData["throw_yaw"]; ok {
-				yaw, _ = v.(float64)
-			}
-			if v, ok := ev.ExtraData["throw_pitch"]; ok {
-				pitch, _ = v.(float64)
-			}
+		if ge, ok := ev.ExtraData.(*GrenadeThrowExtra); ok && ge != nil {
+			yaw = ge.ThrowYaw
+			pitch = ge.ThrowPitch
 		}
 
 		pending[key] = append(pending[key], pendingThrow{
@@ -136,22 +132,17 @@ func generateTitle(mapName, grenadeDisplay string, throwX, throwY, throwZ, landX
 	return fmt.Sprintf("%s %s → %s", grenadeDisplay, from, to)
 }
 
-// extractEntityID retrieves the entity_id from ExtraData, handling both int and float64 (JSON).
-func extractEntityID(extra map[string]interface{}) int {
-	if extra == nil {
-		return 0
-	}
-	v, ok := extra["entity_id"]
-	if !ok {
-		return 0
-	}
-	switch id := v.(type) {
-	case int:
-		return id
-	case float64:
-		return int(id)
-	case int64:
-		return int(id)
+// extractEntityID retrieves the entity_id from ExtraData. Returns 0 when the
+// extras either don't carry an entity_id (e.g. kill, bomb_*) or weren't set
+// at all. Knows about the four typed-extra shapes that can carry one.
+func extractEntityID(extra any) int {
+	switch e := extra.(type) {
+	case *GrenadeThrowExtra:
+		return e.EntityID
+	case *GrenadeBounceExtra:
+		return e.EntityID
+	case *GrenadeDetonateExtra:
+		return e.EntityID
 	default:
 		return 0
 	}

@@ -101,6 +101,22 @@ export function worldToPixel(
   }
 }
 
+// In-place variant for hot paths (per-frame rendering). Writes into `out`
+// instead of allocating a fresh literal each call. At 64 Hz × 10 players +
+// shot tracers + grenade trajectories, the original `worldToPixel` produces
+// hundreds of {x,y} literals per second; reusing a layer-owned scratch object
+// eliminates that GC pressure. Returns `out` so callers can chain.
+export function worldToPixelInto(
+  out: PixelCoord,
+  worldX: number,
+  worldY: number,
+  calibration: MapCalibration,
+): PixelCoord {
+  out.x = (worldX - calibration.originX) / calibration.scale
+  out.y = (calibration.originY - worldY) / calibration.scale
+  return out
+}
+
 export function pixelToWorld(
   pixel: PixelCoord,
   calibration: MapCalibration,

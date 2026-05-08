@@ -147,6 +147,13 @@ function makeEvent(overrides: Partial<GameEvent> = {}): GameEvent {
     x: -500,
     y: 1000,
     z: 100,
+    headshot: false,
+    assister_steam_id: null,
+    health_damage: 0,
+    attacker_name: "",
+    victim_name: "",
+    attacker_team: "",
+    victim_team: "",
     extra_data: null,
     ...overrides,
   }

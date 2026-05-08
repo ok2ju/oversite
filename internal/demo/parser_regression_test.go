@@ -1,6 +1,7 @@
 package demo
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,7 +27,7 @@ func TestParseDemo_NoKnifeRounds(t *testing.T) {
 	}
 	defer func() { _ = f.Close() }()
 
-	result, err := NewDemoParser().Parse(f)
+	result, err := NewDemoParser().Parse(context.Background(), f)
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
@@ -101,12 +102,12 @@ func TestParseDemo_NoKnifeRounds(t *testing.T) {
 			t.Errorf("weapon_fire emitted for non-firearm %q at tick %d", ev.Weapon, ev.Tick)
 		}
 
-		yaw, ok := ev.ExtraData["yaw"].(float64)
-		if !ok {
-			t.Errorf("weapon_fire at tick %d missing numeric yaw in extra_data", ev.Tick)
+		wf, ok := ev.ExtraData.(*WeaponFireExtra)
+		if !ok || wf == nil {
+			t.Errorf("weapon_fire at tick %d missing typed WeaponFireExtra", ev.Tick)
 			continue
 		}
-		if yaw != yaw { // NaN check
+		if wf.Yaw != wf.Yaw { // NaN check
 			t.Errorf("weapon_fire at tick %d has NaN yaw", ev.Tick)
 		}
 	}
