@@ -478,7 +478,14 @@ func (dp *DemoParser) Parse(ctx context.Context, r io.Reader) (result *ParseResu
 	config := demoinfocs.DefaultParserConfig
 	config.IgnorePacketEntitiesPanic = dp.ignoreEntityPanics
 	config.IgnoreErrBombsiteIndexNotFound = true
-	p := demoinfocs.NewParserWithConfig(r, config)
+	// gobitread.BitReader.Close (called by demoinfocs's parser.Close → bitReader.Close)
+	// type-asserts the underlying reader to io.ReadCloser and closes it if so.
+	// *os.File satisfies that, which means deferring p.Close() below would close
+	// the caller's file and break the auto-retry path in app.go: a corrupt-entity
+	// failure on the first attempt closes the file, and the second attempt's
+	// f.Seek then fails with "file already closed". Strip Close by wrapping the
+	// reader in an anonymous struct that exposes only Read.
+	p := demoinfocs.NewParserWithConfig(struct{ io.Reader }{r}, config)
 	defer func() {
 		if closeErr := p.Close(); closeErr != nil && err == nil {
 			err = fmt.Errorf("closing parser: %w", closeErr)

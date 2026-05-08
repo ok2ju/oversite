@@ -3,6 +3,7 @@ package demo
 import (
 	"bytes"
 	"context"
+	"io"
 	"log/slog"
 	"strings"
 	"testing"
@@ -753,5 +754,37 @@ func TestWithTickSink_OptionWiresField(t *testing.T) {
 	dp := NewDemoParser(WithTickSink(sink))
 	if dp.tickSink == nil {
 		t.Errorf("WithTickSink: tickSink is nil, want non-nil")
+	}
+}
+
+// closeTrackingReader is an io.ReadCloser that records whether Close() was
+// invoked. Used by TestParse_DoesNotCloseReader to lock in the wrapper that
+// hides the file's Close from demoinfocs's gobitread.BitReader.Close.
+type closeTrackingReader struct {
+	r      io.Reader
+	closed bool
+}
+
+func (c *closeTrackingReader) Read(p []byte) (int, error) { return c.r.Read(p) }
+func (c *closeTrackingReader) Close() error {
+	c.closed = true
+	return nil
+}
+
+// TestParse_DoesNotCloseReader pins the contract that DemoParser.Parse never
+// closes the io.Reader the caller hands it. The retry path in
+// app.go parseDemo (rewinding the file with f.Seek after a corrupt-entity
+// failure) depends on this — gobitread.BitReader.Close type-asserts the
+// underlying reader to io.ReadCloser and would close the caller's *os.File
+// without the wrapper introduced in NewParserWithConfig.
+func TestParse_DoesNotCloseReader(t *testing.T) {
+	// Garbage bytes — Parse will fail fast, which is fine. We only care that
+	// Close is not propagated to the caller's reader, regardless of outcome.
+	tracker := &closeTrackingReader{r: bytes.NewReader([]byte("not a demo"))}
+
+	_, _ = NewDemoParser().Parse(context.Background(), tracker)
+
+	if tracker.closed {
+		t.Errorf("Parse closed the caller's reader; the file's Close must be hidden so app.go's retry+seek path works")
 	}
 }
