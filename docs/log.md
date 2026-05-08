@@ -6,6 +6,14 @@ Format: `YYYY-MM-DD — <summary>` with links to affected pages.
 
 ---
 
+## 2026-05-08 — Auto-retry on ErrCorruptEntityTable
+
+Follow-up to the entity-panic opt-in earlier today: a Windows v0.1.8 user hit `ErrCorruptEntityTable` on a corrupt-entity demo (`unable to find existing entity 1647731180`) with no way forward — the `SetTolerateEntityErrors` binding exists in `frontend/wailsjs/go/main/App.d.ts` but no UI calls it. `app.go parseDemo` now auto-retries once with `WithIgnoreEntityPanics(true)` after a first attempt fails with `ErrCorruptEntityTable`; the heap watchdog and tick/event caps still backstop the runaway-memory case the flag was kept off to avoid.
+
+The streaming parse+ingest pipeline (was inline in `parseDemo`) is extracted into `runParsePipeline(demoID, f, tolerateEntityErrors, emitProgress)`. Retry is safe because `IngestStream` wraps everything in a single tx with `defer tx.Rollback()` (`ingest.go:100`) and the next call begins with `DeleteTickDataByDemoID` (`ingest.go:103`) — partial rows from the failed first attempt do not survive. The file is rewound with `f.Seek(0, io.SeekStart)`. A `slog.Warn("parseDemo: retrying with entity-panic tolerance", ...)` line records when the retry fires so it's traceable in `errors.txt`.
+
+Refs: [[knowledge/demo-parser]] (updated), [[decisions/0018-corrupt-entity-auto-retry]] (new ADR documenting the retry layer; builds on ADR-0017).
+
 ## 2026-05-08 — Independent heap watchdog + entity-panic opt-in
 
 Follow-up to the Windows 16 GB OOM safeguards: the static watchdog still missed the failure mode on a pathological 325 MB demo that drove the working set to 13 GB before the FrameDone heartbeat could fire. Two structural changes:

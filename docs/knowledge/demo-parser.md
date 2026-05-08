@@ -1,7 +1,7 @@
 # Demo Parser
 
 **Library:** `github.com/markus-wa/demoinfocs-golang/v5`
-**Related:** [[sqlite-wal]] · [[wails-bindings]] · [ADR-0015](../decisions/0015-streaming-parse-ingest-pipeline.md) · [ADR-0017](../decisions/0017-parser-defense-in-depth.md) · [plans/p2-auth-demo-pipeline](../plans/p2-auth-demo-pipeline.md)
+**Related:** [[sqlite-wal]] · [[wails-bindings]] · [ADR-0015](../decisions/0015-streaming-parse-ingest-pipeline.md) · [ADR-0017](../decisions/0017-parser-defense-in-depth.md) · [ADR-0018](../decisions/0018-corrupt-entity-auto-retry.md) · [plans/p2-auth-demo-pipeline](../plans/p2-auth-demo-pipeline.md)
 
 > Note: this page describes the parser as it runs against MR12 competitive CS2 demos (24 regulation rounds + optional overtime, no bots). Casual / bot-laden demos are out of scope.
 
@@ -211,6 +211,16 @@ The static heap ceiling from the previous section still didn't fire on a patholo
 ### `IgnorePacketEntitiesPanic = true` is a footgun
 
 Set unconditionally in commit `2329a1d` to stop crashes on certain Windows POV demos. With it on, demoinfocs swallows "unable to find existing entity" panics and continues — which on a pathological demo means an unbounded internal accumulation loop the watchdog couldn't catch fast enough on Windows. The fix in `2329a1d` traded a visible crash for a silent 13 GB blow-up. Now opt-in via `WithIgnoreEntityPanics(bool)` (default **false**); the panic recovery in `Parse` checks the message and returns `ErrCorruptEntityTable` so the import fails fast with a clear user-facing error. Users who *need* partial-parse tolerance can flip the bool via the Settings binding (`SetTolerateEntityErrors`).
+
+### Auto-retry on `ErrCorruptEntityTable` (2026-05-08)
+
+> Decision rationale and rejected alternatives: [ADR-0018](../decisions/0018-corrupt-entity-auto-retry.md).
+
+Default-off-with-Settings-opt-in turned out to dead-end users — `SetTolerateEntityErrors` is bound but no UI surfaces it, so a v0.1.8 Windows user with a corrupt-entity demo had no path forward. `app.go parseDemo` now reruns the parse once with `WithIgnoreEntityPanics(true)` after a first-attempt failure with `ErrCorruptEntityTable`. The streaming pipeline was extracted into `runParsePipeline(demoID, f, tolerateEntityErrors, emitProgress)` so both attempts share the errgroup logic.
+
+Retry is safe because `IngestStream` wraps everything in a single tx with `defer tx.Rollback()` (`ingest.go:100`) and the next call's `DeleteTickDataByDemoID` (`ingest.go:103`) wipes any rows that did commit. The file is rewound between attempts with `f.Seek(0, io.SeekStart)`. The retry path emits `slog.Warn("parseDemo: retrying with entity-panic tolerance", first_err=…)` so `errors.txt` records when tolerance kicked in.
+
+The `SetTolerateEntityErrors` binding remains — flipping it on skips the first (likely-failing) attempt, which is the right shape for re-importing a known-corrupt batch.
 
 ### Windows holds onto pages even after Go GC
 

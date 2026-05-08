@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"math"
 	"os"
@@ -392,55 +393,34 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 	}
 	defer f.Close() //nolint:errcheck
 
-	// Streaming pipeline: parser pushes each TickSnapshot into ticksCh, the
-	// ingester drains it and writes batched INSERTs in a single transaction.
-	// This overlaps protobuf decode (CPU-bound) with SQLite WAL writes
-	// (I/O-bound) and caps peak heap by removing the 100+ MB tick slice that
-	// would otherwise live in memory until parsing finished.
-	//
-	// Events stay in memory because the post-parse pipeline (dropKnifeRounds,
-	// pairShotsWithImpacts, ExtractGrenadeLineups) needs the full event list
-	// for forward-lookup correlations — events are only ~12 MB at the cap so
-	// the win wouldn't pay for the redesign.
-	ticksCh := make(chan demo.TickSnapshot, demo.DefaultTickSinkBuffer)
-	parser := demo.NewDemoParser(
-		demo.WithProgressFunc(func(stage string, percent float64) {
-			emitProgress(stage, percent)
-		}),
-		demo.WithTickSink(ticksCh),
-		demo.WithHeapLimit(a.parserHeapLimit),
-		demo.WithProfilesDir(a.profilesDir),
-		demo.WithIgnoreEntityPanics(a.tolerateEntityErrors),
-	)
-	ingester := demo.NewTickIngester(a.db, 0)
-
-	g, gctx := errgroup.WithContext(a.ctx)
-	var result *demo.ParseResult
-
-	g.Go(func() error {
-		// errgroup synchronizes on g.Wait, so writing result here and reading
-		// after Wait is happens-before-correct without a mutex.
-		res, parseErr := parser.Parse(gctx, f)
-		result = res
-		return parseErr
-	})
-
-	g.Go(func() error {
-		_, ingestErr := ingester.IngestStream(gctx, demoID, ticksCh)
-		return ingestErr
-	})
-
-	if err := g.Wait(); err != nil {
-		// Either parser or ingester errored; the ctx-cancellation contract
-		// means the other goroutine has already bailed out. Orphaned partial
-		// tick rows (if the ingester committed before the parser failed) get
-		// wiped on the next re-import via DeleteTickDataByDemoID.
+	result, err := a.runParsePipeline(demoID, f, a.tolerateEntityErrors, emitProgress)
+	if err != nil && errors.Is(err, demo.ErrCorruptEntityTable) && !a.tolerateEntityErrors {
+		// The first attempt aborted because demoinfocs panicked on a damaged
+		// entity table. Retry once with IgnorePacketEntitiesPanic on so the
+		// library swallows the panic and keeps parsing — the heap watchdog
+		// (parser.go:488) and tick/event caps (parser.go:34-37) backstop the
+		// runaway-memory case the flag was originally kept off to avoid. The
+		// ingester's transaction was rolled back on the failed attempt and the
+		// next IngestStream call wipes any committed rows via
+		// DeleteTickDataByDemoID, so a fresh file offset starts cleanly.
+		slog.Warn("parseDemo: retrying with entity-panic tolerance",
+			append(logCtx, "first_err", err.Error())...)
+		if _, seekErr := f.Seek(0, io.SeekStart); seekErr != nil {
+			slog.Error("parseDemo: rewind for retry", append(logCtx, "err", seekErr)...)
+			a.failDemo(demoID, fmt.Sprintf("parse failed: %v (rewind for retry: %v)", err, seekErr), emitProgress)
+			return
+		}
+		emitProgress("parsing", 0)
+		result, err = a.runParsePipeline(demoID, f, true, emitProgress)
+	}
+	if err != nil {
 		slog.Error("parseDemo: parse/ingest pipeline", append(logCtx, "err", err)...)
 		a.failDemo(demoID, fmt.Sprintf("parse failed: %v", err), emitProgress)
 		return
 	}
 	if result == nil {
-		// Defensive: should be unreachable since Parse only returns nil on error.
+		// Defensive: should be unreachable since runParsePipeline only returns
+		// nil on error.
 		slog.Error("parseDemo: parse returned nil result without error", logCtx...)
 		a.failDemo(demoID, "parse returned no result", emitProgress)
 		return
@@ -494,6 +474,62 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 	}
 
 	emitProgress("complete", 100)
+}
+
+// runParsePipeline runs the streaming parse+ingest pipeline once. The parser
+// pushes each TickSnapshot into ticksCh; the ingester drains it and writes
+// batched INSERTs in a single transaction. This overlaps protobuf decode
+// (CPU-bound) with SQLite WAL writes (I/O-bound) and caps peak heap by
+// removing the 100+ MB tick slice that would otherwise live in memory until
+// parsing finished.
+//
+// Events stay in memory because the post-parse pipeline (dropKnifeRounds,
+// pairShotsWithImpacts, ExtractGrenadeLineups) needs the full event list for
+// forward-lookup correlations — events are only ~12 MB at the cap so the win
+// wouldn't pay for the redesign.
+//
+// On error, the ingester's transaction is rolled back via defer (ingest.go:100)
+// so partial tick rows do not survive a failed attempt; the next call's
+// DeleteTickDataByDemoID also wipes any rows that did commit before the
+// failure. This makes the pipeline safe to retry from a rewound file offset.
+func (a *App) runParsePipeline(
+	demoID int64,
+	f io.Reader,
+	tolerateEntityErrors bool,
+	emitProgress func(stage string, percent float64, errMsg ...string),
+) (*demo.ParseResult, error) {
+	ticksCh := make(chan demo.TickSnapshot, demo.DefaultTickSinkBuffer)
+	parser := demo.NewDemoParser(
+		demo.WithProgressFunc(func(stage string, percent float64) {
+			emitProgress(stage, percent)
+		}),
+		demo.WithTickSink(ticksCh),
+		demo.WithHeapLimit(a.parserHeapLimit),
+		demo.WithProfilesDir(a.profilesDir),
+		demo.WithIgnoreEntityPanics(tolerateEntityErrors),
+	)
+	ingester := demo.NewTickIngester(a.db, 0)
+
+	g, gctx := errgroup.WithContext(a.ctx)
+	var result *demo.ParseResult
+
+	g.Go(func() error {
+		// errgroup synchronizes on g.Wait, so writing result here and reading
+		// after Wait is happens-before-correct without a mutex.
+		res, parseErr := parser.Parse(gctx, f)
+		result = res
+		return parseErr
+	})
+
+	g.Go(func() error {
+		_, ingestErr := ingester.IngestStream(gctx, demoID, ticksCh)
+		return ingestErr
+	})
+
+	if err := g.Wait(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // failDemo marks a demo as failed and emits an error progress event with

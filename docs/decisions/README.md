@@ -23,3 +23,4 @@ This directory captures key architectural decisions for Oversite. Each ADR recor
 | [0015](0015-streaming-parse-ingest-pipeline.md) | Streaming parse → ingest pipeline (`WithTickSink` channel) | Accepted |
 | [0016](0016-sqlite-multi-connection-pool.md) | Multi-connection SQLite pool with `busy_timeout` | Accepted |
 | [0017](0017-parser-defense-in-depth.md) | Parser defense-in-depth — independent watchdog + entity-panic opt-in | Accepted |
+| [0018](0018-corrupt-entity-auto-retry.md) | Auto-retry parse with entity-panic tolerance on `ErrCorruptEntityTable` | Accepted |
