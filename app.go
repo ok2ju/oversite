@@ -252,23 +252,46 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 	// 64K+ Wails events per match and flood the IPC bridge.
 	const coalesceWindow = 100 * time.Millisecond
 	var (
-		lastEmit  time.Time
-		lastStage string
+		lastEmit    time.Time
+		lastStage   string
+		lastPercent int
 	)
 	emitProgress := func(stage string, percent float64, errMsg ...string) {
 		hasErr := len(errMsg) > 0 && errMsg[0] != ""
 		isTerminal := stage == "complete" || stage == "error"
 		stageChanged := stage != lastStage
+
+		// Round at the IPC boundary so the UI receives clean integer percentages
+		// (no "2.6666%" display) and so the monotonic check below operates on the
+		// same value the user sees.
+		rounded := int(math.Round(percent))
+		if rounded < 0 {
+			rounded = 0
+		} else if rounded > 100 {
+			rounded = 100
+		}
+
+		// Drop emits that would make the progress bar move backwards within a
+		// stage. The parser has two concurrent progress sources — round-based
+		// (0–80%, jumps with each RoundEnd) and a frame "alive" heartbeat
+		// (0–5%, climbs slowly with frame count). Once round 18 has pushed us to
+		// 48%, a subsequent heartbeat emit of ~5% would visually rewind the bar.
+		// Stage changes and terminal/error emits always pass through.
+		if !hasErr && !isTerminal && !stageChanged && rounded < lastPercent {
+			return
+		}
+
 		if !hasErr && !isTerminal && !stageChanged && time.Since(lastEmit) < coalesceWindow {
 			return
 		}
 		lastEmit = time.Now()
 		lastStage = stage
+		lastPercent = rounded
 
 		payload := map[string]interface{}{
 			"demoId":   demoID,
 			"fileName": fileName,
-			"percent":  percent,
+			"percent":  rounded,
 			"stage":    stage,
 		}
 		if hasErr {
