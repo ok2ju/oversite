@@ -72,6 +72,11 @@ var ErrHeapLimitExceeded = errors.New("heap allocation limit exceeded: demo may 
 // WithIgnoreEntityPanics; with that option set, demoinfocs swallows the panic
 // and continues parsing, which has been observed to drive runaway memory
 // growth on pathological demos. See parser.go for the trade-off.
+//
+// Two emission paths converge here: a Go panic that escapes the dispatcher
+// (caught by Parse's deferred recover) and an error returned from ParseToEnd
+// after demoinfocs's own PanicHandler swallowed the panic — both wrap with
+// %w so the caller's errors.Is(...) auto-retry check matches.
 var ErrCorruptEntityTable = errors.New("demo has a corrupt entity table; parsing was stopped to avoid running out of memory")
 
 // ParseResult is the complete output of parsing a demo file.
@@ -439,10 +444,14 @@ func (dp *DemoParser) Parse(ctx context.Context, r io.Reader) (result *ParseResu
 	}
 	defer func() {
 		if rec := recover(); rec != nil {
-			// Surface the "unable to find existing entity" panic from demoinfocs
-			// as a recognizable, user-actionable error. This panic only escapes
-			// here when ignoreEntityPanics is false; with it set, the library
-			// recovers internally and we never see it.
+			// In-handler panics (including "unable to find existing entity")
+			// are caught by demoinfocs's own dispatcher PanicHandler and
+			// surfaced as ParseToEnd errors — see the corresponding wrap
+			// path below — so this branch only fires for panics outside the
+			// dispatcher loop. The string match remains as a belt-and-braces
+			// fallback for any path that does escape: better to return
+			// ErrCorruptEntityTable and trigger the caller's retry than to
+			// surface a raw panic message.
 			recMsg := fmt.Sprintf("%v", rec)
 			if strings.Contains(recMsg, "unable to find existing entity") {
 				err = fmt.Errorf("%w: %s", ErrCorruptEntityTable, recMsg)
@@ -498,6 +507,16 @@ func (dp *DemoParser) Parse(ctx context.Context, r io.Reader) (result *ParseResu
 	dp.reportProgress("parsing", 0)
 
 	if parseErr := p.ParseToEnd(); parseErr != nil {
+		// "unable to find existing entity" panics from sendtablescs2 are
+		// caught by demoinfocs's own dispatcher PanicHandler (parser.go:551
+		// in v5.1.2) when IgnorePacketEntitiesPanic is false and surfaced as
+		// an error here, NOT as a Go panic — so the recover() above never
+		// fires for them. Wrap as ErrCorruptEntityTable so the caller's
+		// auto-retry path (app.go runParsePipeline) matches via errors.Is
+		// and re-runs with entity-panic tolerance enabled.
+		if strings.Contains(parseErr.Error(), "unable to find existing entity") {
+			return nil, fmt.Errorf("%w: %v", ErrCorruptEntityTable, parseErr)
+		}
 		// demoinfocs returns ErrUnexpectedEndOfDemo for truncated demos;
 		// treat as fatal only if we got zero data.
 		if len(state.rounds) == 0 && state.tickCount == 0 && len(state.events) == 0 {
