@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -37,6 +38,16 @@ type App struct {
 	// importing N files at once would N× peak memory. One parse at a time keeps
 	// RAM bounded and matches the single-writer guarantee SQLite gives us.
 	parseMu sync.Mutex
+	// fileImportMu serializes the file-copy / zstd-decompress step in
+	// ImportService.ImportFile. Each zstd decoder window is tens of MB; on a
+	// bulk drag-and-drop of 10 .zst files the parallel windows alone could
+	// spike RAM by 500+ MB on top of whatever parse was running. We accept the
+	// extra wall-clock latency (each copy is seconds, not minutes) in exchange
+	// for a flat memory profile during bulk imports.
+	fileImportMu sync.Mutex
+	// parserHeapLimit is the heap-watchdog ceiling sized at startup from host
+	// RAM via internal/sysinfo. 0 lets the parser pick its built-in default.
+	parserHeapLimit uint64
 }
 
 // NewApp opens the database, runs migrations, and returns an App ready to be
@@ -61,11 +72,12 @@ func NewApp() (*App, error) {
 
 	queries := store.New(db)
 	return &App{
-		ctx:           context.Background(),
-		db:            db,
-		queries:       queries,
-		importService: demo.NewImportService(queries, db, demosDir),
-		demosDir:      demosDir,
+		ctx:             context.Background(),
+		db:              db,
+		queries:         queries,
+		importService:   demo.NewImportService(queries, db, demosDir),
+		demosDir:        demosDir,
+		parserHeapLimit: heapLimits.KillSwitch,
 	}, nil
 }
 
@@ -175,7 +187,7 @@ func (a *App) ImportDemoFile() error {
 		return nil // User cancelled.
 	}
 
-	d, err := a.importService.ImportFile(a.ctx, filePath)
+	d, err := a.importFileSerialized(filePath)
 	if err != nil {
 		return err
 	}
@@ -185,12 +197,21 @@ func (a *App) ImportDemoFile() error {
 
 // ImportDemoByPath imports a .dem file at the given path (used for drag-and-drop).
 func (a *App) ImportDemoByPath(filePath string) error {
-	d, err := a.importService.ImportFile(a.ctx, filePath)
+	d, err := a.importFileSerialized(filePath)
 	if err != nil {
 		return err
 	}
 	go a.runParseSerialized(d.ID, d.FilePath)
 	return nil
+}
+
+// importFileSerialized wraps ImportService.ImportFile under fileImportMu so a
+// bulk drop only runs one file-copy / zstd-decompress at a time. The Wails
+// caller still gets a synchronous error return — we just queue them.
+func (a *App) importFileSerialized(filePath string) (*store.Demo, error) {
+	a.fileImportMu.Lock()
+	defer a.fileImportMu.Unlock()
+	return a.importService.ImportFile(a.ctx, filePath)
 }
 
 // runParseSerialized acquires parseMu before running parseDemo so concurrent
@@ -338,6 +359,7 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 			emitProgress(stage, percent)
 		}),
 		demo.WithTickSink(ticksCh),
+		demo.WithHeapLimit(a.parserHeapLimit),
 	)
 	ingester := demo.NewTickIngester(a.db, 0)
 
@@ -373,6 +395,13 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		return
 	}
 
+	// Force a GC cycle now that the demoinfocs parser is closed and its
+	// internal entity tables / packet buffers are unreferenced. Without this
+	// nudge, all that transient state coexists with the events-ingest tx for
+	// the seconds it takes to run, doubling peak commit on Windows where the
+	// runtime is slower to scavenge unused heap.
+	runtime.GC()
+
 	roundMap, err := demo.IngestRounds(a.ctx, a.db, demoID, result)
 	if err != nil {
 		slog.Error("parseDemo: ingest rounds", append(logCtx, "err", err)...)
@@ -385,6 +414,13 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		a.failDemo(demoID, fmt.Sprintf("ingest events: %v", err), emitProgress)
 		return
 	}
+	// Drop our reference to the (potentially 100+ MB) events slice so the
+	// next GC cycle can reclaim it before we move on to the metadata update
+	// and emit "complete". The post-parse aggregation (lineups, kill→hurt
+	// pairing) is already done by the time IngestGameEvents returns.
+	result.Events = nil
+	result.Lineups = nil
+	result.Rounds = nil
 
 	if _, err := a.queries.UpdateDemoAfterParse(a.ctx, store.UpdateDemoAfterParseParams{
 		MapName:      result.Header.MapName,

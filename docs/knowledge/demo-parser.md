@@ -168,7 +168,7 @@ Events remain accumulated in `state.events`. `dropKnifeRounds`, `pairShotsWithIm
 
 ### Don't drop the heap watchdog
 
-The 4 GiB `maxHeapBytes` watchdog stayed in. Streaming ticks bounds the **tick** path, but `demoinfocs`'s internal protobuf/entity-table state still grows on corrupt demos and that's where the watchdog earns its keep.
+The watchdog stayed in. Streaming ticks bounds the **tick** path, but `demoinfocs`'s internal protobuf/entity-table state still grows on corrupt demos and that's where the watchdog earns its keep. Its ceiling is no longer a static 4 GiB — see "Windows OOM safeguards (2026-05-08)" for the per-host sizing.
 
 ### Cache `strconv.FormatUint(SteamID64)` per player
 
@@ -177,3 +177,23 @@ The 4 GiB `maxHeapBytes` watchdog stayed in. Streaming ticks bounds the **tick**
 ### Typed event extras, not `map[string]interface{}`
 
 Per-kind structs in `internal/demo/extras.go` (`KillExtra`, `WeaponFireExtra`, `PlayerHurtExtra`, `GrenadeThrowExtra`, etc.) implement an `EventExtra` marker. Parser allocates one pointer-to-struct per event; `marshalExtraData` in `events.go` JSON-encodes at the ingest boundary. The wire format to the frontend is unchanged — this is purely an allocation reduction in the hot path.
+
+## Windows OOM safeguards (2026-05-08)
+
+The static `maxHeapBytes = 4 GiB` watchdog plus an unset `GOMEMLIMIT` was OOMing 16 GB Windows hosts. WebView2 (~1–2 GB) + OS + drivers + AV left no room for a Go heap allowed to grow to 2× live set, and the 4 GiB ceiling only fired *after* the OS was paging.
+
+### Heap budgets are sized from host RAM at startup
+
+`internal/sysinfo.RecommendedHeapLimits(totalRAM)` returns `(GOMEMLIMIT=12.5%, KillSwitch=18.75%)` of total RAM, clamped to `[1 GiB, 4 GiB]`. On a 16 GB Windows host that's **2 GiB soft / 3 GiB hard**, leaving ~80% of RAM for WebView2 and the OS. `main.go configureMemoryLimits()` calls `debug.SetMemoryLimit()` (skipped if `GOMEMLIMIT` env is already set) and stashes the kill-switch in `heapLimits.KillSwitch` for `NewApp` to plumb into the parser.
+
+### `WithHeapLimit(bytes)` overrides the default ceiling
+
+`NewDemoParser(demo.WithHeapLimit(a.parserHeapLimit))`. `defaultMaxHeapBytes = 4 GiB` is kept as the fallback for direct callers (tests, future CLI tools) so they don't have to wire sysinfo themselves. The watchdog error message includes the observed and limit MiB — when a corrupt demo trips the cap, `errors.txt` records *which* budget was in effect, so a future re-tune doesn't make stale logs ambiguous.
+
+### `runtime.GC()` between parse and ingest
+
+After `parser.Parse()` returns, the demoinfocs parser is closed but its internal entity tables / packet buffers are unreferenced and not yet collected. Running `runtime.GC()` before `IngestRounds`/`IngestGameEvents` prevents that transient state from coexisting with the ingest tx for the seconds it runs — particularly important on Windows where the runtime is slower to scavenge. After events commit, `result.Events`/`Lineups`/`Rounds` are nil-ed so the ~125 MB worst-case event slice can be reclaimed before "complete" emits.
+
+### Cross-platform RAM detection without a heavy dep
+
+`golang.org/x/sys/windows` v0.42.0 doesn't expose `GlobalMemoryStatusEx`, so the Windows path resolves it through `windows.NewLazySystemDLL("kernel32.dll").NewProc("GlobalMemoryStatusEx")` with a hand-declared `MEMORYSTATUSEX` struct. Darwin uses `unix.SysctlUint64("hw.memsize")`; Linux uses `unix.Sysinfo`. Detection failure returns `(0, err)`; callers fall back to the conservative floor (1 GiB soft / 1.5 GiB hard) — never fatal.

@@ -2,6 +2,7 @@ package demo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -30,17 +31,16 @@ const (
 	maxGameEvent = 500_000
 )
 
-// maxHeapBytes is the soft heap ceiling enforced by the heartbeat watchdog.
-// On Windows, runaway parsing of a corrupt demo could allocate enough memory
-// to push the OS into paging and freeze the whole machine before our slice
-// caps fire (the demoinfocs parser holds substantial state beyond our slices:
-// per-frame protobuf messages buffered in the dispatch queue, accumulated
-// entity tables, etc.). Tripping this cap is fatal for the same reason as
-// maxTickRows — partial output is unreliable.
-//
-// 4 GiB is well above what a clean parse of a 90-min match needs (~500 MB)
-// and leaves headroom on a 16 GB Windows box for the WebView and OS.
-const maxHeapBytes uint64 = 4 << 30
+// defaultMaxHeapBytes is the fallback heap ceiling used when the caller didn't
+// supply one via WithHeapLimit. The watchdog defends against runaway entity-
+// table growth on corrupt demos (the demoinfocs parser buffers per-frame
+// protobuf messages and accumulates entity state outside our own slice caps)
+// — tripping it is fatal because the partial output may reference dropped
+// entities. Production callers should size this from host RAM via
+// internal/sysinfo so a 16 GB Windows machine fails fast instead of paging
+// the OS into a freeze; this constant exists only so direct DemoParser users
+// (tests, CLI tools) don't need to do that wiring themselves.
+const defaultMaxHeapBytes uint64 = 4 << 30
 
 // heartbeatFrameInterval is how often the FrameDone handler logs a
 // progress/memory line and checks the heap ceiling. ~10K frames is roughly
@@ -55,9 +55,11 @@ var ErrTickLimitExceeded = fmt.Errorf("tick row limit exceeded (%d): demo may be
 // maxGameEvent before the demo finished.
 var ErrEventLimitExceeded = fmt.Errorf("game event limit exceeded (%d): demo may be corrupt", maxGameEvent)
 
-// ErrHeapLimitExceeded indicates the parser tripped the maxHeapBytes ceiling.
-// Returned to spare the host OS from paging itself into a freeze.
-var ErrHeapLimitExceeded = fmt.Errorf("heap allocation limit exceeded (%d MiB): demo may be corrupt", maxHeapBytes>>20)
+// ErrHeapLimitExceeded indicates the parser tripped its configured heap
+// ceiling. Returned to spare the host OS from paging itself into a freeze.
+// The configured ceiling (in MiB) is included in the message so users can tell
+// from a stale errors.txt which budget was in effect.
+var ErrHeapLimitExceeded = errors.New("heap allocation limit exceeded: demo may be corrupt")
 
 // ParseResult is the complete output of parsing a demo file.
 //
@@ -205,6 +207,18 @@ func WithTickSink(sink chan<- TickSnapshot) Option {
 	}
 }
 
+// WithHeapLimit overrides the heartbeat watchdog's heap ceiling (bytes). When
+// HeapAlloc exceeds this value the parse aborts with ErrHeapLimitExceeded.
+// Values <= 0 are ignored, so callers can pass a computed sysinfo budget
+// without an extra branch.
+func WithHeapLimit(bytes uint64) Option {
+	return func(dp *DemoParser) {
+		if bytes > 0 {
+			dp.maxHeapBytes = bytes
+		}
+	}
+}
+
 // DemoParser extracts structured data from CS2 .dem files.
 type DemoParser struct {
 	tickInterval int
@@ -212,6 +226,7 @@ type DemoParser struct {
 	includeBots  bool
 	progressFunc ProgressFunc
 	tickSink     chan<- TickSnapshot
+	maxHeapBytes uint64
 }
 
 // NewDemoParser creates a parser with the given options.
@@ -220,6 +235,7 @@ func NewDemoParser(opts ...Option) *DemoParser {
 		tickInterval: 4,
 		skipWarmup:   true,
 		includeBots:  false,
+		maxHeapBytes: defaultMaxHeapBytes,
 	}
 	for _, opt := range opts {
 		opt(dp)
@@ -790,11 +806,12 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 				"heap_alloc_mb", mem.HeapAlloc>>20,
 				"heap_sys_mb", mem.HeapSys>>20,
 			)
-			if mem.HeapAlloc > maxHeapBytes {
-				state.limitExceeded = ErrHeapLimitExceeded
+			if mem.HeapAlloc > dp.maxHeapBytes {
+				state.limitExceeded = fmt.Errorf("%w (limit %d MiB, observed %d MiB)",
+					ErrHeapLimitExceeded, dp.maxHeapBytes>>20, mem.HeapAlloc>>20)
 				slog.Warn("parser: heap limit exceeded; cancelling parse",
 					"heap_alloc_mb", mem.HeapAlloc>>20,
-					"max_heap_mb", maxHeapBytes>>20,
+					"max_heap_mb", dp.maxHeapBytes>>20,
 					"frames", state.frameCount,
 					"ingame_tick", tick,
 				)

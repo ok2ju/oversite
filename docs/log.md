@@ -6,6 +6,18 @@ Format: `YYYY-MM-DD — <summary>` with links to affected pages.
 
 ---
 
+## 2026-05-08 — Windows 16 GB OOM safeguards
+
+User report: demo import on a 16 GB Windows box drove the system to 99% RAM and froze it. The static 4 GiB parser watchdog only fired after the OS was already paging, and no `GOMEMLIMIT` meant the runtime let heap grow to ~2× live set during pre-fault working-set spikes.
+
+- **`internal/sysinfo/`** (new): cross-platform total-RAM detection — `sysctl hw.memsize` (darwin), `Sysinfo` (linux), `kernel32!GlobalMemoryStatusEx` via `golang.org/x/sys/windows` LazySystemDLL. `RecommendedHeapLimits(totalRAM)` returns `GOMEMLIMIT=12.5%` / `KillSwitch=18.75%` of host RAM, clamped to `[1 GiB, 4 GiB]`. Tested table-driven for 0 / 8 / 16 / 32 / 64 GB hosts.
+- **`main.go`**: `configureMemoryLimits()` runs after logging init; calls `debug.SetMemoryLimit()` unless `GOMEMLIMIT` env is already set; logs the chosen budgets.
+- **`internal/demo/parser.go`**: `const maxHeapBytes` → per-parser field via new `WithHeapLimit(bytes)` option (default 4 GiB for direct callers / tests). Watchdog error now includes `(limit X MiB, observed Y MiB)` so a stale `errors.txt` records which budget was in effect.
+- **`app.go`**: new `fileImportMu` serializes `ImportService.ImportFile` so a 10-zst bulk drop runs one decompression at a time (was N parallel zstd windows). Wails caller still gets sync error returns. `runtime.GC()` between `parser.Parse()` and `IngestRounds`/`IngestGameEvents`. After events ingest commits, `result.Events`/`Lineups`/`Rounds` are nil-ed so the ~125 MB max event slice can be reclaimed before "complete" emits.
+- **`go.mod`**: `golang.org/x/sys` promoted from indirect to direct dep.
+
+Refs: [[knowledge/demo-parser]] (updated), [[knowledge/wails-bindings]] (updated). No ADR — tuning change, not structural.
+
 ## 2026-05-08 — Cross-layer performance overhaul
 
 5-agent perf audit → ~50 items applied across parser, DB, Wails IPC, React, and PixiJS.

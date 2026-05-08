@@ -55,3 +55,7 @@ The viewer needs the full `Demo` (path, size, etc.); the library list only needs
 ### Cancellable context plumbed through
 
 `Startup` wraps the Wails ctx in `context.WithCancel`; `Shutdown` cancels before `db.Close` so in-flight DB work bails out instead of fighting a closed pool. Pass the derived ctx into any new long-running binding.
+
+### Serialize bulk file imports
+
+`fileImportMu` (in `app.go`) wraps `ImportService.ImportFile` so a 10-zst drag-and-drop only runs one zstd decompression at a time. Each decoder window holds tens of MB; in parallel they could spike RAM by 500+ MB on top of whatever parse was already running. Parse continues to serialize on its own `parseMu` — copy of file 2 *can* overlap with parse of file 1 (different mutex), which is intentional: full end-to-end serialization would block the Wails caller for the duration of a parse and lose synchronous error returns.
