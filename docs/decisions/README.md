@@ -20,3 +20,6 @@ This directory captures key architectural decisions for Oversite. Each ADR recor
 | [0012](0012-tanstack-query-wails-bindings.md) | TanStack Query for Wails binding responses | Accepted |
 | [0013](0013-logging.md) | Logging strategy | Accepted |
 | [0014](0014-remove-faceit-integration.md) | Remove Faceit integration; ship as single-tenant local tool | Accepted |
+| [0015](0015-streaming-parse-ingest-pipeline.md) | Streaming parse → ingest pipeline (`WithTickSink` channel) | Accepted |
+| [0016](0016-sqlite-multi-connection-pool.md) | Multi-connection SQLite pool with `busy_timeout` | Accepted |
+| [0017](0017-parser-defense-in-depth.md) | Parser defense-in-depth — independent watchdog + entity-panic opt-in | Accepted |

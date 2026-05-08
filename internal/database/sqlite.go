@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
@@ -197,4 +198,64 @@ func DemosDir() (string, error) {
 		return "", fmt.Errorf("MkdirAll %q: %w", dir, err)
 	}
 	return dir, nil
+}
+
+// maxRetainedProfiles is the number of heap-watchdog pprof dumps kept on disk.
+// Each dump is typically <50 MB; bounding the count prevents an unattended
+// reproduction loop from filling the user's disk.
+const maxRetainedProfiles = 5
+
+// ProfilesDir returns the app-managed directory where parser heap profile
+// dumps are written. The directory is created on first call. Older profiles
+// beyond maxRetainedProfiles are pruned (oldest first) so disk usage stays
+// bounded across many failed parses.
+func ProfilesDir() (string, error) {
+	base, err := AppDataDir()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(base, "profiles")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("MkdirAll %q: %w", dir, err)
+	}
+	pruneOldProfiles(dir, maxRetainedProfiles)
+	return dir, nil
+}
+
+// pruneOldProfiles deletes the oldest *.pprof files in dir until at most keep
+// remain. Errors are silently ignored: pruning is best-effort housekeeping
+// and shouldn't fail a parse.
+func pruneOldProfiles(dir string, keep int) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	type pprofFile struct {
+		path    string
+		modTime int64
+	}
+	files := make([]pprofFile, 0, len(entries))
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		if filepath.Ext(e.Name()) != ".pprof" {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		files = append(files, pprofFile{
+			path:    filepath.Join(dir, e.Name()),
+			modTime: info.ModTime().UnixNano(),
+		})
+	}
+	if len(files) <= keep {
+		return
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].modTime < files[j].modTime })
+	for i := 0; i < len(files)-keep; i++ {
+		_ = os.Remove(files[i].path)
+	}
 }

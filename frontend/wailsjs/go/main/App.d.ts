@@ -26,6 +26,8 @@ export function GetRoundRoster(arg1:string,arg2:number):Promise<Array<main.Playe
 
 export function GetScoreboard(arg1:string):Promise<Array<main.ScoreboardEntry>>;
 
+export function GetTolerateEntityErrors():Promise<boolean>;
+
 export function GetUniquePlayers(arg1:Array<number>):Promise<Array<main.PlayerInfo>>;
 
 export function GetUniqueWeapons(arg1:Array<number>):Promise<Array<string>>;
@@ -43,3 +45,9 @@ export function ListDemos(arg1:number,arg2:number):Promise<main.DemoListResult>;
 export function LogsDir():Promise<string>;
 
 export function OpenLogsFolder():Promise<void>;
+
+export function OpenProfilesFolder():Promise<void>;
+
+export function ProfilesDir():Promise<string>;
+
+export function SetTolerateEntityErrors(arg1:boolean):Promise<void>;

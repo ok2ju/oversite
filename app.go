@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -48,6 +49,15 @@ type App struct {
 	// parserHeapLimit is the heap-watchdog ceiling sized at startup from host
 	// RAM via internal/sysinfo. 0 lets the parser pick its built-in default.
 	parserHeapLimit uint64
+	// profilesDir is where the heap watchdog writes pprof dumps when it trips.
+	// Resolved at startup via database.ProfilesDir(); empty if the resolution
+	// failed (the watchdog still trips, just without writing a dump).
+	profilesDir string
+	// tolerateEntityErrors flips the parser's IgnorePacketEntitiesPanic flag.
+	// Default false: corrupt entity tables surface as ErrCorruptEntityTable so
+	// the import fails fast instead of running away on memory. Users can opt
+	// into partial-parse tolerance via SetTolerateEntityErrors.
+	tolerateEntityErrors bool
 }
 
 // NewApp opens the database, runs migrations, and returns an App ready to be
@@ -71,6 +81,15 @@ func NewApp() (*App, error) {
 	}
 
 	queries := store.New(db)
+
+	// Best-effort: if the profiles dir can't be resolved, the watchdog still
+	// trips and aborts a runaway parse — it just can't dump a heap profile.
+	// Logging the failure here keeps the error visible without making it fatal.
+	profilesDir, err := database.ProfilesDir()
+	if err != nil {
+		slog.Warn("resolve profiles dir; pprof dumps disabled", "err", err)
+	}
+
 	return &App{
 		ctx:             context.Background(),
 		db:              db,
@@ -78,6 +97,7 @@ func NewApp() (*App, error) {
 		importService:   demo.NewImportService(queries, db, demosDir),
 		demosDir:        demosDir,
 		parserHeapLimit: heapLimits.KillSwitch,
+		profilesDir:     profilesDir,
 	}, nil
 }
 
@@ -124,6 +144,35 @@ func (a *App) OpenLogsFolder() error {
 		return fmt.Errorf("logs directory not initialized")
 	}
 	return logging.Reveal(dir)
+}
+
+// ProfilesDir returns the absolute path to the directory holding heap pprof
+// dumps written by the parser watchdog. Used by the Settings UI so users can
+// locate profiles to attach to a bug report.
+func (a *App) ProfilesDir() string {
+	return a.profilesDir
+}
+
+// OpenProfilesFolder opens the profiles directory in the OS file manager.
+func (a *App) OpenProfilesFolder() error {
+	if a.profilesDir == "" {
+		return fmt.Errorf("profiles directory not initialized")
+	}
+	return logging.Reveal(a.profilesDir)
+}
+
+// GetTolerateEntityErrors returns the current setting for entity-error
+// tolerance. When true the parser swallows entity-table corruption and tries
+// to keep parsing — at the cost of higher peak memory and a higher chance
+// of a watchdog trip on pathological demos.
+func (a *App) GetTolerateEntityErrors() bool {
+	return a.tolerateEntityErrors
+}
+
+// SetTolerateEntityErrors flips the entity-error tolerance flag. Takes effect
+// on the next demo import; in-flight parses keep their original setting.
+func (a *App) SetTolerateEntityErrors(tolerate bool) {
+	a.tolerateEntityErrors = tolerate
 }
 
 // ---------------------------------------------------------------------------
@@ -360,6 +409,8 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		}),
 		demo.WithTickSink(ticksCh),
 		demo.WithHeapLimit(a.parserHeapLimit),
+		demo.WithProfilesDir(a.profilesDir),
+		demo.WithIgnoreEntityPanics(a.tolerateEntityErrors),
 	)
 	ingester := demo.NewTickIngester(a.db, 0)
 
@@ -421,6 +472,14 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 	result.Events = nil
 	result.Lineups = nil
 	result.Rounds = nil
+
+	// debug.FreeOSMemory() forces a full GC + scavenge, signalling the runtime
+	// to madvise/decommit unused pages back to the OS. On macOS/Linux this is
+	// mostly a no-op (the runtime is already aggressive); on Windows it's the
+	// only reliable way to drop the working set after a memory-heavy operation,
+	// since the runtime tends to hold onto pages there. Cost is ~50–200 ms once
+	// per import — well worth it for a flat memory profile in Task Manager.
+	debug.FreeOSMemory()
 
 	if _, err := a.queries.UpdateDemoAfterParse(a.ctx, store.UpdateDemoAfterParseParams{
 		MapName:      result.Header.MapName,

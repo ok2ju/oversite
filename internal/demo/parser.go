@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	demoinfocs "github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs"
 	"github.com/markus-wa/demoinfocs-golang/v5/pkg/demoinfocs/common"
@@ -23,12 +24,16 @@ import (
 // and OOM the host. Hitting these caps fails the parse with a clear error
 // rather than letting the OS kill the app (or the whole machine, on swap).
 //
-// At 200 B/row a 5M-row tick slice is ~1 GB; 500K events at ~250 B is ~125 MB.
-// A 90-min match samples roughly 800K tick rows and emits ~50K events, so
-// these are ~6× and ~10× headroom over the worst legitimate case.
+// At 200 B/row a 5M-row tick slice is ~1 GB; 100K events at ~250 B is ~25 MB.
+// A 90-min match samples roughly 800K tick rows and emits ~30-50K events, so
+// these are ~6× and ~2-3× headroom over the worst legitimate case. The
+// previous 500K event cap was set when entity-panic recovery let runaway
+// demos accumulate millions of events; with the heap watchdog catching
+// pathological cases earlier we don't need that headroom and a tighter cap
+// fails earlier on corrupt demos.
 const (
 	maxTickRows  = 5_000_000
-	maxGameEvent = 500_000
+	maxGameEvent = 100_000
 )
 
 // defaultMaxHeapBytes is the fallback heap ceiling used when the caller didn't
@@ -60,6 +65,14 @@ var ErrEventLimitExceeded = fmt.Errorf("game event limit exceeded (%d): demo may
 // The configured ceiling (in MiB) is included in the message so users can tell
 // from a stale errors.txt which budget was in effect.
 var ErrHeapLimitExceeded = errors.New("heap allocation limit exceeded: demo may be corrupt")
+
+// ErrCorruptEntityTable indicates the underlying demoinfocs library hit an
+// "unable to find existing entity" panic — i.e. the demo's entity table is
+// damaged. Surfaced only when the parser was constructed without
+// WithIgnoreEntityPanics; with that option set, demoinfocs swallows the panic
+// and continues parsing, which has been observed to drive runaway memory
+// growth on pathological demos. See parser.go for the trade-off.
+var ErrCorruptEntityTable = errors.New("demo has a corrupt entity table; parsing was stopped to avoid running out of memory")
 
 // ParseResult is the complete output of parsing a demo file.
 //
@@ -219,14 +232,37 @@ func WithHeapLimit(bytes uint64) Option {
 	}
 }
 
+// WithIgnoreEntityPanics controls whether the underlying demoinfocs parser
+// swallows "unable to find existing entity" panics and continues. Default
+// is false: such panics are surfaced as ErrCorruptEntityTable so the import
+// fails fast instead of accumulating runaway state. Set to true to attempt
+// a partial parse on demos with damaged entity tables — at the risk of
+// driving the parser past its heap ceiling.
+func WithIgnoreEntityPanics(ignore bool) Option {
+	return func(dp *DemoParser) {
+		dp.ignoreEntityPanics = ignore
+	}
+}
+
+// WithProfilesDir sets the directory where the heap watchdog writes pprof
+// dumps when it trips. Empty disables pprof output (the watchdog still trips
+// and aborts the parse, just without a dump for triage).
+func WithProfilesDir(dir string) Option {
+	return func(dp *DemoParser) {
+		dp.profilesDir = dir
+	}
+}
+
 // DemoParser extracts structured data from CS2 .dem files.
 type DemoParser struct {
-	tickInterval int
-	skipWarmup   bool
-	includeBots  bool
-	progressFunc ProgressFunc
-	tickSink     chan<- TickSnapshot
-	maxHeapBytes uint64
+	tickInterval       int
+	skipWarmup         bool
+	includeBots        bool
+	progressFunc       ProgressFunc
+	tickSink           chan<- TickSnapshot
+	maxHeapBytes       uint64
+	ignoreEntityPanics bool
+	profilesDir        string
 }
 
 // NewDemoParser creates a parser with the given options.
@@ -403,18 +439,35 @@ func (dp *DemoParser) Parse(ctx context.Context, r io.Reader) (result *ParseResu
 	}
 	defer func() {
 		if rec := recover(); rec != nil {
+			// Surface the "unable to find existing entity" panic from demoinfocs
+			// as a recognizable, user-actionable error. This panic only escapes
+			// here when ignoreEntityPanics is false; with it set, the library
+			// recovers internally and we never see it.
+			recMsg := fmt.Sprintf("%v", rec)
+			if strings.Contains(recMsg, "unable to find existing entity") {
+				err = fmt.Errorf("%w: %s", ErrCorruptEntityTable, recMsg)
+				return
+			}
 			err = fmt.Errorf("parsing demo: panic: %v", rec)
 		}
 	}()
 
 	// IgnorePacketEntitiesPanic recovers from "unable to find existing entity"
 	// panics that fire on some POV demos when an entity update references an
-	// index missing from p.entities. Without it the whole parse aborts; with
-	// it we lose the offending packet and continue with the next.
+	// index missing from p.entities. With it on, demoinfocs swallows the
+	// panic and keeps parsing — which on a pathological demo means an
+	// unbounded internal accumulation loop that drove a 13 GB Windows
+	// working-set blow-up before the heap watchdog could cancel the parse.
+	// Default off: surface the panic as ErrCorruptEntityTable so the import
+	// fails fast. Callers that need partial-parse tolerance can opt in via
+	// WithIgnoreEntityPanics(true).
+	//
 	// IgnoreErrBombsiteIndexNotFound is the analogous flag for game events
-	// that reference an unknown bombsite index — also non-fatal.
+	// that reference an unknown bombsite index — left on unconditionally
+	// because it just skips a malformed bomb event and doesn't accumulate
+	// state.
 	config := demoinfocs.DefaultParserConfig
-	config.IgnorePacketEntitiesPanic = true
+	config.IgnorePacketEntitiesPanic = dp.ignoreEntityPanics
 	config.IgnoreErrBombsiteIndexNotFound = true
 	p := demoinfocs.NewParserWithConfig(r, config)
 	defer func() {
@@ -427,6 +480,18 @@ func (dp *DemoParser) Parse(ctx context.Context, r io.Reader) (result *ParseResu
 		ctx:      ctx,
 		tickSink: dp.tickSink,
 	}
+
+	// Independent goroutine watchdog: polls runtime.ReadMemStats every 500 ms
+	// regardless of whether the FrameDone handler has yielded. Catches the
+	// pre-frame phase (string tables, entity baselines, DataTable decode)
+	// where the in-handler heartbeat at parser.go:797 cannot fire.
+	wd := newHeapWatchdog(dp.maxHeapBytes, 500*time.Millisecond, dp.profilesDir, 0,
+		func(trip error) {
+			state.limitExceeded = trip
+			p.Cancel()
+		})
+	go wd.Run()
+	defer wd.Stop()
 
 	dp.registerHandlers(p, state)
 

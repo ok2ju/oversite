@@ -1,7 +1,7 @@
 # Demo Parser
 
 **Library:** `github.com/markus-wa/demoinfocs-golang/v5`
-**Related:** [[sqlite-wal]] · [[wails-bindings]] · [ADR-0015](../decisions/0015-streaming-parse-ingest-pipeline.md) · [plans/p2-auth-demo-pipeline](../plans/p2-auth-demo-pipeline.md)
+**Related:** [[sqlite-wal]] · [[wails-bindings]] · [ADR-0015](../decisions/0015-streaming-parse-ingest-pipeline.md) · [ADR-0017](../decisions/0017-parser-defense-in-depth.md) · [plans/p2-auth-demo-pipeline](../plans/p2-auth-demo-pipeline.md)
 
 > Note: this page describes the parser as it runs against MR12 competitive CS2 demos (24 regulation rounds + optional overtime, no bots). Casual / bot-laden demos are out of scope.
 
@@ -197,3 +197,29 @@ After `parser.Parse()` returns, the demoinfocs parser is closed but its internal
 ### Cross-platform RAM detection without a heavy dep
 
 `golang.org/x/sys/windows` v0.42.0 doesn't expose `GlobalMemoryStatusEx`, so the Windows path resolves it through `windows.NewLazySystemDLL("kernel32.dll").NewProc("GlobalMemoryStatusEx")` with a hand-declared `MEMORYSTATUSEX` struct. Darwin uses `unix.SysctlUint64("hw.memsize")`; Linux uses `unix.Sysinfo`. Detection failure returns `(0, err)`; callers fall back to the conservative floor (1 GiB soft / 1.5 GiB hard) — never fatal.
+
+## Heap watchdog v2: independent goroutine (2026-05-08)
+
+> Decision rationale and rejected alternatives: [ADR-0017](../decisions/0017-parser-defense-in-depth.md).
+
+The static heap ceiling from the previous section still didn't fire on a pathological 325 MB demo that drove the working set to 13 GB. Two structural holes the in-handler heartbeat couldn't close:
+
+### The FrameDone heartbeat is blind to pre-frame work
+
+`p.RegisterEventHandler(func(_ events.FrameDone) {...})` only runs after the demoinfocs library has decoded its first frame. String tables, entity baselines, DataTable decoding, and the SendTable bootstrap all happen *before* the first FrameDone, and that's exactly the path where corrupt demos blow up — the heartbeat never fires, the watchdog can't trip, and the heap is gone before the user sees anything. Fix: `internal/demo/heap_watchdog.go` spawns an independent goroutine in `Parse()` that polls `runtime.ReadMemStats` every 500 ms regardless of dispatcher state. On trip it dumps a pprof heap profile to `{AppData}/oversite/profiles/`, calls a stop callback (sets `state.limitExceeded`, `Cancel()`s the parser), and stops itself. The FrameDone heartbeat stays as belt-and-braces for healthy parses — it logs every 10K frames and doubles up on the limit check.
+
+### `IgnorePacketEntitiesPanic = true` is a footgun
+
+Set unconditionally in commit `2329a1d` to stop crashes on certain Windows POV demos. With it on, demoinfocs swallows "unable to find existing entity" panics and continues — which on a pathological demo means an unbounded internal accumulation loop the watchdog couldn't catch fast enough on Windows. The fix in `2329a1d` traded a visible crash for a silent 13 GB blow-up. Now opt-in via `WithIgnoreEntityPanics(bool)` (default **false**); the panic recovery in `Parse` checks the message and returns `ErrCorruptEntityTable` so the import fails fast with a clear user-facing error. Users who *need* partial-parse tolerance can flip the bool via the Settings binding (`SetTolerateEntityErrors`).
+
+### Windows holds onto pages even after Go GC
+
+`runtime.GC()` between phases collects unreachable heap, but on Windows the runtime is slow to madvise/decommit those pages back to the OS — Task Manager's "Memory (active private working set)" stays high even after the Go heap shrinks. `debug.FreeOSMemory()` after `result.Events = nil` forces a full GC + scavenge and is the only reliable way to drop the working set post-parse. Cost is ~50–200 ms once per import; mostly a no-op on macOS/Linux where the runtime is already aggressive. Watchdog also trips when `WorkingSet > 1.5× heap limit` to catch the case where Go thinks the heap is fine but the OS-visible memory has run away.
+
+### `golang.org/x/sys/windows` doesn't expose `GetProcessMemoryInfo`
+
+Same gap as `GlobalMemoryStatusEx`. Wire it via `windows.NewLazySystemDLL("psapi.dll").NewProc("GetProcessMemoryInfo")` with a hand-declared `PROCESS_MEMORY_COUNTERS_EX` struct (see `internal/sysinfo/procmem_windows.go`). `SIZE_T` is `uintptr`; set `counters.CB = sizeof(struct)` before the call. Non-Windows (`procmem_other.go`) returns zeros so the watchdog falls back to `MemStats`.
+
+### `maxGameEvent` cap dropped 500K → 100K
+
+The 500K cap was set when entity-panic recovery let runaway demos accumulate millions of events. With the goroutine watchdog catching pathological cases earlier, 100K is still 2–3× the worst legitimate match and fails sooner on corrupt demos.

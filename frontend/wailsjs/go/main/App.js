@@ -50,6 +50,10 @@ export function GetScoreboard(arg1) {
   return window['go']['main']['App']['GetScoreboard'](arg1);
 }
 
+export function GetTolerateEntityErrors() {
+  return window['go']['main']['App']['GetTolerateEntityErrors']();
+}
+
 export function GetUniquePlayers(arg1) {
   return window['go']['main']['App']['GetUniquePlayers'](arg1);
 }
@@ -84,4 +88,16 @@ export function LogsDir() {
 
 export function OpenLogsFolder() {
   return window['go']['main']['App']['OpenLogsFolder']();
+}
+
+export function OpenProfilesFolder() {
+  return window['go']['main']['App']['OpenProfilesFolder']();
+}
+
+export function ProfilesDir() {
+  return window['go']['main']['App']['ProfilesDir']();
+}
+
+export function SetTolerateEntityErrors(arg1) {
+  return window['go']['main']['App']['SetTolerateEntityErrors'](arg1);
 }

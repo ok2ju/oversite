@@ -6,6 +6,18 @@ Format: `YYYY-MM-DD — <summary>` with links to affected pages.
 
 ---
 
+## 2026-05-08 — Independent heap watchdog + entity-panic opt-in
+
+Follow-up to the Windows 16 GB OOM safeguards: the static watchdog still missed the failure mode on a pathological 325 MB demo that drove the working set to 13 GB before the FrameDone heartbeat could fire. Two structural changes:
+
+- **`internal/demo/heap_watchdog.go`** (new): independent goroutine polls `runtime.ReadMemStats` every 500 ms outside the demoinfocs FrameDone handler, so the kill-switch is enforced even while the parser is stuck in pre-frame work (string tables, entity baselines, DataTable decode). On trip, dumps a pprof heap profile to `{AppData}/oversite/profiles/heap-{demoID}-{ts}.pprof`, sets `state.limitExceeded`, and `Cancel()`s the parser. Soft-warning at 50% of the limit fires once. Windows also trips when `WorkingSet > 1.5× limit` (the Go runtime is slow to madvise/decommit pages back to the OS there). In-handler heartbeat retained as belt-and-braces for healthy parses.
+- **`internal/demo/parser.go`**: `IgnorePacketEntitiesPanic` is now opt-in via new `WithIgnoreEntityPanics(bool)` option (default **false**). The previous unconditional `true` traded a visible crash for an unbounded internal accumulation loop on corrupt demos. "unable to find existing entity" panics now surface as new `ErrCorruptEntityTable` with a user-facing message. The `maxGameEvent` cap drops 500K → 100K — still 2–3× the worst legitimate case, but fails earlier on corrupt demos.
+- **`internal/sysinfo/procmem*.go`** (new): `ProcessMemory()` returns OS-reported `WorkingSetSize`/`PrivateUsage` via `psapi!GetProcessMemoryInfo` (Windows only; same `NewLazySystemDLL` pattern as `GlobalMemoryStatusEx`). Non-Windows returns zeros; watchdog falls back to `MemStats` only.
+- **`internal/database/sqlite.go`**: new `ProfilesDir()` parallel to `DemosDir()`; prunes oldest *.pprof files keeping the last 5.
+- **`app.go`**: `debug.FreeOSMemory()` after `result.Events = nil` so Windows actually drops the working set after a memory-heavy parse (~50–200 ms cost, mostly no-op on macOS/Linux). New Wails bindings `ProfilesDir()`, `OpenProfilesFolder()`, `GetTolerateEntityErrors()`, `SetTolerateEntityErrors()`.
+
+Refs: [[knowledge/demo-parser]] (updated), [[knowledge/wails-bindings]] (updated). ADR candidate: defense-in-depth watchdog + entity-panic default flip.
+
 ## 2026-05-08 — Windows 16 GB OOM safeguards
 
 User report: demo import on a 16 GB Windows box drove the system to 99% RAM and froze it. The static 4 GiB parser watchdog only fired after the OS was already paging, and no `GOMEMLIMIT` meant the runtime let heap grow to ~2× live set during pre-fault working-set spikes.
