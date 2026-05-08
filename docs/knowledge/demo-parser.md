@@ -233,3 +233,27 @@ Same gap as `GlobalMemoryStatusEx`. Wire it via `windows.NewLazySystemDLL("psapi
 ### `maxGameEvent` cap dropped 500K → 100K
 
 The 500K cap was set when entity-panic recovery let runaway demos accumulate millions of events. With the goroutine watchdog catching pathological cases earlier, 100K is still 2–3× the worst legitimate match and fails sooner on corrupt demos.
+
+## File-close-on-retry + demoinfocs v5.2.0 (2026-05-08)
+
+### `gobitread.BitReader.Close` closes the underlying reader
+
+`gobitread/bitread.go:99` type-asserts `BitReader.underlying` to `io.ReadCloser` and calls `Close()` on it if the assertion succeeds. `*os.File` satisfies that interface, so our deferred `p.Close()` in `internal/demo/parser.go` was closing the caller's file. The auto-retry path in `app.go parseDemo` then failed `f.Seek(0, io.SeekStart)` with `"file already closed"` — every Windows retry on `ErrCorruptEntityTable` was a silent no-op. Fix: wrap the reader before handing it to demoinfocs:
+
+```go
+p := demoinfocs.NewParserWithConfig(struct{ io.Reader }{r}, config)
+```
+
+`TestParse_DoesNotCloseReader` (in `parser_test.go`) calls `Parse` with a close-tracking `io.ReadCloser` and asserts `Close` is never invoked. If a future change strips the wrapper, the test fails immediately.
+
+### Upgraded `demoinfocs-golang/v5` to v5.2.0
+
+Bumped from `v5.1.2`. Three releases of relevant fixes:
+
+| Version | Key changes |
+|---------|-------------|
+| v5.1.3 | `bindBomb` nil-pointer fix; broadcast parsing fix; protobuf refresh |
+| v5.1.4 | **AnimGraph 2 demo support** — newer CS2 demos started failing on v5.1.2 with "unable to find existing entity"; this was the most likely actual root cause of the recent Windows import reports |
+| v5.2.0 | `CGlobalSymbol` decode crash fix; infinite-recursion fix in `getThrownGrenade` (ControlledBot circular reference — possibly explains some heap-watchdog trips); **~30-35% parse speedup**; `PlayerHurt` world-vs-bomb damage classification fix; new `Player.PositionEyes()` helper |
+
+Public API unchanged for our usage. The v5.2.0 fixes don't replace the watchdog/auto-retry/heap-budget defenses — they reduce how often those defenses are triggered.

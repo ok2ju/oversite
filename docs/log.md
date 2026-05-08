@@ -6,6 +6,14 @@ Format: `YYYY-MM-DD — <summary>` with links to affected pages.
 
 ---
 
+## 2026-05-08 — File-close-on-retry fix + demoinfocs v5.1.2 → v5.2.0
+
+The corrupt-entity auto-retry added earlier today never actually retried on Windows: `gobitread.BitReader.Close` type-asserts the reader to `io.ReadCloser` and closes our `*os.File`, so the second attempt's `f.Seek(0, ...)` returned "file already closed". Wrap the reader in `struct{ io.Reader }{r}` inside `Parse` to hide `Close` from demoinfocs; new `TestParse_DoesNotCloseReader` pins the contract.
+
+Bumped `demoinfocs-golang/v5` to `v5.2.0` — pulls in v5.1.4 AnimGraph 2 demo support (likely the actual cause of the recent Windows import failures, per a user report after upgrade), v5.1.3 `bindBomb` nil-deref fix, plus v5.2.0 `CGlobalSymbol` crash fix, `getThrownGrenade` infinite-recursion fix, and ~30-35% parse speedup. No public API breaks.
+
+Refs: [[knowledge/demo-parser]] (updated).
+
 ## 2026-05-08 — Auto-retry on ErrCorruptEntityTable
 
 Follow-up to the entity-panic opt-in earlier today: a Windows v0.1.8 user hit `ErrCorruptEntityTable` on a corrupt-entity demo (`unable to find existing entity 1647731180`) with no way forward — the `SetTolerateEntityErrors` binding exists in `frontend/wailsjs/go/main/App.d.ts` but no UI calls it. `app.go parseDemo` now auto-retries once with `WithIgnoreEntityPanics(true)` after a first attempt fails with `ErrCorruptEntityTable`; the heap watchdog and tick/event caps still backstop the runaway-memory case the flag was kept off to avoid.
