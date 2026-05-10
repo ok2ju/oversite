@@ -27,19 +27,26 @@ oversite/
 ├── types.go                        # Domain types (exposed via Wails bindings)
 ├── go.mod                          # Root Go module
 ├── wails.json                      # Wails project config
+├── cmd/                            # CLI entry points (gen-appicon, spike-parser)
 ├── internal/
 │   ├── database/                   # SQLite connection, migration runner
 │   ├── demo/                       # Demo parser, importer, stats, events, rounds
+│   ├── logging/                    # Structured logger setup
 │   ├── store/                      # sqlc generated code (SQLite)
+│   ├── sysinfo/                    # OS / runtime info helpers
 │   └── testutil/                   # Shared test helpers
 ├── migrations/                     # SQLite migration files (embedded in binary)
 ├── queries/                        # sqlc SQL files
 ├── testdata/                       # Golden files for parser tests
 ├── frontend/
 │   ├── src/
+│   │   ├── app/                    # Global CSS + favicon
 │   │   ├── routes/                 # react-router-dom pages
 │   │   ├── components/             # UI, viewer, strat, layout
+│   │   │   ├── brand/              # Logo, brand marks
 │   │   │   ├── demos/              # Demo cards, list, drop zone, upload
+│   │   │   ├── heatmap/            # Heatmap canvas + controls
+│   │   │   ├── layout/             # App shell, navigation
 │   │   │   ├── providers/          # Query, Theme providers
 │   │   │   ├── ui/                 # shadcn/ui primitives
 │   │   │   ├── viewer/             # 2D viewer canvas, controls, scoreboard
@@ -70,6 +77,9 @@ go build ./...           # Build all Go code
 go test -race ./...      # Run unit tests (with race detector)
 golangci-lint run ./...    # Lint (installed separately, not a go tool)
 make sqlc                # Regenerate Go code from SQL (uses `go tool sqlc generate`)
+make migrate-create name=<name>   # Create numbered up/down migration pair
+make gen-appicon         # Regenerate build/appicon.png
+make db-reset            # Wipe SQLite data (keeps schema/migration history)
 
 # Frontend (in frontend/)
 pnpm dev                 # Dev server on :3000
@@ -146,6 +156,7 @@ Before writing or modifying any test file, you **must**:
 - `/create-migration <name>` -- Creates numbered golang-migrate up/down SQL file pair
 - `/gen-test <file>` -- Generates test file for any Go or TS source file
 - `/ingest-session` -- Summarizes the current session: appends to `docs/log.md` and proposes updates to `docs/knowledge/` pages
+- `/gan` -- Adversarial dialectic stress-tester (Generator vs. Discriminator) for designs/specs
 
 ### MCP Servers (`.mcp.json`)
 - **Playwright** -- Browser automation for visual testing and debugging
