@@ -1,13 +1,13 @@
 export namespace main {
-
+	
 	export class AnalysisStatus {
 	    demo_id: string;
 	    status: string;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new AnalysisStatus(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.demo_id = source["demo_id"];
@@ -282,31 +282,17 @@ export namespace main {
 	    }
 	}
 	
-	export class PlayerInfo {
-	    steam_id: string;
-	    player_name: string;
-
-	    static createFrom(source: any = {}) {
-	        return new PlayerInfo(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.steam_id = source["steam_id"];
-	        this.player_name = source["player_name"];
-	    }
-	}
 	export class PlayerAnalysis {
 	    steam_id: string;
 	    overall_score: number;
 	    trade_pct: number;
 	    avg_trade_ticks: number;
 	    extras: Record<string, any>;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new PlayerAnalysis(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.steam_id = source["steam_id"];
@@ -314,6 +300,20 @@ export namespace main {
 	        this.trade_pct = source["trade_pct"];
 	        this.avg_trade_ticks = source["avg_trade_ticks"];
 	        this.extras = source["extras"];
+	    }
+	}
+	export class PlayerInfo {
+	    steam_id: string;
+	    player_name: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PlayerInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.steam_id = source["steam_id"];
+	        this.player_name = source["player_name"];
 	    }
 	}
 	export class UtilityStats {
@@ -493,6 +493,24 @@ export namespace main {
 	    }
 	}
 	
+	export class PlayerRoundEntry {
+	    steam_id: string;
+	    round_number: number;
+	    trade_pct: number;
+	    extras: Record<string, any>;
+	
+	    static createFrom(source: any = {}) {
+	        return new PlayerRoundEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.steam_id = source["steam_id"];
+	        this.round_number = source["round_number"];
+	        this.trade_pct = source["trade_pct"];
+	        this.extras = source["extras"];
+	    }
+	}
 	export class Round {
 	    id: string;
 	    round_number: number;

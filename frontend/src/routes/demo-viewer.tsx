@@ -13,6 +13,7 @@ import { TeamBars } from "@/components/viewer/team-bars"
 import { KillLog } from "@/components/viewer/kill-log"
 import { MistakeList } from "@/components/viewer/mistake-list"
 import { PlayerStatsPanel } from "@/components/viewer/player-stats-panel"
+import { DemoRouteTabs } from "@/components/viewer/demo-route-tabs"
 
 export default function DemoViewerPage() {
   const { id } = useParams<{ id: string }>()
@@ -84,6 +85,9 @@ export default function DemoViewerPage() {
       <Scoreboard visible={scoreboardVisible} />
       <MistakeList />
       <PlayerStatsPanel />
+      <div className="absolute right-3 top-3 z-40">
+        <DemoRouteTabs demoId={String(demo.id)} />
+      </div>
     </div>
   )
 }

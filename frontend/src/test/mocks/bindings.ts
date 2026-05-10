@@ -345,6 +345,22 @@ export const mockAppBindings = {
     .fn<(demoId: string) => Promise<{ demo_id: string; status: string }>>()
     .mockResolvedValue({ demo_id: "", status: "ready" }),
 
+  GetPlayerRoundAnalysis: vi
+    .fn<
+      (
+        demoId: string,
+        steamId: string,
+      ) => Promise<
+        Array<{
+          steam_id: string
+          round_number: number
+          trade_pct: number
+          extras: Record<string, unknown> | null
+        }>
+      >
+    >()
+    .mockResolvedValue([]),
+
   RecomputeAnalysis: vi
     .fn<(demoId: string) => Promise<void>>()
     .mockResolvedValue(undefined),

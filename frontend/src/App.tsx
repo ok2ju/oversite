@@ -6,6 +6,7 @@ import RootLayout from "@/routes/root"
 
 const DemosPage = lazy(() => import("@/routes/demos"))
 const DemoViewerPage = lazy(() => import("@/routes/demo-viewer"))
+const DemoAnalysisPage = lazy(() => import("@/routes/demo-analysis"))
 const HeatmapsPage = lazy(() => import("@/routes/heatmaps"))
 const StratsPage = lazy(() => import("@/routes/strats"))
 const StratBoardPage = lazy(() => import("@/routes/strat-board"))
@@ -31,6 +32,10 @@ function App() {
                 <Route index element={<Navigate to="/demos" replace />} />
                 <Route path="demos" element={<DemosPage />} />
                 <Route path="demos/:id" element={<DemoViewerPage />} />
+                <Route
+                  path="demos/:id/analysis"
+                  element={<DemoAnalysisPage />}
+                />
                 <Route path="heatmaps" element={<HeatmapsPage />} />
                 <Route path="strats" element={<StratsPage />} />
                 <Route path="strats/:id" element={<StratBoardPage />} />

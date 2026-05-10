@@ -54,6 +54,10 @@ export function GetPlayerMatchStats(arg1, arg2) {
   return window['go']['main']['App']['GetPlayerMatchStats'](arg1, arg2);
 }
 
+export function GetPlayerRoundAnalysis(arg1, arg2) {
+  return window['go']['main']['App']['GetPlayerRoundAnalysis'](arg1, arg2);
+}
+
 export function GetRoundLoadouts(arg1) {
   return window['go']['main']['App']['GetRoundLoadouts'](arg1);
 }

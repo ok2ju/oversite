@@ -1,13 +1,18 @@
 // Package analysis runs post-ingest mechanical-analysis rules over a parsed
 // demo and persists the resulting findings ("mistakes") to the
-// analysis_mistakes table. Each rule lives in mistakes.go; the aggregator in
-// this file wires them together.
+// analysis_mistakes table, alongside per-(demo, player) and
+// per-(demo, player, round) summary rows in player_match_analysis and
+// player_round_analysis. Each rule lives in mistakes.go; the aggregators in
+// this file wire them together.
 //
 // Slice 1 shipped the no_trade_death rule. Slice 3 adds
-// died_with_util_unused. Subsequent slices add rules without changing the
-// public surface — Run keeps returning the combined []Mistake list,
-// stably ordered by (Tick ASC, SteamID ASC) so the persisted order is
-// independent of rule-source order.
+// died_with_util_unused. Slice 5 adds RunMatchSummary (per-(demo, player)
+// aggregates). Slice 7 adds RunPlayerRoundAnalysis (per-(demo, player, round)
+// breakdowns) so the standalone analysis page can render per-round drilldowns.
+// Subsequent slices add rules without changing the public surface — Run keeps
+// returning the combined []Mistake list, stably ordered by
+// (Tick ASC, SteamID ASC) so the persisted order is independent of
+// rule-source order.
 package analysis
 
 import (
@@ -57,6 +62,21 @@ type MatchSummaryRow struct {
 	TradePct      float64        `json:"trade_pct"`
 	AvgTradeTicks float64        `json:"avg_trade_ticks"`
 	Extras        map[string]any `json:"extras,omitempty"`
+}
+
+// PlayerRoundRow is the per-(demo, player, round) aggregate persisted to
+// player_round_analysis. Slice 7 only ships the trade column; subsequent
+// slices add other categories under the same shape — anything that doesn't
+// fit a column lives in Extras (mirrors MatchSummaryRow).
+//
+// A round in which the player had zero eligible own-deaths produces no row
+// (absent ↔ nothing to report); the chart renderer fills the gap with a
+// flat zero-height bar so the match cadence still reads top-to-bottom.
+type PlayerRoundRow struct {
+	SteamID     string         `json:"steam_id"`
+	RoundNumber int            `json:"round_number"`
+	TradePct    float64        `json:"trade_pct"`
+	Extras      map[string]any `json:"extras,omitempty"`
 }
 
 // Run executes every analyzer rule against the parse result and returns the
@@ -123,6 +143,48 @@ func RunMatchSummary(result *demo.ParseResult, roundMap map[int]int64) ([]MatchS
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		return out[i].SteamID < out[j].SteamID
+	})
+	return out, nil
+}
+
+// RunPlayerRoundAnalysis computes one row per (player, round) where the
+// player had at least one eligible own-death. Slice 7 only fills TradePct;
+// subsequent slices fold in additional categories under the same shape.
+// Players / rounds with zero eligible deaths are absent from the returned
+// slice (no row is persisted — mirrors RunMatchSummary's contract).
+//
+// Rows are returned sorted by (SteamID ASC, RoundNumber ASC) for stable
+// persistence and test-friendly comparisons.
+func RunPlayerRoundAnalysis(result *demo.ParseResult, roundMap map[int]int64) ([]PlayerRoundRow, error) {
+	_ = roundMap // reserved for rules that look up DB round IDs.
+	if result == nil {
+		return nil, nil
+	}
+	tickRate := result.Header.TickRate
+	if tickRate <= 0 {
+		tickRate = 64
+	}
+
+	roundTrades := computeRoundTrades(result.Events, result.Rounds, tickRate)
+	if len(roundTrades) == 0 {
+		return nil, nil
+	}
+
+	out := make([]PlayerRoundRow, 0, len(roundTrades))
+	for steamID, byRound := range roundTrades {
+		for roundNumber, ts := range byRound {
+			out = append(out, PlayerRoundRow{
+				SteamID:     steamID,
+				RoundNumber: roundNumber,
+				TradePct:    ts.TradePct,
+			})
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].SteamID != out[j].SteamID {
+			return out[i].SteamID < out[j].SteamID
+		}
+		return out[i].RoundNumber < out[j].RoundNumber
 	})
 	return out, nil
 }

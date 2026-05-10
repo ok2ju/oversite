@@ -1,0 +1,22 @@
+[
+  {
+    "steam_id": "alice",
+    "round_number": 1,
+    "trade_pct": 1
+  },
+  {
+    "steam_id": "alice",
+    "round_number": 2,
+    "trade_pct": 0
+  },
+  {
+    "steam_id": "bob",
+    "round_number": 1,
+    "trade_pct": 0
+  },
+  {
+    "steam_id": "enemy1",
+    "round_number": 1,
+    "trade_pct": 1
+  }
+]

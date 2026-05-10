@@ -28,6 +28,8 @@ export function GetPlayerAnalysis(arg1:string,arg2:string):Promise<main.PlayerAn
 
 export function GetPlayerMatchStats(arg1:string,arg2:string):Promise<main.PlayerMatchStats>;
 
+export function GetPlayerRoundAnalysis(arg1:string,arg2:string):Promise<Array<main.PlayerRoundEntry>>;
+
 export function GetRoundLoadouts(arg1:string):Promise<Record<number, Array<main.RoundLoadoutEntry>>>;
 
 export function GetRoundRoster(arg1:string,arg2:number):Promise<Array<main.PlayerRosterEntry>>;

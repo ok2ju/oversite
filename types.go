@@ -246,6 +246,18 @@ type PlayerAnalysis struct {
 	Extras        map[string]any `json:"extras"`
 }
 
+// PlayerRoundEntry is one row from the player_round_analysis table — the
+// per-(demo, player, round) breakdown that backs the standalone analysis
+// page's per-round bar chart. Slice 7 only populates TradePct; subsequent
+// slices fold in additional category columns under the same shape. Extras is
+// nullable to mirror MistakeEntry / PlayerAnalysis.
+type PlayerRoundEntry struct {
+	SteamID     string         `json:"steam_id"`
+	RoundNumber int            `json:"round_number"`
+	TradePct    float64        `json:"trade_pct"`
+	Extras      map[string]any `json:"extras"`
+}
+
 // AnalysisStatus reports whether mechanical-analysis rows exist for a demo.
 // Status is one of:
 //   - "imported"  — demo row exists, parser hasn't run yet

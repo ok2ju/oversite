@@ -324,6 +324,251 @@ func TestPersistMatchSummary_IsIdempotent(t *testing.T) {
 	}
 }
 
+func TestRunPlayerRoundAnalysis_Golden(t *testing.T) {
+	var input fixtureInput
+	testutil.LoadFixture(t, "analysis/round_trades/input.json", &input)
+
+	got, err := analysis.RunPlayerRoundAnalysis(input.toParseResult(), nil)
+	if err != nil {
+		t.Fatalf("analysis.RunPlayerRoundAnalysis: %v", err)
+	}
+
+	encoded, err := json.MarshalIndent(got, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal round rows: %v", err)
+	}
+	encoded = append(encoded, '\n')
+
+	testutil.CompareGolden(t, "analysis/round_trades/expected.golden.json", encoded)
+}
+
+// TestRunPlayerRoundAnalysis_AggregatesToMatchSummary asserts that summing the
+// per-round trade counts back to the per-player level reproduces
+// RunMatchSummary's TradePct. Catches accidental divergence between
+// computeRoundTrades and computeTradesSummary on the predicate boundary
+// (friendly fire, self-kill, world).
+func TestRunPlayerRoundAnalysis_AggregatesToMatchSummary(t *testing.T) {
+	var input fixtureInput
+	testutil.LoadFixture(t, "analysis/trades_summary/input.json", &input)
+	parse := input.toParseResult()
+
+	matchRows, err := analysis.RunMatchSummary(parse, nil)
+	if err != nil {
+		t.Fatalf("RunMatchSummary: %v", err)
+	}
+	roundRows, err := analysis.RunPlayerRoundAnalysis(parse, nil)
+	if err != nil {
+		t.Fatalf("RunPlayerRoundAnalysis: %v", err)
+	}
+
+	// We rebuild trade_pct from the per-round rows by replaying the same
+	// events tick-by-tick but bucketed by (player, round). The match-level
+	// row's TradePct is traded_deaths / own_deaths across the whole match;
+	// the round breakdown collapses back to that ratio iff the predicates
+	// agree row-for-row.
+	type counts struct{ owns, trades int }
+	tickRate := parse.Header.TickRate
+	if tickRate <= 0 {
+		tickRate = 64
+	}
+	windowTicks := int(analysis.TradeWindowSeconds * tickRate)
+	matchCounts := make(map[string]*counts, len(matchRows))
+	for i, ev := range parse.Events {
+		if ev.Type != "kill" || ev.VictimSteamID == "" || ev.AttackerSteamID == "" {
+			continue
+		}
+		if ev.AttackerSteamID == ev.VictimSteamID {
+			continue
+		}
+		k, _ := ev.ExtraData.(*demo.KillExtra)
+		if k == nil || k.VictimTeam == "" {
+			continue
+		}
+		if k.AttackerTeam != "" && k.AttackerTeam == k.VictimTeam {
+			continue
+		}
+		c, ok := matchCounts[ev.VictimSteamID]
+		if !ok {
+			c = &counts{}
+			matchCounts[ev.VictimSteamID] = c
+		}
+		c.owns++
+		// Was this death traded? Forward walk identical to trades.go.
+		limit := ev.Tick + windowTicks
+		for j := i + 1; j < len(parse.Events); j++ {
+			next := parse.Events[j]
+			if next.Tick > limit {
+				break
+			}
+			if next.Type != "kill" || next.AttackerSteamID == "" {
+				continue
+			}
+			if next.AttackerSteamID == ev.VictimSteamID {
+				continue
+			}
+			if next.VictimSteamID != ev.AttackerSteamID {
+				continue
+			}
+			nk, _ := next.ExtraData.(*demo.KillExtra)
+			if nk == nil || nk.AttackerTeam != k.VictimTeam {
+				continue
+			}
+			c.trades++
+			break
+		}
+	}
+
+	// Re-derive per-player totals from the round rows by summing
+	// (round_pct * 1) across the rows — but PlayerRoundRow only stores
+	// trade_pct, not the raw counts. Instead, re-run RunPlayerRoundAnalysis's
+	// fixture path: each round contributes 1 own death (the fixture has at
+	// most 1 eligible death per (player, round) pair). When that doesn't
+	// hold the test would falsely pass — assert the precondition explicitly.
+	for _, row := range roundRows {
+		// trade_pct in {0, 1} for fixtures with one death per (player, round).
+		if row.TradePct != 0 && row.TradePct != 1 {
+			t.Fatalf("fixture invariant broken: row %+v has fractional trade_pct; this test assumes one death per (player, round) bucket", row)
+		}
+	}
+
+	// Now collapse round rows: each row contributes 1 own death; trade_pct == 1
+	// indicates a traded death.
+	derived := make(map[string]*counts, len(roundRows))
+	for _, row := range roundRows {
+		c, ok := derived[row.SteamID]
+		if !ok {
+			c = &counts{}
+			derived[row.SteamID] = c
+		}
+		c.owns++
+		if row.TradePct == 1 {
+			c.trades++
+		}
+	}
+
+	for _, mr := range matchRows {
+		matchTotal := matchCounts[mr.SteamID]
+		if matchTotal == nil {
+			t.Errorf("matchRows references %q but raw event walk found no eligible deaths", mr.SteamID)
+			continue
+		}
+		if matchTotal.owns == 0 {
+			continue
+		}
+		want := float64(matchTotal.trades) / float64(matchTotal.owns)
+		if mr.TradePct != want {
+			t.Errorf("match TradePct mismatch for %q: row=%v, recomputed=%v", mr.SteamID, mr.TradePct, want)
+		}
+
+		got := derived[mr.SteamID]
+		if got == nil {
+			if matchTotal.owns > 0 {
+				t.Errorf("round rows missing %q (match has %d eligible deaths)", mr.SteamID, matchTotal.owns)
+			}
+			continue
+		}
+		gotPct := float64(got.trades) / float64(got.owns)
+		if gotPct != mr.TradePct {
+			t.Errorf("round-aggregate TradePct mismatch for %q: rounds=%v, match=%v", mr.SteamID, gotPct, mr.TradePct)
+		}
+	}
+}
+
+func TestPersistPlayerRoundAnalysis_IsIdempotent(t *testing.T) {
+	q, db := testutil.NewTestQueries(t)
+	ctx := context.Background()
+
+	d, err := q.CreateDemo(ctx, store.CreateDemoParams{
+		MapName:  "de_dust2",
+		FilePath: "/tmp/persist_round_analysis.dem",
+		FileSize: 1,
+		Status:   "imported",
+	})
+	if err != nil {
+		t.Fatalf("CreateDemo: %v", err)
+	}
+
+	first := []analysis.PlayerRoundRow{
+		{SteamID: "alice", RoundNumber: 1, TradePct: 1.0},
+		{SteamID: "alice", RoundNumber: 2, TradePct: 0.0},
+		{SteamID: "bob", RoundNumber: 1, TradePct: 0.5},
+	}
+	if err := analysis.PersistPlayerRoundAnalysis(ctx, db, d.ID, first); err != nil {
+		t.Fatalf("PersistPlayerRoundAnalysis (first): %v", err)
+	}
+
+	// Re-running with the same input must converge on the same rows
+	// (idempotent upsert, no duplicates on (demo, steam, round)).
+	if err := analysis.PersistPlayerRoundAnalysis(ctx, db, d.ID, first); err != nil {
+		t.Fatalf("PersistPlayerRoundAnalysis (re-run): %v", err)
+	}
+
+	aliceRows, err := q.GetPlayerRoundAnalysisByDemoAndPlayer(ctx, store.GetPlayerRoundAnalysisByDemoAndPlayerParams{
+		DemoID:  d.ID,
+		SteamID: "alice",
+	})
+	if err != nil {
+		t.Fatalf("GetPlayerRoundAnalysisByDemoAndPlayer(alice): %v", err)
+	}
+	if len(aliceRows) != 2 {
+		t.Fatalf("expected 2 alice rows, got %d", len(aliceRows))
+	}
+	if aliceRows[0].RoundNumber != 1 || aliceRows[0].TradePct != 1.0 {
+		t.Errorf("aliceRows[0] = %+v, want {round=1, trade_pct=1.0}", aliceRows[0])
+	}
+	if aliceRows[1].RoundNumber != 2 || aliceRows[1].TradePct != 0.0 {
+		t.Errorf("aliceRows[1] = %+v, want {round=2, trade_pct=0.0}", aliceRows[1])
+	}
+
+	// Replace alice with new metrics; bob should drop out (delete-then-upsert).
+	second := []analysis.PlayerRoundRow{
+		{SteamID: "alice", RoundNumber: 1, TradePct: 0.25},
+	}
+	if err := analysis.PersistPlayerRoundAnalysis(ctx, db, d.ID, second); err != nil {
+		t.Fatalf("PersistPlayerRoundAnalysis (second): %v", err)
+	}
+
+	aliceRows, err = q.GetPlayerRoundAnalysisByDemoAndPlayer(ctx, store.GetPlayerRoundAnalysisByDemoAndPlayerParams{
+		DemoID:  d.ID,
+		SteamID: "alice",
+	})
+	if err != nil {
+		t.Fatalf("GetPlayerRoundAnalysisByDemoAndPlayer(alice after second): %v", err)
+	}
+	if len(aliceRows) != 1 {
+		t.Fatalf("expected 1 alice row after second persist, got %d", len(aliceRows))
+	}
+	if aliceRows[0].TradePct != 0.25 {
+		t.Errorf("aliceRows[0].TradePct = %v, want 0.25", aliceRows[0].TradePct)
+	}
+
+	bobRows, err := q.GetPlayerRoundAnalysisByDemoAndPlayer(ctx, store.GetPlayerRoundAnalysisByDemoAndPlayerParams{
+		DemoID:  d.ID,
+		SteamID: "bob",
+	})
+	if err != nil {
+		t.Fatalf("GetPlayerRoundAnalysisByDemoAndPlayer(bob after second): %v", err)
+	}
+	if len(bobRows) != 0 {
+		t.Errorf("expected bob's rows wiped, got %d", len(bobRows))
+	}
+
+	// Empty batch wipes the demo's rows.
+	if err := analysis.PersistPlayerRoundAnalysis(ctx, db, d.ID, nil); err != nil {
+		t.Fatalf("PersistPlayerRoundAnalysis (empty): %v", err)
+	}
+	aliceRows, err = q.GetPlayerRoundAnalysisByDemoAndPlayer(ctx, store.GetPlayerRoundAnalysisByDemoAndPlayerParams{
+		DemoID:  d.ID,
+		SteamID: "alice",
+	})
+	if err != nil {
+		t.Fatalf("GetPlayerRoundAnalysisByDemoAndPlayer(alice after empty): %v", err)
+	}
+	if len(aliceRows) != 0 {
+		t.Errorf("expected 0 alice rows after empty persist, got %d", len(aliceRows))
+	}
+}
+
 func TestPersist_IsIdempotent(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	ctx := context.Background()

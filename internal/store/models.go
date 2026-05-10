@@ -102,6 +102,16 @@ type PlayerRound struct {
 	ClutchKills   int64
 }
 
+type PlayerRoundAnalysis struct {
+	ID          int64
+	DemoID      int64
+	SteamID     string
+	RoundNumber int64
+	TradePct    float64
+	ExtrasJson  string
+	CreatedAt   string
+}
+
 type Round struct {
 	ID            int64
 	DemoID        int64

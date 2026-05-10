@@ -482,6 +482,19 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		a.failDemo(demoID, fmt.Sprintf("persist match summary: %v", err), emitProgress)
 		return
 	}
+	// Per-(demo, player, round) breakdown alongside the match-level summary.
+	// Backs the standalone analysis page's per-round bar chart (slice 7).
+	roundRows, roundErr := analysis.RunPlayerRoundAnalysis(result, roundMap)
+	if roundErr != nil {
+		slog.Error("parseDemo: run player round analysis", append(logCtx, "err", roundErr)...)
+		a.failDemo(demoID, fmt.Sprintf("run player round analysis: %v", roundErr), emitProgress)
+		return
+	}
+	if err := analysis.PersistPlayerRoundAnalysis(a.ctx, a.db, demoID, roundRows); err != nil {
+		slog.Error("parseDemo: persist player round analysis", append(logCtx, "err", err)...)
+		a.failDemo(demoID, fmt.Sprintf("persist player round analysis: %v", err), emitProgress)
+		return
+	}
 	emitProgress("analyzing", 95)
 
 	// Drop our reference to the (potentially 100+ MB) events slice so the
@@ -838,6 +851,46 @@ func (a *App) GetPlayerAnalysis(demoID, steamID string) (PlayerAnalysis, error) 
 		}
 	}
 	return out, nil
+}
+
+// GetPlayerRoundAnalysis returns the per-(demo, player) round breakdown
+// written by the round-level analyzer, ordered by round_number ASC. Unknown
+// demos return an error; an empty steamID returns an empty slice (mirrors
+// GetMistakeTimeline's contract — the analysis page's bar chart renders an
+// empty state for the empty case rather than treating it as a fetch error).
+func (a *App) GetPlayerRoundAnalysis(demoID, steamID string) ([]PlayerRoundEntry, error) {
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid demo id: %w", err)
+	}
+	if steamID == "" {
+		return []PlayerRoundEntry{}, nil
+	}
+
+	rows, err := a.queries.GetPlayerRoundAnalysisByDemoAndPlayer(a.ctx, store.GetPlayerRoundAnalysisByDemoAndPlayerParams{
+		DemoID:  id,
+		SteamID: steamID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("getting player round analysis: %w", err)
+	}
+
+	result := make([]PlayerRoundEntry, len(rows))
+	for i, r := range rows {
+		entry := PlayerRoundEntry{
+			SteamID:     r.SteamID,
+			RoundNumber: int(r.RoundNumber),
+			TradePct:    r.TradePct,
+		}
+		if r.ExtrasJson != "" && r.ExtrasJson != "{}" {
+			extras := map[string]any{}
+			if err := json.Unmarshal([]byte(r.ExtrasJson), &extras); err == nil {
+				entry.Extras = extras
+			}
+		}
+		result[i] = entry
+	}
+	return result, nil
 }
 
 // GetAnalysisStatus reports whether mechanical-analysis rows exist for the

@@ -95,6 +95,50 @@ func PersistMatchSummary(ctx context.Context, db *sql.DB, demoID int64, rows []M
 	return nil
 }
 
+// PersistPlayerRoundAnalysis replaces the player_round_analysis rows for
+// demoID with the supplied list. Wraps the delete + upserts in a single
+// transaction so a failure mid-way rolls back to the prior state. Idempotent:
+// re-running with the same input converges on the same rows; running with an
+// empty slice wipes any prior rows.
+//
+// Kept side-by-side with PersistMatchSummary (above) rather than fused into a
+// single PersistAll because each persist owns its own delete-by-demo;
+// consolidating the three writes into one transaction is a follow-up that is
+// noted in slice 7's comments and not blocking here.
+func PersistPlayerRoundAnalysis(ctx context.Context, db *sql.DB, demoID int64, rows []PlayerRoundRow) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	q := store.New(tx)
+	if err := q.DeletePlayerRoundAnalysisByDemoID(ctx, demoID); err != nil {
+		return fmt.Errorf("delete existing player round analysis: %w", err)
+	}
+
+	for _, r := range rows {
+		extras, err := marshalExtras(r.Extras)
+		if err != nil {
+			return fmt.Errorf("marshal extras (steam=%s, round=%d): %w", r.SteamID, r.RoundNumber, err)
+		}
+		if err := q.UpsertPlayerRoundAnalysis(ctx, store.UpsertPlayerRoundAnalysisParams{
+			DemoID:      demoID,
+			SteamID:     r.SteamID,
+			RoundNumber: int64(r.RoundNumber),
+			TradePct:    r.TradePct,
+			ExtrasJson:  extras,
+		}); err != nil {
+			return fmt.Errorf("upsert player round analysis (steam=%s, round=%d): %w", r.SteamID, r.RoundNumber, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	return nil
+}
+
 // marshalExtras serializes the rule's extras blob to a stable JSON string.
 // Returns "{}" for nil/empty so the column is never empty (the frontend reads
 // it as JSON).

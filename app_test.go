@@ -240,6 +240,123 @@ func TestGetAnalysisStatus(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// GetPlayerRoundAnalysis
+// ---------------------------------------------------------------------------
+
+func TestGetPlayerRoundAnalysis(t *testing.T) {
+	app, q := newTestApp(t)
+	d := seedDemo(t, q)
+	ctx := context.Background()
+
+	// Seed three rows for steam_a (out-of-order on purpose to verify the
+	// query's ORDER BY round_number) and one row for steam_b. extras_json
+	// covers the empty default ("{}"), an empty string, and a populated map.
+	rowsToSeed := []struct {
+		steam    string
+		round    int64
+		tradePct float64
+		extras   string
+	}{
+		{"STEAM_A", 3, 0.5, "{}"},
+		{"STEAM_A", 1, 1.0, ""},
+		{"STEAM_A", 2, 0.0, `{"reason":"untraded"}`},
+		{"STEAM_B", 1, 0.25, "{}"},
+	}
+	for _, r := range rowsToSeed {
+		if err := q.UpsertPlayerRoundAnalysis(ctx, store.UpsertPlayerRoundAnalysisParams{
+			DemoID:      d.ID,
+			SteamID:     r.steam,
+			RoundNumber: r.round,
+			TradePct:    r.tradePct,
+			ExtrasJson:  r.extras,
+		}); err != nil {
+			t.Fatalf("UpsertPlayerRoundAnalysis(%s, round=%d): %v", r.steam, r.round, err)
+		}
+	}
+
+	t.Run("invalid demo id returns error", func(t *testing.T) {
+		if _, err := app.GetPlayerRoundAnalysis("abc", "STEAM_A"); err == nil {
+			t.Fatal("expected error for invalid demo id, got nil")
+		}
+	})
+
+	t.Run("empty steamID returns empty slice", func(t *testing.T) {
+		got, err := app.GetPlayerRoundAnalysis(strconv.FormatInt(d.ID, 10), "")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(got) != 0 {
+			t.Errorf("expected empty slice, got %d entries", len(got))
+		}
+	})
+
+	t.Run("populated rows ordered by round_number ASC", func(t *testing.T) {
+		got, err := app.GetPlayerRoundAnalysis(strconv.FormatInt(d.ID, 10), "STEAM_A")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(got) != 3 {
+			t.Fatalf("expected 3 rows, got %d", len(got))
+		}
+		wantRounds := []int{1, 2, 3}
+		for i, want := range wantRounds {
+			if got[i].RoundNumber != want {
+				t.Errorf("got[%d].RoundNumber = %d, want %d", i, got[i].RoundNumber, want)
+			}
+		}
+		if got[0].TradePct != 1.0 {
+			t.Errorf("round 1 TradePct = %v, want 1.0", got[0].TradePct)
+		}
+	})
+
+	t.Run("empty extras_json yields nil Extras", func(t *testing.T) {
+		got, err := app.GetPlayerRoundAnalysis(strconv.FormatInt(d.ID, 10), "STEAM_A")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// Round 3 was seeded with extras_json = "{}" — defensive unmarshal
+		// short-circuits and leaves Extras nil.
+		if got[2].RoundNumber != 3 {
+			t.Fatalf("got[2].RoundNumber = %d, want 3", got[2].RoundNumber)
+		}
+		if got[2].Extras != nil {
+			t.Errorf("got[2].Extras = %v, want nil for {}", got[2].Extras)
+		}
+		// Round 1 was seeded with extras_json = "" — also short-circuits.
+		if got[0].Extras != nil {
+			t.Errorf("got[0].Extras = %v, want nil for empty string", got[0].Extras)
+		}
+	})
+
+	t.Run("populated extras_json yields unmarshalled map", func(t *testing.T) {
+		got, err := app.GetPlayerRoundAnalysis(strconv.FormatInt(d.ID, 10), "STEAM_A")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// Round 2 was seeded with extras_json = `{"reason":"untraded"}`.
+		if got[1].RoundNumber != 2 {
+			t.Fatalf("got[1].RoundNumber = %d, want 2", got[1].RoundNumber)
+		}
+		if got[1].Extras == nil {
+			t.Fatalf("got[1].Extras = nil, want unmarshalled map")
+		}
+		if got[1].Extras["reason"] != "untraded" {
+			t.Errorf("got[1].Extras[reason] = %v, want %q", got[1].Extras["reason"], "untraded")
+		}
+	})
+
+	t.Run("unknown player returns empty slice", func(t *testing.T) {
+		got, err := app.GetPlayerRoundAnalysis(strconv.FormatInt(d.ID, 10), "STEAM_NONE")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(got) != 0 {
+			t.Errorf("expected empty slice, got %d entries", len(got))
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
 // GetDemoRounds
 // ---------------------------------------------------------------------------
 
