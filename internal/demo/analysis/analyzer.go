@@ -3,12 +3,16 @@
 // analysis_mistakes table. Each rule lives in mistakes.go; the aggregator in
 // this file wires them together.
 //
-// Slice 1 (this file) ships the no_trade_death rule only. Subsequent slices
-// add rules without changing the public surface — Run keeps returning the
-// combined []Mistake list.
+// Slice 1 shipped the no_trade_death rule. Slice 3 adds
+// died_with_util_unused. Subsequent slices add rules without changing the
+// public surface — Run keeps returning the combined []Mistake list,
+// stably ordered by (Tick ASC, SteamID ASC) so the persisted order is
+// independent of rule-source order.
 package analysis
 
 import (
+	"sort"
+
 	"github.com/ok2ju/oversite/internal/demo"
 )
 
@@ -25,7 +29,8 @@ type MistakeKind string
 
 // Known mistake kinds.
 const (
-	MistakeKindNoTradeDeath MistakeKind = "no_trade_death"
+	MistakeKindNoTradeDeath       MistakeKind = "no_trade_death"
+	MistakeKindDiedWithUtilUnused MistakeKind = "died_with_util_unused"
 )
 
 // Mistake is one analyzer finding — a single (player, round, tick, kind)
@@ -40,10 +45,13 @@ type Mistake struct {
 }
 
 // Run executes every analyzer rule against the parse result and returns the
-// combined list of mistakes. result must be the same struct produced by the
-// streaming parser; roundMap (round number → DB round ID) is currently unused
-// but accepted so future rules that need DB-side correlations don't have to
-// change the signature again. Returns (nil, nil) on a nil result.
+// combined list of mistakes, stably ordered by (Tick ASC, SteamID ASC). Rule
+// order is therefore not part of the contract — adding a new rule cannot
+// silently reshuffle the persisted sequence. result must be the same struct
+// produced by the streaming parser; roundMap (round number → DB round ID) is
+// currently unused but accepted so future rules that need DB-side
+// correlations don't have to change the signature again. Returns (nil, nil)
+// on a nil result.
 func Run(result *demo.ParseResult, roundMap map[int]int64) ([]Mistake, error) {
 	_ = roundMap // reserved for rules that look up DB round IDs (slice 2+).
 	if result == nil {
@@ -56,5 +64,12 @@ func Run(result *demo.ParseResult, roundMap map[int]int64) ([]Mistake, error) {
 
 	out := make([]Mistake, 0, 16)
 	out = append(out, noTradeDeath(result.Events, tickRate)...)
+	out = append(out, diedWithUtilUnused(result.Events, result.Rounds)...)
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Tick != out[j].Tick {
+			return out[i].Tick < out[j].Tick
+		}
+		return out[i].SteamID < out[j].SteamID
+	})
 	return out, nil
 }

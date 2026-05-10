@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 import { screen, cleanup } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { useViewerStore } from "@/stores/viewer"
 import { renderWithProviders } from "@/test/render"
 import { mockAppBindings, resetAppBindings } from "@/test/mocks/bindings"
@@ -101,5 +102,110 @@ describe("MistakeList", () => {
       "42",
       "STEAM_X",
     )
+  })
+
+  it("clicking a row seeks the viewer to the mistake tick", async () => {
+    const user = userEvent.setup()
+    useViewerStore.getState().initDemo({
+      id: "1",
+      mapName: "de_dust2",
+      totalTicks: 100000,
+      tickRate: TICK_RATE,
+    })
+    useViewerStore.getState().setSelectedPlayer("STEAM_A")
+    mockAppBindings.GetMistakeTimeline.mockResolvedValueOnce([
+      {
+        kind: "no_trade_death",
+        round_number: 7,
+        tick: ROUND_7_TICK,
+        steam_id: "STEAM_A",
+        extras: { killer_steam_id: "STEAM_B" },
+      },
+    ])
+
+    renderWithProviders(<MistakeList />)
+    const row = await screen.findByTestId("mistake-list-row-0")
+
+    await user.click(row)
+
+    const state = useViewerStore.getState()
+    expect(state.currentTick).toBe(ROUND_7_TICK)
+    expect(state.selectedPlayerSteamId).toBe("STEAM_A")
+    expect(state.isPlaying).toBe(false)
+  })
+
+  it("activating a focused row via Enter seeks to the mistake tick", async () => {
+    const user = userEvent.setup()
+    useViewerStore.getState().initDemo({
+      id: "1",
+      mapName: "de_dust2",
+      totalTicks: 100000,
+      tickRate: TICK_RATE,
+    })
+    useViewerStore.getState().setSelectedPlayer("STEAM_A")
+    mockAppBindings.GetMistakeTimeline.mockResolvedValueOnce([
+      {
+        kind: "no_trade_death",
+        round_number: 7,
+        tick: ROUND_7_TICK,
+        steam_id: "STEAM_A",
+        extras: { killer_steam_id: "STEAM_B" },
+      },
+    ])
+
+    renderWithProviders(<MistakeList />)
+    const row = await screen.findByTestId("mistake-list-row-0")
+
+    row.focus()
+    await user.keyboard("{Enter}")
+
+    expect(useViewerStore.getState().currentTick).toBe(ROUND_7_TICK)
+  })
+
+  it("renders both kinds in tick order with distinguishable severity badges", async () => {
+    // Round 7 entry from the existing fixture is at ROUND_7_TICK; place a
+    // util-unused entry earlier in the same round so we can assert the
+    // chronological-by-tick render order across kinds.
+    const UTIL_UNUSED_TICK = ROUND_7_FREEZE_END + 30 * TICK_RATE // 0:30
+
+    useViewerStore.getState().initDemo({
+      id: "1",
+      mapName: "de_dust2",
+      totalTicks: 100000,
+      tickRate: TICK_RATE,
+    })
+    useViewerStore.getState().setSelectedPlayer("STEAM_A")
+    mockAppBindings.GetMistakeTimeline.mockResolvedValueOnce([
+      {
+        kind: "died_with_util_unused",
+        round_number: 7,
+        tick: UTIL_UNUSED_TICK,
+        steam_id: "STEAM_A",
+        extras: { unused: ["smokegrenade"] },
+      },
+      {
+        kind: "no_trade_death",
+        round_number: 7,
+        tick: ROUND_7_TICK,
+        steam_id: "STEAM_A",
+        extras: { killer_steam_id: "STEAM_B" },
+      },
+    ])
+
+    renderWithProviders(<MistakeList />)
+    const firstRow = await screen.findByTestId("mistake-list-row-0")
+    const secondRow = await screen.findByTestId("mistake-list-row-1")
+
+    expect(firstRow).toHaveTextContent(
+      "Died with utility unused — round 7, 0:30",
+    )
+    expect(secondRow).toHaveTextContent("Untraded death — round 7, 1:23")
+
+    expect(
+      screen.getByTestId("mistake-row-severity-died_with_util_unused"),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByTestId("mistake-row-severity-no_trade_death"),
+    ).toBeInTheDocument()
   })
 })

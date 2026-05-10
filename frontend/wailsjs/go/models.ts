@@ -223,6 +223,26 @@ export namespace main {
 	        this.hits = source["hits"];
 	    }
 	}
+	export class MistakeEntry {
+	    kind: string;
+	    round_number: number;
+	    tick: number;
+	    steam_id: string;
+	    extras: Record<string, any>;
+	
+	    static createFrom(source: any = {}) {
+	        return new MistakeEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.round_number = source["round_number"];
+	        this.tick = source["tick"];
+	        this.steam_id = source["steam_id"];
+	        this.extras = source["extras"];
+	    }
+	}
 	export class MovementStats {
 	    distance_units: number;
 	    avg_speed_ups: number;
@@ -248,26 +268,6 @@ export namespace main {
 	    }
 	}
 	
-	export class MistakeEntry {
-	    kind: string;
-	    round_number: number;
-	    tick: number;
-	    steam_id: string;
-	    extras: Record<string, any>;
-
-	    static createFrom(source: any = {}) {
-	        return new MistakeEntry(source);
-	    }
-
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.kind = source["kind"];
-	        this.round_number = source["round_number"];
-	        this.tick = source["tick"];
-	        this.steam_id = source["steam_id"];
-	        this.extras = source["extras"];
-	    }
-	}
 	export class PlayerInfo {
 	    steam_id: string;
 	    player_name: string;

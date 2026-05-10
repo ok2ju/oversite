@@ -1,0 +1,13 @@
+[
+  {
+    "steam_id": "alice",
+    "round_number": 1,
+    "tick": 400,
+    "kind": "died_with_util_unused",
+    "extras": {
+      "unused": [
+        "smokegrenade"
+      ]
+    }
+  }
+]
