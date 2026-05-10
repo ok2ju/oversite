@@ -11,6 +11,7 @@
 package analysis
 
 import (
+	"math"
 	"sort"
 
 	"github.com/ok2ju/oversite/internal/demo"
@@ -44,6 +45,20 @@ type Mistake struct {
 	Extras      map[string]any `json:"extras,omitempty"`
 }
 
+// MatchSummaryRow is the per-(demo, player) aggregate persisted to
+// player_match_analysis. OverallScore in slice 5 is the trade percentage
+// rounded to an integer (0–100); slices 7–8 will fold additional categories
+// into the composite formula. Downstream readers MUST NOT assume
+// OverallScore == round(TradePct * 100) long-term — treat it as an opaque
+// composite once the schema settles.
+type MatchSummaryRow struct {
+	SteamID       string         `json:"steam_id"`
+	OverallScore  int            `json:"overall_score"`
+	TradePct      float64        `json:"trade_pct"`
+	AvgTradeTicks float64        `json:"avg_trade_ticks"`
+	Extras        map[string]any `json:"extras,omitempty"`
+}
+
 // Run executes every analyzer rule against the parse result and returns the
 // combined list of mistakes, stably ordered by (Tick ASC, SteamID ASC). Rule
 // order is therefore not part of the contract — adding a new rule cannot
@@ -72,4 +87,57 @@ func Run(result *demo.ParseResult, roundMap map[int]int64) ([]Mistake, error) {
 		return out[i].SteamID < out[j].SteamID
 	})
 	return out, nil
+}
+
+// RunMatchSummary computes the per-(demo, player) aggregate row written to
+// player_match_analysis. Currently only the trade category is populated;
+// slice 7+ adds utility / aim / movement / positioning / economy under the
+// same shape. Players with zero trade-eligible deaths are absent from the
+// returned slice (no row is persisted for spectators / unrostered slots).
+//
+// Rows are returned sorted by SteamID ASC for stable persistence and
+// test-friendly comparisons.
+func RunMatchSummary(result *demo.ParseResult, roundMap map[int]int64) ([]MatchSummaryRow, error) {
+	_ = roundMap // reserved for rules that look up DB round IDs.
+	if result == nil {
+		return nil, nil
+	}
+	tickRate := result.Header.TickRate
+	if tickRate <= 0 {
+		tickRate = 64
+	}
+
+	trades := computeTradesSummary(result.Events, result.Rounds, tickRate)
+	if len(trades) == 0 {
+		return nil, nil
+	}
+
+	out := make([]MatchSummaryRow, 0, len(trades))
+	for steamID, ts := range trades {
+		out = append(out, MatchSummaryRow{
+			SteamID:       steamID,
+			OverallScore:  composeOverallScore(ts),
+			TradePct:      ts.TradePct,
+			AvgTradeTicks: ts.AvgTradeTicks,
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].SteamID < out[j].SteamID
+	})
+	return out, nil
+}
+
+// composeOverallScore maps the per-player TradesSummary into a 0–100 integer
+// score. Slice-5 stub: round(TradePct * 100). Slices 7–8 will rebalance this
+// once additional categories report; downstream readers must treat the value
+// as an opaque composite, not the raw trade percentage.
+func composeOverallScore(s TradesSummary) int {
+	score := int(math.Round(s.TradePct * 100))
+	if score < 0 {
+		return 0
+	}
+	if score > 100 {
+		return 100
+	}
+	return score
 }

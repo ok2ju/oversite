@@ -464,6 +464,21 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		a.failDemo(demoID, fmt.Sprintf("persist analysis: %v", err), emitProgress)
 		return
 	}
+	// Per-(demo, player) summary row alongside the timeline. Each persist is
+	// its own transaction; the divergence window between mistakes-on-disk
+	// and summary-on-disk is small (single-tenant, single-process) and slice 7
+	// will revisit consolidating both into one tx when a third table lands.
+	summaryRows, summaryErr := analysis.RunMatchSummary(result, roundMap)
+	if summaryErr != nil {
+		slog.Error("parseDemo: run match summary", append(logCtx, "err", summaryErr)...)
+		a.failDemo(demoID, fmt.Sprintf("run match summary: %v", summaryErr), emitProgress)
+		return
+	}
+	if err := analysis.PersistMatchSummary(a.ctx, a.db, demoID, summaryRows); err != nil {
+		slog.Error("parseDemo: persist match summary", append(logCtx, "err", err)...)
+		a.failDemo(demoID, fmt.Sprintf("persist match summary: %v", err), emitProgress)
+		return
+	}
 	emitProgress("analyzing", 95)
 
 	// Drop our reference to the (potentially 100+ MB) events slice so the
@@ -781,6 +796,45 @@ func (a *App) GetMistakeTimeline(demoID, steamID string) ([]MistakeEntry, error)
 		result[i] = entry
 	}
 	return result, nil
+}
+
+// GetPlayerAnalysis returns the per-(demo, player) summary row written by the
+// match-summary analyzer. Unknown demos / unknown players return a zero-valued
+// PlayerAnalysis (not an error) so the viewer's gauge / category card can
+// render an empty state, mirroring GetMistakeTimeline's contract.
+func (a *App) GetPlayerAnalysis(demoID, steamID string) (PlayerAnalysis, error) {
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return PlayerAnalysis{}, fmt.Errorf("invalid demo id: %w", err)
+	}
+	if steamID == "" {
+		return PlayerAnalysis{}, nil
+	}
+
+	row, err := a.queries.GetPlayerMatchAnalysis(a.ctx, store.GetPlayerMatchAnalysisParams{
+		DemoID:  id,
+		SteamID: steamID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return PlayerAnalysis{}, nil
+	}
+	if err != nil {
+		return PlayerAnalysis{}, fmt.Errorf("getting player analysis: %w", err)
+	}
+
+	out := PlayerAnalysis{
+		SteamID:       row.SteamID,
+		OverallScore:  int(row.OverallScore),
+		TradePct:      row.TradePct,
+		AvgTradeTicks: row.AvgTradeTicks,
+	}
+	if row.ExtrasJson != "" && row.ExtrasJson != "{}" {
+		extras := map[string]any{}
+		if err := json.Unmarshal([]byte(row.ExtrasJson), &extras); err == nil {
+			out.Extras = extras
+		}
+	}
+	return out, nil
 }
 
 // GetRoundLoadouts returns the freeze-end loadout for every (round, player)

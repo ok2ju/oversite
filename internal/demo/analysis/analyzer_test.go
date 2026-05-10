@@ -223,6 +223,107 @@ func TestRun_NilResult(t *testing.T) {
 	}
 }
 
+func TestRunMatchSummary_Golden(t *testing.T) {
+	var input fixtureInput
+	testutil.LoadFixture(t, "analysis/trades_summary/input.json", &input)
+
+	got, err := analysis.RunMatchSummary(input.toParseResult(), nil)
+	if err != nil {
+		t.Fatalf("analysis.RunMatchSummary: %v", err)
+	}
+
+	encoded, err := json.MarshalIndent(got, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal summary rows: %v", err)
+	}
+	encoded = append(encoded, '\n')
+
+	testutil.CompareGolden(t, "analysis/trades_summary/expected.golden.json", encoded)
+}
+
+func TestPersistMatchSummary_IsIdempotent(t *testing.T) {
+	q, db := testutil.NewTestQueries(t)
+	ctx := context.Background()
+
+	d, err := q.CreateDemo(ctx, store.CreateDemoParams{
+		MapName:  "de_dust2",
+		FilePath: "/tmp/persist_match_summary.dem",
+		FileSize: 1,
+		Status:   "imported",
+	})
+	if err != nil {
+		t.Fatalf("CreateDemo: %v", err)
+	}
+
+	first := []analysis.MatchSummaryRow{
+		{SteamID: "alice", OverallScore: 50, TradePct: 0.5, AvgTradeTicks: 64},
+		{SteamID: "bob", OverallScore: 0, TradePct: 0, AvgTradeTicks: 0},
+	}
+	if err := analysis.PersistMatchSummary(ctx, db, d.ID, first); err != nil {
+		t.Fatalf("PersistMatchSummary (first): %v", err)
+	}
+
+	// Re-running with the same input must converge on the same rows
+	// (idempotent upsert, no duplicate (demo, steam) entries).
+	if err := analysis.PersistMatchSummary(ctx, db, d.ID, first); err != nil {
+		t.Fatalf("PersistMatchSummary (re-run): %v", err)
+	}
+
+	aliceRow, err := q.GetPlayerMatchAnalysis(ctx, store.GetPlayerMatchAnalysisParams{
+		DemoID:  d.ID,
+		SteamID: "alice",
+	})
+	if err != nil {
+		t.Fatalf("GetPlayerMatchAnalysis(alice): %v", err)
+	}
+	if aliceRow.OverallScore != 50 {
+		t.Errorf("alice.OverallScore = %d, want 50", aliceRow.OverallScore)
+	}
+	if aliceRow.TradePct != 0.5 {
+		t.Errorf("alice.TradePct = %v, want 0.5", aliceRow.TradePct)
+	}
+
+	// Replace alice with new metrics; bob should drop out (delete-then-upsert).
+	second := []analysis.MatchSummaryRow{
+		{SteamID: "alice", OverallScore: 80, TradePct: 0.8, AvgTradeTicks: 32},
+	}
+	if err := analysis.PersistMatchSummary(ctx, db, d.ID, second); err != nil {
+		t.Fatalf("PersistMatchSummary (second): %v", err)
+	}
+
+	aliceRow, err = q.GetPlayerMatchAnalysis(ctx, store.GetPlayerMatchAnalysisParams{
+		DemoID:  d.ID,
+		SteamID: "alice",
+	})
+	if err != nil {
+		t.Fatalf("GetPlayerMatchAnalysis(alice after second): %v", err)
+	}
+	if aliceRow.OverallScore != 80 {
+		t.Errorf("alice.OverallScore after rerun = %d, want 80", aliceRow.OverallScore)
+	}
+	if aliceRow.TradePct != 0.8 {
+		t.Errorf("alice.TradePct after rerun = %v, want 0.8", aliceRow.TradePct)
+	}
+
+	if _, err := q.GetPlayerMatchAnalysis(ctx, store.GetPlayerMatchAnalysisParams{
+		DemoID:  d.ID,
+		SteamID: "bob",
+	}); err == nil {
+		t.Errorf("expected bob's row to be wiped, but got a row")
+	}
+
+	// Empty batch wipes the demo's rows.
+	if err := analysis.PersistMatchSummary(ctx, db, d.ID, nil); err != nil {
+		t.Fatalf("PersistMatchSummary (empty): %v", err)
+	}
+	if _, err := q.GetPlayerMatchAnalysis(ctx, store.GetPlayerMatchAnalysisParams{
+		DemoID:  d.ID,
+		SteamID: "alice",
+	}); err == nil {
+		t.Errorf("expected alice's row to be wiped after empty persist, but got a row")
+	}
+}
+
 func TestPersist_IsIdempotent(t *testing.T) {
 	q, db := testutil.NewTestQueries(t)
 	ctx := context.Background()

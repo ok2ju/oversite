@@ -42,6 +42,10 @@ export function GetMistakeTimeline(arg1, arg2) {
   return window['go']['main']['App']['GetMistakeTimeline'](arg1, arg2);
 }
 
+export function GetPlayerAnalysis(arg1, arg2) {
+  return window['go']['main']['App']['GetPlayerAnalysis'](arg1, arg2);
+}
+
 export function GetPlayerMatchStats(arg1, arg2) {
   return window['go']['main']['App']['GetPlayerMatchStats'](arg1, arg2);
 }

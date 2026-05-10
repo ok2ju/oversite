@@ -233,6 +233,19 @@ type MistakeEntry struct {
 	Extras      map[string]any `json:"extras"`
 }
 
+// PlayerAnalysis is the per-(demo, player) summary row read by the viewer's
+// overall-score gauge and category cards. OverallScore is a 0–100 composite
+// computed by analysis.RunMatchSummary; in slice 5 it derives from TradePct
+// only, and downstream readers must not assume that relation long-term —
+// future slices fold in additional categories.
+type PlayerAnalysis struct {
+	SteamID       string         `json:"steam_id"`
+	OverallScore  int            `json:"overall_score"`
+	TradePct      float64        `json:"trade_pct"`
+	AvgTradeTicks float64        `json:"avg_trade_ticks"`
+	Extras        map[string]any `json:"extras"`
+}
+
 // HitGroupBreakdown is one row in the damage-by-hit-group breakdown.
 type HitGroupBreakdown struct {
 	HitGroup int    `json:"hit_group"`

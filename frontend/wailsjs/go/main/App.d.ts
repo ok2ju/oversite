@@ -22,6 +22,8 @@ export function GetHeatmapData(arg1:Array<number>,arg2:Array<string>,arg3:string
 
 export function GetMistakeTimeline(arg1:string,arg2:string):Promise<Array<main.MistakeEntry>>;
 
+export function GetPlayerAnalysis(arg1:string,arg2:string):Promise<main.PlayerAnalysis>;
+
 export function GetPlayerMatchStats(arg1:string,arg2:string):Promise<main.PlayerMatchStats>;
 
 export function GetRoundLoadouts(arg1:string):Promise<Record<number, Array<main.RoundLoadoutEntry>>>;

@@ -6,6 +6,8 @@ import { useRounds } from "@/hooks/use-rounds"
 import { badgeVariants } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { CATEGORY_LABEL, OTHER_CATEGORY, categoryForKind } from "@/lib/mistakes"
+import { AnalysisOverallGauge } from "@/components/viewer/analysis-overall-gauge"
+import { CategoryCard } from "@/components/viewer/category-card"
 import type { MistakeEntry } from "@/types/mistake"
 import type { Round } from "@/types/round"
 
@@ -127,6 +129,8 @@ export function MistakeList({ steamId: steamIdProp }: MistakeListProps = {}) {
       className="absolute left-0 top-0 z-30 flex h-full w-72 flex-col border-r border-white/10 bg-black/85 text-white shadow-2xl backdrop-blur"
     >
       <header className="flex flex-col gap-2 border-b border-white/10 px-3 py-2">
+        <AnalysisOverallGauge />
+        <CategoryCard category="trade" />
         <span className="text-xs font-semibold uppercase tracking-wide text-white/70">
           Mistakes
         </span>

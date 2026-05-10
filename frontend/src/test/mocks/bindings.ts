@@ -320,6 +320,27 @@ export const mockAppBindings = {
     >()
     .mockResolvedValue([]),
 
+  GetPlayerAnalysis: vi
+    .fn<
+      (
+        demoId: string,
+        steamId: string,
+      ) => Promise<{
+        steam_id: string
+        overall_score: number
+        trade_pct: number
+        avg_trade_ticks: number
+        extras: Record<string, unknown> | null
+      }>
+    >()
+    .mockResolvedValue({
+      steam_id: "",
+      overall_score: 0,
+      trade_pct: 0,
+      avg_trade_ticks: 0,
+      extras: null,
+    }),
+
   GetUniqueWeapons: vi
     .fn<(demoIDs: number[]) => Promise<string[]>>()
     .mockResolvedValue(["AK-47", "M4A1", "AWP"]),

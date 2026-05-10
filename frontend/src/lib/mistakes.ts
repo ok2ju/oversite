@@ -15,6 +15,15 @@ export const CATEGORY_LABEL: Record<string, string> = {
   other: "Other",
 }
 
+// One-line, player-facing coaching nudge per category. Slice 5 only ships the
+// "trade" entry — the remaining cards (utility, aim, …) populate their key as
+// they land. Keep the strings short: they slot into a single line below the
+// category card's metrics.
+export const SUGGESTIONS: Record<string, string> = {
+  trade:
+    "Trade your teammates' deaths sooner — even one extra trade per half lifts T-side win rate.",
+}
+
 export function categoryForKind(kind: string): string {
   return KIND_CATEGORY[kind] ?? OTHER_CATEGORY
 }

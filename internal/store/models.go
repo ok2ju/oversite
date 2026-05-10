@@ -75,6 +75,17 @@ type GrenadeLineup struct {
 	CreatedAt   string
 }
 
+type PlayerMatchAnalysis struct {
+	ID            int64
+	DemoID        int64
+	SteamID       string
+	OverallScore  int64
+	TradePct      float64
+	AvgTradeTicks float64
+	ExtrasJson    string
+	CreatedAt     string
+}
+
 type PlayerRound struct {
 	ID            int64
 	RoundID       int64

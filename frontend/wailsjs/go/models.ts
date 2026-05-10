@@ -271,15 +271,35 @@ export namespace main {
 	export class PlayerInfo {
 	    steam_id: string;
 	    player_name: string;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new PlayerInfo(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.steam_id = source["steam_id"];
 	        this.player_name = source["player_name"];
+	    }
+	}
+	export class PlayerAnalysis {
+	    steam_id: string;
+	    overall_score: number;
+	    trade_pct: number;
+	    avg_trade_ticks: number;
+	    extras: Record<string, any>;
+
+	    static createFrom(source: any = {}) {
+	        return new PlayerAnalysis(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.steam_id = source["steam_id"];
+	        this.overall_score = source["overall_score"];
+	        this.trade_pct = source["trade_pct"];
+	        this.avg_trade_ticks = source["avg_trade_ticks"];
+	        this.extras = source["extras"];
 	    }
 	}
 	export class UtilityStats {

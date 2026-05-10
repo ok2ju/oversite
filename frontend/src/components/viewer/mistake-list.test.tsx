@@ -64,6 +64,30 @@ describe("MistakeList", () => {
     )
   })
 
+  it("mounts the analysis overall gauge inside the panel header when the binding returns a non-zero score", async () => {
+    useViewerStore.getState().initDemo({
+      id: "1",
+      mapName: "de_dust2",
+      totalTicks: 100000,
+      tickRate: TICK_RATE,
+    })
+    useViewerStore.getState().setSelectedPlayer("STEAM_A")
+    mockAppBindings.GetMistakeTimeline.mockResolvedValueOnce([])
+    mockAppBindings.GetPlayerAnalysis.mockResolvedValueOnce({
+      steam_id: "STEAM_A",
+      overall_score: 62,
+      trade_pct: 0.62,
+      avg_trade_ticks: 90,
+      extras: null,
+    })
+
+    renderWithProviders(<MistakeList />)
+
+    expect(
+      await screen.findByTestId("analysis-overall-gauge"),
+    ).toHaveTextContent("Overall: 62/100")
+  })
+
   it("renders one row per mistake with the canonical text format", async () => {
     useViewerStore.getState().initDemo({
       id: "1",
