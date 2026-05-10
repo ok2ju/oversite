@@ -30,28 +30,40 @@ function TeamTable({
   const headerBorder =
     side === "CT" ? "border-sky-400/40" : "border-amber-400/40"
 
+  const accentDot =
+    side === "CT"
+      ? "bg-sky-400 shadow-[0_0_8px_2px_rgba(56,189,248,0.5)]"
+      : "bg-orange-400 shadow-[0_0_8px_2px_rgba(251,146,60,0.5)]"
   return (
     <div data-testid={`scoreboard-team-${side.toLowerCase()}`}>
-      <h3 className={`mb-2 text-sm font-semibold ${sideColor}`}>{sideLabel}</h3>
+      <h3
+        className={`mb-2 flex items-center gap-2 text-[11px] font-semibold ${sideColor}`}
+      >
+        <span
+          aria-hidden="true"
+          className={`h-1.5 w-1.5 rotate-45 ${accentDot}`}
+        />
+        <span className="hud-callsign">{sideLabel}</span>
+      </h3>
       <Table>
         <TableHeader>
           <TableRow className={`border-b ${headerBorder} hover:bg-transparent`}>
-            <TableHead className="h-8 px-2 text-xs text-white/70">
+            <TableHead className="hud-callsign h-7 px-2 text-[10px] text-white/55">
               Player
             </TableHead>
-            <TableHead className="h-8 w-12 px-2 text-center text-xs text-white/70">
+            <TableHead className="hud-callsign h-7 w-12 px-2 text-center text-[10px] text-white/55">
               K
             </TableHead>
-            <TableHead className="h-8 w-12 px-2 text-center text-xs text-white/70">
+            <TableHead className="hud-callsign h-7 w-12 px-2 text-center text-[10px] text-white/55">
               D
             </TableHead>
-            <TableHead className="h-8 w-12 px-2 text-center text-xs text-white/70">
+            <TableHead className="hud-callsign h-7 w-12 px-2 text-center text-[10px] text-white/55">
               A
             </TableHead>
-            <TableHead className="h-8 w-14 px-2 text-center text-xs text-white/70">
+            <TableHead className="hud-callsign h-7 w-14 px-2 text-center text-[10px] text-white/55">
               ADR
             </TableHead>
-            <TableHead className="h-8 w-14 px-2 text-center text-xs text-white/70">
+            <TableHead className="hud-callsign h-7 w-14 px-2 text-center text-[10px] text-white/55">
               HS%
             </TableHead>
           </TableRow>
@@ -63,31 +75,31 @@ function TeamTable({
               <TableRow
                 key={entry.steam_id}
                 data-testid={`scoreboard-player-${entry.steam_id}`}
-                className={`cursor-pointer border-white/10 ${
+                className={`cursor-pointer border-white/[0.06] transition-colors ${
                   isSelected
                     ? "bg-white/20 hover:bg-white/25"
-                    : "hover:bg-white/10"
+                    : "hover:bg-white/[0.07]"
                 }`}
                 onClick={() =>
                   onSelectPlayer(isSelected ? null : entry.steam_id)
                 }
               >
-                <TableCell className="px-2 py-1.5 text-sm text-white">
+                <TableCell className="px-2 py-1.5 text-[13px] font-medium text-white">
                   {entry.player_name}
                 </TableCell>
-                <TableCell className="px-2 py-1.5 text-center text-sm text-white">
+                <TableCell className="hud-display px-2 py-1.5 text-center text-[14px] text-white">
                   {entry.kills}
                 </TableCell>
-                <TableCell className="px-2 py-1.5 text-center text-sm text-white">
+                <TableCell className="hud-display px-2 py-1.5 text-center text-[14px] text-white/70">
                   {entry.deaths}
                 </TableCell>
-                <TableCell className="px-2 py-1.5 text-center text-sm text-white">
+                <TableCell className="hud-display px-2 py-1.5 text-center text-[14px] text-white/85">
                   {entry.assists}
                 </TableCell>
-                <TableCell className="px-2 py-1.5 text-center text-sm text-white">
+                <TableCell className="px-2 py-1.5 text-center font-mono text-[12px] tabular-nums text-white/85">
                   {Math.round(entry.adr)}
                 </TableCell>
-                <TableCell className="px-2 py-1.5 text-center text-sm text-white">
+                <TableCell className="px-2 py-1.5 text-center font-mono text-[12px] tabular-nums text-white/85">
                   {Math.round(entry.hs_percent)}%
                 </TableCell>
               </TableRow>
@@ -114,13 +126,17 @@ export function Scoreboard({ visible }: ScoreboardProps) {
   return (
     <div
       data-testid="scoreboard-overlay"
-      className="absolute inset-0 z-20 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+      className="absolute inset-0 z-20 flex items-center justify-center bg-black/85 backdrop-blur-md"
     >
-      <div className="w-full max-w-2xl rounded-lg border border-white/20 bg-black/90 p-4">
-        <h2 className="mb-4 text-center text-lg font-bold text-white">
-          Scoreboard
-        </h2>
-        <div className="space-y-4">
+      <div className="hud-panel hud-scan w-full max-w-2xl overflow-hidden rounded-xl p-5">
+        <div className="mb-4 flex items-center justify-center gap-3">
+          <span className="h-px flex-1 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+          <h2 className="hud-callsign text-[12px] font-semibold text-white/85">
+            Scoreboard
+          </h2>
+          <span className="h-px flex-1 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+        </div>
+        <div className="space-y-5">
           <TeamTable
             entries={ctPlayers}
             side="CT"

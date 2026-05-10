@@ -562,4 +562,113 @@
   .empty-hero > * {
     position: relative;
   }
+
+  /* ============================================================
+   * 2D Demo Viewer — tactical broadcast HUD
+   * Shared utility classes for the on-canvas chrome. Kept in CSS
+   * (not Tailwind) so the layered effects (notch clips, scanlines,
+   * glow) compose cleanly without massive utility chains.
+   * ============================================================ */
+
+  /* Display font for scoreboard digits / team callsigns. Antonio is
+     a condensed sans already loaded in index.html. */
+  .hud-display {
+    font-family: "Antonio", "Inter Tight", var(--font-sans);
+    letter-spacing: 0.04em;
+  }
+
+  .hud-callsign {
+    font-family: "Inter Tight", var(--font-sans);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+  }
+
+  /* Frosted panel — used by every HUD chrome element. */
+  .hud-panel {
+    position: relative;
+    background: linear-gradient(
+      180deg,
+      rgba(11, 13, 16, 0.78) 0%,
+      rgba(11, 13, 16, 0.92) 100%
+    );
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.04) inset,
+      0 18px 50px -22px rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+  }
+
+  /* Ultra-fine scanline texture overlay; opt-in via .hud-scan. */
+  .hud-scan::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.025) 0px,
+      rgba(255, 255, 255, 0.025) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    mix-blend-mode: overlay;
+    border-radius: inherit;
+    opacity: 0.5;
+  }
+
+  /* Side-stripe accent — 2px luminous bar on the leading edge.
+     Drives the per-side identity on player rows + kill-feed rows. */
+  .hud-stripe-ct {
+    box-shadow:
+      inset 2px 0 0 0 rgb(56 189 248 / 0.9),
+      inset 0 0 24px -16px rgb(56 189 248 / 0.6);
+  }
+
+  .hud-stripe-t {
+    box-shadow:
+      inset -2px 0 0 0 rgb(251 146 60 / 0.9),
+      inset 0 0 24px -16px rgb(251 146 60 / 0.6);
+  }
+
+  /* Subtle vignette + radial wash applied to the viewer root so the
+     map (which fills the whole frame) doesn't fight the chrome at
+     the edges. */
+  .hud-vignette {
+    background:
+      radial-gradient(
+        140% 80% at 50% 0%,
+        transparent 55%,
+        rgba(0, 0, 0, 0.55) 100%
+      ),
+      radial-gradient(
+        100% 60% at 50% 100%,
+        transparent 55%,
+        rgba(0, 0, 0, 0.5) 100%
+      );
+  }
+
+  /* Soft glow used by the play button / score divider; pulses gently
+     when the viewer is actively playing. */
+  @keyframes hud-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 122, 26, 0.55); }
+    50%      { box-shadow: 0 0 0 6px rgba(255, 122, 26, 0); }
+  }
+
+  .hud-pulse {
+    animation: hud-pulse 1.6s ease-in-out infinite;
+  }
+
+  /* Diagonal corner notch — applied via clip-path on the score plate
+     so the broadcast bar reads as a single hardware-edged unit. */
+  .hud-notch {
+    clip-path: polygon(
+      10px 0,
+      calc(100% - 10px) 0,
+      100% 50%,
+      calc(100% - 10px) 100%,
+      10px 100%,
+      0 50%
+    );
+  }
 }

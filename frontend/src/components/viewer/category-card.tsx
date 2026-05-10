@@ -39,34 +39,38 @@ export function CategoryCard({ category }: CategoryCardProps) {
     <div
       data-testid={`category-card-${category}`}
       data-state={open ? "open" : "closed"}
-      className="rounded border border-white/10 bg-white/5 text-white"
+      className="rounded-md border border-white/[0.07] bg-white/[0.025] text-white transition-colors hover:border-white/15"
     >
       <button
         type="button"
         data-testid={`category-card-header-${category}`}
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-2 py-1 text-left text-xs font-semibold uppercase tracking-wide"
+        className="hud-callsign flex w-full items-center justify-between px-2.5 py-1.5 text-left text-[10px] font-semibold text-white/75"
       >
         <span>{CATEGORY_LABEL[category] ?? category}</span>
-        <span aria-hidden="true">{open ? "▾" : "▸"}</span>
+        <span aria-hidden="true" className="text-white/40">
+          {open ? "▾" : "▸"}
+        </span>
       </button>
       {open ? (
         <div
           data-testid={`category-card-body-${category}`}
-          className="space-y-1 border-t border-white/10 px-2 py-1.5 text-sm"
+          className="space-y-1 border-t border-white/[0.07] px-2.5 py-1.5 text-[12px]"
         >
           {metrics.map((m) => (
             <div
               key={m.testId}
               className="flex items-center justify-between tabular-nums"
             >
-              <span className="text-white/70">{m.label}</span>
-              <span data-testid={m.testId}>{m.value}</span>
+              <span className="text-white/60">{m.label}</span>
+              <span data-testid={m.testId} className="font-mono text-white">
+                {m.value}
+              </span>
             </div>
           ))}
           <p
             data-testid={`category-card-suggestion-${category}`}
-            className="pt-1 text-xs leading-snug text-white/60"
+            className="pt-1 text-[11px] leading-snug text-white/55"
           >
             {SUGGESTIONS[category]}
           </p>

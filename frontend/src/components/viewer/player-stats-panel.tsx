@@ -437,32 +437,59 @@ export function PlayerStatsPanel() {
     ? (stats.rounds.find((r) => r.round_number === activeRoundNumber) ?? null)
     : null
 
+  const team = stats?.team_side ?? ""
+  const sideStripe =
+    team === "CT"
+      ? "from-sky-400/80 to-sky-400/0"
+      : team === "T"
+        ? "from-orange-400/80 to-orange-400/0"
+        : "from-white/30 to-transparent"
+
   return (
     <aside
       data-testid="player-stats-panel"
-      className="absolute right-0 top-0 z-30 flex h-full flex-col border-l border-white/10 bg-black/85 text-white shadow-2xl backdrop-blur"
+      className="hud-panel absolute right-0 top-0 z-30 flex h-full flex-col rounded-none border-l border-r-0 border-t-0 border-white/[0.07] text-white"
       style={{ width: PANEL_WIDTH }}
     >
-      <header className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2">
-        <div className="min-w-0">
+      {/* Side accent gradient stripe along the top edge */}
+      <span
+        aria-hidden="true"
+        className={`absolute left-0 right-0 top-0 h-px bg-gradient-to-r ${sideStripe}`}
+      />
+      <header className="flex items-center justify-between gap-2 border-b border-white/[0.07] bg-white/[0.015] px-3.5 py-3">
+        <div className="flex min-w-0 items-center gap-2.5">
           <div
-            data-testid="player-stats-panel-name"
-            className="truncate text-sm font-semibold"
+            aria-hidden="true"
+            className={`hud-display flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-[13px] font-semibold leading-none ring-1 ring-inset ${
+              team === "CT"
+                ? "bg-sky-400/15 text-sky-200 ring-sky-400/30"
+                : team === "T"
+                  ? "bg-orange-400/15 text-orange-200 ring-orange-400/30"
+                  : "bg-white/5 text-white/70 ring-white/10"
+            }`}
           >
-            {stats?.player_name ?? (isLoading ? "Loading…" : "Player")}
+            {(stats?.player_name ?? "P").slice(0, 2).toUpperCase()}
           </div>
-          <div
-            data-testid="player-stats-panel-team"
-            className={`text-xs ${sideColor(stats?.team_side ?? "")}`}
-          >
-            {stats?.team_side || "—"}
+          <div className="min-w-0">
+            <div
+              data-testid="player-stats-panel-name"
+              className="truncate text-[13px] font-semibold leading-tight"
+            >
+              {stats?.player_name ?? (isLoading ? "Loading…" : "Player")}
+            </div>
+            <div
+              data-testid="player-stats-panel-team"
+              className={`hud-callsign text-[10px] ${sideColor(team)}`}
+            >
+              {team || "—"}
+            </div>
           </div>
         </div>
         <button
           type="button"
           data-testid="player-stats-panel-close"
           onClick={() => setSelectedPlayer(null)}
-          className="rounded p-1 text-white/70 hover:bg-white/10 hover:text-white"
+          className="rounded-md p-1.5 text-white/60 ring-1 ring-inset ring-white/0 transition-all hover:bg-white/10 hover:text-white hover:ring-white/15"
           aria-label="Close player panel"
         >
           <X className="h-4 w-4" />

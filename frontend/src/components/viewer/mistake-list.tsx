@@ -217,7 +217,7 @@ export function MistakeList({ steamId: steamIdProp }: MistakeListProps = {}) {
     return (
       <aside
         data-testid="mistake-list"
-        className="absolute left-0 top-0 z-30 flex h-full w-72 flex-col border-r border-white/10 bg-black/85 text-white shadow-2xl backdrop-blur"
+        className="hud-panel absolute left-0 top-0 z-30 flex h-full w-72 flex-col rounded-none border-l-0 border-r border-t-0 border-white/[0.07] text-white"
       >
         <div
           data-testid="mistake-list-shimmer"
@@ -236,10 +236,10 @@ export function MistakeList({ steamId: steamIdProp }: MistakeListProps = {}) {
       data-testid="mistake-list"
       className="absolute left-0 top-0 z-30 flex h-full w-72 flex-col border-r border-white/10 bg-black/85 text-white shadow-2xl backdrop-blur"
     >
-      <header className="flex flex-col gap-2 border-b border-white/10 px-3 py-2">
+      <header className="flex flex-col gap-2.5 border-b border-white/[0.07] bg-white/[0.015] px-3 py-3">
         <AnalysisOverallGauge />
         <CategoryCard category="trade" />
-        <span className="text-xs font-semibold uppercase tracking-wide text-white/70">
+        <span className="hud-callsign text-[10px] font-semibold text-white/55">
           Mistakes
         </span>
         {categoryCounts.length > 0 ? (
@@ -292,7 +292,7 @@ export function MistakeList({ steamId: steamIdProp }: MistakeListProps = {}) {
                     type="button"
                     data-testid={`mistake-list-row-${i}`}
                     onClick={() => handleSelect(m)}
-                    className="flex w-full items-center gap-2 rounded border border-white/10 bg-white/5 px-2 py-1 text-left text-sm tabular-nums hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                    className="group flex w-full items-center gap-2 rounded-md border border-white/[0.06] bg-white/[0.03] px-2 py-1.5 text-left text-[12px] tabular-nums transition-colors hover:border-white/15 hover:bg-white/[0.08] focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/50"
                   >
                     <span
                       data-testid={`mistake-row-severity-${m.kind}`}

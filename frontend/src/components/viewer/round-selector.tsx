@@ -32,15 +32,19 @@ function markerBetween(prev: Round, next: Round): MarkerKind | null {
 }
 
 function pillClasses(side: string, active: boolean): string {
+  // Active pills are filled with the side accent and glow gently. Inactive
+  // pills are hollow with a thin bottom border in the side color so the
+  // win/loss cadence reads at a glance even before hovering. The "sky" /
+  // "amber" substrings are preserved for downstream tests.
   if (side === "CT") {
     return active
-      ? "border-sky-400 bg-sky-500 text-white"
-      : "border-sky-400/70 text-sky-300 hover:bg-sky-500/20"
+      ? "border-sky-400/70 bg-sky-400/90 text-white shadow-[0_0_10px_-1px_rgba(56,189,248,0.7)]"
+      : "border-transparent border-b-sky-400/60 bg-white/[0.03] text-sky-300/85 hover:bg-sky-400/15 hover:text-sky-100"
   }
   if (side === "T") {
     return active
-      ? "border-amber-400 bg-amber-500 text-white"
-      : "border-amber-400/70 text-amber-300 hover:bg-amber-500/20"
+      ? "border-amber-400/70 bg-amber-400/90 text-white shadow-[0_0_10px_-1px_rgba(251,191,36,0.7)]"
+      : "border-transparent border-b-amber-400/60 bg-white/[0.03] text-amber-300/85 hover:bg-amber-400/15 hover:text-amber-100"
   }
   return active
     ? "border-gray-400 bg-gray-500 text-white"
@@ -78,7 +82,7 @@ export function RoundSelector() {
       data-testid="round-selector"
       className="pointer-events-none absolute bottom-16 left-4 right-[180px] z-10 flex justify-center"
     >
-      <div className="pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-lg bg-black/40 px-2 py-1.5 backdrop-blur-sm">
+      <div className="hud-panel pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-md px-2.5 py-1.5">
         {rounds.map((round, i) => {
           const isActive = activeRound === round.round_number
           const prev = i > 0 ? rounds[i - 1] : null
@@ -133,7 +137,7 @@ const RoundPill = memo(function RoundPill({
         aria-label={`Round ${round.round_number}`}
         aria-current={isActive ? "true" : undefined}
         onClick={() => onSelect(round)}
-        className={`flex h-7 min-w-[1.75rem] shrink-0 items-center justify-center rounded-md border-2 px-1.5 text-xs font-semibold tabular-nums transition-colors ${pillClasses(round.winner_side, isActive)}`}
+        className={`hud-display flex h-7 min-w-[1.75rem] shrink-0 items-center justify-center rounded-md border-2 px-1.5 text-[12px] font-semibold tabular-nums transition-all duration-150 ${pillClasses(round.winner_side, isActive)}`}
       >
         {round.round_number}
       </button>

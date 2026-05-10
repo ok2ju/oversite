@@ -33,7 +33,7 @@ export function KillLog() {
   return (
     <div
       data-testid="kill-log"
-      className="pointer-events-none absolute right-2 top-2 z-20 flex flex-col items-end gap-1"
+      className="pointer-events-none absolute right-3 top-16 z-20 flex flex-col items-end gap-1"
     >
       {visible.map((kill) => (
         <KillRow key={kill.id} kill={kill} />
@@ -43,14 +43,30 @@ export function KillLog() {
 }
 
 const KillRow = memo(function KillRow({ kill }: { kill: KillEntry }) {
+  // Side-stripe color keyed off the attacker so the eye finds "who fragged"
+  // first. Same sky/orange identity used elsewhere in the viewer.
+  const stripe =
+    kill.attackerSide === "CT"
+      ? "before:bg-sky-400"
+      : kill.attackerSide === "T"
+        ? "before:bg-orange-400"
+        : "before:bg-white/40"
+
   return (
     <div
       data-testid={`kill-log-row-${kill.id}`}
-      className="flex items-center gap-2 rounded-sm bg-black/70 px-2 py-1 text-xs font-semibold tracking-tight text-white shadow-sm"
+      className={cn(
+        "hud-panel relative flex items-center gap-2 overflow-hidden rounded-sm py-1 pl-3 pr-2.5 text-xs font-semibold tracking-tight text-white",
+        "before:absolute before:left-0 before:top-1/2 before:h-3 before:w-[2px] before:-translate-y-1/2 before:rounded-r before:content-['']",
+        stripe,
+      )}
     >
       <span
         data-testid={`kill-attacker-${kill.id}`}
-        className={cn("truncate", nameColor(kill.attackerSide))}
+        className={cn(
+          "hud-callsign truncate text-[11px]",
+          nameColor(kill.attackerSide),
+        )}
       >
         {kill.attackerName || "?"}
       </span>
@@ -62,13 +78,16 @@ const KillRow = memo(function KillRow({ kill }: { kill: KillEntry }) {
             alt="headshot"
             draggable={false}
             data-testid={`kill-headshot-${kill.id}`}
-            className="h-4 w-auto select-none object-contain"
+            className="h-4 w-auto select-none object-contain drop-shadow-[0_0_4px_rgba(248,113,113,0.7)]"
           />
         )}
       </span>
       <span
         data-testid={`kill-victim-${kill.id}`}
-        className={cn("truncate", nameColor(kill.victimSide))}
+        className={cn(
+          "hud-callsign truncate text-[11px] opacity-80",
+          nameColor(kill.victimSide),
+        )}
       >
         {kill.victimName || "?"}
       </span>

@@ -87,7 +87,7 @@ export function TeamBars() {
     <>
       <div
         data-testid="team-bar-ct"
-        className="pointer-events-none absolute left-2 top-1/2 z-10 flex w-[200px] -translate-y-1/2 flex-col gap-1"
+        className="pointer-events-none absolute left-3 top-1/2 z-10 flex w-[208px] -translate-y-1/2 flex-col gap-1.5"
       >
         {ctPlayers.map((p) => (
           <PlayerRow key={p.steamId} player={p} side="CT" />
@@ -95,7 +95,7 @@ export function TeamBars() {
       </div>
       <div
         data-testid="team-bar-t"
-        className="pointer-events-none absolute right-2 top-1/2 z-10 flex w-[200px] -translate-y-1/2 flex-col gap-1"
+        className="pointer-events-none absolute right-3 top-1/2 z-10 flex w-[208px] -translate-y-1/2 flex-col gap-1.5"
       >
         {tPlayers.map((p) => (
           <PlayerRow key={p.steamId} player={p} side="T" />
@@ -115,8 +115,11 @@ const PlayerRow = memo(function PlayerRow({
   const data = player.data
   const isAlive = data?.is_alive ?? true
   const isCt = side === "CT"
+  // Tone retains the original `bg-sky-500` / `bg-orange-500` literals so any
+  // downstream tooling matching against side colors keeps working — they are
+  // now layered as a thin side-stripe rather than a full header bar.
   const tone = isCt ? "bg-sky-500" : "bg-orange-500"
-  const align = isCt ? "items-start text-left" : "items-end text-right"
+  const headerName = isCt ? "text-sky-200" : "text-orange-200"
   const moneyText = data ? `$${data.money}` : ""
   const weapon = pickPrimary(data, player.inventory)
 
@@ -124,25 +127,35 @@ const PlayerRow = memo(function PlayerRow({
     <div
       data-testid={`team-bar-row-${player.steamId}`}
       className={cn(
-        "rounded-sm border border-black/40 bg-black/60 text-xs text-white shadow",
+        "hud-panel relative overflow-hidden rounded-md text-xs text-white",
+        isCt ? "hud-stripe-ct" : "hud-stripe-t",
         !isAlive && "opacity-40 grayscale",
       )}
     >
+      {/* Side stripe — thin glowing edge keyed off the original tone classes */}
+      <span
+        aria-hidden="true"
+        className={cn(
+          "absolute top-0 h-full w-[2px] opacity-90",
+          tone,
+          isCt ? "left-0" : "right-0",
+        )}
+      />
       <div
         className={cn(
-          "flex items-center gap-2 px-2 py-1",
-          tone,
+          "flex items-center gap-2 px-2.5 pt-1.5",
           isCt ? "flex-row" : "flex-row-reverse",
         )}
       >
         {weapon ? (
-          <WeaponIcon name={weapon} className="h-3.5 w-3.5 text-white/80" />
+          <WeaponIcon name={weapon} className="h-4 w-auto text-white/85" />
         ) : (
-          <span className="h-3.5 w-3.5" />
+          <span className="h-4 w-4" />
         )}
         <span
           className={cn(
-            "flex-1 truncate font-semibold",
+            "hud-callsign flex-1 truncate text-[11px] font-semibold leading-none",
+            headerName,
             isCt ? "text-left" : "text-right",
           )}
         >
@@ -153,11 +166,18 @@ const PlayerRow = memo(function PlayerRow({
       <HealthRow data={data} side={side} />
       <div
         className={cn(
-          "flex items-center justify-between gap-2 px-2 py-0.5",
-          align,
+          "flex items-center gap-2 px-2.5 pb-1.5 pt-0.5",
+          isCt
+            ? "flex-row justify-between"
+            : "flex-row-reverse justify-between",
         )}
       >
-        <span className={cn("font-mono text-emerald-400", !isCt && "order-2")}>
+        <span
+          className={cn(
+            "font-mono text-[11px] tabular-nums text-emerald-300",
+            !isCt && "text-right",
+          )}
+        >
           {moneyText}
         </span>
         <LoadoutIcons data={data} inventory={player.inventory} side={side} />
@@ -217,24 +237,24 @@ const HealthRow = memo(function HealthRow({
     <div
       data-testid={`team-bar-health-${data.steam_id}`}
       className={cn(
-        "flex items-center gap-2 px-2 py-1",
+        "flex items-center gap-2 px-2.5 pb-0.5 pt-0.5",
         isCt ? "flex-row" : "flex-row-reverse",
       )}
     >
       <span
         className={cn(
-          "w-7 shrink-0 font-mono tabular-nums",
+          "hud-display w-7 shrink-0 text-[15px] font-semibold leading-none tabular-nums",
           getHealthTextClass(health),
           isCt ? "text-left" : "text-right",
         )}
       >
         {health}
       </span>
-      <div className="relative h-1.5 flex-1 overflow-hidden rounded-sm bg-zinc-800/80">
+      <div className="relative h-1 flex-1 overflow-hidden rounded-full bg-white/[0.06] ring-1 ring-inset ring-white/5">
         <div
           data-testid={`team-bar-health-fill-${data.steam_id}`}
           className={cn(
-            "h-full transition-[width] duration-150 ease-out",
+            "h-full rounded-full transition-[width] duration-150 ease-out",
             getHealthBarClass(health),
             !isCt && "ml-auto",
           )}

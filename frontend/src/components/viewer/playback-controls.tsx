@@ -6,6 +6,7 @@ import { useViewerStore } from "@/stores/viewer"
 import { useRounds } from "@/hooks/use-rounds"
 import { formatElapsedTime } from "@/lib/viewer/timeline-utils"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -76,17 +77,26 @@ export function PlaybackControls() {
   return (
     <div
       data-testid="playback-controls"
-      className="absolute bottom-4 left-4 right-[180px] flex items-center gap-3 rounded-lg border border-white/20 bg-black/60 px-3 py-2 backdrop-blur-sm"
+      className="hud-panel absolute bottom-4 left-4 right-[180px] flex items-center gap-3 rounded-lg px-3 py-2"
     >
-      {/* Play/Pause */}
+      {/* Play/Pause — luminous accent when playing */}
       <Button
         variant="ghost"
         size="icon"
         onClick={togglePlay}
         aria-label={isPlaying ? "Pause" : "Play"}
-        className="h-8 w-8 shrink-0 text-white hover:bg-white/10"
+        className={cn(
+          "relative h-9 w-9 shrink-0 rounded-full text-white ring-1 ring-inset ring-white/15 transition-all",
+          isPlaying
+            ? "bg-orange-500/15 text-orange-200 ring-orange-400/40 shadow-[0_0_22px_-2px_rgba(255,122,26,0.55)] hover:bg-orange-500/25"
+            : "bg-white/[0.04] hover:bg-white/10",
+        )}
       >
-        {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+        {isPlaying ? (
+          <Pause size={15} className="fill-current" />
+        ) : (
+          <Play size={15} className="ml-[1px] fill-current" />
+        )}
       </Button>
 
       {/* Speed selector */}
@@ -96,7 +106,7 @@ export function PlaybackControls() {
             variant="ghost"
             size="sm"
             data-testid="speed-trigger"
-            className="h-8 shrink-0 text-xs text-white hover:bg-white/10"
+            className="hud-callsign h-7 shrink-0 rounded-md px-2 text-[10px] font-semibold text-white/80 ring-1 ring-inset ring-white/10 hover:bg-white/10 hover:text-white"
           >
             {speed}x
           </Button>
@@ -110,6 +120,9 @@ export function PlaybackControls() {
         </DropdownMenuContent>
       </DropdownMenu>
 
+      {/* Vertical divider */}
+      <span aria-hidden="true" className="h-7 w-px bg-white/10" />
+
       {/* Timeline */}
       <div className="min-w-0 flex-1">
         <Timeline
@@ -121,13 +134,16 @@ export function PlaybackControls() {
         />
       </div>
 
-      {/* Round clock */}
-      <span
-        data-testid="round-time"
-        className="shrink-0 whitespace-nowrap text-xs tabular-nums text-white/70"
-      >
-        {formatElapsedTime(roundCurrentTick, tickRate)}
-      </span>
+      {/* Round clock — display font */}
+      <div className="shrink-0 whitespace-nowrap text-right">
+        <div className="hud-callsign text-[9px] text-white/40">ROUND TIME</div>
+        <span
+          data-testid="round-time"
+          className="hud-display text-[15px] font-semibold leading-none tabular-nums text-white"
+        >
+          {formatElapsedTime(roundCurrentTick, tickRate)}
+        </span>
+      </div>
     </div>
   )
 }

@@ -153,12 +153,12 @@ export function Timeline({
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}
     >
-      {/* Track background */}
-      <div className="h-2 w-full rounded-full bg-white/20">
-        {/* Progress fill */}
+      {/* Track background — finer rail with inner shadow */}
+      <div className="relative h-1 w-full overflow-hidden rounded-full bg-white/[0.06] ring-1 ring-inset ring-white/5">
+        {/* Progress fill — accent gradient */}
         <div
           data-testid="timeline-progress"
-          className="h-full rounded-full bg-primary"
+          className="h-full rounded-full bg-gradient-to-r from-orange-500 to-orange-300 shadow-[0_0_12px_-1px_rgba(255,122,26,0.7)]"
           style={{ width: `${percent}%` }}
         />
       </div>
@@ -173,10 +173,10 @@ export function Timeline({
         />
       ))}
 
-      {/* Thumb */}
+      {/* Thumb — luminous puck */}
       <div
         data-testid="timeline-thumb"
-        className="absolute h-3 w-3 rounded-full bg-white shadow"
+        className="absolute h-3 w-3 rounded-full bg-white ring-2 ring-orange-400/80 shadow-[0_0_10px_2px_rgba(255,122,26,0.6)]"
         style={{ left: `${percent}%`, transform: "translateX(-50%)" }}
       />
     </div>

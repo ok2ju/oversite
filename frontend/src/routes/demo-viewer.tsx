@@ -77,6 +77,11 @@ export default function DemoViewerPage() {
       data-testid="demo-viewer"
     >
       <ViewerCanvas />
+      {/* Soft edge vignette so the chrome lifts off the radar without darkening the playable centre */}
+      <div
+        aria-hidden="true"
+        className="hud-vignette pointer-events-none absolute inset-0 z-[5]"
+      />
       <MatchHeader />
       <TeamBars />
       <KillLog />
