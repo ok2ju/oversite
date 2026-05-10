@@ -412,6 +412,15 @@ type HabitReport struct {
 	Habits  []HabitRow `json:"habits"`
 }
 
+// HistoryPoint is one (demo, value) pair in a player's habit timeline,
+// returned by GetHabitHistory. Sorted newest-first by the binding so the
+// frontend can render sparklines or trend tables without re-sorting.
+type HistoryPoint struct {
+	DemoID    string  `json:"demo_id"`
+	MatchDate string  `json:"match_date"`
+	Value     float64 `json:"value"`
+}
+
 // HitGroupBreakdown is one row in the damage-by-hit-group breakdown.
 type HitGroupBreakdown struct {
 	HitGroup int    `json:"hit_group"`

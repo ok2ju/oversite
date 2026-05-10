@@ -72,3 +72,28 @@ WHERE demo_id = @demo_id;
 -- analyzer writes one row per rostered player on every successful parse, so
 -- 0 is the missing-analysis sentinel for legacy demos imported before slice 1.
 SELECT count(*) FROM player_match_analysis WHERE demo_id = @demo_id;
+
+-- name: ListHabitHistoryForPlayer :many
+-- Returns the player's last N analysis rows joined with their demos, ordered
+-- newest-match-date first. The correlated untraded-deaths count rides along
+-- so the HabitReport / coaching surfaces can render trend deltas + sparklines
+-- without a second round trip. Slice 11 chooses on-the-fly aggregation over a
+-- materialized history table; promote when query latency hurts.
+SELECT
+    pma.demo_id,
+    d.match_date,
+    pma.trade_pct,
+    pma.time_to_fire_ms_avg,
+    pma.first_shot_acc_pct,
+    pma.isolated_peek_deaths,
+    pma.repeated_death_zones,
+    pma.extras_json,
+    (SELECT count(*) FROM analysis_mistakes am
+     WHERE am.demo_id = pma.demo_id
+       AND am.steam_id = pma.steam_id
+       AND am.kind = 'no_trade_death') AS untraded_count
+FROM player_match_analysis pma
+JOIN demos d ON d.id = pma.demo_id
+WHERE pma.steam_id = @steam_id
+ORDER BY d.match_date DESC, pma.demo_id DESC
+LIMIT @limit_val;

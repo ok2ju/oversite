@@ -53,6 +53,10 @@ type HabitInputs struct {
 // Keeping the in-Go struct typed (HabitKey, Direction, Status enums) catches
 // builder-side bugs at compile time; types.go converts to plain strings for
 // the binding.
+//
+// PreviousValue / Delta are filled by AttachDeltas when history is available;
+// nil means "no prior demo with data for this habit" and the UI hides the
+// delta line.
 type HabitRow struct {
 	Key           HabitKey
 	Label         string
@@ -67,6 +71,8 @@ type HabitRow struct {
 	GoodMax       float64
 	WarnMin       float64
 	WarnMax       float64
+	PreviousValue *float64
+	Delta         *float64
 }
 
 // BuildHabitReport assembles the habit checklist from inputs. Habits whose
@@ -187,6 +193,178 @@ func LoadHabitInputs(ctx context.Context, q *store.Queries, demoID int64, steamI
 	in.UntradedDeathsCount = int(count)
 
 	return in, true, nil
+}
+
+// HistoryRecord is one entry in a player's analysis history — the data needed
+// to derive any habit's value at the time of that demo. Sorted match_date
+// DESC by LoadHabitHistory; consumers should not re-sort.
+type HistoryRecord struct {
+	DemoID    int64
+	MatchDate string
+
+	TimeToFireMsAvg    float64
+	FirstShotAccRatio  float64
+	HasFirstShotData   bool
+	TradePctRatio      float64
+	IsolatedPeekDeaths int
+	RepeatedDeathZones int
+
+	UntradedDeathsCount int
+
+	StandingShotMechRatio   float64
+	HasStandingShotMechData bool
+}
+
+// HistoryPoint is one (demo, value) pair returned by HistoryForKey — the wire
+// shape for GetHabitHistory. MatchDate is passed through verbatim from the
+// demos.match_date column so the frontend renders the sparkline x-axis with
+// the same string the rest of the app uses.
+type HistoryPoint struct {
+	DemoID    int64
+	MatchDate string
+	Value     float64
+}
+
+// LoadHabitHistory loads the player's last `limit` analysis rows, newest
+// first, with the per-row aggregates BuildHabitReport / AttachDeltas need.
+// Reads from player_match_analysis JOIN demos, so legacy demos without an
+// analysis row simply don't appear.
+func LoadHabitHistory(ctx context.Context, q *store.Queries, steamID string, limit int) ([]HistoryRecord, error) {
+	if steamID == "" {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 8
+	}
+	rows, err := q.ListHabitHistoryForPlayer(ctx, store.ListHabitHistoryForPlayerParams{
+		SteamID:  steamID,
+		LimitVal: int64(limit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list habit history: %w", err)
+	}
+
+	out := make([]HistoryRecord, len(rows))
+	for i, r := range rows {
+		rec := HistoryRecord{
+			DemoID:             r.DemoID,
+			MatchDate:          r.MatchDate,
+			TimeToFireMsAvg:    r.TimeToFireMsAvg,
+			FirstShotAccRatio:  r.FirstShotAccPct,
+			HasFirstShotData:   r.FirstShotAccPct > 0,
+			TradePctRatio:      r.TradePct,
+			IsolatedPeekDeaths: int(r.IsolatedPeekDeaths),
+			RepeatedDeathZones: int(r.RepeatedDeathZones),
+
+			UntradedDeathsCount: int(r.UntradedCount),
+		}
+		if r.ExtrasJson != "" && r.ExtrasJson != "{}" {
+			var extras map[string]any
+			if jsonErr := json.Unmarshal([]byte(r.ExtrasJson), &extras); jsonErr == nil {
+				if v, ok := extras["standing_shot_pct"]; ok {
+					if f, ok := toFloat64(v); ok {
+						rec.StandingShotMechRatio = f
+						rec.HasStandingShotMechData = true
+					}
+				}
+			}
+		}
+		out[i] = rec
+	}
+	return out, nil
+}
+
+// HabitValueFromRecord returns the habit's value at the given history record
+// in the same display unit BuildHabitReport produces (% on a 0..100 scale,
+// counts as integers, ms as ms). ok=false means the record carries no data
+// for this habit (e.g. no first-shot fires sampled) and the caller should
+// treat it as "not present" rather than zero.
+func HabitValueFromRecord(key HabitKey, rec HistoryRecord) (float64, bool) {
+	switch key {
+	case HabitReaction:
+		if rec.TimeToFireMsAvg <= 0 {
+			return 0, false
+		}
+		return rec.TimeToFireMsAvg, true
+	case HabitFirstShotAcc:
+		if !rec.HasFirstShotData {
+			return 0, false
+		}
+		return rec.FirstShotAccRatio * 100, true
+	case HabitShootingInMotion:
+		if !rec.HasStandingShotMechData {
+			return 0, false
+		}
+		motion := (1 - rec.StandingShotMechRatio) * 100
+		if motion < 0 {
+			motion = 0
+		}
+		if motion > 100 {
+			motion = 100
+		}
+		return motion, true
+	case HabitTradeTiming:
+		return rec.TradePctRatio * 100, true
+	case HabitUntradedDeaths:
+		return float64(rec.UntradedDeathsCount), true
+	case HabitIsolatedPeekDeaths:
+		return float64(rec.IsolatedPeekDeaths), true
+	case HabitRepeatedDeathZone:
+		return float64(rec.RepeatedDeathZones), true
+	}
+	return 0, false
+}
+
+// HistoryForKey filters records to (demo, value) points where the habit has
+// data, preserving the input order (newest first). Used by GetHabitHistory.
+func HistoryForKey(records []HistoryRecord, key HabitKey) []HistoryPoint {
+	out := make([]HistoryPoint, 0, len(records))
+	for _, r := range records {
+		v, ok := HabitValueFromRecord(key, r)
+		if !ok {
+			continue
+		}
+		out = append(out, HistoryPoint{
+			DemoID:    r.DemoID,
+			MatchDate: r.MatchDate,
+			Value:     v,
+		})
+	}
+	return out
+}
+
+// AttachDeltas mutates rows so each row's PreviousValue/Delta point to the
+// most recent prior demo that had data for that habit. currentDemoID is the
+// demo the rows describe; "previous" is the next-older record in history.
+//
+// History is expected sorted match_date DESC (LoadHabitHistory's contract).
+// If currentDemoID is not in history (e.g. analysis row exists but the demo
+// is not yet in the history result for some reason) the rows are left with
+// nil deltas — first-demo behaviour, which is the conservative default.
+func AttachDeltas(rows []HabitRow, history []HistoryRecord, currentDemoID int64) {
+	currentIdx := -1
+	for i, r := range history {
+		if r.DemoID == currentDemoID {
+			currentIdx = i
+			break
+		}
+	}
+	if currentIdx == -1 || currentIdx >= len(history)-1 {
+		return // first demo or current demo not in history → no previous to compare
+	}
+	for i := range rows {
+		row := &rows[i]
+		// Walk forward (older) until we find a demo with data for this habit.
+		for j := currentIdx + 1; j < len(history); j++ {
+			if v, ok := HabitValueFromRecord(row.Key, history[j]); ok {
+				prev := v
+				delta := row.Value - v
+				row.PreviousValue = &prev
+				row.Delta = &delta
+				break
+			}
+		}
+	}
 }
 
 func toFloat64(v any) (float64, bool) {

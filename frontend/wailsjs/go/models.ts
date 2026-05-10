@@ -295,6 +295,22 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class HistoryPoint {
+	    demo_id: string;
+	    match_date: string;
+	    value: number;
+
+	    static createFrom(source: any = {}) {
+	        return new HistoryPoint(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.demo_id = source["demo_id"];
+	        this.match_date = source["match_date"];
+	        this.value = source["value"];
+	    }
+	}
 	export class HitGroupBreakdown {
 	    hit_group: number;
 	    label: string;

@@ -998,9 +998,58 @@ func (a *App) GetHabitReport(demoID, steamID string) (HabitReport, error) {
 	}
 
 	rows := analysis.BuildHabitReport(in)
+
+	// History powers the per-row delta line. 9 rows is the current demo +
+	// 8 prior — the sparkline window the coaching page renders. A failure
+	// to load history is non-fatal for the report; we just ship the rows
+	// without deltas and log so the slow path is visible in errors.txt.
+	history, herr := analysis.LoadHabitHistory(a.ctx, a.queries, steamID, 9)
+	if herr != nil {
+		slog.Warn("GetHabitReport: load habit history",
+			"demo_id", id, "steam_id", steamID, "err", herr)
+	} else {
+		analysis.AttachDeltas(rows, history, id)
+	}
+
 	out.Habits = make([]HabitRow, len(rows))
 	for i, r := range rows {
 		out.Habits[i] = habitRowToBinding(r)
+	}
+	return out, nil
+}
+
+// GetHabitHistory returns the player's last `limit` (demo, value) pairs for a
+// single habit, sorted newest-first. Powers the analysis-page trend column
+// and the coaching-landing-page sparklines (the latter calls it once per
+// card).
+//
+// Empty contracts: empty steamID → empty list; unknown habit key → empty
+// list; limit ≤ 0 → defaults to 8. Returns an error only on actual SQL
+// failure so callers can render an empty trend without try/catching.
+func (a *App) GetHabitHistory(steamID, habitKey string, limit int) ([]HistoryPoint, error) {
+	if steamID == "" || habitKey == "" {
+		return []HistoryPoint{}, nil
+	}
+	if _, ok := analysis.LookupNorm(analysis.HabitKey(habitKey)); !ok {
+		return []HistoryPoint{}, nil
+	}
+	if limit <= 0 {
+		limit = 8
+	}
+
+	records, err := analysis.LoadHabitHistory(a.ctx, a.queries, steamID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("loading habit history: %w", err)
+	}
+	points := analysis.HistoryForKey(records, analysis.HabitKey(habitKey))
+
+	out := make([]HistoryPoint, len(points))
+	for i, p := range points {
+		out[i] = HistoryPoint{
+			DemoID:    strconv.FormatInt(p.DemoID, 10),
+			MatchDate: p.MatchDate,
+			Value:     p.Value,
+		}
 	}
 	return out, nil
 }
@@ -1022,6 +1071,8 @@ func habitRowToBinding(r analysis.HabitRow) HabitRow {
 		GoodMax:       r.GoodMax,
 		WarnMin:       r.WarnMin,
 		WarnMax:       r.WarnMax,
+		PreviousValue: r.PreviousValue,
+		Delta:         r.Delta,
 	}
 }
 

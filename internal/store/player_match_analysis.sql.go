@@ -80,6 +80,82 @@ func (q *Queries) GetPlayerMatchAnalysis(ctx context.Context, arg GetPlayerMatch
 	return i, err
 }
 
+const listHabitHistoryForPlayer = `-- name: ListHabitHistoryForPlayer :many
+SELECT
+    pma.demo_id,
+    d.match_date,
+    pma.trade_pct,
+    pma.time_to_fire_ms_avg,
+    pma.first_shot_acc_pct,
+    pma.isolated_peek_deaths,
+    pma.repeated_death_zones,
+    pma.extras_json,
+    (SELECT count(*) FROM analysis_mistakes am
+     WHERE am.demo_id = pma.demo_id
+       AND am.steam_id = pma.steam_id
+       AND am.kind = 'no_trade_death') AS untraded_count
+FROM player_match_analysis pma
+JOIN demos d ON d.id = pma.demo_id
+WHERE pma.steam_id = ?1
+ORDER BY d.match_date DESC, pma.demo_id DESC
+LIMIT ?2
+`
+
+type ListHabitHistoryForPlayerParams struct {
+	SteamID  string
+	LimitVal int64
+}
+
+type ListHabitHistoryForPlayerRow struct {
+	DemoID             int64
+	MatchDate          string
+	TradePct           float64
+	TimeToFireMsAvg    float64
+	FirstShotAccPct    float64
+	IsolatedPeekDeaths int64
+	RepeatedDeathZones int64
+	ExtrasJson         string
+	UntradedCount      int64
+}
+
+// Returns the player's last N analysis rows joined with their demos, ordered
+// newest-match-date first. The correlated untraded-deaths count rides along
+// so the HabitReport / coaching surfaces can render trend deltas + sparklines
+// without a second round trip. Slice 11 chooses on-the-fly aggregation over a
+// materialized history table; promote when query latency hurts.
+func (q *Queries) ListHabitHistoryForPlayer(ctx context.Context, arg ListHabitHistoryForPlayerParams) ([]ListHabitHistoryForPlayerRow, error) {
+	rows, err := q.db.QueryContext(ctx, listHabitHistoryForPlayer, arg.SteamID, arg.LimitVal)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListHabitHistoryForPlayerRow
+	for rows.Next() {
+		var i ListHabitHistoryForPlayerRow
+		if err := rows.Scan(
+			&i.DemoID,
+			&i.MatchDate,
+			&i.TradePct,
+			&i.TimeToFireMsAvg,
+			&i.FirstShotAccPct,
+			&i.IsolatedPeekDeaths,
+			&i.RepeatedDeathZones,
+			&i.ExtrasJson,
+			&i.UntradedCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPlayerMatchAnalysisByDemoID = `-- name: ListPlayerMatchAnalysisByDemoID :many
 SELECT id, demo_id, steam_id, overall_score, trade_pct, avg_trade_ticks, extras_json, created_at, version, crosshair_height_avg_off, time_to_fire_ms_avg, flick_count, flick_hit_pct, first_shot_acc_pct, spray_decay_slope, standing_shot_pct, counter_strafe_pct, smokes_thrown, smokes_kill_assist, flash_assists, he_damage, nades_unused, isolated_peek_deaths, repeated_death_zones, full_buy_adr, eco_kills
 FROM player_match_analysis

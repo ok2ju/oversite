@@ -20,6 +20,8 @@ export function GetDemoTicks(arg1:string,arg2:number,arg3:number):Promise<Array<
 
 export function GetEventsByTypes(arg1:string,arg2:Array<string>):Promise<Array<main.GameEvent>>;
 
+export function GetHabitHistory(arg1:string,arg2:string,arg3:number):Promise<Array<main.HistoryPoint>>;
+
 export function GetHabitReport(arg1:string,arg2:string):Promise<main.HabitReport>;
 
 export function GetHeatmapData(arg1:Array<number>,arg2:Array<string>,arg3:string,arg4:string):Promise<Array<main.HeatmapPoint>>;

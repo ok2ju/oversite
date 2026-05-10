@@ -380,6 +380,18 @@ export const mockAppBindings = {
       habits: [],
     }),
 
+  GetHabitHistory: vi
+    .fn<
+      (
+        steamId: string,
+        habitKey: string,
+        limit: number,
+      ) => Promise<
+        Array<{ demo_id: string; match_date: string; value: number }>
+      >
+    >()
+    .mockResolvedValue([]),
+
   GetPlayerRoundAnalysis: vi
     .fn<
       (

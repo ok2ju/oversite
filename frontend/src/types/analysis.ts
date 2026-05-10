@@ -146,3 +146,10 @@ export interface HabitReport {
   as_of: string
   habits: HabitRow[]
 }
+
+// One (demo, value) pair returned by GetHabitHistory. Sorted newest-first.
+export interface HistoryPoint {
+  demo_id: string
+  match_date: string
+  value: number
+}
