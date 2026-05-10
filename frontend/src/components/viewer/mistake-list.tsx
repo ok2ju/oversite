@@ -1,7 +1,11 @@
-import { useCallback } from "react"
+import { useCallback, useEffect, useMemo } from "react"
 import { useViewerStore } from "@/stores/viewer"
+import { useAnalysisStore } from "@/stores/analysis"
 import { useMistakeTimeline } from "@/hooks/use-mistake-timeline"
 import { useRounds } from "@/hooks/use-rounds"
+import { badgeVariants } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
+import { CATEGORY_LABEL, OTHER_CATEGORY, categoryForKind } from "@/lib/mistakes"
 import type { MistakeEntry } from "@/types/mistake"
 import type { Round } from "@/types/round"
 
@@ -67,28 +71,92 @@ interface MistakeListProps {
   steamId?: string | null
 }
 
+// Stable display order for the count strip — known categories first, then
+// "other" so a future Go-only rule still surfaces without a frontend change.
+const CATEGORY_ORDER = ["trade", "utility", OTHER_CATEGORY]
+
 export function MistakeList({ steamId: steamIdProp }: MistakeListProps = {}) {
   const demoId = useViewerStore((s) => s.demoId)
   const selectedSteamId = useViewerStore((s) => s.selectedPlayerSteamId)
   const tickRate = useViewerStore((s) => s.tickRate)
   const setTick = useViewerStore((s) => s.setTick)
   const steamId = steamIdProp ?? selectedSteamId
+  const selectedCategory = useAnalysisStore((s) => s.selectedCategory)
+  const setSelectedCategory = useAnalysisStore((s) => s.setSelectedCategory)
   const { data: rounds } = useRounds(demoId)
   const { data: mistakes, isLoading } = useMistakeTimeline(demoId, steamId)
 
   const handleSelect = useCallback((tick: number) => setTick(tick), [setTick])
+  const handleCategoryClick = useCallback(
+    (cat: string) => {
+      setSelectedCategory(selectedCategory === cat ? null : cat)
+    },
+    [selectedCategory, setSelectedCategory],
+  )
+
+  // Clear the filter when the (demo, player) pair changes — matches the
+  // heatmap-store reset-cascade convention so a stale filter from a previous
+  // player doesn't bleed across context switches.
+  useEffect(() => {
+    setSelectedCategory(null)
+  }, [demoId, steamId, setSelectedCategory])
+
+  const items = useMemo(() => mistakes ?? [], [mistakes])
+
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const m of items) {
+      const cat = categoryForKind(m.kind)
+      counts.set(cat, (counts.get(cat) ?? 0) + 1)
+    }
+    return CATEGORY_ORDER.filter((c) => counts.has(c)).map((c) => ({
+      category: c,
+      count: counts.get(c) ?? 0,
+    }))
+  }, [items])
+
+  const visibleItems = selectedCategory
+    ? items.filter((m) => categoryForKind(m.kind) === selectedCategory)
+    : items
 
   if (!steamId) return null
-
-  const items = mistakes ?? []
 
   return (
     <aside
       data-testid="mistake-list"
       className="absolute left-0 top-0 z-30 flex h-full w-72 flex-col border-r border-white/10 bg-black/85 text-white shadow-2xl backdrop-blur"
     >
-      <header className="border-b border-white/10 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white/70">
-        Mistakes
+      <header className="flex flex-col gap-2 border-b border-white/10 px-3 py-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-white/70">
+          Mistakes
+        </span>
+        {categoryCounts.length > 0 ? (
+          <div
+            data-testid="mistake-category-bar"
+            className="flex flex-wrap items-center gap-1.5"
+          >
+            {categoryCounts.map(({ category, count }) => {
+              const active = selectedCategory === category
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  data-testid={`mistake-category-badge-${category}`}
+                  data-active={active ? "true" : undefined}
+                  onClick={() => handleCategoryClick(category)}
+                  className={cn(
+                    badgeVariants({
+                      variant: active ? "default" : "secondary",
+                    }),
+                    "cursor-pointer",
+                  )}
+                >
+                  {CATEGORY_LABEL[category] ?? category} {count}
+                </button>
+              )
+            })}
+          </div>
+        ) : null}
       </header>
       <div className="flex-1 overflow-y-auto p-2">
         {isLoading ? (
@@ -104,7 +172,7 @@ export function MistakeList({ steamId: steamIdProp }: MistakeListProps = {}) {
           </p>
         ) : (
           <ul className="space-y-1">
-            {items.map((m, i) => {
+            {visibleItems.map((m, i) => {
               const severity = KIND_SEVERITY[m.kind] ?? "low"
               return (
                 <li key={`${m.kind}-${m.tick}-${i}`}>

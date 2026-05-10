@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 import { screen, cleanup } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useViewerStore } from "@/stores/viewer"
+import { useAnalysisStore } from "@/stores/analysis"
 import { renderWithProviders } from "@/test/render"
 import { mockAppBindings, resetAppBindings } from "@/test/mocks/bindings"
 import { MistakeList } from "./mistake-list"
@@ -20,6 +21,7 @@ describe("MistakeList", () => {
   beforeEach(() => {
     resetAppBindings()
     useViewerStore.getState().reset()
+    useAnalysisStore.getState().reset()
 
     // Tests below need a single round-7 entry to exercise the M:SS formatting.
     mockAppBindings.GetDemoRounds.mockResolvedValue([
@@ -207,5 +209,101 @@ describe("MistakeList", () => {
     expect(
       screen.getByTestId("mistake-row-severity-no_trade_death"),
     ).toBeInTheDocument()
+  })
+
+  describe("category filter", () => {
+    const UTIL_UNUSED_TICK = ROUND_7_FREEZE_END + 30 * TICK_RATE
+
+    function setupTwoKindFixture() {
+      useViewerStore.getState().initDemo({
+        id: "1",
+        mapName: "de_dust2",
+        totalTicks: 100000,
+        tickRate: TICK_RATE,
+      })
+      useViewerStore.getState().setSelectedPlayer("STEAM_A")
+      mockAppBindings.GetMistakeTimeline.mockResolvedValue([
+        {
+          kind: "died_with_util_unused",
+          round_number: 7,
+          tick: UTIL_UNUSED_TICK,
+          steam_id: "STEAM_A",
+          extras: { unused: ["smokegrenade"] },
+        },
+        {
+          kind: "no_trade_death",
+          round_number: 7,
+          tick: ROUND_7_TICK,
+          steam_id: "STEAM_A",
+          extras: { killer_steam_id: "STEAM_B" },
+        },
+      ])
+    }
+
+    it("renders one badge per non-empty category with the correct count", async () => {
+      setupTwoKindFixture()
+
+      renderWithProviders(<MistakeList />)
+      await screen.findByTestId("mistake-list-row-0")
+
+      const tradeBadge = screen.getByTestId("mistake-category-badge-trade")
+      const utilityBadge = screen.getByTestId("mistake-category-badge-utility")
+      expect(tradeBadge).toHaveTextContent("Trade 1")
+      expect(utilityBadge).toHaveTextContent("Utility 1")
+      expect(
+        screen.queryByTestId("mistake-category-badge-other"),
+      ).not.toBeInTheDocument()
+    })
+
+    it("clicking a badge filters the list to that category", async () => {
+      const user = userEvent.setup()
+      setupTwoKindFixture()
+
+      renderWithProviders(<MistakeList />)
+      await screen.findByTestId("mistake-list-row-1")
+
+      await user.click(screen.getByTestId("mistake-category-badge-trade"))
+
+      expect(useAnalysisStore.getState().selectedCategory).toBe("trade")
+      const rows = screen.getAllByTestId(/^mistake-list-row-/)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toHaveTextContent("Untraded death — round 7, 1:23")
+      expect(
+        screen.queryByText(/Died with utility unused/),
+      ).not.toBeInTheDocument()
+    })
+
+    it("clicking the active badge clears the filter", async () => {
+      const user = userEvent.setup()
+      setupTwoKindFixture()
+
+      renderWithProviders(<MistakeList />)
+      await screen.findByTestId("mistake-list-row-1")
+
+      const tradeBadge = screen.getByTestId("mistake-category-badge-trade")
+      await user.click(tradeBadge)
+      expect(screen.getAllByTestId(/^mistake-list-row-/)).toHaveLength(1)
+
+      await user.click(screen.getByTestId("mistake-category-badge-trade"))
+
+      expect(useAnalysisStore.getState().selectedCategory).toBeNull()
+      expect(screen.getAllByTestId(/^mistake-list-row-/)).toHaveLength(2)
+    })
+
+    it("clears the filter when the selected player changes", async () => {
+      const user = userEvent.setup()
+      setupTwoKindFixture()
+
+      renderWithProviders(<MistakeList />)
+      await screen.findByTestId("mistake-list-row-1")
+
+      await user.click(screen.getByTestId("mistake-category-badge-trade"))
+      expect(useAnalysisStore.getState().selectedCategory).toBe("trade")
+
+      useViewerStore.getState().setSelectedPlayer("STEAM_B")
+
+      await screen.findByTestId("mistake-list")
+      expect(useAnalysisStore.getState().selectedCategory).toBeNull()
+    })
   })
 })
