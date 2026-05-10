@@ -17,6 +17,9 @@ type AnalysisMistake struct {
 	Kind        string
 	ExtrasJson  string
 	CreatedAt   string
+	Category    string
+	Severity    int64
+	RoundID     sql.NullInt64
 }
 
 type Demo struct {
@@ -76,14 +79,32 @@ type GrenadeLineup struct {
 }
 
 type PlayerMatchAnalysis struct {
-	ID            int64
-	DemoID        int64
-	SteamID       string
-	OverallScore  int64
-	TradePct      float64
-	AvgTradeTicks float64
-	ExtrasJson    string
-	CreatedAt     string
+	ID                    int64
+	DemoID                int64
+	SteamID               string
+	OverallScore          int64
+	TradePct              float64
+	AvgTradeTicks         float64
+	ExtrasJson            string
+	CreatedAt             string
+	Version               int64
+	CrosshairHeightAvgOff float64
+	TimeToFireMsAvg       float64
+	FlickCount            int64
+	FlickHitPct           float64
+	FirstShotAccPct       float64
+	SprayDecaySlope       float64
+	StandingShotPct       float64
+	CounterStrafePct      float64
+	SmokesThrown          int64
+	SmokesKillAssist      int64
+	FlashAssists          int64
+	HeDamage              int64
+	NadesUnused           int64
+	IsolatedPeekDeaths    int64
+	RepeatedDeathZones    int64
+	FullBuyAdr            float64
+	EcoKills              int64
 }
 
 type PlayerRound struct {
@@ -110,6 +131,12 @@ type PlayerRoundAnalysis struct {
 	TradePct    float64
 	ExtrasJson  string
 	CreatedAt   string
+	BuyType     string
+	MoneySpent  int64
+	NadesUsed   int64
+	NadesUnused int64
+	ShotsFired  int64
+	ShotsHit    int64
 }
 
 type Round struct {

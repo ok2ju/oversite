@@ -3,11 +3,14 @@ import { useParams } from "react-router-dom"
 import { Loader2 } from "lucide-react"
 import { useDemo } from "@/hooks/use-demo"
 import { useScoreboard } from "@/hooks/use-scoreboard"
+import { useRounds } from "@/hooks/use-rounds"
 import { useViewerStore } from "@/stores/viewer"
-import { AnalysisOverallGauge } from "@/components/viewer/analysis-overall-gauge"
-import { CategoryCard } from "@/components/viewer/category-card"
-import { RoundTradeBars } from "@/components/viewer/round-trade-bars"
 import { DemoRouteTabs } from "@/components/viewer/demo-route-tabs"
+import { VerdictHero } from "@/components/analysis/verdict-hero"
+import { MatchTimeline } from "@/components/analysis/match-timeline"
+import { MistakesFeed } from "@/components/analysis/mistakes-feed"
+import { HeadToHead } from "@/components/analysis/head-to-head"
+import { EconomyStrip } from "@/components/analysis/economy-strip"
 import {
   Select,
   SelectContent,
@@ -16,16 +19,15 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-// Standalone analysis page mounted at /demos/:id/analysis. Reuses the slice-5
-// gauge and Trades card so the per-round bar chart, the overall score, and
-// the category card stay rendered against the same store-backed
-// (demoId, selectedPlayerSteamId) pair without component duplication.
-//
+// Standalone analysis page mounted at /demos/:id/analysis. Verdict-first
+// layout: a hero with the overall score + per-category bars sets the story,
+// the match timeline shows the round-by-round arc, and the mistakes feed is
+// the action surface (one click → seek the viewer to the offending tick).
 // Owns its own player picker because the scoreboard overlay (where players
 // are picked on the viewer page) is not mounted here, and the route's reset
 // effect on the viewer page wipes the store on navigation. The picker
 // auto-selects the first player from the scoreboard so the cards light up
-// without an extra click — users can then switch via the dropdown.
+// without an extra click.
 export default function DemoAnalysisPage() {
   const { id } = useParams<{ id: string }>()
   const { data: demo, isLoading, isError } = useDemo(id)
@@ -35,6 +37,7 @@ export default function DemoAnalysisPage() {
   const selectedSteamId = useViewerStore((s) => s.selectedPlayerSteamId)
   const setSelectedPlayer = useViewerStore((s) => s.setSelectedPlayer)
   const { data: scoreboard } = useScoreboard(demoId)
+  const { data: rounds } = useRounds(demoId)
 
   const orderedPlayers = useMemo(() => {
     if (!scoreboard) return []
@@ -43,6 +46,17 @@ export default function DemoAnalysisPage() {
       return a.player_name.localeCompare(b.player_name)
     })
   }, [scoreboard])
+
+  const selectedPlayer = useMemo(
+    () => orderedPlayers.find((p) => p.steam_id === selectedSteamId),
+    [orderedPlayers, selectedSteamId],
+  )
+
+  const finalScore = useMemo(() => {
+    if (!rounds || rounds.length === 0) return null
+    const last = rounds[rounds.length - 1]
+    return { ct: last.ct_score, t: last.t_score }
+  }, [rounds])
 
   useEffect(() => {
     if (!demo) return
@@ -69,7 +83,7 @@ export default function DemoAnalysisPage() {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Loader2 className="h-8 w-8 animate-spin text-[var(--text-muted)]" />
       </div>
     )
   }
@@ -77,7 +91,7 @@ export default function DemoAnalysisPage() {
   if (isError || !demo) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-muted-foreground">
+        <p className="text-[var(--text-muted)]">
           Demo not found or failed to load.
         </p>
       </div>
@@ -87,17 +101,43 @@ export default function DemoAnalysisPage() {
   if (demo.status !== "ready") {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-muted-foreground">
+        <p className="text-[var(--text-muted)]">
           Demo is not ready for viewing (status: {demo.status}).
         </p>
       </div>
     )
   }
 
+  const matchDate = demo.match_date ? formatDate(demo.match_date) : null
+
   return (
-    <main data-testid="demo-analysis" className="flex flex-col gap-6 p-6">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold">Analysis</h1>
+    <main
+      data-testid="demo-analysis"
+      className="mx-auto flex max-w-[1200px] flex-col gap-5 px-6 pb-16 pt-6"
+    >
+      {/* Page header */}
+      <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b border-[var(--divider)] pb-4">
+        <div className="flex flex-col gap-1.5">
+          <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--text-faint)]">
+            Debrief / {demo.map_name.replace(/^de_/, "").toUpperCase()}
+            {finalScore ? `  ·  ${finalScore.ct}–${finalScore.t}` : null}
+            {matchDate ? `  ·  ${matchDate}` : null}
+          </span>
+          <h1
+            className="text-[32px] font-bold leading-none tracking-tight text-[var(--text)]"
+            style={{ fontFamily: "'Inter Tight', Inter, sans-serif" }}
+          >
+            Analysis
+            {selectedPlayer ? (
+              <span className="ml-3 font-medium text-[var(--text-muted)]">
+                ·{" "}
+                <span className="text-[var(--text)]">
+                  {selectedPlayer.player_name}
+                </span>
+              </span>
+            ) : null}
+          </h1>
+        </div>
         <div className="flex items-center gap-3">
           {orderedPlayers.length > 0 ? (
             <Select
@@ -113,7 +153,13 @@ export default function DemoAnalysisPage() {
               <SelectContent>
                 {orderedPlayers.map((p) => (
                   <SelectItem key={p.steam_id} value={p.steam_id}>
-                    <span className="text-muted-foreground">
+                    <span
+                      className={
+                        p.team_side === "CT"
+                          ? "text-[#5db1ff]"
+                          : "text-[var(--accent)]"
+                      }
+                    >
                       [{p.team_side}]
                     </span>{" "}
                     {p.player_name}
@@ -124,33 +170,36 @@ export default function DemoAnalysisPage() {
           ) : null}
           <DemoRouteTabs demoId={String(demo.id)} />
         </div>
-      </div>
+      </header>
+
       {orderedPlayers.length === 0 ? (
         <p
           data-testid="analysis-no-players"
-          className="text-sm text-muted-foreground"
+          className="text-sm text-[var(--text-muted)]"
         >
           No players found for this demo.
         </p>
-      ) : null}
-      <section className="rounded-md border border-border bg-card p-4">
-        <AnalysisOverallGauge />
-      </section>
-      <section className="rounded-md border border-border bg-card p-4">
-        <CategoryCard category="trade" />
-      </section>
-      <section className="rounded-md border border-border bg-card p-4">
-        <CategoryCard category="aim" />
-      </section>
-      <section className="rounded-md border border-border bg-card p-4">
-        <CategoryCard category="movement" />
-      </section>
-      <section className="rounded-md border border-border bg-card p-4">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Round trade %
-        </h2>
-        <RoundTradeBars />
-      </section>
+      ) : (
+        <>
+          <VerdictHero />
+          <MatchTimeline />
+          <MistakesFeed />
+          <div className="grid gap-5 lg:grid-cols-[3fr_2fr]">
+            <HeadToHead demoId={String(demo.id)} />
+            <EconomyStrip />
+          </div>
+        </>
+      )}
     </main>
   )
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  })
 }

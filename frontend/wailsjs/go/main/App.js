@@ -42,8 +42,16 @@ export function GetHeatmapData(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['GetHeatmapData'](arg1, arg2, arg3, arg4);
 }
 
+export function GetMatchInsights(arg1) {
+  return window['go']['main']['App']['GetMatchInsights'](arg1);
+}
+
 export function GetMinEngagementsForAimCritique() {
   return window['go']['main']['App']['GetMinEngagementsForAimCritique']();
+}
+
+export function GetMistakeContext(arg1) {
+  return window['go']['main']['App']['GetMistakeContext'](arg1);
 }
 
 export function GetMistakeTimeline(arg1, arg2) {

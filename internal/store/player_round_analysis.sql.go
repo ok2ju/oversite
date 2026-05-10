@@ -34,7 +34,7 @@ func (q *Queries) DeletePlayerRoundAnalysisByDemoID(ctx context.Context, demoID 
 }
 
 const getPlayerRoundAnalysisByDemoAndPlayer = `-- name: GetPlayerRoundAnalysisByDemoAndPlayer :many
-SELECT id, demo_id, steam_id, round_number, trade_pct, extras_json, created_at
+SELECT id, demo_id, steam_id, round_number, trade_pct, extras_json, created_at, buy_type, money_spent, nades_used, nades_unused, shots_fired, shots_hit
 FROM player_round_analysis
 WHERE demo_id = ?1
   AND steam_id = ?2
@@ -66,6 +66,12 @@ func (q *Queries) GetPlayerRoundAnalysisByDemoAndPlayer(ctx context.Context, arg
 			&i.TradePct,
 			&i.ExtrasJson,
 			&i.CreatedAt,
+			&i.BuyType,
+			&i.MoneySpent,
+			&i.NadesUsed,
+			&i.NadesUnused,
+			&i.ShotsFired,
+			&i.ShotsHit,
 		); err != nil {
 			return nil, err
 		}
@@ -81,11 +87,26 @@ func (q *Queries) GetPlayerRoundAnalysisByDemoAndPlayer(ctx context.Context, arg
 }
 
 const upsertPlayerRoundAnalysis = `-- name: UpsertPlayerRoundAnalysis :exec
-INSERT INTO player_round_analysis (demo_id, steam_id, round_number, trade_pct, extras_json)
-VALUES (?1, ?2, ?3, ?4, ?5)
+INSERT INTO player_round_analysis (
+    demo_id, steam_id, round_number, trade_pct,
+    buy_type, money_spent, nades_used, nades_unused,
+    shots_fired, shots_hit,
+    extras_json
+) VALUES (
+    ?1, ?2, ?3, ?4,
+    ?5, ?6, ?7, ?8,
+    ?9, ?10,
+    ?11
+)
 ON CONFLICT(demo_id, steam_id, round_number) DO UPDATE SET
-    trade_pct = excluded.trade_pct,
-    extras_json = excluded.extras_json
+    trade_pct    = excluded.trade_pct,
+    buy_type     = excluded.buy_type,
+    money_spent  = excluded.money_spent,
+    nades_used   = excluded.nades_used,
+    nades_unused = excluded.nades_unused,
+    shots_fired  = excluded.shots_fired,
+    shots_hit    = excluded.shots_hit,
+    extras_json  = excluded.extras_json
 `
 
 type UpsertPlayerRoundAnalysisParams struct {
@@ -93,6 +114,12 @@ type UpsertPlayerRoundAnalysisParams struct {
 	SteamID     string
 	RoundNumber int64
 	TradePct    float64
+	BuyType     string
+	MoneySpent  int64
+	NadesUsed   int64
+	NadesUnused int64
+	ShotsFired  int64
+	ShotsHit    int64
 	ExtrasJson  string
 }
 
@@ -105,6 +132,12 @@ func (q *Queries) UpsertPlayerRoundAnalysis(ctx context.Context, arg UpsertPlaye
 		arg.SteamID,
 		arg.RoundNumber,
 		arg.TradePct,
+		arg.BuyType,
+		arg.MoneySpent,
+		arg.NadesUsed,
+		arg.NadesUnused,
+		arg.ShotsFired,
+		arg.ShotsHit,
 		arg.ExtrasJson,
 	)
 	return err

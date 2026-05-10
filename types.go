@@ -224,38 +224,137 @@ type UtilityStats struct {
 
 // MistakeEntry is a single per-player analysis finding (e.g. an untraded
 // death). Returned chronologically from GetMistakeTimeline; the viewer side
-// panel renders one row per entry.
+// panel renders one row per entry. Category / Severity / Title / Suggestion
+// are resolved server-side from analysis.TemplateForKind so the frontend can
+// render rich rows without duplicating the kind→presentation mapping.
 type MistakeEntry struct {
+	ID          int64          `json:"id"`
 	Kind        string         `json:"kind"`
+	Category    string         `json:"category"`
+	Severity    int            `json:"severity"`
+	Title       string         `json:"title"`
+	Suggestion  string         `json:"suggestion"`
 	RoundNumber int            `json:"round_number"`
 	Tick        int64          `json:"tick"`
 	SteamID     string         `json:"steam_id"`
 	Extras      map[string]any `json:"extras"`
 }
 
+// MistakeContext is the deep-detail variant returned by GetMistakeContext.
+// Carries everything MistakeEntry does plus the surrounding round window
+// metadata so the analysis-detail card can render the play with no extra
+// round-trip.
+type MistakeContext struct {
+	Entry         MistakeEntry `json:"entry"`
+	RoundStartTck int64        `json:"round_start_tick"`
+	RoundEndTick  int64        `json:"round_end_tick"`
+	FreezeEndTick int64        `json:"freeze_end_tick"`
+}
+
 // PlayerAnalysis is the per-(demo, player) summary row read by the viewer's
 // overall-score gauge and category cards. OverallScore is a 0–100 composite
-// computed by analysis.RunMatchSummary; in slice 5 it derives from TradePct
-// only, and downstream readers must not assume that relation long-term —
-// future slices fold in additional categories.
+// computed by analysis.RunMatchSummary; downstream readers must treat it as
+// an opaque composite — the score recipe rebalances across slices.
+//
+// The wider per-category aggregate columns (added in slice 10) ride alongside
+// the legacy TradePct / AvgTradeTicks; the frontend reads them by name from
+// the same struct without needing a second binding.
 type PlayerAnalysis struct {
-	SteamID       string         `json:"steam_id"`
-	OverallScore  int            `json:"overall_score"`
-	TradePct      float64        `json:"trade_pct"`
-	AvgTradeTicks float64        `json:"avg_trade_ticks"`
-	Extras        map[string]any `json:"extras"`
+	SteamID       string  `json:"steam_id"`
+	OverallScore  int     `json:"overall_score"`
+	Version       int     `json:"version"`
+	TradePct      float64 `json:"trade_pct"`
+	AvgTradeTicks float64 `json:"avg_trade_ticks"`
+
+	// Aim
+	CrosshairHeightAvgOff float64 `json:"crosshair_height_avg_off"`
+	TimeToFireMsAvg       float64 `json:"time_to_fire_ms_avg"`
+	FlickCount            int     `json:"flick_count"`
+	FlickHitPct           float64 `json:"flick_hit_pct"`
+
+	// Spray
+	FirstShotAccPct float64 `json:"first_shot_acc_pct"`
+	SprayDecaySlope float64 `json:"spray_decay_slope"`
+
+	// Movement
+	StandingShotPct  float64 `json:"standing_shot_pct"`
+	CounterStrafePct float64 `json:"counter_strafe_pct"`
+
+	// Utility
+	SmokesThrown     int `json:"smokes_thrown"`
+	SmokesKillAssist int `json:"smokes_kill_assist"`
+	FlashAssists     int `json:"flash_assists"`
+	HeDamage         int `json:"he_damage"`
+	NadesUnused      int `json:"nades_unused"`
+
+	// Positioning
+	IsolatedPeekDeaths int `json:"isolated_peek_deaths"`
+	RepeatedDeathZones int `json:"repeated_death_zones"`
+
+	// Economy
+	FullBuyADR float64 `json:"full_buy_adr"`
+	EcoKills   int     `json:"eco_kills"`
+
+	Extras map[string]any `json:"extras"`
 }
 
 // PlayerRoundEntry is one row from the player_round_analysis table — the
 // per-(demo, player, round) breakdown that backs the standalone analysis
-// page's per-round bar chart. Slice 7 only populates TradePct; subsequent
-// slices fold in additional category columns under the same shape. Extras is
-// nullable to mirror MistakeEntry / PlayerAnalysis.
+// page's per-round drilldown. Slice 10 promotes economy + nade-usage +
+// shot-accuracy fields to columns; future slices add category columns under
+// the same shape. Extras is nullable to mirror MistakeEntry / PlayerAnalysis.
 type PlayerRoundEntry struct {
-	SteamID     string         `json:"steam_id"`
-	RoundNumber int            `json:"round_number"`
-	TradePct    float64        `json:"trade_pct"`
-	Extras      map[string]any `json:"extras"`
+	SteamID     string  `json:"steam_id"`
+	RoundNumber int     `json:"round_number"`
+	TradePct    float64 `json:"trade_pct"`
+	BuyType     string  `json:"buy_type"`
+	MoneySpent  int     `json:"money_spent"`
+	NadesUsed   int     `json:"nades_used"`
+	NadesUnused int     `json:"nades_unused"`
+	ShotsFired  int     `json:"shots_fired"`
+	ShotsHit    int     `json:"shots_hit"`
+
+	Extras map[string]any `json:"extras"`
+}
+
+// MatchInsights is the team-level summary surfaced by GetMatchInsights. It
+// rolls up player_match_analysis rows into per-side aggregates plus a small
+// list of standout players for the team-comparison surface on the analysis
+// page.
+type MatchInsights struct {
+	DemoID    string            `json:"demo_id"`
+	CTSummary TeamSummary       `json:"ct_summary"`
+	TSummary  TeamSummary       `json:"t_summary"`
+	Standouts []PlayerHighlight `json:"standouts"`
+}
+
+// TeamSummary collapses one side's player_match_analysis rows into an
+// average-per-metric view. Counts are sums; percentages are simple means.
+// The frontend reads this for the head-to-head bar chart.
+type TeamSummary struct {
+	Side             string  `json:"side"` // "CT" or "T"
+	Players          int     `json:"players"`
+	AvgOverallScore  float64 `json:"avg_overall_score"`
+	AvgTradePct      float64 `json:"avg_trade_pct"`
+	AvgStandingShot  float64 `json:"avg_standing_shot_pct"`
+	AvgCounterStrafe float64 `json:"avg_counter_strafe_pct"`
+	AvgFirstShot     float64 `json:"avg_first_shot_acc_pct"`
+	TotalFlashAssist int     `json:"total_flash_assists"`
+	TotalSmokesKA    int     `json:"total_smokes_kill_assist"`
+	TotalHeDamage    int     `json:"total_he_damage"`
+	TotalIsolated    int     `json:"total_isolated_peek_deaths"`
+	TotalEcoKills    int     `json:"total_eco_kills"`
+	AvgFullBuyADR    float64 `json:"avg_full_buy_adr"`
+}
+
+// PlayerHighlight is one entry in the MatchInsights.Standouts list — the top
+// performer for a category. Five entries (one per major category) keep the
+// surface narrow.
+type PlayerHighlight struct {
+	SteamID    string  `json:"steam_id"`
+	Category   string  `json:"category"`
+	MetricName string  `json:"metric_name"`
+	MetricVal  float64 `json:"metric_value"`
 }
 
 // AnalysisStatus reports whether mechanical-analysis rows exist for a demo.

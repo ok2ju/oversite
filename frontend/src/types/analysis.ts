@@ -1,12 +1,42 @@
-// PlayerAnalysis mirrors main.PlayerAnalysis. Slice 8 rides aim_pct,
-// standing_shot_pct, engagements, and avg_fire_speed in the extras blob (no
-// schema migration); consumers cast at the call site (the analysis surface
-// is read-only and small enough that a discriminated union isn't worth it).
+// PlayerAnalysis mirrors main.PlayerAnalysis. Slice 10 promoted the per-
+// category aggregate columns to top-level fields; the legacy `extras` blob
+// keeps slice-8 fields (aim_pct, standing_shot_pct, …) for backward compat.
 export interface PlayerAnalysis {
   steam_id: string
   overall_score: number
+  version: number
   trade_pct: number
   avg_trade_ticks: number
+
+  // Aim
+  crosshair_height_avg_off: number
+  time_to_fire_ms_avg: number
+  flick_count: number
+  flick_hit_pct: number
+
+  // Spray
+  first_shot_acc_pct: number
+  spray_decay_slope: number
+
+  // Movement
+  standing_shot_pct: number
+  counter_strafe_pct: number
+
+  // Utility
+  smokes_thrown: number
+  smokes_kill_assist: number
+  flash_assists: number
+  he_damage: number
+  nades_unused: number
+
+  // Positioning
+  isolated_peek_deaths: number
+  repeated_death_zones: number
+
+  // Economy
+  full_buy_adr: number
+  eco_kills: number
+
   extras: Record<string, unknown> | null
 }
 
@@ -16,6 +46,12 @@ export interface PlayerRoundEntry {
   steam_id: string
   round_number: number
   trade_pct: number
+  buy_type: string
+  money_spent: number
+  nades_used: number
+  nades_unused: number
+  shots_fired: number
+  shots_hit: number
   extras: Record<string, unknown> | null
 }
 
@@ -33,3 +69,34 @@ export type AnalysisStatusValue =
   | "failed"
   | "missing"
   | "ready"
+
+// Mirrors main.MatchInsights — the team-level summary for the analysis page.
+export interface MatchInsights {
+  demo_id: string
+  ct_summary: TeamSummary
+  t_summary: TeamSummary
+  standouts: PlayerHighlight[]
+}
+
+export interface TeamSummary {
+  side: "CT" | "T"
+  players: number
+  avg_overall_score: number
+  avg_trade_pct: number
+  avg_standing_shot_pct: number
+  avg_counter_strafe_pct: number
+  avg_first_shot_acc_pct: number
+  total_flash_assists: number
+  total_smokes_kill_assist: number
+  total_he_damage: number
+  total_isolated_peek_deaths: number
+  total_eco_kills: number
+  avg_full_buy_adr: number
+}
+
+export interface PlayerHighlight {
+  steam_id: string
+  category: string
+  metric_name: string
+  metric_value: number
+}

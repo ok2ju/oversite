@@ -103,6 +103,31 @@ func (q *Queries) GetRoundByDemoAndNumber(ctx context.Context, arg GetRoundByDem
 	return i, err
 }
 
+const getRoundByID = `-- name: GetRoundByID :one
+SELECT id, demo_id, round_number, start_tick, end_tick, winner_side, win_reason, ct_score, t_score, is_overtime, freeze_end_tick, ct_team_name, t_team_name FROM rounds WHERE id = ?1
+`
+
+func (q *Queries) GetRoundByID(ctx context.Context, id int64) (Round, error) {
+	row := q.db.QueryRowContext(ctx, getRoundByID, id)
+	var i Round
+	err := row.Scan(
+		&i.ID,
+		&i.DemoID,
+		&i.RoundNumber,
+		&i.StartTick,
+		&i.EndTick,
+		&i.WinnerSide,
+		&i.WinReason,
+		&i.CtScore,
+		&i.TScore,
+		&i.IsOvertime,
+		&i.FreezeEndTick,
+		&i.CtTeamName,
+		&i.TTeamName,
+	)
+	return i, err
+}
+
 const getRoundsByDemoID = `-- name: GetRoundsByDemoID :many
 SELECT id, demo_id, round_number, start_tick, end_tick, winner_side, win_reason, ct_score, t_score, is_overtime, freeze_end_tick, ct_team_name, t_team_name FROM rounds WHERE demo_id = ?1 ORDER BY round_number
 `

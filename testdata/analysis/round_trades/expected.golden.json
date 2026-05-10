@@ -2,21 +2,45 @@
   {
     "steam_id": "alice",
     "round_number": 1,
-    "trade_pct": 1
+    "trade_pct": 1,
+    "buy_type": "",
+    "money_spent": 0,
+    "nades_used": 0,
+    "nades_unused": 0,
+    "shots_fired": 0,
+    "shots_hit": 0
   },
   {
     "steam_id": "alice",
     "round_number": 2,
-    "trade_pct": 0
+    "trade_pct": 0,
+    "buy_type": "",
+    "money_spent": 0,
+    "nades_used": 0,
+    "nades_unused": 0,
+    "shots_fired": 0,
+    "shots_hit": 0
   },
   {
     "steam_id": "bob",
     "round_number": 1,
-    "trade_pct": 0
+    "trade_pct": 0,
+    "buy_type": "",
+    "money_spent": 0,
+    "nades_used": 0,
+    "nades_unused": 0,
+    "shots_fired": 0,
+    "shots_hit": 0
   },
   {
     "steam_id": "enemy1",
     "round_number": 1,
-    "trade_pct": 1
+    "trade_pct": 1,
+    "buy_type": "",
+    "money_spent": 0,
+    "nades_used": 0,
+    "nades_unused": 0,
+    "shots_fired": 0,
+    "shots_hit": 0
   }
 ]

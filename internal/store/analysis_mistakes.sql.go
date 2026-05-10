@@ -7,19 +7,62 @@ package store
 
 import (
 	"context"
+	"database/sql"
 )
 
+const countAnalysisMistakesByCategory = `-- name: CountAnalysisMistakesByCategory :many
+SELECT category, count(*) AS total
+FROM analysis_mistakes
+WHERE demo_id = ?1
+GROUP BY category
+ORDER BY category ASC
+`
+
+type CountAnalysisMistakesByCategoryRow struct {
+	Category string
+	Total    int64
+}
+
+// Returns one row per (demo, category) with the mistake count. Used by the
+// match-insights summary so the team-level view can render category badges
+// without re-walking every row on the frontend.
+func (q *Queries) CountAnalysisMistakesByCategory(ctx context.Context, demoID int64) ([]CountAnalysisMistakesByCategoryRow, error) {
+	rows, err := q.db.QueryContext(ctx, countAnalysisMistakesByCategory, demoID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountAnalysisMistakesByCategoryRow
+	for rows.Next() {
+		var i CountAnalysisMistakesByCategoryRow
+		if err := rows.Scan(&i.Category, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createAnalysisMistake = `-- name: CreateAnalysisMistake :exec
-INSERT INTO analysis_mistakes (demo_id, steam_id, round_number, tick, kind, extras_json)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+INSERT INTO analysis_mistakes (demo_id, steam_id, round_number, round_id, tick, kind, category, severity, extras_json)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
 `
 
 type CreateAnalysisMistakeParams struct {
 	DemoID      int64
 	SteamID     string
 	RoundNumber int64
+	RoundID     sql.NullInt64
 	Tick        int64
 	Kind        string
+	Category    string
+	Severity    int64
 	ExtrasJson  string
 }
 
@@ -28,8 +71,11 @@ func (q *Queries) CreateAnalysisMistake(ctx context.Context, arg CreateAnalysisM
 		arg.DemoID,
 		arg.SteamID,
 		arg.RoundNumber,
+		arg.RoundID,
 		arg.Tick,
 		arg.Kind,
+		arg.Category,
+		arg.Severity,
 		arg.ExtrasJson,
 	)
 	return err
@@ -45,8 +91,47 @@ func (q *Queries) DeleteAnalysisMistakesByDemoID(ctx context.Context, demoID int
 	return err
 }
 
+const getAnalysisMistakeByID = `-- name: GetAnalysisMistakeByID :one
+SELECT id, demo_id, steam_id, round_number, round_id, tick, kind, category, severity, extras_json, created_at
+FROM analysis_mistakes
+WHERE id = ?1
+`
+
+type GetAnalysisMistakeByIDRow struct {
+	ID          int64
+	DemoID      int64
+	SteamID     string
+	RoundNumber int64
+	RoundID     sql.NullInt64
+	Tick        int64
+	Kind        string
+	Category    string
+	Severity    int64
+	ExtrasJson  string
+	CreatedAt   string
+}
+
+func (q *Queries) GetAnalysisMistakeByID(ctx context.Context, id int64) (GetAnalysisMistakeByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getAnalysisMistakeByID, id)
+	var i GetAnalysisMistakeByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.DemoID,
+		&i.SteamID,
+		&i.RoundNumber,
+		&i.RoundID,
+		&i.Tick,
+		&i.Kind,
+		&i.Category,
+		&i.Severity,
+		&i.ExtrasJson,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listAnalysisMistakesByDemoIDAndSteamID = `-- name: ListAnalysisMistakesByDemoIDAndSteamID :many
-SELECT id, demo_id, steam_id, round_number, tick, kind, extras_json, created_at
+SELECT id, demo_id, steam_id, round_number, round_id, tick, kind, category, severity, extras_json, created_at
 FROM analysis_mistakes
 WHERE demo_id = ?1
   AND steam_id = ?2
@@ -58,24 +143,41 @@ type ListAnalysisMistakesByDemoIDAndSteamIDParams struct {
 	SteamID string
 }
 
+type ListAnalysisMistakesByDemoIDAndSteamIDRow struct {
+	ID          int64
+	DemoID      int64
+	SteamID     string
+	RoundNumber int64
+	RoundID     sql.NullInt64
+	Tick        int64
+	Kind        string
+	Category    string
+	Severity    int64
+	ExtrasJson  string
+	CreatedAt   string
+}
+
 // Returns every mistake row for (demo, player), ordered chronologically so the
 // viewer side panel can render them as-is.
-func (q *Queries) ListAnalysisMistakesByDemoIDAndSteamID(ctx context.Context, arg ListAnalysisMistakesByDemoIDAndSteamIDParams) ([]AnalysisMistake, error) {
+func (q *Queries) ListAnalysisMistakesByDemoIDAndSteamID(ctx context.Context, arg ListAnalysisMistakesByDemoIDAndSteamIDParams) ([]ListAnalysisMistakesByDemoIDAndSteamIDRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAnalysisMistakesByDemoIDAndSteamID, arg.DemoID, arg.SteamID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []AnalysisMistake
+	var items []ListAnalysisMistakesByDemoIDAndSteamIDRow
 	for rows.Next() {
-		var i AnalysisMistake
+		var i ListAnalysisMistakesByDemoIDAndSteamIDRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.DemoID,
 			&i.SteamID,
 			&i.RoundNumber,
+			&i.RoundID,
 			&i.Tick,
 			&i.Kind,
+			&i.Category,
+			&i.Severity,
 			&i.ExtrasJson,
 			&i.CreatedAt,
 		); err != nil {

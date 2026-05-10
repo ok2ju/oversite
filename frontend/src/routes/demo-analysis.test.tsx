@@ -69,7 +69,7 @@ describe("DemoAnalysisPage", () => {
     })
   })
 
-  it("auto-selects the first scoreboard player so the cards light up", async () => {
+  it("auto-selects the first scoreboard player so the debrief lights up", async () => {
     mockAppBindings.GetPlayerAnalysis.mockResolvedValue({
       steam_id: "STEAM_A",
       overall_score: 62,
@@ -84,17 +84,19 @@ describe("DemoAnalysisPage", () => {
     renderAnalysisPage("1")
 
     // No manual setSelectedPlayer — the page reads the scoreboard and
-    // auto-selects the first player so the shared components render.
+    // auto-selects the first player so the redesigned surfaces render.
     await waitFor(() => {
-      expect(screen.getByTestId("analysis-overall-gauge")).toBeInTheDocument()
+      expect(screen.getByTestId("verdict-hero")).toBeInTheDocument()
     })
     expect(useViewerStore.getState().selectedPlayerSteamId).toBe(
       mockScoreboardEntries[0].steam_id,
     )
-    expect(screen.getByTestId("category-card-trade")).toBeInTheDocument()
-    expect(screen.getByTestId("category-card-aim")).toBeInTheDocument()
-    expect(screen.getByTestId("category-card-movement")).toBeInTheDocument()
-    expect(screen.getByTestId("round-trade-bars")).toBeInTheDocument()
+    expect(screen.getByTestId("verdict-hero-cat-trade")).toBeInTheDocument()
+    expect(screen.getByTestId("verdict-hero-cat-aim")).toBeInTheDocument()
+    expect(screen.getByTestId("verdict-hero-cat-movement")).toBeInTheDocument()
+    expect(screen.getByTestId("verdict-hero-cat-utility")).toBeInTheDocument()
+    expect(screen.getByTestId("match-timeline")).toBeInTheDocument()
+    expect(screen.getByTestId("mistakes-feed")).toBeInTheDocument()
   })
 
   it("switches the active player when the picker changes", async () => {

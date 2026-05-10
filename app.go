@@ -486,7 +486,7 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		a.failDemo(demoID, fmt.Sprintf("run analyzer: %v", analysisErr), emitProgress)
 		return
 	}
-	if err := analysis.Persist(a.ctx, a.db, demoID, mistakes); err != nil {
+	if err := analysis.PersistWithRoundMap(a.ctx, a.db, demoID, mistakes, roundMap); err != nil {
 		slog.Error("parseDemo: persist analyzer mistakes", append(logCtx, "err", err)...)
 		a.failDemo(demoID, fmt.Sprintf("persist analysis: %v", err), emitProgress)
 		return
@@ -818,8 +818,22 @@ func (a *App) GetMistakeTimeline(demoID, steamID string) ([]MistakeEntry, error)
 
 	result := make([]MistakeEntry, len(rows))
 	for i, r := range rows {
+		tpl := analysis.TemplateForKind(r.Kind)
+		category := r.Category
+		if category == "" {
+			category = string(tpl.Category)
+		}
+		severity := int(r.Severity)
+		if severity == 0 {
+			severity = int(tpl.Severity)
+		}
 		entry := MistakeEntry{
+			ID:          r.ID,
 			Kind:        r.Kind,
+			Category:    category,
+			Severity:    severity,
+			Title:       tpl.Title,
+			Suggestion:  tpl.Suggestion,
 			RoundNumber: int(r.RoundNumber),
 			Tick:        r.Tick,
 			SteamID:     r.SteamID,
@@ -837,6 +851,60 @@ func (a *App) GetMistakeTimeline(demoID, steamID string) ([]MistakeEntry, error)
 		result[i] = entry
 	}
 	return result, nil
+}
+
+// GetMistakeContext returns one analyzer mistake by ID, enriched with the
+// surrounding round window so the analysis-detail card can render the play
+// without an extra GetDemoRounds round-trip. Returns sql.ErrNoRows-shaped
+// errors as "not found" rather than propagating — the panel renders an empty
+// detail when a stale ID is clicked.
+func (a *App) GetMistakeContext(mistakeID int64) (*MistakeContext, error) {
+	row, err := a.queries.GetAnalysisMistakeByID(a.ctx, mistakeID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("getting mistake by id: %w", err)
+	}
+	tpl := analysis.TemplateForKind(row.Kind)
+	category := row.Category
+	if category == "" {
+		category = string(tpl.Category)
+	}
+	severity := int(row.Severity)
+	if severity == 0 {
+		severity = int(tpl.Severity)
+	}
+	entry := MistakeEntry{
+		ID:          row.ID,
+		Kind:        row.Kind,
+		Category:    category,
+		Severity:    severity,
+		Title:       tpl.Title,
+		Suggestion:  tpl.Suggestion,
+		RoundNumber: int(row.RoundNumber),
+		Tick:        row.Tick,
+		SteamID:     row.SteamID,
+	}
+	if row.ExtrasJson != "" && row.ExtrasJson != "{}" {
+		extras := map[string]any{}
+		if err := json.Unmarshal([]byte(row.ExtrasJson), &extras); err == nil {
+			entry.Extras = extras
+		}
+	}
+	out := &MistakeContext{Entry: entry}
+	// Round window — best-effort. A row whose round_id is NULL (legacy
+	// pre-slice-10 data) carries empty round window fields; the frontend
+	// falls back to scanning the rounds collection in that case.
+	if row.RoundID.Valid {
+		r, err := a.queries.GetRoundByID(a.ctx, row.RoundID.Int64)
+		if err == nil {
+			out.RoundStartTck = r.StartTick
+			out.RoundEndTick = r.EndTick
+			out.FreezeEndTick = r.FreezeEndTick
+		}
+	}
+	return out, nil
 }
 
 // GetPlayerAnalysis returns the per-(demo, player) summary row written by the
@@ -864,10 +932,28 @@ func (a *App) GetPlayerAnalysis(demoID, steamID string) (PlayerAnalysis, error) 
 	}
 
 	out := PlayerAnalysis{
-		SteamID:       row.SteamID,
-		OverallScore:  int(row.OverallScore),
-		TradePct:      row.TradePct,
-		AvgTradeTicks: row.AvgTradeTicks,
+		SteamID:               row.SteamID,
+		OverallScore:          int(row.OverallScore),
+		Version:               int(row.Version),
+		TradePct:              row.TradePct,
+		AvgTradeTicks:         row.AvgTradeTicks,
+		CrosshairHeightAvgOff: row.CrosshairHeightAvgOff,
+		TimeToFireMsAvg:       row.TimeToFireMsAvg,
+		FlickCount:            int(row.FlickCount),
+		FlickHitPct:           row.FlickHitPct,
+		FirstShotAccPct:       row.FirstShotAccPct,
+		SprayDecaySlope:       row.SprayDecaySlope,
+		StandingShotPct:       row.StandingShotPct,
+		CounterStrafePct:      row.CounterStrafePct,
+		SmokesThrown:          int(row.SmokesThrown),
+		SmokesKillAssist:      int(row.SmokesKillAssist),
+		FlashAssists:          int(row.FlashAssists),
+		HeDamage:              int(row.HeDamage),
+		NadesUnused:           int(row.NadesUnused),
+		IsolatedPeekDeaths:    int(row.IsolatedPeekDeaths),
+		RepeatedDeathZones:    int(row.RepeatedDeathZones),
+		FullBuyADR:            row.FullBuyAdr,
+		EcoKills:              int(row.EcoKills),
 	}
 	if row.ExtrasJson != "" && row.ExtrasJson != "{}" {
 		extras := map[string]any{}
@@ -906,6 +992,12 @@ func (a *App) GetPlayerRoundAnalysis(demoID, steamID string) ([]PlayerRoundEntry
 			SteamID:     r.SteamID,
 			RoundNumber: int(r.RoundNumber),
 			TradePct:    r.TradePct,
+			BuyType:     r.BuyType,
+			MoneySpent:  int(r.MoneySpent),
+			NadesUsed:   int(r.NadesUsed),
+			NadesUnused: int(r.NadesUnused),
+			ShotsFired:  int(r.ShotsFired),
+			ShotsHit:    int(r.ShotsHit),
 		}
 		if r.ExtrasJson != "" && r.ExtrasJson != "{}" {
 			extras := map[string]any{}
@@ -985,6 +1077,186 @@ func (a *App) RecomputeAnalysis(demoID string) error {
 	}
 	a.runParseSerialized(d.ID, d.FilePath)
 	return nil
+}
+
+// GetMatchInsights returns the team-level summary surfaced on the standalone
+// analysis page. Aggregates every player_match_analysis row for the demo into
+// per-side averages plus a small list of standout players. Unknown demos
+// return a zero-valued MatchInsights (not an error) so the page renders an
+// empty-state surface, mirroring the read-only-binding convention in this
+// file.
+func (a *App) GetMatchInsights(demoID string) (*MatchInsights, error) {
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid demo id: %w", err)
+	}
+	rows, err := a.queries.ListPlayerMatchAnalysisByDemoID(a.ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("listing match analysis: %w", err)
+	}
+	out := &MatchInsights{
+		DemoID:    demoID,
+		CTSummary: TeamSummary{Side: "CT"},
+		TSummary:  TeamSummary{Side: "T"},
+	}
+	if len(rows) == 0 {
+		return out, nil
+	}
+
+	// Resolve each player's side via the most recent round's roster — the
+	// demo's "team" assignment can flip at halftime; we report the side they
+	// played most rounds on (good enough for the standout list).
+	sideBySteam := mostFrequentSideByPlayer(a.ctx, a.queries, id)
+
+	type accum struct {
+		players         int
+		overallScore    float64
+		tradePct        float64
+		standingShot    float64
+		counterStrafe   float64
+		firstShot       float64
+		flashAssists    int
+		smokesKill      int
+		heDamage        int
+		isolatedDeaths  int
+		ecoKills        int
+		fullBuyADRSum   float64
+		fullBuyADRCount int
+	}
+	ct := &accum{}
+	t := &accum{}
+
+	for _, r := range rows {
+		side := sideBySteam[r.SteamID]
+		var a *accum
+		switch side {
+		case "CT":
+			a = ct
+		case "T":
+			a = t
+		default:
+			continue
+		}
+		a.players++
+		a.overallScore += float64(r.OverallScore)
+		a.tradePct += r.TradePct
+		a.standingShot += r.StandingShotPct
+		a.counterStrafe += r.CounterStrafePct
+		a.firstShot += r.FirstShotAccPct
+		a.flashAssists += int(r.FlashAssists)
+		a.smokesKill += int(r.SmokesKillAssist)
+		a.heDamage += int(r.HeDamage)
+		a.isolatedDeaths += int(r.IsolatedPeekDeaths)
+		a.ecoKills += int(r.EcoKills)
+		if r.FullBuyAdr > 0 {
+			a.fullBuyADRSum += r.FullBuyAdr
+			a.fullBuyADRCount++
+		}
+	}
+	finalize := func(side string, a *accum) TeamSummary {
+		s := TeamSummary{Side: side, Players: a.players}
+		if a.players > 0 {
+			s.AvgOverallScore = a.overallScore / float64(a.players)
+			s.AvgTradePct = a.tradePct / float64(a.players)
+			s.AvgStandingShot = a.standingShot / float64(a.players)
+			s.AvgCounterStrafe = a.counterStrafe / float64(a.players)
+			s.AvgFirstShot = a.firstShot / float64(a.players)
+		}
+		if a.fullBuyADRCount > 0 {
+			s.AvgFullBuyADR = a.fullBuyADRSum / float64(a.fullBuyADRCount)
+		}
+		s.TotalFlashAssist = a.flashAssists
+		s.TotalSmokesKA = a.smokesKill
+		s.TotalHeDamage = a.heDamage
+		s.TotalIsolated = a.isolatedDeaths
+		s.TotalEcoKills = a.ecoKills
+		return s
+	}
+	out.CTSummary = finalize("CT", ct)
+	out.TSummary = finalize("T", t)
+	out.Standouts = pickStandouts(rows)
+	return out, nil
+}
+
+// mostFrequentSideByPlayer returns a (steamID → "CT" | "T") map by counting
+// each player's appearances across every round_loadouts row for the demo.
+// Halftime swaps land each player on whichever side has more appearances —
+// fine for a coarse "this player belongs to side X" classifier.
+func mostFrequentSideByPlayer(ctx context.Context, q *store.Queries, demoID int64) map[string]string {
+	out := make(map[string]string, 16)
+	rows, err := q.GetRostersByDemoID(ctx, demoID)
+	if err != nil {
+		return out
+	}
+	type counts struct{ ct, t int }
+	byPlayer := make(map[string]*counts, 16)
+	for _, r := range rows {
+		c, ok := byPlayer[r.SteamID]
+		if !ok {
+			c = &counts{}
+			byPlayer[r.SteamID] = c
+		}
+		switch r.TeamSide {
+		case "CT":
+			c.ct++
+		case "T":
+			c.t++
+		}
+	}
+	for steam, c := range byPlayer {
+		if c.ct >= c.t {
+			out[steam] = "CT"
+		} else {
+			out[steam] = "T"
+		}
+	}
+	return out
+}
+
+// pickStandouts selects the highest-value player per category from the
+// supplied analysis rows. Ties resolve to the row with the lower steam_id —
+// stable across runs.
+func pickStandouts(rows []store.PlayerMatchAnalysis) []PlayerHighlight {
+	if len(rows) == 0 {
+		return nil
+	}
+	type pick struct {
+		category   string
+		metricName string
+		val        float64
+		steam      string
+	}
+	max := func(category, metric string, val float64, steam string, cur *pick) {
+		if cur.steam == "" || val > cur.val || (val == cur.val && steam < cur.steam) {
+			*cur = pick{category, metric, val, steam}
+		}
+	}
+	overall := pick{category: "overall"}
+	trade := pick{category: "trade"}
+	aim := pick{category: "aim"}
+	utility := pick{category: "utility"}
+	movement := pick{category: "movement"}
+	for _, r := range rows {
+		max("overall", "overall_score", float64(r.OverallScore), r.SteamID, &overall)
+		max("trade", "trade_pct", r.TradePct, r.SteamID, &trade)
+		max("aim", "first_shot_acc_pct", r.FirstShotAccPct, r.SteamID, &aim)
+		utilityScore := float64(r.FlashAssists) + float64(r.SmokesKillAssist)*2
+		max("utility", "utility_kill_score", utilityScore, r.SteamID, &utility)
+		max("movement", "counter_strafe_pct", r.CounterStrafePct, r.SteamID, &movement)
+	}
+	out := make([]PlayerHighlight, 0, 5)
+	for _, p := range []pick{overall, trade, aim, utility, movement} {
+		if p.steam == "" {
+			continue
+		}
+		out = append(out, PlayerHighlight{
+			SteamID:    p.steam,
+			Category:   p.category,
+			MetricName: p.metricName,
+			MetricVal:  p.val,
+		})
+	}
+	return out
 }
 
 // GetRoundLoadouts returns the freeze-end loadout for every (round, player)

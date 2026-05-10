@@ -16,7 +16,19 @@ import (
 //
 // Mirrors the IngestGameEvents pattern in internal/demo/ingest.go (begin tx,
 // delete by demo, insert each row, commit).
+//
+// Category and Severity columns are filled from templates.go at insert time
+// when the Mistake's own fields are zero (the rules in mistakes.go don't
+// populate them; rule authors don't have to remember).
 func Persist(ctx context.Context, db *sql.DB, demoID int64, mistakes []Mistake) error {
+	return PersistWithRoundMap(ctx, db, demoID, mistakes, nil)
+}
+
+// PersistWithRoundMap is the round-aware variant. roundMap (round_number →
+// rounds.id) lets each row carry the canonical round_id back-reference so the
+// analysis_mistakes.round_id FK CASCADE deletes when a round is dropped.
+// Callers without a round map can pass nil — round_id is left NULL.
+func PersistWithRoundMap(ctx context.Context, db *sql.DB, demoID int64, mistakes []Mistake, roundMap map[int]int64) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
@@ -33,12 +45,32 @@ func Persist(ctx context.Context, db *sql.DB, demoID int64, mistakes []Mistake) 
 		if err != nil {
 			return fmt.Errorf("marshal extras (kind=%s, steam=%s): %w", m.Kind, m.SteamID, err)
 		}
+		category := m.Category
+		severity := m.Severity
+		if category == "" || severity == 0 {
+			tpl := TemplateForKind(m.Kind)
+			if category == "" {
+				category = string(tpl.Category)
+			}
+			if severity == 0 {
+				severity = int(tpl.Severity)
+			}
+		}
+		var roundID sql.NullInt64
+		if roundMap != nil {
+			if id, ok := roundMap[m.RoundNumber]; ok {
+				roundID = sql.NullInt64{Int64: id, Valid: true}
+			}
+		}
 		if err := q.CreateAnalysisMistake(ctx, store.CreateAnalysisMistakeParams{
 			DemoID:      demoID,
 			SteamID:     m.SteamID,
 			RoundNumber: int64(m.RoundNumber),
+			RoundID:     roundID,
 			Tick:        int64(m.Tick),
 			Kind:        m.Kind,
+			Category:    category,
+			Severity:    int64(severity),
 			ExtrasJson:  extras,
 		}); err != nil {
 			return fmt.Errorf("insert analysis mistake (kind=%s, steam=%s): %w", m.Kind, m.SteamID, err)
@@ -56,10 +88,6 @@ func Persist(ctx context.Context, db *sql.DB, demoID int64, mistakes []Mistake) 
 // failure mid-way rolls back to the prior state. Idempotent: re-running with
 // the same input converges on the same rows; running with an empty slice
 // wipes any prior rows.
-//
-// Kept side-by-side with Persist (above) rather than fused into a single
-// PersistAll because slice 7 will introduce a third per-round table under the
-// same shape; folding them now would force another rewrite then.
 func PersistMatchSummary(ctx context.Context, db *sql.DB, demoID int64, rows []MatchSummaryRow) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -77,13 +105,35 @@ func PersistMatchSummary(ctx context.Context, db *sql.DB, demoID int64, rows []M
 		if err != nil {
 			return fmt.Errorf("marshal extras (steam=%s): %w", r.SteamID, err)
 		}
+		version := r.Version
+		if version == 0 {
+			version = AnalysisVersion
+		}
 		if err := q.UpsertPlayerMatchAnalysis(ctx, store.UpsertPlayerMatchAnalysisParams{
-			DemoID:        demoID,
-			SteamID:       r.SteamID,
-			OverallScore:  int64(r.OverallScore),
-			TradePct:      r.TradePct,
-			AvgTradeTicks: r.AvgTradeTicks,
-			ExtrasJson:    extras,
+			DemoID:                demoID,
+			SteamID:               r.SteamID,
+			OverallScore:          int64(r.OverallScore),
+			TradePct:              r.TradePct,
+			AvgTradeTicks:         r.AvgTradeTicks,
+			Version:               int64(version),
+			CrosshairHeightAvgOff: r.CrosshairHeightAvgOff,
+			TimeToFireMsAvg:       r.TimeToFireMsAvg,
+			FlickCount:            int64(r.FlickCount),
+			FlickHitPct:           r.FlickHitPct,
+			FirstShotAccPct:       r.FirstShotAccPct,
+			SprayDecaySlope:       r.SprayDecaySlope,
+			StandingShotPct:       r.StandingShotPct,
+			CounterStrafePct:      r.CounterStrafePct,
+			SmokesThrown:          int64(r.SmokesThrown),
+			SmokesKillAssist:      int64(r.SmokesKillAssist),
+			FlashAssists:          int64(r.FlashAssists),
+			HeDamage:              int64(r.HeDamage),
+			NadesUnused:           int64(r.NadesUnused),
+			IsolatedPeekDeaths:    int64(r.IsolatedPeekDeaths),
+			RepeatedDeathZones:    int64(r.RepeatedDeathZones),
+			FullBuyAdr:            r.FullBuyADR,
+			EcoKills:              int64(r.EcoKills),
+			ExtrasJson:            extras,
 		}); err != nil {
 			return fmt.Errorf("upsert player match analysis (steam=%s): %w", r.SteamID, err)
 		}
@@ -100,11 +150,6 @@ func PersistMatchSummary(ctx context.Context, db *sql.DB, demoID int64, rows []M
 // transaction so a failure mid-way rolls back to the prior state. Idempotent:
 // re-running with the same input converges on the same rows; running with an
 // empty slice wipes any prior rows.
-//
-// Kept side-by-side with PersistMatchSummary (above) rather than fused into a
-// single PersistAll because each persist owns its own delete-by-demo;
-// consolidating the three writes into one transaction is a follow-up that is
-// noted in slice 7's comments and not blocking here.
 func PersistPlayerRoundAnalysis(ctx context.Context, db *sql.DB, demoID int64, rows []PlayerRoundRow) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -127,6 +172,12 @@ func PersistPlayerRoundAnalysis(ctx context.Context, db *sql.DB, demoID int64, r
 			SteamID:     r.SteamID,
 			RoundNumber: int64(r.RoundNumber),
 			TradePct:    r.TradePct,
+			BuyType:     r.BuyType,
+			MoneySpent:  int64(r.MoneySpent),
+			NadesUsed:   int64(r.NadesUsed),
+			NadesUnused: int64(r.NadesUnused),
+			ShotsFired:  int64(r.ShotsFired),
+			ShotsHit:    int64(r.ShotsHit),
 			ExtrasJson:  extras,
 		}); err != nil {
 			return fmt.Errorf("upsert player round analysis (steam=%s, round=%d): %w", r.SteamID, r.RoundNumber, err)

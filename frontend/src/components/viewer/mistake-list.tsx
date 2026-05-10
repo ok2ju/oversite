@@ -14,32 +14,62 @@ import { CategoryCard } from "@/components/viewer/category-card"
 import type { MistakeEntry } from "@/types/mistake"
 import type { Round } from "@/types/round"
 
-// Human-readable label per mistake kind. Falls back to the raw kind string for
-// kinds the frontend hasn't been taught about yet — keeps a future Go-only
-// rule from rendering as a blank row.
-const KIND_LABEL: Record<string, string> = {
+// SEVERITY_BADGE_CLASS keys off the integer severity persisted server-side
+// (1=low, 2=med, 3=high). Slice 10 made the integer authoritative; the
+// per-kind frontend map below is the legacy fallback for rows / tests that
+// pre-date the column.
+const SEVERITY_BADGE_CLASS: Record<number, string> = {
+  1: "bg-white/15 text-white/70",
+  2: "bg-amber-400/20 text-amber-300",
+  3: "bg-red-500/25 text-red-300",
+}
+
+// FALLBACK_KIND_LABEL covers the case where MistakeEntry.title is empty —
+// pre-slice-10 rows and test fixtures that mock the binding without the new
+// fields. Every kind shipped by the backend is taught here; new rules should
+// rely on the server-side title and not extend this map.
+const FALLBACK_KIND_LABEL: Record<string, string> = {
   no_trade_death: "Untraded death",
   died_with_util_unused: "Died with utility unused",
+  survived_with_util: "Survived with utility unused",
   crosshair_too_low: "Crosshair too low",
   shot_while_moving: "Shot while moving",
+  slow_reaction: "Slow reaction",
+  missed_flick: "Missed flick",
+  missed_first_shot: "Missed first shot",
+  spray_decay: "Spray decay",
+  no_counter_strafe: "No counter-strafe",
+  unused_smoke: "Unused smoke",
+  isolated_peek: "Isolated peek",
+  repeated_death_zone: "Repeated death zone",
+  walked_into_molotov: "Walked into molotov",
+  eco_misbuy: "Eco misbuy",
+  caught_reloading: "Caught reloading",
+  flash_assist: "Flash assist",
+  he_damage: "HE damage",
 }
 
-type Severity = "low" | "med" | "high"
-
-// Severity tier per kind. Lives on the frontend in slice 3 — promoting
-// severity into the persisted data model is deferred until composite scoring
-// (slice 5). Unknown kinds fall through to the neutral "low" tint.
-const KIND_SEVERITY: Record<string, Severity> = {
-  no_trade_death: "med",
-  died_with_util_unused: "high",
-  crosshair_too_low: "low",
-  shot_while_moving: "med",
-}
-
-const SEVERITY_BADGE_CLASS: Record<Severity, string> = {
-  low: "bg-white/15 text-white/70",
-  med: "bg-amber-400/20 text-amber-300",
-  high: "bg-red-500/25 text-red-300",
+// FALLBACK_KIND_SEVERITY mirrors the backend's templates.go severity map —
+// used when MistakeEntry.severity is 0 (legacy / mocked rows).
+const FALLBACK_KIND_SEVERITY: Record<string, number> = {
+  no_trade_death: 2,
+  died_with_util_unused: 3,
+  survived_with_util: 2,
+  crosshair_too_low: 1,
+  shot_while_moving: 2,
+  slow_reaction: 2,
+  missed_flick: 1,
+  missed_first_shot: 2,
+  spray_decay: 2,
+  no_counter_strafe: 2,
+  unused_smoke: 1,
+  isolated_peek: 3,
+  repeated_death_zone: 2,
+  walked_into_molotov: 1,
+  eco_misbuy: 1,
+  caught_reloading: 3,
+  flash_assist: 1,
+  he_damage: 1,
 }
 
 function formatClock(
@@ -64,7 +94,11 @@ function formatMistakeText(
   rounds: Round[] | undefined,
   tickRate: number,
 ): string {
-  const label = KIND_LABEL[entry.kind] ?? entry.kind
+  // entry.title comes from the backend's templates.go; an empty string
+  // (unknown kind, legacy / mocked row) falls back to the kind label map
+  // and ultimately to the raw kind string so the panel never renders a
+  // blank row.
+  const label = entry.title || FALLBACK_KIND_LABEL[entry.kind] || entry.kind
   const round = rounds?.find((r) => r.round_number === entry.round_number)
   return `${label} — round ${entry.round_number}, ${formatClock(
     entry.tick,
@@ -92,6 +126,7 @@ export function MistakeList({ steamId: steamIdProp }: MistakeListProps = {}) {
   const steamId = steamIdProp ?? selectedSteamId
   const selectedCategory = useAnalysisStore((s) => s.selectedCategory)
   const setSelectedCategory = useAnalysisStore((s) => s.setSelectedCategory)
+  const setSelectedMistakeId = useAnalysisStore((s) => s.setSelectedMistakeId)
   const { data: rounds } = useRounds(demoId)
   const { data: mistakes, isLoading } = useMistakeTimeline(demoId, steamId)
   const { data: analysisStatus } = useAnalysisStatus(demoId)
@@ -116,7 +151,16 @@ export function MistakeList({ steamId: steamIdProp }: MistakeListProps = {}) {
     recompute.mutate({ demoId })
   }, [demoId, status, recompute])
 
-  const handleSelect = useCallback((tick: number) => setTick(tick), [setTick])
+  const handleSelect = useCallback(
+    (entry: MistakeEntry) => {
+      setTick(entry.tick)
+      // entry.id is 0 on legacy rows that pre-date the slice-10 ID column;
+      // clear the selection in that case so the detail surface keeps its
+      // existing state rather than firing a "not found" fetch.
+      setSelectedMistakeId(entry.id || null)
+    },
+    [setTick, setSelectedMistakeId],
+  )
   const handleCategoryClick = useCallback(
     (cat: string) => {
       setSelectedCategory(selectedCategory === cat ? null : cat)
@@ -136,17 +180,25 @@ export function MistakeList({ steamId: steamIdProp }: MistakeListProps = {}) {
   const categoryCounts = useMemo(() => {
     const counts = new Map<string, number>()
     for (const m of items) {
-      const cat = categoryForKind(m.kind)
+      const cat = m.category || categoryForKind(m.kind)
       counts.set(cat, (counts.get(cat) ?? 0) + 1)
     }
-    return CATEGORY_ORDER.filter((c) => counts.has(c)).map((c) => ({
+    // Show every category that has at least one mistake, with known categories
+    // ordered first and any backend-only category trailing.
+    const known = CATEGORY_ORDER.filter((c) => counts.has(c))
+    const extra = [...counts.keys()]
+      .filter((c) => !CATEGORY_ORDER.includes(c))
+      .sort()
+    return [...known, ...extra].map((c) => ({
       category: c,
       count: counts.get(c) ?? 0,
     }))
   }, [items])
 
   const visibleItems = selectedCategory
-    ? items.filter((m) => categoryForKind(m.kind) === selectedCategory)
+    ? items.filter(
+        (m) => (m.category || categoryForKind(m.kind)) === selectedCategory,
+      )
     : items
 
   if (!steamId) return null
@@ -233,19 +285,19 @@ export function MistakeList({ steamId: steamIdProp }: MistakeListProps = {}) {
         ) : (
           <ul className="space-y-1">
             {visibleItems.map((m, i) => {
-              const severity = KIND_SEVERITY[m.kind] ?? "low"
+              const severity = m.severity || FALLBACK_KIND_SEVERITY[m.kind] || 1
               return (
                 <li key={`${m.kind}-${m.tick}-${i}`}>
                   <button
                     type="button"
                     data-testid={`mistake-list-row-${i}`}
-                    onClick={() => handleSelect(m.tick)}
+                    onClick={() => handleSelect(m)}
                     className="flex w-full items-center gap-2 rounded border border-white/10 bg-white/5 px-2 py-1 text-left text-sm tabular-nums hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
                   >
                     <span
                       data-testid={`mistake-row-severity-${m.kind}`}
                       aria-hidden="true"
-                      className={`inline-block h-2 w-2 shrink-0 rounded-full ${SEVERITY_BADGE_CLASS[severity]}`}
+                      className={`inline-block h-2 w-2 shrink-0 rounded-full ${SEVERITY_BADGE_CLASS[severity] ?? SEVERITY_BADGE_CLASS[1]}`}
                     />
                     <span>{formatMistakeText(m, rounds, tickRate)}</span>
                   </button>

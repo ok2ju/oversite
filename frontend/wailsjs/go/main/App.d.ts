@@ -22,7 +22,11 @@ export function GetEventsByTypes(arg1:string,arg2:Array<string>):Promise<Array<m
 
 export function GetHeatmapData(arg1:Array<number>,arg2:Array<string>,arg3:string,arg4:string):Promise<Array<main.HeatmapPoint>>;
 
+export function GetMatchInsights(arg1:string):Promise<main.MatchInsights>;
+
 export function GetMinEngagementsForAimCritique():Promise<number>;
+
+export function GetMistakeContext(arg1:number):Promise<main.MistakeContext>;
 
 export function GetMistakeTimeline(arg1:string,arg2:string):Promise<Array<main.MistakeEntry>>;
 

@@ -9,5 +9,8 @@ SELECT * FROM rounds WHERE demo_id = @demo_id ORDER BY round_number;
 -- name: GetRoundByDemoAndNumber :one
 SELECT * FROM rounds WHERE demo_id = @demo_id AND round_number = @round_number;
 
+-- name: GetRoundByID :one
+SELECT * FROM rounds WHERE id = @id;
+
 -- name: DeleteRoundsByDemoID :exec
 DELETE FROM rounds WHERE demo_id = @demo_id;

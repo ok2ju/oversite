@@ -191,6 +191,11 @@ type AnalysisTick struct {
 	Yaw     float32
 	Vx, Vy  float32
 	IsAlive bool
+	// AmmoClip is the active weapon's clip count at the sample. Used by the
+	// caught-reloading rule to detect "died with clip < full" without poking
+	// per-weapon max-clip tables — the rule only flags clip == 0 cases (the
+	// only state where reloading is unambiguous and high-impact).
+	AmmoClip int16
 }
 
 // GameEvent represents a parsed game event (kill, grenade, bomb, round boundary).
@@ -1045,15 +1050,16 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 				}
 				state.prevAnalysisPos[player.SteamID64] = analysisPos{tick: tick, x: pos.X, y: pos.Y}
 				state.analysisTicks = append(state.analysisTicks, AnalysisTick{
-					Tick:    int32(tick),
-					SteamID: player.SteamID64,
-					X:       float32(pos.X),
-					Y:       float32(pos.Y),
-					Z:       float32(pos.Z),
-					Yaw:     float32(player.ViewDirectionX()),
-					Vx:      vx,
-					Vy:      vy,
-					IsAlive: player.IsAlive(),
+					Tick:     int32(tick),
+					SteamID:  player.SteamID64,
+					X:        float32(pos.X),
+					Y:        float32(pos.Y),
+					Z:        float32(pos.Z),
+					Yaw:      float32(player.ViewDirectionX()),
+					Vx:       vx,
+					Vy:       vy,
+					IsAlive:  player.IsAlive(),
+					AmmoClip: int16(ammoClip),
 				})
 			}
 

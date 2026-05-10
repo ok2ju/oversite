@@ -237,8 +237,103 @@ export namespace main {
 	        this.hits = source["hits"];
 	    }
 	}
+	export class PlayerHighlight {
+	    steam_id: string;
+	    category: string;
+	    metric_name: string;
+	    metric_value: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PlayerHighlight(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.steam_id = source["steam_id"];
+	        this.category = source["category"];
+	        this.metric_name = source["metric_name"];
+	        this.metric_value = source["metric_value"];
+	    }
+	}
+	export class TeamSummary {
+	    side: string;
+	    players: number;
+	    avg_overall_score: number;
+	    avg_trade_pct: number;
+	    avg_standing_shot_pct: number;
+	    avg_counter_strafe_pct: number;
+	    avg_first_shot_acc_pct: number;
+	    total_flash_assists: number;
+	    total_smokes_kill_assist: number;
+	    total_he_damage: number;
+	    total_isolated_peek_deaths: number;
+	    total_eco_kills: number;
+	    avg_full_buy_adr: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TeamSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.side = source["side"];
+	        this.players = source["players"];
+	        this.avg_overall_score = source["avg_overall_score"];
+	        this.avg_trade_pct = source["avg_trade_pct"];
+	        this.avg_standing_shot_pct = source["avg_standing_shot_pct"];
+	        this.avg_counter_strafe_pct = source["avg_counter_strafe_pct"];
+	        this.avg_first_shot_acc_pct = source["avg_first_shot_acc_pct"];
+	        this.total_flash_assists = source["total_flash_assists"];
+	        this.total_smokes_kill_assist = source["total_smokes_kill_assist"];
+	        this.total_he_damage = source["total_he_damage"];
+	        this.total_isolated_peek_deaths = source["total_isolated_peek_deaths"];
+	        this.total_eco_kills = source["total_eco_kills"];
+	        this.avg_full_buy_adr = source["avg_full_buy_adr"];
+	    }
+	}
+	export class MatchInsights {
+	    demo_id: string;
+	    ct_summary: TeamSummary;
+	    t_summary: TeamSummary;
+	    standouts: PlayerHighlight[];
+	
+	    static createFrom(source: any = {}) {
+	        return new MatchInsights(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.demo_id = source["demo_id"];
+	        this.ct_summary = this.convertValues(source["ct_summary"], TeamSummary);
+	        this.t_summary = this.convertValues(source["t_summary"], TeamSummary);
+	        this.standouts = this.convertValues(source["standouts"], PlayerHighlight);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class MistakeEntry {
+	    id: number;
 	    kind: string;
+	    category: string;
+	    severity: number;
+	    title: string;
+	    suggestion: string;
 	    round_number: number;
 	    tick: number;
 	    steam_id: string;
@@ -250,13 +345,55 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
 	        this.kind = source["kind"];
+	        this.category = source["category"];
+	        this.severity = source["severity"];
+	        this.title = source["title"];
+	        this.suggestion = source["suggestion"];
 	        this.round_number = source["round_number"];
 	        this.tick = source["tick"];
 	        this.steam_id = source["steam_id"];
 	        this.extras = source["extras"];
 	    }
 	}
+	export class MistakeContext {
+	    entry: MistakeEntry;
+	    round_start_tick: number;
+	    round_end_tick: number;
+	    freeze_end_tick: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MistakeContext(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.entry = this.convertValues(source["entry"], MistakeEntry);
+	        this.round_start_tick = source["round_start_tick"];
+	        this.round_end_tick = source["round_end_tick"];
+	        this.freeze_end_tick = source["freeze_end_tick"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class MovementStats {
 	    distance_units: number;
 	    avg_speed_ups: number;
@@ -285,8 +422,26 @@ export namespace main {
 	export class PlayerAnalysis {
 	    steam_id: string;
 	    overall_score: number;
+	    version: number;
 	    trade_pct: number;
 	    avg_trade_ticks: number;
+	    crosshair_height_avg_off: number;
+	    time_to_fire_ms_avg: number;
+	    flick_count: number;
+	    flick_hit_pct: number;
+	    first_shot_acc_pct: number;
+	    spray_decay_slope: number;
+	    standing_shot_pct: number;
+	    counter_strafe_pct: number;
+	    smokes_thrown: number;
+	    smokes_kill_assist: number;
+	    flash_assists: number;
+	    he_damage: number;
+	    nades_unused: number;
+	    isolated_peek_deaths: number;
+	    repeated_death_zones: number;
+	    full_buy_adr: number;
+	    eco_kills: number;
 	    extras: Record<string, any>;
 	
 	    static createFrom(source: any = {}) {
@@ -297,11 +452,30 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.steam_id = source["steam_id"];
 	        this.overall_score = source["overall_score"];
+	        this.version = source["version"];
 	        this.trade_pct = source["trade_pct"];
 	        this.avg_trade_ticks = source["avg_trade_ticks"];
+	        this.crosshair_height_avg_off = source["crosshair_height_avg_off"];
+	        this.time_to_fire_ms_avg = source["time_to_fire_ms_avg"];
+	        this.flick_count = source["flick_count"];
+	        this.flick_hit_pct = source["flick_hit_pct"];
+	        this.first_shot_acc_pct = source["first_shot_acc_pct"];
+	        this.spray_decay_slope = source["spray_decay_slope"];
+	        this.standing_shot_pct = source["standing_shot_pct"];
+	        this.counter_strafe_pct = source["counter_strafe_pct"];
+	        this.smokes_thrown = source["smokes_thrown"];
+	        this.smokes_kill_assist = source["smokes_kill_assist"];
+	        this.flash_assists = source["flash_assists"];
+	        this.he_damage = source["he_damage"];
+	        this.nades_unused = source["nades_unused"];
+	        this.isolated_peek_deaths = source["isolated_peek_deaths"];
+	        this.repeated_death_zones = source["repeated_death_zones"];
+	        this.full_buy_adr = source["full_buy_adr"];
+	        this.eco_kills = source["eco_kills"];
 	        this.extras = source["extras"];
 	    }
 	}
+	
 	export class PlayerInfo {
 	    steam_id: string;
 	    player_name: string;
@@ -497,6 +671,12 @@ export namespace main {
 	    steam_id: string;
 	    round_number: number;
 	    trade_pct: number;
+	    buy_type: string;
+	    money_spent: number;
+	    nades_used: number;
+	    nades_unused: number;
+	    shots_fired: number;
+	    shots_hit: number;
 	    extras: Record<string, any>;
 	
 	    static createFrom(source: any = {}) {
@@ -508,6 +688,12 @@ export namespace main {
 	        this.steam_id = source["steam_id"];
 	        this.round_number = source["round_number"];
 	        this.trade_pct = source["trade_pct"];
+	        this.buy_type = source["buy_type"];
+	        this.money_spent = source["money_spent"];
+	        this.nades_used = source["nades_used"];
+	        this.nades_unused = source["nades_unused"];
+	        this.shots_fired = source["shots_fired"];
+	        this.shots_hit = source["shots_hit"];
 	        this.extras = source["extras"];
 	    }
 	}
@@ -577,6 +763,7 @@ export namespace main {
 	        this.adr = source["adr"];
 	    }
 	}
+	
 	export class TickData {
 	    tick: number;
 	    steam_id: string;
