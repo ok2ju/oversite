@@ -11,6 +11,7 @@ import { RoundSelector } from "@/components/viewer/round-selector"
 import { Scoreboard } from "@/components/viewer/scoreboard"
 import { TeamBars } from "@/components/viewer/team-bars"
 import { KillLog } from "@/components/viewer/kill-log"
+import { PlayerStatsPanel } from "@/components/viewer/player-stats-panel"
 
 export default function DemoViewerPage() {
   const { id } = useParams<{ id: string }>()
@@ -80,6 +81,7 @@ export default function DemoViewerPage() {
       <PlaybackControls />
       <RoundSelector />
       <Scoreboard visible={scoreboardVisible} />
+      <PlayerStatsPanel />
     </div>
   )
 }

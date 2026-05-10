@@ -1,5 +1,37 @@
 export namespace main {
 	
+	export class DamageByOpponent {
+	    steam_id: string;
+	    player_name: string;
+	    team_side: string;
+	    damage: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DamageByOpponent(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.steam_id = source["steam_id"];
+	        this.player_name = source["player_name"];
+	        this.team_side = source["team_side"];
+	        this.damage = source["damage"];
+	    }
+	}
+	export class DamageByWeapon {
+	    weapon: string;
+	    damage: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DamageByWeapon(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.weapon = source["weapon"];
+	        this.damage = source["damage"];
+	    }
+	}
 	export class Demo {
 	    id: number;
 	    map_name: string;
@@ -173,6 +205,48 @@ export namespace main {
 	        this.kill_count = source["kill_count"];
 	    }
 	}
+	export class HitGroupBreakdown {
+	    hit_group: number;
+	    label: string;
+	    damage: number;
+	    hits: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new HitGroupBreakdown(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.hit_group = source["hit_group"];
+	        this.label = source["label"];
+	        this.damage = source["damage"];
+	        this.hits = source["hits"];
+	    }
+	}
+	export class MovementStats {
+	    distance_units: number;
+	    avg_speed_ups: number;
+	    max_speed_ups: number;
+	    strafe_percent: number;
+	    stationary_ratio: number;
+	    walking_ratio: number;
+	    running_ratio: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MovementStats(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.distance_units = source["distance_units"];
+	        this.avg_speed_ups = source["avg_speed_ups"];
+	        this.max_speed_ups = source["max_speed_ups"];
+	        this.strafe_percent = source["strafe_percent"];
+	        this.stationary_ratio = source["stationary_ratio"];
+	        this.walking_ratio = source["walking_ratio"];
+	        this.running_ratio = source["running_ratio"];
+	    }
+	}
 	
 	export class PlayerInfo {
 	    steam_id: string;
@@ -187,6 +261,166 @@ export namespace main {
 	        this.steam_id = source["steam_id"];
 	        this.player_name = source["player_name"];
 	    }
+	}
+	export class UtilityStats {
+	    flashes_thrown: number;
+	    smokes_thrown: number;
+	    hes_thrown: number;
+	    molotovs_thrown: number;
+	    decoys_thrown: number;
+	    flash_assists: number;
+	    blind_time_inflicted_secs: number;
+	    enemies_flashed: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new UtilityStats(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.flashes_thrown = source["flashes_thrown"];
+	        this.smokes_thrown = source["smokes_thrown"];
+	        this.hes_thrown = source["hes_thrown"];
+	        this.molotovs_thrown = source["molotovs_thrown"];
+	        this.decoys_thrown = source["decoys_thrown"];
+	        this.flash_assists = source["flash_assists"];
+	        this.blind_time_inflicted_secs = source["blind_time_inflicted_secs"];
+	        this.enemies_flashed = source["enemies_flashed"];
+	    }
+	}
+	export class TimingStats {
+	    avg_time_to_first_contact_secs: number;
+	    avg_alive_duration_secs: number;
+	    time_on_site_a_secs: number;
+	    time_on_site_b_secs: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TimingStats(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.avg_time_to_first_contact_secs = source["avg_time_to_first_contact_secs"];
+	        this.avg_alive_duration_secs = source["avg_alive_duration_secs"];
+	        this.time_on_site_a_secs = source["time_on_site_a_secs"];
+	        this.time_on_site_b_secs = source["time_on_site_b_secs"];
+	    }
+	}
+	export class PlayerRoundDetail {
+	    round_number: number;
+	    team_side: string;
+	    kills: number;
+	    deaths: number;
+	    assists: number;
+	    damage: number;
+	    hs_kills: number;
+	    clutch_kills: number;
+	    first_kill: boolean;
+	    first_death: boolean;
+	    trade_kill: boolean;
+	    loadout_value: number;
+	    distance_units: number;
+	    alive_duration_secs: number;
+	    time_to_first_contact_sec?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PlayerRoundDetail(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.round_number = source["round_number"];
+	        this.team_side = source["team_side"];
+	        this.kills = source["kills"];
+	        this.deaths = source["deaths"];
+	        this.assists = source["assists"];
+	        this.damage = source["damage"];
+	        this.hs_kills = source["hs_kills"];
+	        this.clutch_kills = source["clutch_kills"];
+	        this.first_kill = source["first_kill"];
+	        this.first_death = source["first_death"];
+	        this.trade_kill = source["trade_kill"];
+	        this.loadout_value = source["loadout_value"];
+	        this.distance_units = source["distance_units"];
+	        this.alive_duration_secs = source["alive_duration_secs"];
+	        this.time_to_first_contact_sec = source["time_to_first_contact_sec"];
+	    }
+	}
+	export class PlayerMatchStats {
+	    steam_id: string;
+	    player_name: string;
+	    team_side: string;
+	    rounds_played: number;
+	    kills: number;
+	    deaths: number;
+	    assists: number;
+	    damage: number;
+	    hs_kills: number;
+	    clutch_kills: number;
+	    first_kills: number;
+	    first_deaths: number;
+	    opening_wins: number;
+	    opening_losses: number;
+	    trade_kills: number;
+	    hs_percent: number;
+	    adr: number;
+	    damage_by_weapon: DamageByWeapon[];
+	    damage_by_opponent: DamageByOpponent[];
+	    rounds: PlayerRoundDetail[];
+	    movement: MovementStats;
+	    timings: TimingStats;
+	    utility: UtilityStats;
+	    hit_groups: HitGroupBreakdown[];
+	
+	    static createFrom(source: any = {}) {
+	        return new PlayerMatchStats(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.steam_id = source["steam_id"];
+	        this.player_name = source["player_name"];
+	        this.team_side = source["team_side"];
+	        this.rounds_played = source["rounds_played"];
+	        this.kills = source["kills"];
+	        this.deaths = source["deaths"];
+	        this.assists = source["assists"];
+	        this.damage = source["damage"];
+	        this.hs_kills = source["hs_kills"];
+	        this.clutch_kills = source["clutch_kills"];
+	        this.first_kills = source["first_kills"];
+	        this.first_deaths = source["first_deaths"];
+	        this.opening_wins = source["opening_wins"];
+	        this.opening_losses = source["opening_losses"];
+	        this.trade_kills = source["trade_kills"];
+	        this.hs_percent = source["hs_percent"];
+	        this.adr = source["adr"];
+	        this.damage_by_weapon = this.convertValues(source["damage_by_weapon"], DamageByWeapon);
+	        this.damage_by_opponent = this.convertValues(source["damage_by_opponent"], DamageByOpponent);
+	        this.rounds = this.convertValues(source["rounds"], PlayerRoundDetail);
+	        this.movement = this.convertValues(source["movement"], MovementStats);
+	        this.timings = this.convertValues(source["timings"], TimingStats);
+	        this.utility = this.convertValues(source["utility"], UtilityStats);
+	        this.hit_groups = this.convertValues(source["hit_groups"], HitGroupBreakdown);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class PlayerRosterEntry {
 	    steam_id: string;
@@ -204,6 +438,7 @@ export namespace main {
 	        this.team_side = source["team_side"];
 	    }
 	}
+	
 	export class Round {
 	    id: string;
 	    round_number: number;
@@ -310,6 +545,8 @@ export namespace main {
 	        this.ammo_reserve = source["ammo_reserve"];
 	    }
 	}
+	
+	
 	export class WeaponStat {
 	    weapon: string;
 	    kill_count: number;

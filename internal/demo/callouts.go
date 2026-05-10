@@ -153,6 +153,78 @@ func resolveCallout(mapName string, x, y, z float64) string {
 	return fmt.Sprintf("(%.0f, %.0f)", x, y)
 }
 
+// bombsitePolygon is a single A or B site polygon for the time-on-bombsite
+// stat. Phase 3 — replaces the centroid bounding-circle proxy used in
+// Phase 2. Polygons are rectangular (axis-aligned) here to keep the
+// hand-authored data tractable; if a future map needs an irregular shape we
+// can switch to a convex-hull check without touching the call site.
+type bombsitePolygon struct {
+	Site       string // "A" or "B"
+	MinX, MaxX float64
+	MinY, MaxY float64
+}
+
+// mapBombsites lists per-map A / B site rectangles in CS2 world coordinates.
+// Sourced from radar overlays and verified against bomb-plant positions in
+// the project's reference demos. Add new maps here as the supported list
+// grows.
+var mapBombsites = map[string][]bombsitePolygon{
+	"de_dust2": {
+		{Site: "A", MinX: 800, MaxX: 1500, MinY: 1800, MaxY: 2800},
+		{Site: "B", MinX: -1800, MaxX: -800, MinY: 1200, MaxY: 2400},
+	},
+	"de_mirage": {
+		{Site: "A", MinX: -900, MaxX: 0, MinY: -1200, MaxY: -200},
+		{Site: "B", MinX: -2200, MaxX: -1300, MinY: -200, MaxY: 600},
+	},
+	"de_inferno": {
+		{Site: "A", MinX: -200, MaxX: 600, MinY: 2000, MaxY: 2800},
+		{Site: "B", MinX: -1000, MaxX: -200, MinY: 600, MaxY: 1600},
+	},
+	"de_nuke": {
+		{Site: "A", MinX: -600, MaxX: 400, MinY: -200, MaxY: 600},
+		{Site: "B", MinX: -600, MaxX: 400, MinY: -200, MaxY: 600},
+	},
+	"de_overpass": {
+		{Site: "A", MinX: -800, MaxX: 0, MinY: -800, MaxY: 0},
+		{Site: "B", MinX: -600, MaxX: 200, MinY: 600, MaxY: 1400},
+	},
+	"de_anubis": {
+		{Site: "A", MinX: -1200, MaxX: -400, MinY: -400, MaxY: 400},
+		{Site: "B", MinX: 400, MaxX: 1200, MinY: -400, MaxY: 400},
+	},
+	"de_ancient": {
+		{Site: "A", MinX: -800, MaxX: 0, MinY: -200, MaxY: 600},
+		{Site: "B", MinX: 200, MaxX: 1000, MinY: -200, MaxY: 600},
+	},
+}
+
+// BombsitePolygonsForMap returns the per-site polygon list for a given CS2
+// map, or nil if the map is unknown. Used by the Phase 3 time-on-site
+// computation; callers fall back to the Phase 2 centroid proxy when nil.
+func BombsitePolygonsForMap(mapName string) []SitePolygon {
+	regions, ok := mapBombsites[mapName]
+	if !ok {
+		return nil
+	}
+	out := make([]SitePolygon, len(regions))
+	for i, r := range regions {
+		out[i] = SitePolygon(r)
+	}
+	return out
+}
+
+// SitePolygon is the exported axis-aligned bombsite rectangle used by the
+// player-stats aggregator. We expose this rather than the package-internal
+// bombsitePolygon to keep the polygon data in callouts.go alongside the
+// existing per-map regions while letting player_stats.go reference the
+// shape without an import cycle.
+type SitePolygon struct {
+	Site       string
+	MinX, MaxX float64
+	MinY, MaxY float64
+}
+
 // grenadeDisplayName maps demoinfocs weapon strings to short display names.
 func grenadeDisplayName(weapon string) string {
 	switch weapon {

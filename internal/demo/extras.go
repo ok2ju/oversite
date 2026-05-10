@@ -78,9 +78,14 @@ func (*WeaponFireExtra) isEventExtra() {}
 // AttackerTeam / VictimName / VictimTeam are promoted to columns and carry
 // `json:"-"`; ArmorDamage stays in JSON because nothing outside the parser
 // reads it.
+//
+// HitGroup is a stable byte from demoinfocs (0=generic, 1=head, 2=chest, 3=
+// stomach, 4=left-arm, 5=right-arm, 6=left-leg, 7=right-leg, 8=neck,
+// 10=gear). Stored in the JSON blob — readers convert to a label lazily.
 type PlayerHurtExtra struct {
 	HealthDamage int    `json:"-"`
 	ArmorDamage  int    `json:"armor_damage"`
+	HitGroup     int    `json:"hit_group"`
 	AttackerName string `json:"-"`
 	AttackerTeam string `json:"-"`
 	VictimName   string `json:"-"`
@@ -88,6 +93,21 @@ type PlayerHurtExtra struct {
 }
 
 func (*PlayerHurtExtra) isEventExtra() {}
+
+// PlayerFlashedExtra is the player_flashed payload — emitted once per player
+// blinded by a flashbang. DurationSecs is the on-target blind time taken
+// from the demoinfocs FlashDuration() helper. The grenade thrower (attacker)
+// lives on the parent GameEvent.AttackerSteamID so the aggregator can credit
+// flash assists without poking through the JSON blob.
+type PlayerFlashedExtra struct {
+	DurationSecs float64 `json:"duration_secs"`
+	AttackerName string  `json:"-"`
+	AttackerTeam string  `json:"-"`
+	VictimName   string  `json:"-"`
+	VictimTeam   string  `json:"-"`
+}
+
+func (*PlayerFlashedExtra) isEventExtra() {}
 
 // GrenadeThrowExtra is the grenade-throw payload. EntityID is the projectile
 // entity index used to correlate throw → bounces → detonation.

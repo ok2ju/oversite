@@ -789,6 +789,101 @@ func (a *App) GetScoreboard(demoID string) ([]ScoreboardEntry, error) {
 	return result, nil
 }
 
+// GetPlayerMatchStats returns the deep-stats payload for a single player in a
+// demo. Computed on demand from already-ingested rounds, events, and loadouts
+// — no new ingest write path. The frontend caches the result via TanStack
+// Query (staleTime: Infinity) since the underlying data is deterministic per
+// (demo, steamID).
+func (a *App) GetPlayerMatchStats(demoID, steamID string) (*PlayerMatchStats, error) {
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid demo id: %w", err)
+	}
+	if steamID == "" {
+		return nil, fmt.Errorf("steam id required")
+	}
+
+	d, err := a.queries.GetDemoByID(a.ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting demo: %w", err)
+	}
+
+	storeRounds, err := a.queries.GetRoundsByDemoID(a.ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting rounds: %w", err)
+	}
+
+	storeEvents, err := a.queries.GetGameEventsByDemoID(a.ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting events: %w", err)
+	}
+
+	loadoutRows, err := a.queries.GetRoundLoadoutsByDemoID(a.ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting round loadouts: %w", err)
+	}
+
+	rosterRows, err := a.queries.GetRostersByDemoID(a.ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting rosters: %w", err)
+	}
+
+	rounds, events, loadouts := buildPlayerStatsInputs(storeRounds, storeEvents, loadoutRows, rosterRows)
+
+	// Phase 2: pull this player's tick samples for movement / timing
+	// aggregation, and derive bombsite centroids from BombPlanted events for
+	// the time-on-site proxy.
+	tickRows, err := a.queries.GetTickDataByDemoAndPlayer(a.ctx, id, steamID)
+	if err != nil {
+		return nil, fmt.Errorf("getting tick data: %w", err)
+	}
+	samples := tickDataToSamples(tickRows)
+
+	// Phase 3: prefer hand-authored bombsite polygons (callouts.go) when the
+	// map is known, else fall back to the BombPlanted-derived centroid + a
+	// fixed bounding-circle radius.
+	bombsites := demo.BombsiteCentroidsFromEvents(events)
+	if polys := demo.BombsitePolygonsForMap(d.MapName); len(polys) > 0 {
+		bombsites = mergeBombsitePolygons(bombsites, polys)
+	}
+
+	stats := demo.ComputePlayerMatchStats(rounds, events, loadouts, samples, bombsites, steamID, d.TickRate)
+	out := computedPlayerMatchStatsToBinding(stats)
+	return &out, nil
+}
+
+// mergeBombsitePolygons attaches polygon bounds to the BombPlanted-derived
+// centroids when both are available, and creates synthetic centroid entries
+// for sites that have a polygon but never saw a plant in this match (a CT-
+// dominant half can leave one site planted-zero).
+func mergeBombsitePolygons(centroids []demo.BombsiteCentroid, polys []demo.SitePolygon) []demo.BombsiteCentroid {
+	bySite := make(map[string]demo.BombsiteCentroid, len(centroids))
+	for _, c := range centroids {
+		bySite[c.Site] = c
+	}
+	for _, p := range polys {
+		c := bySite[p.Site]
+		c.Site = p.Site
+		c.MinX, c.MaxX = p.MinX, p.MaxX
+		c.MinY, c.MaxY = p.MinY, p.MaxY
+		// Synthesize centroid X/Y from polygon midpoint when no plant is
+		// available — keeps the legacy bounding-circle path useful for
+		// callers that don't read the polygon fields.
+		if c.X == 0 && c.Y == 0 {
+			c.X = (p.MinX + p.MaxX) / 2
+			c.Y = (p.MinY + p.MaxY) / 2
+		}
+		bySite[p.Site] = c
+	}
+	out := make([]demo.BombsiteCentroid, 0, len(bySite))
+	for _, site := range []string{"A", "B"} {
+		if c, ok := bySite[site]; ok {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 // ---------------------------------------------------------------------------
 // Heatmap bindings
 // ---------------------------------------------------------------------------

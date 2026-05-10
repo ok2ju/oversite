@@ -1100,6 +1100,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 		extra := &PlayerHurtExtra{
 			HealthDamage: e.HealthDamage,
 			ArmorDamage:  e.ArmorDamage,
+			HitGroup:     int(e.HitGroup),
 		}
 
 		if e.Attacker != nil {
@@ -1131,6 +1132,45 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			X:               x,
 			Y:               y,
 			Z:               z,
+			ExtraData:       extra,
+		}) {
+			p.Cancel()
+		}
+	})
+
+	// Player flashed (blinded by a flashbang). The aggregator uses the on-
+	// target duration to compute "blind time inflicted" credited to the
+	// thrower (attacker). Self-flashes are kept — they are useful for utility
+	// review and the aggregator filters them out by team comparison.
+	p.RegisterEventHandler(func(e events.PlayerFlashed) {
+		if state.shouldStopAppending() {
+			return
+		}
+		if dp.skipWarmup && p.GameState().IsWarmupPeriod() {
+			return
+		}
+		if e.Player == nil {
+			return
+		}
+		extra := &PlayerFlashedExtra{
+			DurationSecs: e.FlashDuration().Seconds(),
+		}
+		var attackerID string
+		if e.Attacker != nil {
+			attackerID = state.steamID(e.Attacker)
+			extra.AttackerName = e.Attacker.Name
+			extra.AttackerTeam = teamSideString(e.Attacker.Team)
+		}
+		victimID := state.steamID(e.Player)
+		extra.VictimName = e.Player.Name
+		extra.VictimTeam = teamSideString(e.Player.Team)
+
+		if !state.addEvent(GameEvent{
+			Tick:            p.GameState().IngameTick(),
+			RoundNumber:     state.currentRound,
+			Type:            "player_flashed",
+			AttackerSteamID: attackerID,
+			VictimSteamID:   victimID,
 			ExtraData:       extra,
 		}) {
 			p.Cancel()

@@ -95,6 +95,13 @@ func toEventParams(demoID int64, evt GameEvent, roundMap map[int]int64) (store.C
 			params.AttackerTeam = e.AttackerTeam
 			params.VictimTeam = e.VictimTeam
 		}
+	case *PlayerFlashedExtra:
+		if e != nil {
+			params.AttackerName = e.AttackerName
+			params.VictimName = e.VictimName
+			params.AttackerTeam = e.AttackerTeam
+			params.VictimTeam = e.VictimTeam
+		}
 	}
 
 	return params, nil

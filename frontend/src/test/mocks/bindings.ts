@@ -103,6 +103,192 @@ export const mockAppBindings = {
     .fn<(demoId: string) => Promise<typeof mockScoreboardEntries>>()
     .mockResolvedValue(mockScoreboardEntries),
 
+  GetPlayerMatchStats: vi
+    .fn<
+      (
+        demoId: string,
+        steamId: string,
+      ) => Promise<{
+        steam_id: string
+        player_name: string
+        team_side: string
+        rounds_played: number
+        kills: number
+        deaths: number
+        assists: number
+        damage: number
+        hs_kills: number
+        clutch_kills: number
+        first_kills: number
+        first_deaths: number
+        opening_wins: number
+        opening_losses: number
+        trade_kills: number
+        hs_percent: number
+        adr: number
+        damage_by_weapon: Array<{ weapon: string; damage: number }>
+        damage_by_opponent: Array<{
+          steam_id: string
+          player_name: string
+          team_side: string
+          damage: number
+        }>
+        rounds: Array<{
+          round_number: number
+          team_side: string
+          kills: number
+          deaths: number
+          assists: number
+          damage: number
+          hs_kills: number
+          clutch_kills: number
+          first_kill: boolean
+          first_death: boolean
+          trade_kill: boolean
+          loadout_value: number
+          distance_units: number
+          alive_duration_secs: number
+          time_to_first_contact_sec: number | null
+        }>
+        movement: {
+          distance_units: number
+          avg_speed_ups: number
+          max_speed_ups: number
+          strafe_percent: number
+          stationary_ratio: number
+          walking_ratio: number
+          running_ratio: number
+        }
+        timings: {
+          avg_time_to_first_contact_secs: number
+          avg_alive_duration_secs: number
+          time_on_site_a_secs: number
+          time_on_site_b_secs: number
+        }
+        utility: {
+          flashes_thrown: number
+          smokes_thrown: number
+          hes_thrown: number
+          molotovs_thrown: number
+          decoys_thrown: number
+          flash_assists: number
+          blind_time_inflicted_secs: number
+          enemies_flashed: number
+        }
+        hit_groups: Array<{
+          hit_group: number
+          label: string
+          damage: number
+          hits: number
+        }>
+      }>
+    >()
+    .mockImplementation((_demoId, steamId) =>
+      Promise.resolve({
+        steam_id: steamId,
+        player_name: "MockPlayer",
+        team_side: "CT",
+        rounds_played: 2,
+        kills: 3,
+        deaths: 1,
+        assists: 1,
+        damage: 250,
+        hs_kills: 1,
+        clutch_kills: 0,
+        first_kills: 1,
+        first_deaths: 0,
+        opening_wins: 1,
+        opening_losses: 0,
+        trade_kills: 0,
+        hs_percent: 33.33,
+        adr: 125,
+        damage_by_weapon: [
+          { weapon: "ak-47", damage: 175 },
+          { weapon: "deagle", damage: 75 },
+        ],
+        damage_by_opponent: [
+          {
+            steam_id: "STEAM_X",
+            player_name: "Enemy1",
+            team_side: "T",
+            damage: 175,
+          },
+          {
+            steam_id: "STEAM_Y",
+            player_name: "Enemy2",
+            team_side: "T",
+            damage: 75,
+          },
+        ],
+        rounds: [
+          {
+            round_number: 1,
+            team_side: "CT",
+            kills: 2,
+            deaths: 0,
+            assists: 0,
+            damage: 175,
+            hs_kills: 1,
+            clutch_kills: 0,
+            first_kill: true,
+            first_death: false,
+            trade_kill: false,
+            loadout_value: 4750,
+            distance_units: 4200,
+            alive_duration_secs: 80,
+            time_to_first_contact_sec: 12.5,
+          },
+          {
+            round_number: 2,
+            team_side: "CT",
+            kills: 1,
+            deaths: 1,
+            assists: 1,
+            damage: 75,
+            hs_kills: 0,
+            clutch_kills: 0,
+            first_kill: false,
+            first_death: false,
+            trade_kill: false,
+            loadout_value: 3700,
+            distance_units: 1800,
+            alive_duration_secs: 22,
+            time_to_first_contact_sec: 4.0,
+          },
+        ],
+        movement: {
+          distance_units: 6000,
+          avg_speed_ups: 110,
+          max_speed_ups: 248,
+          strafe_percent: 35,
+          stationary_ratio: 0.2,
+          walking_ratio: 0.5,
+          running_ratio: 0.3,
+        },
+        timings: {
+          avg_time_to_first_contact_secs: 8.25,
+          avg_alive_duration_secs: 51,
+          time_on_site_a_secs: 18,
+          time_on_site_b_secs: 4,
+        },
+        utility: {
+          flashes_thrown: 6,
+          smokes_thrown: 4,
+          hes_thrown: 2,
+          molotovs_thrown: 1,
+          decoys_thrown: 0,
+          flash_assists: 1,
+          blind_time_inflicted_secs: 14.5,
+          enemies_flashed: 7,
+        },
+        hit_groups: [
+          { hit_group: 2, label: "Chest", damage: 130, hits: 4 },
+          { hit_group: 1, label: "Head", damage: 95, hits: 1 },
+          { hit_group: 6, label: "Left Leg", damage: 25, hits: 2 },
+        ],
+      }),
+    ),
+
   GetHeatmapData: vi
     .fn<
       (

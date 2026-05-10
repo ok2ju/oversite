@@ -180,3 +180,106 @@ type WeaponStat struct {
 	KillCount int    `json:"kill_count"`
 	HSCount   int    `json:"hs_count"`
 }
+
+// PlayerMatchStats is the deep-stats payload returned by GetPlayerMatchStats
+// for the right-side player panel in the viewer.
+type PlayerMatchStats struct {
+	SteamID          string              `json:"steam_id"`
+	PlayerName       string              `json:"player_name"`
+	TeamSide         string              `json:"team_side"`
+	RoundsPlayed     int                 `json:"rounds_played"`
+	Kills            int                 `json:"kills"`
+	Deaths           int                 `json:"deaths"`
+	Assists          int                 `json:"assists"`
+	Damage           int                 `json:"damage"`
+	HSKills          int                 `json:"hs_kills"`
+	ClutchKills      int                 `json:"clutch_kills"`
+	FirstKills       int                 `json:"first_kills"`
+	FirstDeaths      int                 `json:"first_deaths"`
+	OpeningWins      int                 `json:"opening_wins"`
+	OpeningLosses    int                 `json:"opening_losses"`
+	TradeKills       int                 `json:"trade_kills"`
+	HSPercent        float64             `json:"hs_percent"`
+	ADR              float64             `json:"adr"`
+	DamageByWeapon   []DamageByWeapon    `json:"damage_by_weapon"`
+	DamageByOpponent []DamageByOpponent  `json:"damage_by_opponent"`
+	Rounds           []PlayerRoundDetail `json:"rounds"`
+	Movement         MovementStats       `json:"movement"`
+	Timings          TimingStats         `json:"timings"`
+	Utility          UtilityStats        `json:"utility"`
+	HitGroups        []HitGroupBreakdown `json:"hit_groups"`
+}
+
+// UtilityStats is the match-level utility profile for a player (Phase 3).
+type UtilityStats struct {
+	FlashesThrown          int     `json:"flashes_thrown"`
+	SmokesThrown           int     `json:"smokes_thrown"`
+	HEsThrown              int     `json:"hes_thrown"`
+	MolotovsThrown         int     `json:"molotovs_thrown"`
+	DecoysThrown           int     `json:"decoys_thrown"`
+	FlashAssists           int     `json:"flash_assists"`
+	BlindTimeInflictedSecs float64 `json:"blind_time_inflicted_secs"`
+	EnemiesFlashed         int     `json:"enemies_flashed"`
+}
+
+// HitGroupBreakdown is one row in the damage-by-hit-group breakdown.
+type HitGroupBreakdown struct {
+	HitGroup int    `json:"hit_group"`
+	Label    string `json:"label"`
+	Damage   int    `json:"damage"`
+	Hits     int    `json:"hits"`
+}
+
+// PlayerRoundDetail is one round's breakdown for a single player.
+type PlayerRoundDetail struct {
+	RoundNumber           int      `json:"round_number"`
+	TeamSide              string   `json:"team_side"`
+	Kills                 int      `json:"kills"`
+	Deaths                int      `json:"deaths"`
+	Assists               int      `json:"assists"`
+	Damage                int      `json:"damage"`
+	HSKills               int      `json:"hs_kills"`
+	ClutchKills           int      `json:"clutch_kills"`
+	FirstKill             bool     `json:"first_kill"`
+	FirstDeath            bool     `json:"first_death"`
+	TradeKill             bool     `json:"trade_kill"`
+	LoadoutValue          int      `json:"loadout_value"`
+	DistanceUnits         int      `json:"distance_units"`
+	AliveDurationSecs     float64  `json:"alive_duration_secs"`
+	TimeToFirstContactSec *float64 `json:"time_to_first_contact_sec"`
+}
+
+// MovementStats is the match-level movement profile for a player. Strafe
+// percent is approximate (16 Hz sample rate); the panel surfaces this with a
+// tooltip.
+type MovementStats struct {
+	DistanceUnits   int     `json:"distance_units"`
+	AvgSpeedUps     float64 `json:"avg_speed_ups"`
+	MaxSpeedUps     float64 `json:"max_speed_ups"`
+	StrafePercent   float64 `json:"strafe_percent"`
+	StationaryRatio float64 `json:"stationary_ratio"`
+	WalkingRatio    float64 `json:"walking_ratio"`
+	RunningRatio    float64 `json:"running_ratio"`
+}
+
+// TimingStats is the match-level timing profile for a player.
+type TimingStats struct {
+	AvgTimeToFirstContactSecs float64 `json:"avg_time_to_first_contact_secs"`
+	AvgAliveDurationSecs      float64 `json:"avg_alive_duration_secs"`
+	TimeOnSiteASecs           float64 `json:"time_on_site_a_secs"`
+	TimeOnSiteBSecs           float64 `json:"time_on_site_b_secs"`
+}
+
+// DamageByWeapon is one row in the damage-by-weapon breakdown.
+type DamageByWeapon struct {
+	Weapon string `json:"weapon"`
+	Damage int    `json:"damage"`
+}
+
+// DamageByOpponent is one row in the damage-by-opponent breakdown.
+type DamageByOpponent struct {
+	SteamID    string `json:"steam_id"`
+	PlayerName string `json:"player_name"`
+	TeamSide   string `json:"team_side"`
+	Damage     int    `json:"damage"`
+}

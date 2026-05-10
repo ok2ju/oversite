@@ -38,6 +38,10 @@ export function GetHeatmapData(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['GetHeatmapData'](arg1, arg2, arg3, arg4);
 }
 
+export function GetPlayerMatchStats(arg1, arg2) {
+  return window['go']['main']['App']['GetPlayerMatchStats'](arg1, arg2);
+}
+
 export function GetRoundLoadouts(arg1) {
   return window['go']['main']['App']['GetRoundLoadouts'](arg1);
 }
