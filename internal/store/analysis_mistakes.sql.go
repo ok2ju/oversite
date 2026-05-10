@@ -49,6 +49,30 @@ func (q *Queries) CountAnalysisMistakesByCategory(ctx context.Context, demoID in
 	return items, nil
 }
 
+const countAnalysisMistakesByKindForPlayer = `-- name: CountAnalysisMistakesByKindForPlayer :one
+SELECT count(*) AS total
+FROM analysis_mistakes
+WHERE demo_id = ?1
+  AND steam_id = ?2
+  AND kind = ?3
+`
+
+type CountAnalysisMistakesByKindForPlayerParams struct {
+	DemoID  int64
+	SteamID string
+	Kind    string
+}
+
+// Counts mistakes of a specific kind for one (demo, player). Used by the
+// HabitReport builder to populate count-based habits (e.g. untraded deaths)
+// without round-tripping the full timeline.
+func (q *Queries) CountAnalysisMistakesByKindForPlayer(ctx context.Context, arg CountAnalysisMistakesByKindForPlayerParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAnalysisMistakesByKindForPlayer, arg.DemoID, arg.SteamID, arg.Kind)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
 const createAnalysisMistake = `-- name: CreateAnalysisMistake :exec
 INSERT INTO analysis_mistakes (demo_id, steam_id, round_number, round_id, tick, kind, category, severity, extras_json)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)

@@ -100,3 +100,49 @@ export interface PlayerHighlight {
   metric_name: string
   metric_value: number
 }
+
+// Habit checklist surface — see plans/analysis-overhaul.md §4.1 / §6.1.
+// Status / direction live as discriminated-union strings so the frontend can
+// switch on them without reinventing the threshold table; thresholds ride
+// alongside so each row can render its own norm line ("≤ 100 ms").
+export type HabitStatus = "good" | "warn" | "bad"
+export type HabitDirection = "lower" | "higher" | "balanced"
+
+export type HabitKey =
+  | "counter_strafe"
+  | "reaction"
+  | "first_shot_acc"
+  | "shooting_in_motion"
+  | "crouch_before_shot"
+  | "flick_balance"
+  | "trade_timing"
+  | "untraded_deaths"
+  | "utility_used"
+  | "isolated_peek_deaths"
+  | "repeated_death_zone"
+
+export interface HabitRow {
+  key: HabitKey
+  label: string
+  description: string
+  unit: string
+  direction: HabitDirection
+  value: number
+  status: HabitStatus
+  good_threshold: number
+  warn_threshold: number
+  good_min: number
+  good_max: number
+  warn_min: number
+  warn_max: number
+  // P0-3 — null when there's no previous demo to compare against.
+  previous_value: number | null
+  delta: number | null
+}
+
+export interface HabitReport {
+  demo_id: string
+  steam_id: string
+  as_of: string
+  habits: HabitRow[]
+}

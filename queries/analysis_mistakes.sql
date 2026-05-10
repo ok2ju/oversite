@@ -29,3 +29,13 @@ FROM analysis_mistakes
 WHERE demo_id = @demo_id
 GROUP BY category
 ORDER BY category ASC;
+
+-- name: CountAnalysisMistakesByKindForPlayer :one
+-- Counts mistakes of a specific kind for one (demo, player). Used by the
+-- HabitReport builder to populate count-based habits (e.g. untraded deaths)
+-- without round-tripping the full timeline.
+SELECT count(*) AS total
+FROM analysis_mistakes
+WHERE demo_id = @demo_id
+  AND steam_id = @steam_id
+  AND kind = @kind;

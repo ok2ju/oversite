@@ -38,6 +38,10 @@ export function GetEventsByTypes(arg1, arg2) {
   return window['go']['main']['App']['GetEventsByTypes'](arg1, arg2);
 }
 
+export function GetHabitReport(arg1, arg2) {
+  return window['go']['main']['App']['GetHabitReport'](arg1, arg2);
+}
+
 export function GetHeatmapData(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['GetHeatmapData'](arg1, arg2, arg3, arg4);
 }

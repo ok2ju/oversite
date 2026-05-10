@@ -375,6 +375,43 @@ type AnalysisStatus struct {
 	Status string `json:"status"`
 }
 
+// HabitRow mirrors analysis.HabitRow but with the enums flattened to plain
+// strings so the JSON wire encoding stays trivial. The frontend reads `status`
+// and `direction` as discriminated-union strings; thresholds are surfaced so
+// the row can render its norm line ("≤ 100 ms") without a second binding.
+//
+// PreviousValue / Delta are populated by GetHabitReport once history is in
+// scope (P0-3): nil means "no previous demo to compare against" and the UI
+// hides the delta line.
+type HabitRow struct {
+	Key           string   `json:"key"`
+	Label         string   `json:"label"`
+	Description   string   `json:"description"`
+	Unit          string   `json:"unit"`
+	Direction     string   `json:"direction"`
+	Value         float64  `json:"value"`
+	Status        string   `json:"status"`
+	GoodThreshold float64  `json:"good_threshold"`
+	WarnThreshold float64  `json:"warn_threshold"`
+	GoodMin       float64  `json:"good_min"`
+	GoodMax       float64  `json:"good_max"`
+	WarnMin       float64  `json:"warn_min"`
+	WarnMax       float64  `json:"warn_max"`
+	PreviousValue *float64 `json:"previous_value"`
+	Delta         *float64 `json:"delta"`
+}
+
+// HabitReport is the response shape of GetHabitReport — a list of habit rows
+// for one (demo, player), already classified server-side. AsOf is the demo's
+// match_date as an RFC3339 string (empty when the demo's match_date is unset)
+// so the page header can render "as of YYYY-MM-DD" without a second fetch.
+type HabitReport struct {
+	DemoID  string     `json:"demo_id"`
+	SteamID string     `json:"steam_id"`
+	AsOf    string     `json:"as_of"`
+	Habits  []HabitRow `json:"habits"`
+}
+
 // HitGroupBreakdown is one row in the damage-by-hit-group breakdown.
 type HitGroupBreakdown struct {
 	HitGroup int    `json:"hit_group"`

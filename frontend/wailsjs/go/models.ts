@@ -219,16 +219,92 @@ export namespace main {
 	        this.kill_count = source["kill_count"];
 	    }
 	}
+	export class HabitRow {
+	    key: string;
+	    label: string;
+	    description: string;
+	    unit: string;
+	    direction: string;
+	    value: number;
+	    status: string;
+	    good_threshold: number;
+	    warn_threshold: number;
+	    good_min: number;
+	    good_max: number;
+	    warn_min: number;
+	    warn_max: number;
+	    previous_value: number | null;
+	    delta: number | null;
+
+	    static createFrom(source: any = {}) {
+	        return new HabitRow(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.label = source["label"];
+	        this.description = source["description"];
+	        this.unit = source["unit"];
+	        this.direction = source["direction"];
+	        this.value = source["value"];
+	        this.status = source["status"];
+	        this.good_threshold = source["good_threshold"];
+	        this.warn_threshold = source["warn_threshold"];
+	        this.good_min = source["good_min"];
+	        this.good_max = source["good_max"];
+	        this.warn_min = source["warn_min"];
+	        this.warn_max = source["warn_max"];
+	        this.previous_value = source["previous_value"];
+	        this.delta = source["delta"];
+	    }
+	}
+	export class HabitReport {
+	    demo_id: string;
+	    steam_id: string;
+	    as_of: string;
+	    habits: HabitRow[];
+
+	    static createFrom(source: any = {}) {
+	        return new HabitReport(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.demo_id = source["demo_id"];
+	        this.steam_id = source["steam_id"];
+	        this.as_of = source["as_of"];
+	        this.habits = this.convertValues(source["habits"], HabitRow);
+	    }
+
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class HitGroupBreakdown {
 	    hit_group: number;
 	    label: string;
 	    damage: number;
 	    hits: number;
-	
+
 	    static createFrom(source: any = {}) {
 	        return new HitGroupBreakdown(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.hit_group = source["hit_group"];

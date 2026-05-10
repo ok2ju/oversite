@@ -964,6 +964,67 @@ func (a *App) GetPlayerAnalysis(demoID, steamID string) (PlayerAnalysis, error) 
 	return out, nil
 }
 
+// GetHabitReport returns the per-(demo, player) habit checklist — the rows
+// the analysis page's "habits" surface renders. Each row carries its own
+// status (good/warn/bad) classified server-side from the norm catalog
+// (analysis/norms.go) so the frontend never re-implements thresholds.
+//
+// Empty contracts mirror GetPlayerAnalysis: an empty steamID returns a zero
+// HabitReport with no habits (not an error) so the analysis page can render
+// an empty state. Unknown (demo, player) — i.e. no player_match_analysis row
+// — also returns the empty report. This keeps the consumer contract uniform
+// regardless of whether the demo is pre-analysis or simply doesn't have the
+// player.
+func (a *App) GetHabitReport(demoID, steamID string) (HabitReport, error) {
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return HabitReport{}, fmt.Errorf("invalid demo id: %w", err)
+	}
+	out := HabitReport{DemoID: demoID, SteamID: steamID, Habits: []HabitRow{}}
+	if steamID == "" {
+		return out, nil
+	}
+
+	if d, derr := a.queries.GetDemoByID(a.ctx, id); derr == nil {
+		out.AsOf = d.MatchDate
+	}
+
+	in, ok, err := analysis.LoadHabitInputs(a.ctx, a.queries, id, steamID)
+	if err != nil {
+		return HabitReport{}, fmt.Errorf("loading habit inputs: %w", err)
+	}
+	if !ok {
+		return out, nil
+	}
+
+	rows := analysis.BuildHabitReport(in)
+	out.Habits = make([]HabitRow, len(rows))
+	for i, r := range rows {
+		out.Habits[i] = habitRowToBinding(r)
+	}
+	return out, nil
+}
+
+// habitRowToBinding flattens the typed enums to wire-friendly strings. Living
+// here (not in types.go) keeps types.go free of analysis-package imports.
+func habitRowToBinding(r analysis.HabitRow) HabitRow {
+	return HabitRow{
+		Key:           string(r.Key),
+		Label:         r.Label,
+		Description:   r.Description,
+		Unit:          r.Unit,
+		Direction:     string(r.Direction),
+		Value:         r.Value,
+		Status:        string(r.Status),
+		GoodThreshold: r.GoodThreshold,
+		WarnThreshold: r.WarnThreshold,
+		GoodMin:       r.GoodMin,
+		GoodMax:       r.GoodMax,
+		WarnMin:       r.WarnMin,
+		WarnMax:       r.WarnMax,
+	}
+}
+
 // GetPlayerRoundAnalysis returns the per-(demo, player) round breakdown
 // written by the round-level analyzer, ordered by round_number ASC. Unknown
 // demos return an error; an empty steamID returns an empty slice (mirrors

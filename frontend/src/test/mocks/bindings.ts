@@ -345,6 +345,41 @@ export const mockAppBindings = {
     .fn<(demoId: string) => Promise<{ demo_id: string; status: string }>>()
     .mockResolvedValue({ demo_id: "", status: "ready" }),
 
+  GetHabitReport: vi
+    .fn<
+      (
+        demoId: string,
+        steamId: string,
+      ) => Promise<{
+        demo_id: string
+        steam_id: string
+        as_of: string
+        habits: Array<{
+          key: string
+          label: string
+          description: string
+          unit: string
+          direction: string
+          value: number
+          status: string
+          good_threshold: number
+          warn_threshold: number
+          good_min: number
+          good_max: number
+          warn_min: number
+          warn_max: number
+          previous_value: number | null
+          delta: number | null
+        }>
+      }>
+    >()
+    .mockResolvedValue({
+      demo_id: "",
+      steam_id: "",
+      as_of: "",
+      habits: [],
+    }),
+
   GetPlayerRoundAnalysis: vi
     .fn<
       (
