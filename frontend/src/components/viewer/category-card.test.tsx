@@ -104,4 +104,70 @@ describe("CategoryCard", () => {
       screen.getByTestId("category-card-suggestion-trade"),
     ).toHaveTextContent(/Trade your teammates/i)
   })
+
+  it("renders aim metrics from extras (aim_pct + engagements)", async () => {
+    mockAppBindings.GetPlayerAnalysis.mockResolvedValueOnce({
+      steam_id: "STEAM_A",
+      overall_score: 50,
+      trade_pct: 0.5,
+      avg_trade_ticks: 32,
+      extras: { aim_pct: 0.74, engagements: 12 },
+    })
+
+    renderWithProviders(<CategoryCard category="aim" />)
+
+    const header = await screen.findByTestId("category-card-header-aim")
+    await userEvent.setup().click(header)
+
+    expect(screen.getByTestId("category-card-aim-pct-aim")).toHaveTextContent(
+      "74%",
+    )
+    expect(
+      screen.getByTestId("category-card-engagements-aim"),
+    ).toHaveTextContent("12")
+  })
+
+  it("renders em-dash placeholder when aim extras are absent", async () => {
+    mockAppBindings.GetPlayerAnalysis.mockResolvedValueOnce({
+      steam_id: "STEAM_A",
+      overall_score: 50,
+      trade_pct: 0.5,
+      avg_trade_ticks: 32,
+      extras: null,
+    })
+
+    renderWithProviders(<CategoryCard category="aim" />)
+
+    const header = await screen.findByTestId("category-card-header-aim")
+    await userEvent.setup().click(header)
+
+    expect(screen.getByTestId("category-card-aim-pct-aim")).toHaveTextContent(
+      "—",
+    )
+    expect(
+      screen.getByTestId("category-card-engagements-aim"),
+    ).toHaveTextContent("—")
+  })
+
+  it("renders movement metrics from extras (standing_shot_pct + avg_fire_speed)", async () => {
+    mockAppBindings.GetPlayerAnalysis.mockResolvedValueOnce({
+      steam_id: "STEAM_A",
+      overall_score: 50,
+      trade_pct: 0.5,
+      avg_trade_ticks: 32,
+      extras: { standing_shot_pct: 0.62, avg_fire_speed: 110 },
+    })
+
+    renderWithProviders(<CategoryCard category="movement" />)
+
+    const header = await screen.findByTestId("category-card-header-movement")
+    await userEvent.setup().click(header)
+
+    expect(
+      screen.getByTestId("category-card-standing-shot-pct-movement"),
+    ).toHaveTextContent("62%")
+    expect(
+      screen.getByTestId("category-card-avg-fire-speed-movement"),
+    ).toHaveTextContent("110 u/s")
+  })
 })

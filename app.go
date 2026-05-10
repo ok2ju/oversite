@@ -63,6 +63,11 @@ type App struct {
 	// the import fails fast instead of running away on memory. Users can opt
 	// into partial-parse tolerance via SetTolerateEntityErrors.
 	tolerateEntityErrors bool
+	// minEngagementsForAimCritique gates the slice-8 aim rule on a minimum
+	// number of fires per attacker across the match. 0 disables the gate.
+	// Default 8 — drops noise from pistol-round outliers. Surfaced via the
+	// Get/SetMinEngagementsForAimCritique bindings; no UI surface yet.
+	minEngagementsForAimCritique int
 }
 
 // NewApp opens the database, runs migrations, and returns an App ready to be
@@ -96,13 +101,14 @@ func NewApp() (*App, error) {
 	}
 
 	return &App{
-		ctx:             context.Background(),
-		db:              db,
-		queries:         queries,
-		importService:   demo.NewImportService(queries, db, demosDir),
-		demosDir:        demosDir,
-		parserHeapLimit: heapLimits.KillSwitch,
-		profilesDir:     profilesDir,
+		ctx:                          context.Background(),
+		db:                           db,
+		queries:                      queries,
+		importService:                demo.NewImportService(queries, db, demosDir),
+		demosDir:                     demosDir,
+		parserHeapLimit:              heapLimits.KillSwitch,
+		profilesDir:                  profilesDir,
+		minEngagementsForAimCritique: 8,
 	}, nil
 }
 
@@ -178,6 +184,23 @@ func (a *App) GetTolerateEntityErrors() bool {
 // on the next demo import; in-flight parses keep their original setting.
 func (a *App) SetTolerateEntityErrors(tolerate bool) {
 	a.tolerateEntityErrors = tolerate
+}
+
+// GetMinEngagementsForAimCritique returns the current minimum-fires gate for
+// the slice-8 aim rule. 0 disables the gate (every fire eligible); the
+// default is 8. No UI surface yet — exposed so a future settings page can
+// plumb the value.
+func (a *App) GetMinEngagementsForAimCritique() int {
+	return a.minEngagementsForAimCritique
+}
+
+// SetMinEngagementsForAimCritique updates the gate. Takes effect on the next
+// import / RecomputeAnalysis; in-flight runs keep their original value.
+func (a *App) SetMinEngagementsForAimCritique(n int) {
+	if n < 0 {
+		n = 0
+	}
+	a.minEngagementsForAimCritique = n
 }
 
 // ---------------------------------------------------------------------------
@@ -456,7 +479,8 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 	// UI's parse-progress bar covers the previously silent gap between
 	// "ingest events" and "complete".
 	emitProgress("analyzing", 80)
-	mistakes, analysisErr := analysis.Run(result, roundMap)
+	analysisOpts := analysis.RunOpts{MinEngagementsForAimCritique: a.minEngagementsForAimCritique}
+	mistakes, analysisErr := analysis.Run(result, roundMap, analysisOpts)
 	if analysisErr != nil {
 		slog.Error("parseDemo: run analyzer", append(logCtx, "err", analysisErr)...)
 		a.failDemo(demoID, fmt.Sprintf("run analyzer: %v", analysisErr), emitProgress)
@@ -471,7 +495,7 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 	// its own transaction; the divergence window between mistakes-on-disk
 	// and summary-on-disk is small (single-tenant, single-process) and slice 7
 	// will revisit consolidating both into one tx when a third table lands.
-	summaryRows, summaryErr := analysis.RunMatchSummary(result, roundMap)
+	summaryRows, summaryErr := analysis.RunMatchSummary(result, roundMap, analysisOpts)
 	if summaryErr != nil {
 		slog.Error("parseDemo: run match summary", append(logCtx, "err", summaryErr)...)
 		a.failDemo(demoID, fmt.Sprintf("run match summary: %v", summaryErr), emitProgress)
@@ -484,7 +508,7 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 	}
 	// Per-(demo, player, round) breakdown alongside the match-level summary.
 	// Backs the standalone analysis page's per-round bar chart (slice 7).
-	roundRows, roundErr := analysis.RunPlayerRoundAnalysis(result, roundMap)
+	roundRows, roundErr := analysis.RunPlayerRoundAnalysis(result, roundMap, analysisOpts)
 	if roundErr != nil {
 		slog.Error("parseDemo: run player round analysis", append(logCtx, "err", roundErr)...)
 		a.failDemo(demoID, fmt.Sprintf("run player round analysis: %v", roundErr), emitProgress)
@@ -560,6 +584,7 @@ func (a *App) runParsePipeline(
 		demo.WithHeapLimit(a.parserHeapLimit),
 		demo.WithProfilesDir(a.profilesDir),
 		demo.WithIgnoreEntityPanics(tolerateEntityErrors),
+		demo.WithTickFanout(true),
 	)
 	ingester := demo.NewTickIngester(a.db, 0)
 

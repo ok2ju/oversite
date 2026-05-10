@@ -20,6 +20,8 @@ import type { Round } from "@/types/round"
 const KIND_LABEL: Record<string, string> = {
   no_trade_death: "Untraded death",
   died_with_util_unused: "Died with utility unused",
+  crosshair_too_low: "Crosshair too low",
+  shot_while_moving: "Shot while moving",
 }
 
 type Severity = "low" | "med" | "high"
@@ -30,6 +32,8 @@ type Severity = "low" | "med" | "high"
 const KIND_SEVERITY: Record<string, Severity> = {
   no_trade_death: "med",
   died_with_util_unused: "high",
+  crosshair_too_low: "low",
+  shot_while_moving: "med",
 }
 
 const SEVERITY_BADGE_CLASS: Record<Severity, string> = {
@@ -78,7 +82,7 @@ interface MistakeListProps {
 
 // Stable display order for the count strip — known categories first, then
 // "other" so a future Go-only rule still surfaces without a frontend change.
-const CATEGORY_ORDER = ["trade", "utility", OTHER_CATEGORY]
+const CATEGORY_ORDER = ["trade", "utility", "aim", "movement", OTHER_CATEGORY]
 
 export function MistakeList({ steamId: steamIdProp }: MistakeListProps = {}) {
   const demoId = useViewerStore((s) => s.demoId)

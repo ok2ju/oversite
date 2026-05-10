@@ -5,6 +5,8 @@
 export const KIND_CATEGORY: Record<string, string> = {
   no_trade_death: "trade",
   died_with_util_unused: "utility",
+  crosshair_too_low: "aim",
+  shot_while_moving: "movement",
 }
 
 export const OTHER_CATEGORY = "other"
@@ -12,6 +14,8 @@ export const OTHER_CATEGORY = "other"
 export const CATEGORY_LABEL: Record<string, string> = {
   trade: "Trade",
   utility: "Utility",
+  aim: "Aim",
+  movement: "Movement",
   other: "Other",
 }
 
@@ -22,6 +26,9 @@ export const CATEGORY_LABEL: Record<string, string> = {
 export const SUGGESTIONS: Record<string, string> = {
   trade:
     "Trade your teammates' deaths sooner — even one extra trade per half lifts T-side win rate.",
+  aim: "Pre-aim head level on every common angle — flicking down loses more time than checking high.",
+  movement:
+    "Counter-strafe before firing — even small drift past 30 u/s drops your first-bullet accuracy.",
 }
 
 export function categoryForKind(kind: string): string {

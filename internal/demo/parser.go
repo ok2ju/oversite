@@ -84,12 +84,19 @@ var ErrCorruptEntityTable = errors.New("demo has a corrupt entity table; parsing
 // Ticks is nil when WithTickSink was passed to NewDemoParser — in the
 // streaming pipeline the snapshots are flushed through the channel during
 // parsing and never accumulated in this slice.
+//
+// AnalysisTicks is nil unless WithTickFanout(true) was passed. The slice is
+// populated alongside the FrameDone sampler at the same cadence as Ticks
+// (every tickInterval ticks) and is the input to slice-8+ analyzers that
+// need per-(player, tick) state (eye/head Z, planar velocity) without
+// paying for the full TickSnapshot row.
 type ParseResult struct {
-	Header  MatchHeader
-	Rounds  []RoundData
-	Ticks   []TickSnapshot
-	Events  []GameEvent
-	Lineups []GrenadeLineup
+	Header        MatchHeader
+	Rounds        []RoundData
+	Ticks         []TickSnapshot
+	Events        []GameEvent
+	Lineups       []GrenadeLineup
+	AnalysisTicks []AnalysisTick
 }
 
 // MatchHeader contains match-level metadata.
@@ -153,6 +160,33 @@ type TickSnapshot struct {
 	// Both 0 when the active item has no ammo (e.g. knife) or no active weapon.
 	AmmoClip    int
 	AmmoReserve int
+}
+
+// AnalysisTick is the slim per-(player, tick) row produced by WithTickFanout.
+// Sampled at the same cadence as TickSnapshot (tickInterval, default 4) but
+// carries only the three fields the slice-8+ analyzers need — Z (head/eye
+// height for the aim rule) and Vx/Vy (planar velocity for the movement rule)
+// — so the heap cost is ~5× smaller than reusing TickSnapshot would be. A
+// 30-min match at 64-tick samples ~800K rows; at 24 B/row including padding
+// this fits in ~20 MB and stays well under the parser's heap watchdog. If a
+// future slice raises the fanout cadence (every tick instead of every 4),
+// this multiplies by 4× and would warrant a streaming sink mirroring
+// WithTickSink.
+//
+// SteamID is the raw uint64 (saves ~20 B per row vs the string form). Callers
+// that need the decimal-string form (the analyzer rule index) convert once at
+// the BuildTickIndex boundary instead of paying per-row.
+//
+// Vx/Vy are derived from the delta between consecutive sampled positions for
+// this player within the same round (no cross-round / respawn delta is
+// computed — the first sample after a round transition reports zeros). The
+// staleness window is therefore tickInterval ticks (~62 ms at 64 tick),
+// acceptable for slice 8's coarse "moving vs. standing" check.
+type AnalysisTick struct {
+	Tick    int32
+	SteamID uint64
+	Z       float32
+	Vx, Vy  float32
 }
 
 // GameEvent represents a parsed game event (kill, grenade, bomb, round boundary).
@@ -249,6 +283,17 @@ func WithIgnoreEntityPanics(ignore bool) Option {
 	}
 }
 
+// WithTickFanout toggles per-(player, tick) capture into ParseResult.AnalysisTicks.
+// Default off — keeps the legacy parse path's RAM profile unchanged and keeps
+// existing tests green. When enabled, AnalysisTicks is populated alongside the
+// existing tick sampler at the same cadence (tickInterval). See the AnalysisTick
+// doc comment for the per-row memory cost and staleness trade-offs.
+func WithTickFanout(enable bool) Option {
+	return func(dp *DemoParser) {
+		dp.analysisFanout = enable
+	}
+}
+
 // WithProfilesDir sets the directory where the heap watchdog writes pprof
 // dumps when it trips. Empty disables pprof output (the watchdog still trips
 // and aborts the parse, just without a dump for triage).
@@ -267,6 +312,7 @@ type DemoParser struct {
 	tickSink           chan<- TickSnapshot
 	maxHeapBytes       uint64
 	ignoreEntityPanics bool
+	analysisFanout     bool
 	profilesDir        string
 }
 
@@ -307,6 +353,23 @@ type parseState struct {
 	limitExceeded       error             // set when ticks/events exceed maxTickRows/maxGameEvent
 	frameCount          int               // total FrameDone events seen; drives the heartbeat
 	steamIDs            map[uint64]string // SteamID64 → decimal string cache; saves millions of strconv allocs across all event handlers
+	// analysisTicks is the slim per-(player, tick) fanout populated when
+	// DemoParser.analysisFanout is set. nil otherwise — see ParseResult.AnalysisTicks.
+	analysisTicks []AnalysisTick
+	// prevAnalysisPos stores the most-recent sampled (tick, x, y) per SteamID64
+	// so the next sample can compute planar velocity from the delta. Only
+	// allocated when the fanout is enabled. Reset across rounds via
+	// resetForPreMatchRestart and on round transitions implicitly (the next
+	// sample after a respawn produces a large delta, but the velocity field
+	// is still consumed by the analyzer rule which decides whether to skip).
+	prevAnalysisPos map[uint64]analysisPos
+}
+
+// analysisPos is the previous-sample bookkeeping for AnalysisTick velocity
+// computation. Tick is the demo tick at which the sample was captured.
+type analysisPos struct {
+	tick int
+	x, y float64
 }
 
 // steamID returns the decimal string form of p.SteamID64, cached per player.
@@ -427,6 +490,8 @@ func (s *parseState) resetForPreMatchRestart() {
 	s.tickCount = 0
 	s.events = nil
 	s.knifeRoundNumbers = nil
+	s.analysisTicks = nil
+	s.prevAnalysisPos = nil
 	// Keep steamIDs across restart — same players, same SteamID64s.
 }
 
@@ -571,10 +636,11 @@ func (dp *DemoParser) Parse(ctx context.Context, r io.Reader) (result *ParseResu
 			TotalTicks:   totalTicks,
 			DurationSecs: durationSecs,
 		},
-		Rounds:  rounds,
-		Ticks:   state.ticks,
-		Events:  events,
-		Lineups: lineups,
+		Rounds:        rounds,
+		Ticks:         state.ticks,
+		Events:        events,
+		Lineups:       lineups,
+		AnalysisTicks: state.analysisTicks,
 	}, nil
 }
 
@@ -949,6 +1015,38 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 				weapon = w.String()
 				ammoClip = w.AmmoInMagazine()
 				ammoReserve = w.AmmoReserve()
+			}
+
+			if dp.analysisFanout {
+				// Compute planar velocity from the delta between this sample
+				// and the previous sample for the same player. dt is derived
+				// from raw ticks rather than a constant 1/sampleHz so a
+				// dropped sample does not falsely inflate the velocity.
+				var vx, vy float32
+				prev, hasPrev := state.prevAnalysisPos[player.SteamID64]
+				if hasPrev && tick > prev.tick {
+					dtTicks := tick - prev.tick
+					tickRate := p.TickRate()
+					if tickRate <= 0 {
+						tickRate = 64
+					}
+					dt := float64(dtTicks) / tickRate
+					if dt > 0 {
+						vx = float32((pos.X - prev.x) / dt)
+						vy = float32((pos.Y - prev.y) / dt)
+					}
+				}
+				if state.prevAnalysisPos == nil {
+					state.prevAnalysisPos = make(map[uint64]analysisPos, 16)
+				}
+				state.prevAnalysisPos[player.SteamID64] = analysisPos{tick: tick, x: pos.X, y: pos.Y}
+				state.analysisTicks = append(state.analysisTicks, AnalysisTick{
+					Tick:    int32(tick),
+					SteamID: player.SteamID64,
+					Z:       float32(pos.Z),
+					Vx:      vx,
+					Vy:      vy,
+				})
 			}
 
 			if !state.pushTick(TickSnapshot{

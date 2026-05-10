@@ -1,3 +1,7 @@
+// PlayerAnalysis mirrors main.PlayerAnalysis. Slice 8 rides aim_pct,
+// standing_shot_pct, engagements, and avg_fire_speed in the extras blob (no
+// schema migration); consumers cast at the call site (the analysis surface
+// is read-only and small enough that a discriminated union isn't worth it).
 export interface PlayerAnalysis {
   steam_id: string
   overall_score: number

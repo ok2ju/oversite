@@ -22,6 +22,8 @@ export function GetEventsByTypes(arg1:string,arg2:Array<string>):Promise<Array<m
 
 export function GetHeatmapData(arg1:Array<number>,arg2:Array<string>,arg3:string,arg4:string):Promise<Array<main.HeatmapPoint>>;
 
+export function GetMinEngagementsForAimCritique():Promise<number>;
+
 export function GetMistakeTimeline(arg1:string,arg2:string):Promise<Array<main.MistakeEntry>>;
 
 export function GetPlayerAnalysis(arg1:string,arg2:string):Promise<main.PlayerAnalysis>;
@@ -61,5 +63,7 @@ export function OpenProfilesFolder():Promise<void>;
 export function ProfilesDir():Promise<string>;
 
 export function RecomputeAnalysis(arg1:string):Promise<void>;
+
+export function SetMinEngagementsForAimCritique(arg1:number):Promise<void>;
 
 export function SetTolerateEntityErrors(arg1:boolean):Promise<void>;

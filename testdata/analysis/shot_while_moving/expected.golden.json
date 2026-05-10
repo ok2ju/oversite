@@ -1,0 +1,12 @@
+[
+  {
+    "steam_id": "100",
+    "round_number": 1,
+    "tick": 100,
+    "kind": "shot_while_moving",
+    "extras": {
+      "speed": 150,
+      "weapon": "ak47"
+    }
+  }
+]

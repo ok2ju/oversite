@@ -322,6 +322,113 @@ describe("MistakeList", () => {
       expect(screen.getAllByTestId(/^mistake-list-row-/)).toHaveLength(2)
     })
 
+    it("renders aim + movement labels and badges in CATEGORY_ORDER", async () => {
+      // Place the four kinds at distinct ticks so the chronological ordering
+      // is unambiguous: util-unused at 0:30, untraded at 1:23, crosshair at
+      // 1:45, shot-while-moving at 2:10. The strip should still render in the
+      // CATEGORY_ORDER static order: trade → utility → aim → movement.
+      const CROSS_TICK = ROUND_7_FREEZE_END + 105 * TICK_RATE // 1:45
+      const MOV_TICK = ROUND_7_FREEZE_END + 130 * TICK_RATE // 2:10
+
+      useViewerStore.getState().initDemo({
+        id: "1",
+        mapName: "de_dust2",
+        totalTicks: 100000,
+        tickRate: TICK_RATE,
+      })
+      useViewerStore.getState().setSelectedPlayer("STEAM_A")
+      mockAppBindings.GetMistakeTimeline.mockResolvedValueOnce([
+        {
+          kind: "died_with_util_unused",
+          round_number: 7,
+          tick: ROUND_7_FREEZE_END + 30 * TICK_RATE,
+          steam_id: "STEAM_A",
+          extras: { unused: ["smokegrenade"] },
+        },
+        {
+          kind: "no_trade_death",
+          round_number: 7,
+          tick: ROUND_7_TICK,
+          steam_id: "STEAM_A",
+          extras: { killer_steam_id: "STEAM_B" },
+        },
+        {
+          kind: "crosshair_too_low",
+          round_number: 7,
+          tick: CROSS_TICK,
+          steam_id: "STEAM_A",
+          extras: { pitch: 18, expected_pitch: 0 },
+        },
+        {
+          kind: "shot_while_moving",
+          round_number: 7,
+          tick: MOV_TICK,
+          steam_id: "STEAM_A",
+          extras: { speed: 150 },
+        },
+      ])
+
+      renderWithProviders(<MistakeList />)
+      await screen.findByTestId("mistake-list-row-0")
+
+      // Row labels for the two new kinds.
+      expect(screen.getByTestId("mistake-list-row-2")).toHaveTextContent(
+        "Crosshair too low — round 7, 1:45",
+      )
+      expect(screen.getByTestId("mistake-list-row-3")).toHaveTextContent(
+        "Shot while moving — round 7, 2:10",
+      )
+
+      // Badges appear in CATEGORY_ORDER (trade, utility, aim, movement).
+      const bar = screen.getByTestId("mistake-category-bar")
+      const badgeTexts = Array.from(
+        bar.querySelectorAll('[data-testid^="mistake-category-badge-"]'),
+      ).map((el) => el.textContent?.trim() ?? "")
+      expect(badgeTexts).toEqual([
+        "Trade 1",
+        "Utility 1",
+        "Aim 1",
+        "Movement 1",
+      ])
+    })
+
+    it("clicking the aim badge filters the list to crosshair entries", async () => {
+      const user = userEvent.setup()
+      const CROSS_TICK = ROUND_7_FREEZE_END + 105 * TICK_RATE
+
+      useViewerStore.getState().initDemo({
+        id: "1",
+        mapName: "de_dust2",
+        totalTicks: 100000,
+        tickRate: TICK_RATE,
+      })
+      useViewerStore.getState().setSelectedPlayer("STEAM_A")
+      mockAppBindings.GetMistakeTimeline.mockResolvedValue([
+        {
+          kind: "no_trade_death",
+          round_number: 7,
+          tick: ROUND_7_TICK,
+          steam_id: "STEAM_A",
+          extras: { killer_steam_id: "STEAM_B" },
+        },
+        {
+          kind: "crosshair_too_low",
+          round_number: 7,
+          tick: CROSS_TICK,
+          steam_id: "STEAM_A",
+          extras: { pitch: 18, expected_pitch: 0 },
+        },
+      ])
+
+      renderWithProviders(<MistakeList />)
+      await screen.findByTestId("mistake-list-row-1")
+
+      await user.click(screen.getByTestId("mistake-category-badge-aim"))
+      const rows = screen.getAllByTestId(/^mistake-list-row-/)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toHaveTextContent("Crosshair too low — round 7, 1:45")
+    })
+
     it("clears the filter when the selected player changes", async () => {
       const user = userEvent.setup()
       setupTwoKindFixture()

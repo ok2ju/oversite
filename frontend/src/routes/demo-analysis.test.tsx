@@ -74,7 +74,7 @@ describe("DemoAnalysisPage", () => {
       overall_score: 62,
       trade_pct: 0.62,
       avg_trade_ticks: 90,
-      extras: null,
+      extras: { aim_pct: 0.74, standing_shot_pct: 0.62 },
     })
     mockAppBindings.GetPlayerRoundAnalysis.mockResolvedValue([
       { steam_id: "STEAM_A", round_number: 1, trade_pct: 1, extras: null },
@@ -94,6 +94,8 @@ describe("DemoAnalysisPage", () => {
       expect(screen.getByTestId("analysis-overall-gauge")).toBeInTheDocument()
     })
     expect(screen.getByTestId("category-card-trade")).toBeInTheDocument()
+    expect(screen.getByTestId("category-card-aim")).toBeInTheDocument()
+    expect(screen.getByTestId("category-card-movement")).toBeInTheDocument()
     expect(screen.getByTestId("round-trade-bars")).toBeInTheDocument()
   })
 

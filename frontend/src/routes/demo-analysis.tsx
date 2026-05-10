@@ -75,6 +75,12 @@ export default function DemoAnalysisPage() {
         <CategoryCard category="trade" />
       </section>
       <section className="rounded-md border border-border bg-card p-4">
+        <CategoryCard category="aim" />
+      </section>
+      <section className="rounded-md border border-border bg-card p-4">
+        <CategoryCard category="movement" />
+      </section>
+      <section className="rounded-md border border-border bg-card p-4">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Round trade %
         </h2>

@@ -3,6 +3,7 @@ package analysis_test
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"testing"
 
 	"github.com/ok2ju/oversite/internal/demo"
@@ -16,9 +17,21 @@ import (
 // editable, and the demo extras (`*KillExtra` etc.) carry pointers we don't
 // want to serialize.
 type fixtureInput struct {
-	TickRate float64        `json:"tick_rate"`
-	Rounds   []fixtureRound `json:"rounds"`
-	Events   []fixtureEvent `json:"events"`
+	TickRate      float64               `json:"tick_rate"`
+	Rounds        []fixtureRound        `json:"rounds"`
+	Events        []fixtureEvent        `json:"events"`
+	AnalysisTicks []fixtureAnalysisTick `json:"analysis_ticks,omitempty"`
+}
+
+// fixtureAnalysisTick is the disk shape of a single AnalysisTick row. SteamID
+// travels as a decimal string for hand-editability — converted to uint64 when
+// the fixture is materialized.
+type fixtureAnalysisTick struct {
+	Tick    int     `json:"tick"`
+	SteamID string  `json:"steam_id"`
+	Z       float32 `json:"z"`
+	Vx      float32 `json:"vx"`
+	Vy      float32 `json:"vy"`
 }
 
 type fixtureRound struct {
@@ -41,14 +54,19 @@ type fixtureRoster struct {
 }
 
 type fixtureEvent struct {
-	Tick            int    `json:"tick"`
-	RoundNumber     int    `json:"round_number"`
-	Type            string `json:"type"`
-	AttackerSteamID string `json:"attacker_steam_id"`
-	VictimSteamID   string `json:"victim_steam_id"`
-	AttackerTeam    string `json:"attacker_team"`
-	VictimTeam      string `json:"victim_team"`
-	Weapon          string `json:"weapon"`
+	Tick            int     `json:"tick"`
+	RoundNumber     int     `json:"round_number"`
+	Type            string  `json:"type"`
+	AttackerSteamID string  `json:"attacker_steam_id"`
+	VictimSteamID   string  `json:"victim_steam_id"`
+	AttackerTeam    string  `json:"attacker_team"`
+	VictimTeam      string  `json:"victim_team"`
+	Weapon          string  `json:"weapon"`
+	X               float64 `json:"x,omitempty"`
+	Y               float64 `json:"y,omitempty"`
+	Z               float64 `json:"z,omitempty"`
+	Pitch           float64 `json:"pitch,omitempty"`
+	Yaw             float64 `json:"yaw,omitempty"`
 }
 
 func (fi fixtureInput) toParseResult() *demo.ParseResult {
@@ -82,19 +100,43 @@ func (fi fixtureInput) toParseResult() *demo.ParseResult {
 			AttackerSteamID: e.AttackerSteamID,
 			VictimSteamID:   e.VictimSteamID,
 			Weapon:          e.Weapon,
+			X:               e.X,
+			Y:               e.Y,
+			Z:               e.Z,
 		}
-		if e.Type == "kill" {
+		switch e.Type {
+		case "kill":
 			ev.ExtraData = &demo.KillExtra{
 				AttackerTeam: e.AttackerTeam,
 				VictimTeam:   e.VictimTeam,
 			}
+		case "weapon_fire":
+			ev.ExtraData = &demo.WeaponFireExtra{
+				Pitch: e.Pitch,
+				Yaw:   e.Yaw,
+			}
 		}
 		events[i] = ev
 	}
+	var ticks []demo.AnalysisTick
+	if len(fi.AnalysisTicks) > 0 {
+		ticks = make([]demo.AnalysisTick, len(fi.AnalysisTicks))
+		for i, t := range fi.AnalysisTicks {
+			steamID, _ := strconv.ParseUint(t.SteamID, 10, 64)
+			ticks[i] = demo.AnalysisTick{
+				Tick:    int32(t.Tick),
+				SteamID: steamID,
+				Z:       t.Z,
+				Vx:      t.Vx,
+				Vy:      t.Vy,
+			}
+		}
+	}
 	return &demo.ParseResult{
-		Header: demo.MatchHeader{TickRate: fi.TickRate},
-		Rounds: rounds,
-		Events: events,
+		Header:        demo.MatchHeader{TickRate: fi.TickRate},
+		Rounds:        rounds,
+		Events:        events,
+		AnalysisTicks: ticks,
 	}
 }
 
@@ -102,7 +144,7 @@ func TestRun_NoTradeDeath_Golden(t *testing.T) {
 	var input fixtureInput
 	testutil.LoadFixture(t, "analysis/no_trade_death/input.json", &input)
 
-	got, err := analysis.Run(input.toParseResult(), nil)
+	got, err := analysis.Run(input.toParseResult(), nil, analysis.RunOpts{})
 	if err != nil {
 		t.Fatalf("analysis.Run: %v", err)
 	}
@@ -120,7 +162,7 @@ func TestRun_DiedWithUtilUnused_Golden(t *testing.T) {
 	var input fixtureInput
 	testutil.LoadFixture(t, "analysis/died_with_util_unused/input.json", &input)
 
-	got, err := analysis.Run(input.toParseResult(), nil)
+	got, err := analysis.Run(input.toParseResult(), nil, analysis.RunOpts{})
 	if err != nil {
 		t.Fatalf("analysis.Run: %v", err)
 	}
@@ -198,7 +240,7 @@ func TestRun_BothRules_OrderedByTick(t *testing.T) {
 		Events: events,
 	}
 
-	got, err := analysis.Run(result, nil)
+	got, err := analysis.Run(result, nil, analysis.RunOpts{})
 	if err != nil {
 		t.Fatalf("analysis.Run: %v", err)
 	}
@@ -214,7 +256,7 @@ func TestRun_BothRules_OrderedByTick(t *testing.T) {
 }
 
 func TestRun_NilResult(t *testing.T) {
-	got, err := analysis.Run(nil, nil)
+	got, err := analysis.Run(nil, nil, analysis.RunOpts{})
 	if err != nil {
 		t.Fatalf("analysis.Run(nil): %v", err)
 	}
@@ -223,11 +265,159 @@ func TestRun_NilResult(t *testing.T) {
 	}
 }
 
+func TestRun_CrosshairTooLow_Golden(t *testing.T) {
+	var input fixtureInput
+	testutil.LoadFixture(t, "analysis/crosshair_too_low/input.json", &input)
+
+	got, err := analysis.Run(input.toParseResult(), nil, analysis.RunOpts{})
+	if err != nil {
+		t.Fatalf("analysis.Run: %v", err)
+	}
+
+	encoded, err := json.MarshalIndent(got, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal mistakes: %v", err)
+	}
+	encoded = append(encoded, '\n')
+
+	testutil.CompareGolden(t, "analysis/crosshair_too_low/expected.golden.json", encoded)
+}
+
+func TestRun_ShotWhileMoving_Golden(t *testing.T) {
+	var input fixtureInput
+	testutil.LoadFixture(t, "analysis/shot_while_moving/input.json", &input)
+
+	got, err := analysis.Run(input.toParseResult(), nil, analysis.RunOpts{})
+	if err != nil {
+		t.Fatalf("analysis.Run: %v", err)
+	}
+
+	encoded, err := json.MarshalIndent(got, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal mistakes: %v", err)
+	}
+	encoded = append(encoded, '\n')
+
+	testutil.CompareGolden(t, "analysis/shot_while_moving/expected.golden.json", encoded)
+}
+
+// TestRun_NilAnalysisTicksSkipsTickRules asserts that a legacy fixture without
+// an analysis_ticks block still runs cleanly through the slice-1/3 rules and
+// emits zero tick-driven mistakes. Guards against accidentally requiring
+// AnalysisTicks for the loadout/event-driven paths.
+func TestRun_NilAnalysisTicksSkipsTickRules(t *testing.T) {
+	var input fixtureInput
+	testutil.LoadFixture(t, "analysis/no_trade_death/input.json", &input)
+	parse := input.toParseResult()
+	if parse.AnalysisTicks != nil {
+		t.Fatalf("fixture invariant: analysis/no_trade_death/input.json should have no analysis_ticks")
+	}
+
+	got, err := analysis.Run(parse, nil, analysis.RunOpts{})
+	if err != nil {
+		t.Fatalf("analysis.Run: %v", err)
+	}
+
+	for _, m := range got {
+		if m.Kind == string(analysis.MistakeKindCrosshairTooLow) || m.Kind == string(analysis.MistakeKindShotWhileMoving) {
+			t.Errorf("expected no tick-driven mistakes, got %+v", m)
+		}
+	}
+}
+
+// TestRun_RuleFanoutIncludesAimAndMovement asserts both new rules participate
+// in the combined output when AnalysisTicks is non-nil.
+func TestRun_RuleFanoutIncludesAimAndMovement(t *testing.T) {
+	var aimInput fixtureInput
+	testutil.LoadFixture(t, "analysis/crosshair_too_low/input.json", &aimInput)
+	aim, err := analysis.Run(aimInput.toParseResult(), nil, analysis.RunOpts{})
+	if err != nil {
+		t.Fatalf("aim Run: %v", err)
+	}
+	hasAim := false
+	for _, m := range aim {
+		if m.Kind == string(analysis.MistakeKindCrosshairTooLow) {
+			hasAim = true
+		}
+	}
+	if !hasAim {
+		t.Errorf("crosshair_too_low fixture produced no aim mistakes: %+v", aim)
+	}
+
+	var movInput fixtureInput
+	testutil.LoadFixture(t, "analysis/shot_while_moving/input.json", &movInput)
+	mov, err := analysis.Run(movInput.toParseResult(), nil, analysis.RunOpts{})
+	if err != nil {
+		t.Fatalf("movement Run: %v", err)
+	}
+	hasMov := false
+	for _, m := range mov {
+		if m.Kind == string(analysis.MistakeKindShotWhileMoving) {
+			hasMov = true
+		}
+	}
+	if !hasMov {
+		t.Errorf("shot_while_moving fixture produced no movement mistakes: %+v", mov)
+	}
+}
+
+// TestRunMatchSummary_ExtrasCarryAimAndMovement asserts that the per-player
+// match summary picks up aim_pct and standing_shot_pct in Extras when the
+// parser produced AnalysisTicks. Spot-checks the percentages match the
+// flagged-vs-total fire ratio.
+func TestRunMatchSummary_ExtrasCarryAimAndMovement(t *testing.T) {
+	var input fixtureInput
+	testutil.LoadFixture(t, "analysis/crosshair_too_low/input.json", &input)
+
+	got, err := analysis.RunMatchSummary(input.toParseResult(), nil, analysis.RunOpts{})
+	if err != nil {
+		t.Fatalf("RunMatchSummary: %v", err)
+	}
+	if len(got) == 0 {
+		t.Fatalf("expected at least one summary row")
+	}
+	// Fixture has 2 fires for steam 100 (one flagged crosshair_too_low) and 1
+	// fire for steam 999 (not in roster, but still counted as engagement). We
+	// only assert on the rostered shooter — the rule did not flag steam 999
+	// because they have no team in the roster, so its aim_pct = 1 trivially.
+	var aliceRow analysis.MatchSummaryRow
+	found := false
+	for _, r := range got {
+		if r.SteamID == "100" {
+			aliceRow = r
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("missing summary row for steam 100; got %+v", got)
+	}
+	if aliceRow.Extras == nil {
+		t.Fatalf("expected Extras populated for steam 100, got nil")
+	}
+	aimPct, ok := aliceRow.Extras["aim_pct"].(float64)
+	if !ok {
+		t.Fatalf("aim_pct missing or wrong type: %+v", aliceRow.Extras)
+	}
+	// 2 fires, 1 flagged → aim_pct = 0.5
+	if aimPct != 0.5 {
+		t.Errorf("aim_pct = %v, want 0.5", aimPct)
+	}
+	standPct, ok := aliceRow.Extras["standing_shot_pct"].(float64)
+	if !ok {
+		t.Fatalf("standing_shot_pct missing or wrong type: %+v", aliceRow.Extras)
+	}
+	// alice's analysis ticks have Vx=Vy=0 — every fire is "stationary" from
+	// the rule's perspective (skip), so 0 flagged of 2 fires → standing_shot_pct = 1
+	if standPct != 1.0 {
+		t.Errorf("standing_shot_pct = %v, want 1.0", standPct)
+	}
+}
+
 func TestRunMatchSummary_Golden(t *testing.T) {
 	var input fixtureInput
 	testutil.LoadFixture(t, "analysis/trades_summary/input.json", &input)
 
-	got, err := analysis.RunMatchSummary(input.toParseResult(), nil)
+	got, err := analysis.RunMatchSummary(input.toParseResult(), nil, analysis.RunOpts{})
 	if err != nil {
 		t.Fatalf("analysis.RunMatchSummary: %v", err)
 	}
@@ -328,7 +518,7 @@ func TestRunPlayerRoundAnalysis_Golden(t *testing.T) {
 	var input fixtureInput
 	testutil.LoadFixture(t, "analysis/round_trades/input.json", &input)
 
-	got, err := analysis.RunPlayerRoundAnalysis(input.toParseResult(), nil)
+	got, err := analysis.RunPlayerRoundAnalysis(input.toParseResult(), nil, analysis.RunOpts{})
 	if err != nil {
 		t.Fatalf("analysis.RunPlayerRoundAnalysis: %v", err)
 	}
@@ -352,11 +542,11 @@ func TestRunPlayerRoundAnalysis_AggregatesToMatchSummary(t *testing.T) {
 	testutil.LoadFixture(t, "analysis/trades_summary/input.json", &input)
 	parse := input.toParseResult()
 
-	matchRows, err := analysis.RunMatchSummary(parse, nil)
+	matchRows, err := analysis.RunMatchSummary(parse, nil, analysis.RunOpts{})
 	if err != nil {
 		t.Fatalf("RunMatchSummary: %v", err)
 	}
-	roundRows, err := analysis.RunPlayerRoundAnalysis(parse, nil)
+	roundRows, err := analysis.RunPlayerRoundAnalysis(parse, nil, analysis.RunOpts{})
 	if err != nil {
 		t.Fatalf("RunPlayerRoundAnalysis: %v", err)
 	}

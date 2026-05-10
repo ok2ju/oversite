@@ -365,6 +365,13 @@ export const mockAppBindings = {
     .fn<(demoId: string) => Promise<void>>()
     .mockResolvedValue(undefined),
 
+  GetMinEngagementsForAimCritique: vi
+    .fn<() => Promise<number>>()
+    .mockResolvedValue(8),
+  SetMinEngagementsForAimCritique: vi
+    .fn<(n: number) => Promise<void>>()
+    .mockResolvedValue(undefined),
+
   GetUniqueWeapons: vi
     .fn<(demoIDs: number[]) => Promise<string[]>>()
     .mockResolvedValue(["AK-47", "M4A1", "AWP"]),

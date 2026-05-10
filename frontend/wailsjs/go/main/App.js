@@ -42,6 +42,10 @@ export function GetHeatmapData(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['GetHeatmapData'](arg1, arg2, arg3, arg4);
 }
 
+export function GetMinEngagementsForAimCritique() {
+  return window['go']['main']['App']['GetMinEngagementsForAimCritique']();
+}
+
 export function GetMistakeTimeline(arg1, arg2) {
   return window['go']['main']['App']['GetMistakeTimeline'](arg1, arg2);
 }
@@ -120,6 +124,10 @@ export function ProfilesDir() {
 
 export function RecomputeAnalysis(arg1) {
   return window['go']['main']['App']['RecomputeAnalysis'](arg1);
+}
+
+export function SetMinEngagementsForAimCritique(arg1) {
+  return window['go']['main']['App']['SetMinEngagementsForAimCritique'](arg1);
 }
 
 export function SetTolerateEntityErrors(arg1) {
