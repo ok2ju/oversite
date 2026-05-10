@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
-import { screen, cleanup } from "@testing-library/react"
+import { screen, cleanup, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useViewerStore } from "@/stores/viewer"
 import { useAnalysisStore } from "@/stores/analysis"
@@ -22,6 +22,14 @@ describe("MistakeList", () => {
     resetAppBindings()
     useViewerStore.getState().reset()
     useAnalysisStore.getState().reset()
+
+    // Default analysis-status to "ready" so the existing happy-path tests
+    // skip the slice-6 missing branch. The "missing analysis path" describe
+    // below overrides this per-test.
+    mockAppBindings.GetAnalysisStatus.mockResolvedValue({
+      demo_id: "1",
+      status: "ready",
+    })
 
     // Tests below need a single round-7 entry to exercise the M:SS formatting.
     mockAppBindings.GetDemoRounds.mockResolvedValue([
@@ -328,6 +336,111 @@ describe("MistakeList", () => {
 
       await screen.findByTestId("mistake-list")
       expect(useAnalysisStore.getState().selectedCategory).toBeNull()
+    })
+  })
+
+  describe("missing analysis path", () => {
+    function setupSelectedPlayer() {
+      useViewerStore.getState().initDemo({
+        id: "1",
+        mapName: "de_dust2",
+        totalTicks: 100000,
+        tickRate: TICK_RATE,
+      })
+      useViewerStore.getState().setSelectedPlayer("STEAM_A")
+    }
+
+    it("renders the shimmer and triggers RecomputeAnalysis once when status is missing", async () => {
+      setupSelectedPlayer()
+      mockAppBindings.GetAnalysisStatus.mockResolvedValue({
+        demo_id: "1",
+        status: "missing",
+      })
+
+      renderWithProviders(<MistakeList />)
+
+      expect(
+        await screen.findByTestId("mistake-list-shimmer"),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByTestId("analysis-overall-gauge"),
+      ).not.toBeInTheDocument()
+
+      await waitFor(() => {
+        expect(mockAppBindings.RecomputeAnalysis).toHaveBeenCalledTimes(1)
+      })
+      expect(mockAppBindings.RecomputeAnalysis).toHaveBeenCalledWith("1")
+    })
+
+    it("populates the panel after the recompute resolves and the status flips to ready", async () => {
+      setupSelectedPlayer()
+      mockAppBindings.GetAnalysisStatus.mockResolvedValueOnce({
+        demo_id: "1",
+        status: "missing",
+      }).mockResolvedValue({
+        demo_id: "1",
+        status: "ready",
+      })
+      mockAppBindings.GetMistakeTimeline.mockResolvedValue([
+        {
+          kind: "no_trade_death",
+          round_number: 7,
+          tick: ROUND_7_TICK,
+          steam_id: "STEAM_A",
+          extras: { killer_steam_id: "STEAM_B" },
+        },
+      ])
+      mockAppBindings.GetPlayerAnalysis.mockResolvedValue({
+        steam_id: "STEAM_A",
+        overall_score: 71,
+        trade_pct: 0.71,
+        avg_trade_ticks: 80,
+        extras: null,
+      })
+
+      renderWithProviders(<MistakeList />)
+
+      // The populated row implies the shimmer is gone — equivalent to
+      // waitForElementToBeRemoved but immune to microtask ordering races
+      // when missing → ready resolves in the same React tick.
+      const row = await screen.findByTestId("mistake-list-row-0")
+      expect(row).toHaveTextContent("Untraded death — round 7, 1:23")
+      expect(
+        screen.queryByTestId("mistake-list-shimmer"),
+      ).not.toBeInTheDocument()
+      expect(mockAppBindings.RecomputeAnalysis).toHaveBeenCalledTimes(1)
+    })
+
+    it("renders nothing when the demo lifecycle status is failed", async () => {
+      setupSelectedPlayer()
+      mockAppBindings.GetAnalysisStatus.mockResolvedValue({
+        demo_id: "1",
+        status: "failed",
+      })
+
+      renderWithProviders(<MistakeList />)
+
+      // Wait for the failed status to propagate and the panel to disappear.
+      await waitFor(() => {
+        expect(screen.queryByTestId("mistake-list")).not.toBeInTheDocument()
+      })
+      expect(
+        screen.queryByTestId("mistake-list-shimmer"),
+      ).not.toBeInTheDocument()
+      expect(mockAppBindings.RecomputeAnalysis).not.toHaveBeenCalled()
+    })
+
+    it("does not auto-trigger recompute when the demo is still parsing", async () => {
+      setupSelectedPlayer()
+      mockAppBindings.GetAnalysisStatus.mockResolvedValue({
+        demo_id: "1",
+        status: "parsing",
+      })
+
+      renderWithProviders(<MistakeList />)
+
+      await screen.findByTestId("mistake-list-shimmer")
+      expect(mockAppBindings.RecomputeAnalysis).not.toHaveBeenCalled()
     })
   })
 })

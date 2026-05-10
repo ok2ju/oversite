@@ -14,6 +14,10 @@ export function GetAllRosters(arg1) {
   return window['go']['main']['App']['GetAllRosters'](arg1);
 }
 
+export function GetAnalysisStatus(arg1) {
+  return window['go']['main']['App']['GetAnalysisStatus'](arg1);
+}
+
 export function GetDemoByID(arg1) {
   return window['go']['main']['App']['GetDemoByID'](arg1);
 }
@@ -108,6 +112,10 @@ export function OpenProfilesFolder() {
 
 export function ProfilesDir() {
   return window['go']['main']['App']['ProfilesDir']();
+}
+
+export function RecomputeAnalysis(arg1) {
+  return window['go']['main']['App']['RecomputeAnalysis'](arg1);
 }
 
 export function SetTolerateEntityErrors(arg1) {

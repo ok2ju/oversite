@@ -1,5 +1,19 @@
 export namespace main {
-	
+
+	export class AnalysisStatus {
+	    demo_id: string;
+	    status: string;
+
+	    static createFrom(source: any = {}) {
+	        return new AnalysisStatus(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.demo_id = source["demo_id"];
+	        this.status = source["status"];
+	    }
+	}
 	export class DamageByOpponent {
 	    steam_id: string;
 	    player_name: string;

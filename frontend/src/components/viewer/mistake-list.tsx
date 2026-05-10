@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useViewerStore } from "@/stores/viewer"
 import { useAnalysisStore } from "@/stores/analysis"
 import { useMistakeTimeline } from "@/hooks/use-mistake-timeline"
+import { useAnalysisStatus } from "@/hooks/use-analysis-status"
+import { useRecomputeAnalysis } from "@/hooks/use-recompute-analysis"
 import { useRounds } from "@/hooks/use-rounds"
+import { Skeleton } from "@/components/ui/skeleton"
 import { badgeVariants } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { CATEGORY_LABEL, OTHER_CATEGORY, categoryForKind } from "@/lib/mistakes"
@@ -87,6 +90,27 @@ export function MistakeList({ steamId: steamIdProp }: MistakeListProps = {}) {
   const setSelectedCategory = useAnalysisStore((s) => s.setSelectedCategory)
   const { data: rounds } = useRounds(demoId)
   const { data: mistakes, isLoading } = useMistakeTimeline(demoId, steamId)
+  const { data: analysisStatus } = useAnalysisStatus(demoId)
+  const recompute = useRecomputeAnalysis()
+  const status = analysisStatus?.status
+
+  // Auto-trigger recompute when the panel sees a "missing" status. Guarded by
+  // a ref keyed on (demoId, status) so React 18 strict-mode double-invokes
+  // and any in-mutation re-render don't fire RecomputeAnalysis twice.
+  const recomputeRef = useRef<{ demoId: string | null; status?: string }>({
+    demoId: null,
+  })
+  useEffect(() => {
+    if (!demoId || status !== "missing") return
+    if (
+      recomputeRef.current.demoId === demoId &&
+      recomputeRef.current.status === status
+    ) {
+      return
+    }
+    recomputeRef.current = { demoId, status }
+    recompute.mutate({ demoId })
+  }, [demoId, status, recompute])
 
   const handleSelect = useCallback((tick: number) => setTick(tick), [setTick])
   const handleCategoryClick = useCallback(
@@ -122,6 +146,34 @@ export function MistakeList({ steamId: steamIdProp }: MistakeListProps = {}) {
     : items
 
   if (!steamId) return null
+
+  // The demo isn't analyzable yet (lifecycle states owned by the import flow).
+  // For "imported" / "failed" we render nothing so the demos list / parser
+  // owns the messaging; "parsing" falls through to the existing loading text.
+  if (status === "imported" || status === "failed") return null
+
+  // Render shimmer while the recompute is in flight or the status hasn't
+  // flipped to "ready" yet. Same <aside> shell as the populated state so the
+  // panel doesn't visually shift when the data lands.
+  const showShimmer =
+    status === "missing" || status === "parsing" || recompute.isPending
+  if (showShimmer) {
+    return (
+      <aside
+        data-testid="mistake-list"
+        className="absolute left-0 top-0 z-30 flex h-full w-72 flex-col border-r border-white/10 bg-black/85 text-white shadow-2xl backdrop-blur"
+      >
+        <div
+          data-testid="mistake-list-shimmer"
+          className="flex flex-col gap-3 px-3 py-3"
+        >
+          <Skeleton className="h-12 w-full bg-white/10" />
+          <Skeleton className="h-20 w-full bg-white/10" />
+          <Skeleton className="h-6 w-2/3 bg-white/10" />
+        </div>
+      </aside>
+    )
+  }
 
   return (
     <aside

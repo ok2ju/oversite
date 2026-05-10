@@ -246,6 +246,24 @@ type PlayerAnalysis struct {
 	Extras        map[string]any `json:"extras"`
 }
 
+// AnalysisStatus reports whether mechanical-analysis rows exist for a demo.
+// Status is one of:
+//   - "imported"  — demo row exists, parser hasn't run yet
+//   - "parsing"   — parse-and-analyze pipeline is in flight
+//   - "failed"    — parse failed; demos list shows the failure
+//   - "missing"   — demo is "ready" but no player_match_analysis rows exist
+//     (typically a demo imported before slice 1 landed). The viewer panel
+//     auto-triggers RecomputeAnalysis on this state.
+//   - "ready"     — analyzer rows are present; panel renders the populated
+//     header + list.
+//
+// "missing" is intentionally separate from the demo lifecycle status so a
+// future "recomputing" state can slot in without overloading Demo.status.
+type AnalysisStatus struct {
+	DemoID string `json:"demo_id"`
+	Status string `json:"status"`
+}
+
 // HitGroupBreakdown is one row in the damage-by-hit-group breakdown.
 type HitGroupBreakdown struct {
 	HitGroup int    `json:"hit_group"`

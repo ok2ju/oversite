@@ -40,6 +40,9 @@ type App struct {
 	// reads during a write tx, but each parser holds hundreds of MB of state —
 	// importing N files at once would N× peak memory. One parse at a time keeps
 	// RAM bounded and matches the single-writer guarantee SQLite gives us.
+	// Shared by both runParseSerialized (import flow) and RecomputeAnalysis
+	// (legacy-demo backfill); a recompute issued during an import waits behind
+	// the in-flight parse instead of racing it.
 	parseMu sync.Mutex
 	// fileImportMu serializes the file-copy / zstd-decompress step in
 	// ImportService.ImportFile. Each zstd decoder window is tens of MB; on a
@@ -835,6 +838,75 @@ func (a *App) GetPlayerAnalysis(demoID, steamID string) (PlayerAnalysis, error) 
 		}
 	}
 	return out, nil
+}
+
+// GetAnalysisStatus reports whether mechanical-analysis rows exist for the
+// given demo. The viewer's mistake-list panel uses the result to decide
+// between rendering the populated slice-5 surface, a shimmer placeholder, or
+// nothing at all. See types.AnalysisStatus for the enum.
+//
+// Logic: if the demo's lifecycle status is "imported", "parsing", or "failed",
+// surface that status verbatim — the demo isn't analyzable yet. If the demo
+// is "ready" but no player_match_analysis rows exist for it, return "missing"
+// (the legacy-import case). Otherwise return "ready".
+func (a *App) GetAnalysisStatus(demoID string) (AnalysisStatus, error) {
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return AnalysisStatus{}, fmt.Errorf("invalid demo id: %w", err)
+	}
+
+	d, err := a.queries.GetDemoByID(a.ctx, id)
+	if err != nil {
+		return AnalysisStatus{}, fmt.Errorf("getting demo: %w", err)
+	}
+
+	if d.Status != "ready" {
+		return AnalysisStatus{DemoID: demoID, Status: d.Status}, nil
+	}
+
+	// Slice 5 writes one row per rostered player on every successful parse, so
+	// 0 ↔ analyzer never ran for this demo. If a future analyzer ever skips
+	// rostered players, revisit this sentinel.
+	count, err := a.queries.CountPlayerMatchAnalysisByDemoID(a.ctx, id)
+	if err != nil {
+		return AnalysisStatus{}, fmt.Errorf("counting analysis rows: %w", err)
+	}
+	if count == 0 {
+		return AnalysisStatus{DemoID: demoID, Status: "missing"}, nil
+	}
+	return AnalysisStatus{DemoID: demoID, Status: "ready"}, nil
+}
+
+// RecomputeAnalysis re-runs the full parse-and-analyze pipeline for an already-
+// imported demo. Used by the viewer panel to backfill mechanical-analysis rows
+// for demos imported before slice 1 landed.
+//
+// We re-run the full parseDemo (not a "skip ingest, only analyzer" optimization)
+// because parseDemo is already idempotent (delete-then-insert in the ingester
+// and analysis.Persist), the surface area is one binding, and the existing
+// demo:parse:progress event stream covers the deferred-progress UX. The cost
+// (~10–30 s on a 100 MB demo to re-ingest tick data) is acceptable for a
+// one-shot legacy backfill.
+//
+// Synchronous: returns after parseDemo finishes so the frontend mutation's
+// isPending reflects the actual recompute. Concurrent calls block on parseMu.
+func (a *App) RecomputeAnalysis(demoID string) error {
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid demo id: %w", err)
+	}
+	d, err := a.queries.GetDemoByID(a.ctx, id)
+	if err != nil {
+		return fmt.Errorf("getting demo: %w", err)
+	}
+	if d.FilePath == "" {
+		return fmt.Errorf("demo %d has no file path", id)
+	}
+	if _, err := os.Stat(d.FilePath); err != nil {
+		return fmt.Errorf("demo file unavailable: %w", err)
+	}
+	a.runParseSerialized(d.ID, d.FilePath)
+	return nil
 }
 
 // GetRoundLoadouts returns the freeze-end loadout for every (round, player)

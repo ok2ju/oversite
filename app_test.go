@@ -110,6 +110,136 @@ func TestGetDemoByID(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// GetAnalysisStatus
+// ---------------------------------------------------------------------------
+
+func TestGetAnalysisStatus(t *testing.T) {
+	app, q := newTestApp(t)
+	ctx := context.Background()
+
+	// Helper to create a demo at a given lifecycle status. Bypasses the
+	// seedDemo helper because tests below need each row to stay in its
+	// originally-imported state without the UpdateDemoAfterParse flip to
+	// "ready".
+	createDemo := func(t *testing.T, status string) store.Demo {
+		t.Helper()
+		d, err := q.CreateDemo(ctx, store.CreateDemoParams{
+			MapName:  "de_dust2",
+			FilePath: "/demos/" + status + ".dem",
+			FileSize: 100,
+			Status:   status,
+		})
+		if err != nil {
+			t.Fatalf("CreateDemo(%s): %v", status, err)
+		}
+		return d
+	}
+
+	t.Run("ready with rows returns ready", func(t *testing.T) {
+		d := createDemo(t, "imported")
+		if _, err := q.UpdateDemoAfterParse(ctx, store.UpdateDemoAfterParseParams{
+			ID: d.ID, MapName: "de_dust2",
+			TotalTicks: 1, TickRate: 64, DurationSecs: 1,
+		}); err != nil {
+			t.Fatalf("UpdateDemoAfterParse: %v", err)
+		}
+		if err := q.UpsertPlayerMatchAnalysis(ctx, store.UpsertPlayerMatchAnalysisParams{
+			DemoID: d.ID, SteamID: "STEAM_A",
+			OverallScore: 75, TradePct: 0.6, AvgTradeTicks: 90, ExtrasJson: "{}",
+		}); err != nil {
+			t.Fatalf("UpsertPlayerMatchAnalysis: %v", err)
+		}
+
+		got, err := app.GetAnalysisStatus(strconv.FormatInt(d.ID, 10))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.Status != "ready" {
+			t.Errorf("Status = %q, want ready", got.Status)
+		}
+		if got.DemoID != strconv.FormatInt(d.ID, 10) {
+			t.Errorf("DemoID = %q, want %q", got.DemoID, strconv.FormatInt(d.ID, 10))
+		}
+	})
+
+	t.Run("ready without rows returns missing", func(t *testing.T) {
+		d := createDemo(t, "imported")
+		if _, err := q.UpdateDemoAfterParse(ctx, store.UpdateDemoAfterParseParams{
+			ID: d.ID, MapName: "de_dust2",
+			TotalTicks: 1, TickRate: 64, DurationSecs: 1,
+		}); err != nil {
+			t.Fatalf("UpdateDemoAfterParse: %v", err)
+		}
+
+		got, err := app.GetAnalysisStatus(strconv.FormatInt(d.ID, 10))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.Status != "missing" {
+			t.Errorf("Status = %q, want missing", got.Status)
+		}
+	})
+
+	t.Run("parsing surfaces verbatim", func(t *testing.T) {
+		d := createDemo(t, "imported")
+		if _, err := q.UpdateDemoStatus(ctx, store.UpdateDemoStatusParams{
+			Status: "parsing", ID: d.ID,
+		}); err != nil {
+			t.Fatalf("UpdateDemoStatus: %v", err)
+		}
+
+		got, err := app.GetAnalysisStatus(strconv.FormatInt(d.ID, 10))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.Status != "parsing" {
+			t.Errorf("Status = %q, want parsing", got.Status)
+		}
+	})
+
+	t.Run("failed surfaces verbatim", func(t *testing.T) {
+		d := createDemo(t, "imported")
+		if _, err := q.UpdateDemoStatus(ctx, store.UpdateDemoStatusParams{
+			Status: "failed", ID: d.ID,
+		}); err != nil {
+			t.Fatalf("UpdateDemoStatus: %v", err)
+		}
+
+		got, err := app.GetAnalysisStatus(strconv.FormatInt(d.ID, 10))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.Status != "failed" {
+			t.Errorf("Status = %q, want failed", got.Status)
+		}
+	})
+
+	t.Run("imported surfaces verbatim", func(t *testing.T) {
+		d := createDemo(t, "imported")
+
+		got, err := app.GetAnalysisStatus(strconv.FormatInt(d.ID, 10))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.Status != "imported" {
+			t.Errorf("Status = %q, want imported", got.Status)
+		}
+	})
+
+	t.Run("unknown demo id returns error", func(t *testing.T) {
+		if _, err := app.GetAnalysisStatus("999999"); err == nil {
+			t.Fatal("expected error for unknown demo, got nil")
+		}
+	})
+
+	t.Run("invalid demo id returns error", func(t *testing.T) {
+		if _, err := app.GetAnalysisStatus("abc"); err == nil {
+			t.Fatal("expected error for invalid demo id, got nil")
+		}
+	})
+}
+
+// ---------------------------------------------------------------------------
 // GetDemoRounds
 // ---------------------------------------------------------------------------
 

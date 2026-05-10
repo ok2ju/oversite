@@ -341,6 +341,14 @@ export const mockAppBindings = {
       extras: null,
     }),
 
+  GetAnalysisStatus: vi
+    .fn<(demoId: string) => Promise<{ demo_id: string; status: string }>>()
+    .mockResolvedValue({ demo_id: "", status: "ready" }),
+
+  RecomputeAnalysis: vi
+    .fn<(demoId: string) => Promise<void>>()
+    .mockResolvedValue(undefined),
+
   GetUniqueWeapons: vi
     .fn<(demoIDs: number[]) => Promise<string[]>>()
     .mockResolvedValue(["AK-47", "M4A1", "AWP"]),

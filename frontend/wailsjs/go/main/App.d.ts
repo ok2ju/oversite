@@ -8,6 +8,8 @@ export function DeleteDemo(arg1:number):Promise<void>;
 
 export function GetAllRosters(arg1:string):Promise<Record<number, Array<main.PlayerRosterEntry>>>;
 
+export function GetAnalysisStatus(arg1:string):Promise<main.AnalysisStatus>;
+
 export function GetDemoByID(arg1:string):Promise<main.Demo>;
 
 export function GetDemoEvents(arg1:string):Promise<Array<main.GameEvent>>;
@@ -55,5 +57,7 @@ export function OpenLogsFolder():Promise<void>;
 export function OpenProfilesFolder():Promise<void>;
 
 export function ProfilesDir():Promise<string>;
+
+export function RecomputeAnalysis(arg1:string):Promise<void>;
 
 export function SetTolerateEntityErrors(arg1:boolean):Promise<void>;

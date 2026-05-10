@@ -9,6 +9,20 @@ import (
 	"context"
 )
 
+const countPlayerMatchAnalysisByDemoID = `-- name: CountPlayerMatchAnalysisByDemoID :one
+SELECT count(*) FROM player_match_analysis WHERE demo_id = ?1
+`
+
+// Returns the number of summary rows persisted for a demo. The slice-5
+// analyzer writes one row per rostered player on every successful parse, so
+// 0 is the missing-analysis sentinel for legacy demos imported before slice 1.
+func (q *Queries) CountPlayerMatchAnalysisByDemoID(ctx context.Context, demoID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countPlayerMatchAnalysisByDemoID, demoID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deletePlayerMatchAnalysisByDemoID = `-- name: DeletePlayerMatchAnalysisByDemoID :exec
 DELETE FROM player_match_analysis
 WHERE demo_id = ?1
