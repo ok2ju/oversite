@@ -163,15 +163,17 @@ type TickSnapshot struct {
 }
 
 // AnalysisTick is the slim per-(player, tick) row produced by WithTickFanout.
-// Sampled at the same cadence as TickSnapshot (tickInterval, default 4) but
-// carries only the three fields the slice-8+ analyzers need — Z (head/eye
-// height for the aim rule) and Vx/Vy (planar velocity for the movement rule)
-// — so the heap cost is ~5× smaller than reusing TickSnapshot would be. A
-// 30-min match at 64-tick samples ~800K rows; at 24 B/row including padding
-// this fits in ~20 MB and stays well under the parser's heap watchdog. If a
-// future slice raises the fanout cadence (every tick instead of every 4),
-// this multiplies by 4× and would warrant a streaming sink mirroring
-// WithTickSink.
+// Sampled at the same cadence as TickSnapshot (tickInterval, default 4). It
+// carries the fields the slice-8+ analyzers need without paying for the full
+// TickSnapshot row — Z (eye height for the aim rule), X/Y (planar position
+// for positioning/utility-effectiveness rules), Yaw (facing direction for the
+// flick / time-to-fire rules), Vx/Vy (planar velocity for the movement rule),
+// and IsAlive (gates positioning checks to the death tick).
+//
+// At ~40 B/row × 800K rows for a 30-min match this lands at ~32 MB and stays
+// well under the parser's heap watchdog. If a future slice raises the fanout
+// cadence (every tick instead of every 4), the multiplier and a streaming
+// sink mirroring WithTickSink should be revisited.
 //
 // SteamID is the raw uint64 (saves ~20 B per row vs the string form). Callers
 // that need the decimal-string form (the analyzer rule index) convert once at
@@ -181,12 +183,14 @@ type TickSnapshot struct {
 // this player within the same round (no cross-round / respawn delta is
 // computed — the first sample after a round transition reports zeros). The
 // staleness window is therefore tickInterval ticks (~62 ms at 64 tick),
-// acceptable for slice 8's coarse "moving vs. standing" check.
+// acceptable for the coarse "moving vs. standing" check.
 type AnalysisTick struct {
 	Tick    int32
 	SteamID uint64
-	Z       float32
+	X, Y, Z float32
+	Yaw     float32
 	Vx, Vy  float32
+	IsAlive bool
 }
 
 // GameEvent represents a parsed game event (kill, grenade, bomb, round boundary).
@@ -1043,9 +1047,13 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 				state.analysisTicks = append(state.analysisTicks, AnalysisTick{
 					Tick:    int32(tick),
 					SteamID: player.SteamID64,
+					X:       float32(pos.X),
+					Y:       float32(pos.Y),
 					Z:       float32(pos.Z),
+					Yaw:     float32(player.ViewDirectionX()),
 					Vx:      vx,
 					Vy:      vy,
+					IsAlive: player.IsAlive(),
 				})
 			}
 

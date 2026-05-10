@@ -34,7 +34,7 @@ const eyeHeightOffset = 64.0
 // pitch sits more than pitchSlackDeg below that expected angle — i.e. the
 // attacker is aiming significantly lower than the target's head.
 func crosshairTooLow(events []demo.GameEvent, rounds []demo.RoundData, idx PerPlayerTickIndex, minEngagements int, _ float64) []Mistake {
-	if len(events) == 0 || len(idx) == 0 {
+	if len(events) == 0 || len(idx.Rows) == 0 {
 		return nil
 	}
 

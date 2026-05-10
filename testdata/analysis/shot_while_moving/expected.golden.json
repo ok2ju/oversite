@@ -3,9 +3,46 @@
     "steam_id": "100",
     "round_number": 1,
     "tick": 100,
+    "kind": "missed_first_shot",
+    "extras": {
+      "weapon": "ak47"
+    }
+  },
+  {
+    "steam_id": "100",
+    "round_number": 1,
+    "tick": 100,
     "kind": "shot_while_moving",
     "extras": {
       "speed": 150,
+      "weapon": "ak47"
+    }
+  },
+  {
+    "steam_id": "100",
+    "round_number": 1,
+    "tick": 100,
+    "kind": "no_counter_strafe",
+    "extras": {
+      "speed": 150,
+      "weapon": "ak47"
+    }
+  },
+  {
+    "steam_id": "100",
+    "round_number": 1,
+    "tick": 200,
+    "kind": "missed_first_shot",
+    "extras": {
+      "weapon": "ak47"
+    }
+  },
+  {
+    "steam_id": "100",
+    "round_number": 1,
+    "tick": 300,
+    "kind": "missed_first_shot",
+    "extras": {
       "weapon": "ak47"
     }
   }

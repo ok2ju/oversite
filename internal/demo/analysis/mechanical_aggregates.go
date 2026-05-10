@@ -51,7 +51,7 @@ func computeMechanicalAggregates(events []demo.GameEvent, idx PerPlayerTickIndex
 			byPlayer[ev.AttackerSteamID] = a
 		}
 		a.engagements++
-		if idx != nil {
+		if len(idx.Rows) > 0 {
 			if row, ok := nearestTick(idx, ev.AttackerSteamID, ev.Tick); ok {
 				speed := math.Sqrt(float64(row.Vx)*float64(row.Vx) + float64(row.Vy)*float64(row.Vy))
 				a.speedSum += speed
@@ -118,7 +118,7 @@ func computeRoundMechanicalAggregates(events []demo.GameEvent, idx PerPlayerTick
 			byRound[ev.RoundNumber] = a
 		}
 		a.engagements++
-		if idx != nil {
+		if len(idx.Rows) > 0 {
 			if row, ok := nearestTick(idx, ev.AttackerSteamID, ev.Tick); ok {
 				speed := math.Sqrt(float64(row.Vx)*float64(row.Vx) + float64(row.Vy)*float64(row.Vy))
 				a.speedSum += speed

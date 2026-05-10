@@ -39,6 +39,17 @@ const (
 	MistakeKindDiedWithUtilUnused MistakeKind = "died_with_util_unused"
 	MistakeKindCrosshairTooLow    MistakeKind = "crosshair_too_low"
 	MistakeKindShotWhileMoving    MistakeKind = "shot_while_moving"
+	MistakeKindSlowReaction       MistakeKind = "slow_reaction"      // time-to-fire too high on a kill
+	MistakeKindMissedFlick        MistakeKind = "missed_flick"       // big yaw flick that didn't connect
+	MistakeKindMissedFirstShot    MistakeKind = "missed_first_shot"  // first shot after long idle missed
+	MistakeKindSprayDecay         MistakeKind = "spray_decay"        // burst kept firing past shot 7 with <10% hit rate
+	MistakeKindNoCounterStrafe    MistakeKind = "no_counter_strafe"  // fired moving without a stop
+	MistakeKindUnusedSmoke        MistakeKind = "unused_smoke"       // smoke detonated but produced no teammate kill
+	MistakeKindSurvivedWithUtil   MistakeKind = "survived_with_util" // round ended with util in inventory
+	MistakeKindIsolatedPeek       MistakeKind = "isolated_peek"      // died alone, no teammate within 600u
+	MistakeKindRepeatedDeathZone  MistakeKind = "repeated_death_zone"
+	MistakeKindWalkedIntoMolotov  MistakeKind = "walked_into_molotov"
+	MistakeKindEcoMisbuy          MistakeKind = "eco_misbuy" // eco round detected when team should have full-bought
 )
 
 // RunOpts carries optional knobs for the analyzer pass. Zero-valued fields
@@ -120,13 +131,26 @@ func Run(result *demo.ParseResult, roundMap map[int]int64, opts RunOpts) ([]Mist
 		tickRate = 64
 	}
 
-	out := make([]Mistake, 0, 16)
+	out := make([]Mistake, 0, 32)
+	// Event-only rules first — they don't need the tick index and run on
+	// legacy fixtures that pre-date AnalysisTick.
 	out = append(out, noTradeDeath(result.Events, tickRate)...)
 	out = append(out, diedWithUtilUnused(result.Events, result.Rounds)...)
+	out = append(out, survivedWithUtilUnused(result.Events, result.Rounds)...)
+	out = append(out, smokeEffectiveness(result.Events, tickRate)...)
+	out = append(out, walkedIntoMolotov(result.Events)...)
+	out = append(out, repeatedDeathZones(result.Events)...)
+	out = append(out, firstShotAccuracy(result.Events)...)
+	out = append(out, sprayDecay(result.Events)...)
+	out = append(out, ecoMisbuy(result.Rounds)...)
 	if len(result.AnalysisTicks) > 0 {
 		idx := BuildTickIndex(result.AnalysisTicks)
 		out = append(out, crosshairTooLow(result.Events, result.Rounds, idx, opts.MinEngagementsForAimCritique, tickRate)...)
 		out = append(out, shotWhileMoving(result.Events, idx, tickRate)...)
+		out = append(out, noCounterStrafe(result.Events, idx, tickRate)...)
+		out = append(out, timeToFire(result.Events, idx, tickRate)...)
+		out = append(out, missedFlick(result.Events, idx)...)
+		out = append(out, isolatedPeek(result.Events, idx, result.Rounds)...)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Tick != out[j].Tick {

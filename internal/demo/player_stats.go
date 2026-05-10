@@ -668,6 +668,12 @@ func sortHitGroups(damage map[int]int, hits map[int]int) []HitGroupBreakdown {
 	return out
 }
 
+// SumLoadoutValue is the exported alias for sumLoadoutValue. The analysis
+// sub-package needs the same buy-value math for its buy-classification rule
+// without re-implementing the price table; package-private symbols are not
+// reachable from a sub-package, so we expose this thin wrapper.
+func SumLoadoutValue(inventory string) int { return sumLoadoutValue(inventory) }
+
 // sumLoadoutValue parses a comma-separated inventory list (encodeInventory
 // output) and returns the sum of weapon prices from weaponPrices. Items not
 // in the price table contribute zero.

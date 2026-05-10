@@ -25,13 +25,18 @@ type fixtureInput struct {
 
 // fixtureAnalysisTick is the disk shape of a single AnalysisTick row. SteamID
 // travels as a decimal string for hand-editability — converted to uint64 when
-// the fixture is materialized.
+// the fixture is materialized. The is_alive flag defaults to true via the
+// fixture loader so legacy fixtures that pre-date the field stay green.
 type fixtureAnalysisTick struct {
 	Tick    int     `json:"tick"`
 	SteamID string  `json:"steam_id"`
+	X       float32 `json:"x"`
+	Y       float32 `json:"y"`
 	Z       float32 `json:"z"`
+	Yaw     float32 `json:"yaw"`
 	Vx      float32 `json:"vx"`
 	Vy      float32 `json:"vy"`
+	IsAlive *bool   `json:"is_alive,omitempty"`
 }
 
 type fixtureRound struct {
@@ -123,12 +128,20 @@ func (fi fixtureInput) toParseResult() *demo.ParseResult {
 		ticks = make([]demo.AnalysisTick, len(fi.AnalysisTicks))
 		for i, t := range fi.AnalysisTicks {
 			steamID, _ := strconv.ParseUint(t.SteamID, 10, 64)
+			alive := true
+			if t.IsAlive != nil {
+				alive = *t.IsAlive
+			}
 			ticks[i] = demo.AnalysisTick{
 				Tick:    int32(t.Tick),
 				SteamID: steamID,
+				X:       t.X,
+				Y:       t.Y,
 				Z:       t.Z,
+				Yaw:     t.Yaw,
 				Vx:      t.Vx,
 				Vy:      t.Vy,
+				IsAlive: alive,
 			}
 		}
 	}
