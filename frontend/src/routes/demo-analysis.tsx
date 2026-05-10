@@ -7,8 +7,10 @@ import { useRounds } from "@/hooks/use-rounds"
 import { useViewerStore } from "@/stores/viewer"
 import { DemoRouteTabs } from "@/components/viewer/demo-route-tabs"
 import { VerdictHero } from "@/components/analysis/verdict-hero"
+import { HabitChecklist } from "@/components/analysis/habit-checklist"
 import { MatchTimeline } from "@/components/analysis/match-timeline"
 import { MistakesFeed } from "@/components/analysis/mistakes-feed"
+import { NextDrillCard } from "@/components/analysis/next-drill-card"
 import { HeadToHead } from "@/components/analysis/head-to-head"
 import { EconomyStrip } from "@/components/analysis/economy-strip"
 import {
@@ -182,6 +184,8 @@ export default function DemoAnalysisPage() {
       ) : (
         <>
           <VerdictHero />
+          <HabitChecklist />
+          <NextDrillCard />
           <MatchTimeline />
           <MistakesFeed />
           <div className="grid gap-5 lg:grid-cols-[3fr_2fr]">

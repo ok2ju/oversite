@@ -5,7 +5,22 @@
     "tick": 100,
     "kind": "missed_first_shot",
     "extras": {
-      "weapon": "ak47"
+      "fire_tick": 100,
+      "pitch_path": [
+        0
+      ],
+      "speed_at_fire": 0,
+      "speeds": [
+        0
+      ],
+      "ticks_window": [
+        96
+      ],
+      "weapon": "ak47",
+      "weapon_speed_cap": 40,
+      "yaw_path": [
+        0
+      ]
     }
   },
   {
@@ -25,7 +40,26 @@
     "tick": 200,
     "kind": "missed_first_shot",
     "extras": {
-      "weapon": "ak47"
+      "fire_tick": 200,
+      "pitch_path": [
+        0,
+        0
+      ],
+      "speed_at_fire": 0,
+      "speeds": [
+        0,
+        0
+      ],
+      "ticks_window": [
+        96,
+        196
+      ],
+      "weapon": "ak47",
+      "weapon_speed_cap": 40,
+      "yaw_path": [
+        0,
+        0
+      ]
     }
   },
   {

@@ -10,6 +10,8 @@ export function GetAllRosters(arg1:string):Promise<Record<number, Array<main.Pla
 
 export function GetAnalysisStatus(arg1:string):Promise<main.AnalysisStatus>;
 
+export function GetCoachingReport(arg1:string,arg2:number):Promise<main.CoachingReport>;
+
 export function GetDemoByID(arg1:string):Promise<main.Demo>;
 
 export function GetDemoEvents(arg1:string):Promise<Array<main.GameEvent>>;
@@ -33,6 +35,8 @@ export function GetMinEngagementsForAimCritique():Promise<number>;
 export function GetMistakeContext(arg1:number):Promise<main.MistakeContext>;
 
 export function GetMistakeTimeline(arg1:string,arg2:string):Promise<Array<main.MistakeEntry>>;
+
+export function GetNextDrill(arg1:string,arg2:string):Promise<main.NextDrill>;
 
 export function GetPlayerAnalysis(arg1:string,arg2:string):Promise<main.PlayerAnalysis>;
 

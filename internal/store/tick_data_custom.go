@@ -11,7 +11,7 @@ import (
 )
 
 const getTickDataByDemoAndPlayer = `
-SELECT demo_id, tick, steam_id, x, y, z, yaw, health, armor, is_alive, weapon, money, has_helmet, has_defuser, ammo_clip, ammo_reserve
+SELECT demo_id, tick, steam_id, x, y, z, yaw, pitch, crouch, health, armor, is_alive, weapon, money, has_helmet, has_defuser, ammo_clip, ammo_reserve
 FROM tick_data
 WHERE demo_id = ? AND steam_id = ?
 ORDER BY tick

@@ -21,7 +21,13 @@
     "isolated_peek_deaths": 0,
     "repeated_death_zones": 0,
     "full_buy_adr": 0,
-    "eco_kills": 0
+    "eco_kills": 0,
+    "time_to_stop_ms_avg": 0,
+    "crouch_before_shot_count": 0,
+    "crouch_instead_of_strafe_count": 0,
+    "flick_overshoot_avg_deg": 0,
+    "flick_undershoot_avg_deg": 0,
+    "flick_balance_pct": 0
   },
   {
     "steam_id": "bob",
@@ -45,7 +51,13 @@
     "isolated_peek_deaths": 0,
     "repeated_death_zones": 0,
     "full_buy_adr": 0,
-    "eco_kills": 0
+    "eco_kills": 0,
+    "time_to_stop_ms_avg": 0,
+    "crouch_before_shot_count": 0,
+    "crouch_instead_of_strafe_count": 0,
+    "flick_overshoot_avg_deg": 0,
+    "flick_undershoot_avg_deg": 0,
+    "flick_balance_pct": 0
   },
   {
     "steam_id": "enemy1",
@@ -69,6 +81,12 @@
     "isolated_peek_deaths": 0,
     "repeated_death_zones": 0,
     "full_buy_adr": 0,
-    "eco_kills": 0
+    "eco_kills": 0,
+    "time_to_stop_ms_avg": 0,
+    "crouch_before_shot_count": 0,
+    "crouch_instead_of_strafe_count": 0,
+    "flick_overshoot_avg_deg": 0,
+    "flick_undershoot_avg_deg": 0,
+    "flick_balance_pct": 0
   }
 ]

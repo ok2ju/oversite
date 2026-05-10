@@ -113,12 +113,20 @@ type GameEvent struct {
 // perception at typical viewport zoom. Saves ~150 KB per tick chunk on the
 // JSON wire (10 chars/float vs 4 chars/int × 64 K numbers).
 type TickData struct {
-	Tick        int     `json:"tick"`
-	SteamID     string  `json:"steam_id"`
-	X           int16   `json:"x"`
-	Y           int16   `json:"y"`
-	Z           int16   `json:"z"`
-	Yaw         int16   `json:"yaw"`
+	Tick    int    `json:"tick"`
+	SteamID string `json:"steam_id"`
+	X       int16  `json:"x"`
+	Y       int16  `json:"y"`
+	Z       int16  `json:"z"`
+	Yaw     int16  `json:"yaw"`
+	// Pitch is the player's vertical view angle in whole degrees, downward
+	// positive (CS2 convention). int16 keeps the wire small (±90° fits trivially)
+	// at the same 1° quantization as Yaw — viewer interpolation handles the rest.
+	Pitch int16 `json:"pitch"`
+	// Crouch is Player.IsDucking() at the sample. Used by the analysis page's
+	// crouch-before-shot evidence; viewer renders unchanged on legacy demos
+	// (false defaults).
+	Crouch      bool    `json:"crouch"`
 	Health      int     `json:"health"`
 	Armor       int     `json:"armor"`
 	IsAlive     bool    `json:"is_alive"`
@@ -224,9 +232,10 @@ type UtilityStats struct {
 
 // MistakeEntry is a single per-player analysis finding (e.g. an untraded
 // death). Returned chronologically from GetMistakeTimeline; the viewer side
-// panel renders one row per entry. Category / Severity / Title / Suggestion
-// are resolved server-side from analysis.TemplateForKind so the frontend can
-// render rich rows without duplicating the kind→presentation mapping.
+// panel renders one row per entry. Category / Severity / Title / Suggestion /
+// WhyItHurts are resolved server-side from analysis.TemplateForKind so the
+// frontend can render rich rows without duplicating the kind→presentation
+// mapping.
 type MistakeEntry struct {
 	ID          int64          `json:"id"`
 	Kind        string         `json:"kind"`
@@ -234,21 +243,34 @@ type MistakeEntry struct {
 	Severity    int            `json:"severity"`
 	Title       string         `json:"title"`
 	Suggestion  string         `json:"suggestion"`
+	WhyItHurts  string         `json:"why_it_hurts"`
 	RoundNumber int            `json:"round_number"`
 	Tick        int64          `json:"tick"`
 	SteamID     string         `json:"steam_id"`
 	Extras      map[string]any `json:"extras"`
 }
 
+// MistakeCoOccurrence is the lightweight reference shape for a *different*
+// mistake the same player committed inside the same fire window. The
+// mistake-detail panel renders one chip per co-occurrence so the user can
+// pivot to the related play without leaving the detail card.
+type MistakeCoOccurrence struct {
+	ID    int64  `json:"id"`
+	Kind  string `json:"kind"`
+	Title string `json:"title"`
+	Tick  int64  `json:"tick"`
+}
+
 // MistakeContext is the deep-detail variant returned by GetMistakeContext.
 // Carries everything MistakeEntry does plus the surrounding round window
-// metadata so the analysis-detail card can render the play with no extra
-// round-trip.
+// metadata and the list of co-occurring mistakes (P2-3) so the analysis-
+// detail card can render the play with no extra round-trip.
 type MistakeContext struct {
-	Entry         MistakeEntry `json:"entry"`
-	RoundStartTck int64        `json:"round_start_tick"`
-	RoundEndTick  int64        `json:"round_end_tick"`
-	FreezeEndTick int64        `json:"freeze_end_tick"`
+	Entry         MistakeEntry          `json:"entry"`
+	RoundStartTck int64                 `json:"round_start_tick"`
+	RoundEndTick  int64                 `json:"round_end_tick"`
+	FreezeEndTick int64                 `json:"freeze_end_tick"`
+	CoOccurring   []MistakeCoOccurrence `json:"co_occurring"`
 }
 
 // PlayerAnalysis is the per-(demo, player) summary row read by the viewer's
@@ -419,6 +441,48 @@ type HistoryPoint struct {
 	DemoID    string  `json:"demo_id"`
 	MatchDate string  `json:"match_date"`
 	Value     float64 `json:"value"`
+}
+
+// NextDrill mirrors analysis.Drill on the wire. Key is empty when the
+// maintenance fallback is returned (no bad/warn habit found) — the
+// frontend branches on Key === "" to swap copy for the all-good case.
+type NextDrill struct {
+	Key      string   `json:"key"`
+	Title    string   `json:"title"`
+	Why      string   `json:"why"`
+	Duration string   `json:"duration"`
+	Chips    []string `json:"chips"`
+}
+
+// CoachingHabitRow mirrors analysis.CoachingHabitRow — a HabitRow with a
+// per-card Trend sequence powering the sparkline. The aggregated Value is
+// already classified server-side via the norm catalog.
+type CoachingHabitRow struct {
+	HabitRow
+	Trend []HistoryPoint `json:"trend"`
+}
+
+// MistakeKindCount is one row in the coaching errors strip — a fire-related
+// mistake kind plus its count across the lookback window. Empty list when no
+// fire-related mistakes were flagged for the player.
+type MistakeKindCount struct {
+	Kind  string `json:"kind"`
+	Total int    `json:"total"`
+}
+
+// CoachingReport is the response shape of GetCoachingReport. Habits powers the
+// 6-card grid; Errors powers the taxonomy strip; LatestDemoID + LastDemoAt let
+// the CTA link to the most recent demo's analysis page. Empty steamID and
+// "no demos" both yield the empty report (Habits=[], Errors=[],
+// LatestDemoID="") so the frontend can render an empty state without
+// branching on errors.
+type CoachingReport struct {
+	SteamID      string             `json:"steam_id"`
+	Lookback     int                `json:"lookback"`
+	Habits       []CoachingHabitRow `json:"habits"`
+	Errors       []MistakeKindCount `json:"errors"`
+	LatestDemoID string             `json:"latest_demo_id"`
+	LastDemoAt   string             `json:"last_demo_at"`
 }
 
 // HitGroupBreakdown is one row in the damage-by-hit-group breakdown.

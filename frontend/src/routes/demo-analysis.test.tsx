@@ -80,6 +80,30 @@ describe("DemoAnalysisPage", () => {
     mockAppBindings.GetPlayerRoundAnalysis.mockResolvedValue([
       { steam_id: "STEAM_A", round_number: 1, trade_pct: 1, extras: null },
     ])
+    mockAppBindings.GetHabitReport.mockResolvedValueOnce({
+      demo_id: "1",
+      steam_id: "STEAM_A",
+      as_of: "2026-05-10T00:00:00Z",
+      habits: [
+        {
+          key: "counter_strafe",
+          label: "Counter-strafe",
+          description: "Stop before firing",
+          unit: "ms",
+          direction: "lower",
+          value: 240,
+          status: "warn",
+          good_threshold: 100,
+          warn_threshold: 200,
+          good_min: 0,
+          good_max: 0,
+          warn_min: 0,
+          warn_max: 0,
+          previous_value: null,
+          delta: null,
+        },
+      ],
+    })
 
     renderAnalysisPage("1")
 
@@ -91,10 +115,9 @@ describe("DemoAnalysisPage", () => {
     expect(useViewerStore.getState().selectedPlayerSteamId).toBe(
       mockScoreboardEntries[0].steam_id,
     )
-    expect(screen.getByTestId("verdict-hero-cat-trade")).toBeInTheDocument()
-    expect(screen.getByTestId("verdict-hero-cat-aim")).toBeInTheDocument()
-    expect(screen.getByTestId("verdict-hero-cat-movement")).toBeInTheDocument()
-    expect(screen.getByTestId("verdict-hero-cat-utility")).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId("habit-checklist")).toBeInTheDocument()
+    })
     expect(screen.getByTestId("match-timeline")).toBeInTheDocument()
     expect(screen.getByTestId("mistakes-feed")).toBeInTheDocument()
   })

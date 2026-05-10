@@ -34,7 +34,7 @@ func (q *Queries) DeletePlayerMatchAnalysisByDemoID(ctx context.Context, demoID 
 }
 
 const getPlayerMatchAnalysis = `-- name: GetPlayerMatchAnalysis :one
-SELECT id, demo_id, steam_id, overall_score, trade_pct, avg_trade_ticks, extras_json, created_at, version, crosshair_height_avg_off, time_to_fire_ms_avg, flick_count, flick_hit_pct, first_shot_acc_pct, spray_decay_slope, standing_shot_pct, counter_strafe_pct, smokes_thrown, smokes_kill_assist, flash_assists, he_damage, nades_unused, isolated_peek_deaths, repeated_death_zones, full_buy_adr, eco_kills
+SELECT id, demo_id, steam_id, overall_score, trade_pct, avg_trade_ticks, extras_json, created_at, version, crosshair_height_avg_off, time_to_fire_ms_avg, flick_count, flick_hit_pct, first_shot_acc_pct, spray_decay_slope, standing_shot_pct, counter_strafe_pct, smokes_thrown, smokes_kill_assist, flash_assists, he_damage, nades_unused, isolated_peek_deaths, repeated_death_zones, full_buy_adr, eco_kills, time_to_stop_ms_avg, crouch_before_shot_count, crouch_instead_of_strafe_count, flick_overshoot_avg_deg, flick_undershoot_avg_deg, flick_balance_pct
 FROM player_match_analysis
 WHERE demo_id = ?1
   AND steam_id = ?2
@@ -76,6 +76,12 @@ func (q *Queries) GetPlayerMatchAnalysis(ctx context.Context, arg GetPlayerMatch
 		&i.RepeatedDeathZones,
 		&i.FullBuyAdr,
 		&i.EcoKills,
+		&i.TimeToStopMsAvg,
+		&i.CrouchBeforeShotCount,
+		&i.CrouchInsteadOfStrafeCount,
+		&i.FlickOvershootAvgDeg,
+		&i.FlickUndershootAvgDeg,
+		&i.FlickBalancePct,
 	)
 	return i, err
 }
@@ -89,6 +95,9 @@ SELECT
     pma.first_shot_acc_pct,
     pma.isolated_peek_deaths,
     pma.repeated_death_zones,
+    pma.time_to_stop_ms_avg,
+    pma.crouch_before_shot_count,
+    pma.flick_balance_pct,
     pma.extras_json,
     (SELECT count(*) FROM analysis_mistakes am
      WHERE am.demo_id = pma.demo_id
@@ -107,15 +116,18 @@ type ListHabitHistoryForPlayerParams struct {
 }
 
 type ListHabitHistoryForPlayerRow struct {
-	DemoID             int64
-	MatchDate          string
-	TradePct           float64
-	TimeToFireMsAvg    float64
-	FirstShotAccPct    float64
-	IsolatedPeekDeaths int64
-	RepeatedDeathZones int64
-	ExtrasJson         string
-	UntradedCount      int64
+	DemoID                int64
+	MatchDate             string
+	TradePct              float64
+	TimeToFireMsAvg       float64
+	FirstShotAccPct       float64
+	IsolatedPeekDeaths    int64
+	RepeatedDeathZones    int64
+	TimeToStopMsAvg       float64
+	CrouchBeforeShotCount int64
+	FlickBalancePct       float64
+	ExtrasJson            string
+	UntradedCount         int64
 }
 
 // Returns the player's last N analysis rows joined with their demos, ordered
@@ -140,6 +152,9 @@ func (q *Queries) ListHabitHistoryForPlayer(ctx context.Context, arg ListHabitHi
 			&i.FirstShotAccPct,
 			&i.IsolatedPeekDeaths,
 			&i.RepeatedDeathZones,
+			&i.TimeToStopMsAvg,
+			&i.CrouchBeforeShotCount,
+			&i.FlickBalancePct,
 			&i.ExtrasJson,
 			&i.UntradedCount,
 		); err != nil {
@@ -157,7 +172,7 @@ func (q *Queries) ListHabitHistoryForPlayer(ctx context.Context, arg ListHabitHi
 }
 
 const listPlayerMatchAnalysisByDemoID = `-- name: ListPlayerMatchAnalysisByDemoID :many
-SELECT id, demo_id, steam_id, overall_score, trade_pct, avg_trade_ticks, extras_json, created_at, version, crosshair_height_avg_off, time_to_fire_ms_avg, flick_count, flick_hit_pct, first_shot_acc_pct, spray_decay_slope, standing_shot_pct, counter_strafe_pct, smokes_thrown, smokes_kill_assist, flash_assists, he_damage, nades_unused, isolated_peek_deaths, repeated_death_zones, full_buy_adr, eco_kills
+SELECT id, demo_id, steam_id, overall_score, trade_pct, avg_trade_ticks, extras_json, created_at, version, crosshair_height_avg_off, time_to_fire_ms_avg, flick_count, flick_hit_pct, first_shot_acc_pct, spray_decay_slope, standing_shot_pct, counter_strafe_pct, smokes_thrown, smokes_kill_assist, flash_assists, he_damage, nades_unused, isolated_peek_deaths, repeated_death_zones, full_buy_adr, eco_kills, time_to_stop_ms_avg, crouch_before_shot_count, crouch_instead_of_strafe_count, flick_overshoot_avg_deg, flick_undershoot_avg_deg, flick_balance_pct
 FROM player_match_analysis
 WHERE demo_id = ?1
 ORDER BY steam_id ASC
@@ -201,6 +216,12 @@ func (q *Queries) ListPlayerMatchAnalysisByDemoID(ctx context.Context, demoID in
 			&i.RepeatedDeathZones,
 			&i.FullBuyAdr,
 			&i.EcoKills,
+			&i.TimeToStopMsAvg,
+			&i.CrouchBeforeShotCount,
+			&i.CrouchInsteadOfStrafeCount,
+			&i.FlickOvershootAvgDeg,
+			&i.FlickUndershootAvgDeg,
+			&i.FlickBalancePct,
 		); err != nil {
 			return nil, err
 		}
@@ -226,6 +247,8 @@ INSERT INTO player_match_analysis (
     smokes_thrown, smokes_kill_assist, flash_assists, he_damage, nades_unused,
     isolated_peek_deaths, repeated_death_zones,
     full_buy_adr, eco_kills,
+    time_to_stop_ms_avg, crouch_before_shot_count, crouch_instead_of_strafe_count,
+    flick_overshoot_avg_deg, flick_undershoot_avg_deg, flick_balance_pct,
     extras_json
 ) VALUES (
     ?1, ?2,
@@ -237,58 +260,72 @@ INSERT INTO player_match_analysis (
     ?15, ?16, ?17, ?18, ?19,
     ?20, ?21,
     ?22, ?23,
-    ?24
+    ?24, ?25, ?26,
+    ?27, ?28, ?29,
+    ?30
 )
 ON CONFLICT(demo_id, steam_id) DO UPDATE SET
-    overall_score            = excluded.overall_score,
-    trade_pct                = excluded.trade_pct,
-    avg_trade_ticks          = excluded.avg_trade_ticks,
-    version                  = excluded.version,
-    crosshair_height_avg_off = excluded.crosshair_height_avg_off,
-    time_to_fire_ms_avg      = excluded.time_to_fire_ms_avg,
-    flick_count              = excluded.flick_count,
-    flick_hit_pct            = excluded.flick_hit_pct,
-    first_shot_acc_pct       = excluded.first_shot_acc_pct,
-    spray_decay_slope        = excluded.spray_decay_slope,
-    standing_shot_pct        = excluded.standing_shot_pct,
-    counter_strafe_pct       = excluded.counter_strafe_pct,
-    smokes_thrown            = excluded.smokes_thrown,
-    smokes_kill_assist       = excluded.smokes_kill_assist,
-    flash_assists            = excluded.flash_assists,
-    he_damage                = excluded.he_damage,
-    nades_unused             = excluded.nades_unused,
-    isolated_peek_deaths     = excluded.isolated_peek_deaths,
-    repeated_death_zones     = excluded.repeated_death_zones,
-    full_buy_adr             = excluded.full_buy_adr,
-    eco_kills                = excluded.eco_kills,
-    extras_json              = excluded.extras_json
+    overall_score                  = excluded.overall_score,
+    trade_pct                      = excluded.trade_pct,
+    avg_trade_ticks                = excluded.avg_trade_ticks,
+    version                        = excluded.version,
+    crosshair_height_avg_off       = excluded.crosshair_height_avg_off,
+    time_to_fire_ms_avg            = excluded.time_to_fire_ms_avg,
+    flick_count                    = excluded.flick_count,
+    flick_hit_pct                  = excluded.flick_hit_pct,
+    first_shot_acc_pct             = excluded.first_shot_acc_pct,
+    spray_decay_slope              = excluded.spray_decay_slope,
+    standing_shot_pct              = excluded.standing_shot_pct,
+    counter_strafe_pct             = excluded.counter_strafe_pct,
+    smokes_thrown                  = excluded.smokes_thrown,
+    smokes_kill_assist             = excluded.smokes_kill_assist,
+    flash_assists                  = excluded.flash_assists,
+    he_damage                      = excluded.he_damage,
+    nades_unused                   = excluded.nades_unused,
+    isolated_peek_deaths           = excluded.isolated_peek_deaths,
+    repeated_death_zones           = excluded.repeated_death_zones,
+    full_buy_adr                   = excluded.full_buy_adr,
+    eco_kills                      = excluded.eco_kills,
+    time_to_stop_ms_avg            = excluded.time_to_stop_ms_avg,
+    crouch_before_shot_count       = excluded.crouch_before_shot_count,
+    crouch_instead_of_strafe_count = excluded.crouch_instead_of_strafe_count,
+    flick_overshoot_avg_deg        = excluded.flick_overshoot_avg_deg,
+    flick_undershoot_avg_deg       = excluded.flick_undershoot_avg_deg,
+    flick_balance_pct              = excluded.flick_balance_pct,
+    extras_json                    = excluded.extras_json
 `
 
 type UpsertPlayerMatchAnalysisParams struct {
-	DemoID                int64
-	SteamID               string
-	OverallScore          int64
-	TradePct              float64
-	AvgTradeTicks         float64
-	Version               int64
-	CrosshairHeightAvgOff float64
-	TimeToFireMsAvg       float64
-	FlickCount            int64
-	FlickHitPct           float64
-	FirstShotAccPct       float64
-	SprayDecaySlope       float64
-	StandingShotPct       float64
-	CounterStrafePct      float64
-	SmokesThrown          int64
-	SmokesKillAssist      int64
-	FlashAssists          int64
-	HeDamage              int64
-	NadesUnused           int64
-	IsolatedPeekDeaths    int64
-	RepeatedDeathZones    int64
-	FullBuyAdr            float64
-	EcoKills              int64
-	ExtrasJson            string
+	DemoID                     int64
+	SteamID                    string
+	OverallScore               int64
+	TradePct                   float64
+	AvgTradeTicks              float64
+	Version                    int64
+	CrosshairHeightAvgOff      float64
+	TimeToFireMsAvg            float64
+	FlickCount                 int64
+	FlickHitPct                float64
+	FirstShotAccPct            float64
+	SprayDecaySlope            float64
+	StandingShotPct            float64
+	CounterStrafePct           float64
+	SmokesThrown               int64
+	SmokesKillAssist           int64
+	FlashAssists               int64
+	HeDamage                   int64
+	NadesUnused                int64
+	IsolatedPeekDeaths         int64
+	RepeatedDeathZones         int64
+	FullBuyAdr                 float64
+	EcoKills                   int64
+	TimeToStopMsAvg            float64
+	CrouchBeforeShotCount      int64
+	CrouchInsteadOfStrafeCount int64
+	FlickOvershootAvgDeg       float64
+	FlickUndershootAvgDeg      float64
+	FlickBalancePct            float64
+	ExtrasJson                 string
 }
 
 // Insert or replace the (demo, player) summary row. The unique index on
@@ -318,6 +355,12 @@ func (q *Queries) UpsertPlayerMatchAnalysis(ctx context.Context, arg UpsertPlaye
 		arg.RepeatedDeathZones,
 		arg.FullBuyAdr,
 		arg.EcoKills,
+		arg.TimeToStopMsAvg,
+		arg.CrouchBeforeShotCount,
+		arg.CrouchInsteadOfStrafeCount,
+		arg.FlickOvershootAvgDeg,
+		arg.FlickUndershootAvgDeg,
+		arg.FlickBalancePct,
 		arg.ExtrasJson,
 	)
 	return err

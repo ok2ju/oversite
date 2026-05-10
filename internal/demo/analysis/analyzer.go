@@ -129,6 +129,17 @@ type MatchSummaryRow struct {
 	FullBuyADR float64 `json:"full_buy_adr"`
 	EcoKills   int     `json:"eco_kills"`
 
+	// Micro (slice 11, P3-2). Zero on demos parsed before P3-1 — analyzer
+	// reads pitch / crouch off the parser, so legacy ParseResults produce
+	// zeroed columns rather than NULL. Frontend habit cards gate on
+	// engagements > 0 the same way standing_shot / aim do.
+	TimeToStopMsAvg            float64 `json:"time_to_stop_ms_avg"`
+	CrouchBeforeShotCount      int     `json:"crouch_before_shot_count"`
+	CrouchInsteadOfStrafeCount int     `json:"crouch_instead_of_strafe_count"`
+	FlickOvershootAvgDeg       float64 `json:"flick_overshoot_avg_deg"`
+	FlickUndershootAvgDeg      float64 `json:"flick_undershoot_avg_deg"`
+	FlickBalancePct            float64 `json:"flick_balance_pct"`
+
 	Extras map[string]any `json:"extras,omitempty"`
 }
 
@@ -202,6 +213,10 @@ func Run(result *demo.ParseResult, roundMap map[int]int64, opts RunOpts) ([]Mist
 		out = append(out, missedFlick(result.Events, idx)...)
 		out = append(out, isolatedPeek(result.Events, idx, result.Rounds)...)
 		out = append(out, caughtReloading(result.Events, idx)...)
+		// Slice 12 (P2-1): attach per-tick speed / yaw / pitch window and a
+		// derived cause_tag to fire-related mistakes. Done after rule emission
+		// so the enrichment is layered, not folded into individual rules.
+		out = EnrichFireMistakes(out, idx, teamsByRoundFromRosters(result.Rounds))
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Tick != out[j].Tick {
@@ -244,12 +259,13 @@ func RunMatchSummary(result *demo.ParseResult, roundMap map[int]int64, opts RunO
 	allMistakes, _ := Run(result, roundMap, opts)
 	mechAggs := computeMechanicalAggregates(result.Events, idx, allMistakes)
 	rich := computeMatchAggregates(result.Events, result.Rounds, idx, allMistakes)
+	micro := computeMicroAggregates(result.Events, idx, teamsByRoundFromRosters(result.Rounds), tickRate)
 
 	// Union of players seen in any aggregate source — a player who only fired
 	// (no eligible deaths) still gets a row so their aim/standing shot
 	// percentages persist; symmetrically, a player who only died (no fires)
 	// keeps their trade row.
-	steamIDs := make(map[string]struct{}, len(trades)+len(mechAggs)+len(rich))
+	steamIDs := make(map[string]struct{}, len(trades)+len(mechAggs)+len(rich)+len(micro))
 	for steamID := range trades {
 		steamIDs[steamID] = struct{}{}
 	}
@@ -257,6 +273,9 @@ func RunMatchSummary(result *demo.ParseResult, roundMap map[int]int64, opts RunO
 		steamIDs[steamID] = struct{}{}
 	}
 	for steamID := range rich {
+		steamIDs[steamID] = struct{}{}
+	}
+	for steamID := range micro {
 		steamIDs[steamID] = struct{}{}
 	}
 	if len(steamIDs) == 0 {
@@ -293,6 +312,14 @@ func RunMatchSummary(result *demo.ParseResult, roundMap map[int]int64, opts RunO
 			row.RepeatedDeathZones = ra.RepeatedDeathZones
 			row.FullBuyADR = ra.FullBuyADR()
 			row.EcoKills = ra.EcoKills
+		}
+		if mc, ok := micro[steamID]; ok {
+			row.TimeToStopMsAvg = mc.TimeToStopMsAvg
+			row.CrouchBeforeShotCount = mc.CrouchBeforeShotCount
+			row.CrouchInsteadOfStrafeCount = mc.CrouchInsteadOfStrafeCount
+			row.FlickOvershootAvgDeg = mc.FlickOvershootAvgDeg
+			row.FlickUndershootAvgDeg = mc.FlickUndershootAvgDeg
+			row.FlickBalancePct = mc.FlickBalancePct
 		}
 		if mech.Engagements > 0 {
 			row.Extras = map[string]any{

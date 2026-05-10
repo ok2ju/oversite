@@ -5,7 +5,23 @@
     "tick": 100,
     "kind": "missed_first_shot",
     "extras": {
-      "weapon": "ak47"
+      "cause_tag": "no_counter_strafe",
+      "fire_tick": 100,
+      "pitch_path": [
+        0
+      ],
+      "speed_at_fire": 150,
+      "speeds": [
+        150
+      ],
+      "ticks_window": [
+        96
+      ],
+      "weapon": "ak47",
+      "weapon_speed_cap": 40,
+      "yaw_path": [
+        0
+      ]
     }
   },
   {
@@ -14,8 +30,24 @@
     "tick": 100,
     "kind": "shot_while_moving",
     "extras": {
+      "cause_tag": "no_counter_strafe",
+      "fire_tick": 100,
+      "pitch_path": [
+        0
+      ],
       "speed": 150,
-      "weapon": "ak47"
+      "speed_at_fire": 150,
+      "speeds": [
+        150
+      ],
+      "ticks_window": [
+        96
+      ],
+      "weapon": "ak47",
+      "weapon_speed_cap": 40,
+      "yaw_path": [
+        0
+      ]
     }
   },
   {
@@ -24,8 +56,24 @@
     "tick": 100,
     "kind": "no_counter_strafe",
     "extras": {
+      "cause_tag": "no_counter_strafe",
+      "fire_tick": 100,
+      "pitch_path": [
+        0
+      ],
       "speed": 150,
-      "weapon": "ak47"
+      "speed_at_fire": 150,
+      "speeds": [
+        150
+      ],
+      "ticks_window": [
+        96
+      ],
+      "weapon": "ak47",
+      "weapon_speed_cap": 40,
+      "yaw_path": [
+        0
+      ]
     }
   },
   {
@@ -34,7 +82,26 @@
     "tick": 200,
     "kind": "missed_first_shot",
     "extras": {
-      "weapon": "ak47"
+      "fire_tick": 200,
+      "pitch_path": [
+        0,
+        0
+      ],
+      "speed_at_fire": 7.0710678118654755,
+      "speeds": [
+        150,
+        7.0710678118654755
+      ],
+      "ticks_window": [
+        96,
+        196
+      ],
+      "weapon": "ak47",
+      "weapon_speed_cap": 40,
+      "yaw_path": [
+        0,
+        0
+      ]
     }
   },
   {
@@ -43,7 +110,30 @@
     "tick": 300,
     "kind": "missed_first_shot",
     "extras": {
-      "weapon": "ak47"
+      "fire_tick": 300,
+      "pitch_path": [
+        0,
+        0,
+        0
+      ],
+      "speed_at_fire": 0,
+      "speeds": [
+        150,
+        7.0710678118654755,
+        0
+      ],
+      "ticks_window": [
+        96,
+        196,
+        296
+      ],
+      "weapon": "ak47",
+      "weapon_speed_cap": 40,
+      "yaw_path": [
+        0,
+        0,
+        0
+      ]
     }
   }
 ]

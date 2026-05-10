@@ -68,3 +68,59 @@ export const SUGGESTIONS: Record<string, string> = {
 export function categoryForKind(kind: string): string {
   return KIND_CATEGORY[kind] ?? OTHER_CATEGORY
 }
+
+// Per-kind "why this hurts" copy mirroring the canonical strings in the Go
+// analysis package (`internal/demo/analysis/templates.go`). The plan
+// (§4 / §6 of `analysis-overhaul.md`) deliberately keeps WhyItHurts as a
+// static lookup on each side instead of widening the MistakeEntry wire
+// payload — most surfaces (mistake-detail subtitle from P2-3, coaching
+// errors-strip from P5-4, positive-highlight cards for `flash_assist` /
+// `he_damage`) already have the kind in hand and only need the copy.
+//
+// Keep this map in lock-step with the Go side; the test in
+// `mistakes.test.ts` enforces that every key in `KIND_CATEGORY` also has
+// a `WHY_IT_HURTS` entry so the two stay aligned.
+export const WHY_IT_HURTS: Record<string, string> = {
+  no_trade_death:
+    "Your team gives up two free rounds — the kill, and the failed retake.",
+  died_with_util_unused:
+    "Every unthrown grenade is damage and map control your team paid for and never spent.",
+  survived_with_util:
+    "Util banked for next round didn't help this one — you lost a fight you had a flash for.",
+  crosshair_too_low:
+    "A low crosshair forces an upward flick on every peek — the extra travel is the duel.",
+  shot_while_moving:
+    "First-bullet accuracy collapses past ~25 u/s of drift, so the duel is decided before the spray.",
+  slow_reaction:
+    "If you fire 100 ms after the enemy, you've already eaten the bullet that decides the duel.",
+  missed_flick:
+    "An overshot flick costs the opener and re-centers you out of the duel before your second shot.",
+  missed_first_shot:
+    "The first bullet is your most accurate one — miss it and you're spraying into recoil to recover.",
+  spray_decay:
+    "Past shot 5 the cone is so wide most bullets miss — you're just feeding ammo into a wall.",
+  no_counter_strafe:
+    "Without a counter-strafe your rifle's first-bullet cone is closer to a deagle's than a tap kill.",
+  unused_smoke:
+    "A smoke without a push is map control rented for 18 seconds and nothing else.",
+  isolated_peek:
+    "Without a trade nearby, your death is a free pick — the enemy gets the kill and the position.",
+  repeated_death_zone:
+    "The enemy has read this position — every repeat peek is a duel you're starting at a disadvantage.",
+  walked_into_molotov:
+    "Fire damage is unanswered — you take 50–80 HP and never trade a bullet for it.",
+  eco_misbuy:
+    "Saving when the enemy is also poor concedes a round you could have stolen with pistols.",
+  caught_reloading:
+    "You can't shoot back. Whoever swung the angle gets a free kill.",
+  flash_assist:
+    "A good flash hands your teammate a free duel — losing the habit costs your team easy openers.",
+  he_damage:
+    "Skipped HE damage is HP your team has to take from rifles instead — every chip shot matters.",
+}
+
+// whyItHurts returns the per-kind cost sentence. Unknown kinds return an
+// empty string so callers can render conditionally without a guard.
+export function whyItHurts(kind: string): string {
+  return WHY_IT_HURTS[kind] ?? ""
+}

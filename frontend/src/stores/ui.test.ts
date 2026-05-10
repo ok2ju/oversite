@@ -10,6 +10,7 @@ describe("uiStore", () => {
     const state = useUiStore.getState()
     expect(state.sidebarOpen).toBe(true)
     expect(state.activeModal).toBeNull()
+    expect(state.mistakeAdvancedOpen).toBe(false)
   })
 
   it("toggleSidebar toggles sidebarOpen", () => {
@@ -33,5 +34,20 @@ describe("uiStore", () => {
     useUiStore.getState().openModal("upload")
     useUiStore.getState().closeModal()
     expect(useUiStore.getState().activeModal).toBeNull()
+  })
+
+  it("setMistakeAdvancedOpen sets explicit value", () => {
+    useUiStore.getState().setMistakeAdvancedOpen(true)
+    expect(useUiStore.getState().mistakeAdvancedOpen).toBe(true)
+    useUiStore.getState().setMistakeAdvancedOpen(false)
+    expect(useUiStore.getState().mistakeAdvancedOpen).toBe(false)
+  })
+
+  it("toggleMistakeAdvancedOpen flips the flag", () => {
+    expect(useUiStore.getState().mistakeAdvancedOpen).toBe(false)
+    useUiStore.getState().toggleMistakeAdvancedOpen()
+    expect(useUiStore.getState().mistakeAdvancedOpen).toBe(true)
+    useUiStore.getState().toggleMistakeAdvancedOpen()
+    expect(useUiStore.getState().mistakeAdvancedOpen).toBe(false)
   })
 })

@@ -46,6 +46,19 @@ type HabitInputs struct {
 	// shots and does not power this habit.
 	StandingShotMechRatio   float64
 	HasStandingShotMechData bool
+
+	// Slice 11 micro metrics (P3-2). HasMicroData gates the rows on having
+	// at least one fire sampled — a player who never fired produces
+	// zero-everywhere rows that the UI would otherwise render as "perfect".
+	TimeToStopMsAvg            float64
+	CrouchBeforeShotCount      int
+	CrouchInsteadOfStrafeCount int
+	FlickBalancePct            float64
+	HasMicroData               bool
+	// FireCount is the engagement gate. We re-use the slice-10 mechanical
+	// aggregate "engagements" from extras_json — the analyzer writes it on
+	// every successful pass; absent means "no fires this match".
+	FireCount int
 }
 
 // HabitRow is the in-Go shape of one row in the HabitReport. Mirrors the
@@ -93,6 +106,9 @@ func BuildHabitReport(in HabitInputs) []HabitRow {
 		rows = append(rows, rowFromNorm(n, value))
 	}
 
+	if in.HasMicroData && in.TimeToStopMsAvg > 0 {
+		add(HabitCounterStrafe, in.TimeToStopMsAvg)
+	}
 	if in.TimeToFireMsAvg > 0 {
 		add(HabitReaction, in.TimeToFireMsAvg)
 	}
@@ -108,6 +124,15 @@ func BuildHabitReport(in HabitInputs) []HabitRow {
 			motion = 100
 		}
 		add(HabitShootingInMotion, motion)
+	}
+	if in.HasMicroData && in.FireCount > 0 {
+		// Crouch-before-shot rate: fires where the player was crouched at
+		// the moment of fire, normalised by total fires sampled.
+		crouchPct := 100.0 * float64(in.CrouchBeforeShotCount) / float64(in.FireCount)
+		add(HabitCrouchBeforeShot, crouchPct)
+	}
+	if in.HasMicroData && in.FlickBalancePct > 0 {
+		add(HabitFlickBalance, in.FlickBalancePct)
 	}
 	add(HabitTradeTiming, in.TradePctRatio*100)
 	add(HabitUntradedDeaths, float64(in.UntradedDeathsCount))
@@ -152,12 +177,16 @@ func LoadHabitInputs(ctx context.Context, q *store.Queries, demoID int64, steamI
 	}
 
 	in := HabitInputs{
-		SteamID:            row.SteamID,
-		TimeToFireMsAvg:    row.TimeToFireMsAvg,
-		FirstShotAccRatio:  row.FirstShotAccPct,
-		TradePctRatio:      row.TradePct,
-		IsolatedPeekDeaths: int(row.IsolatedPeekDeaths),
-		RepeatedDeathZones: int(row.RepeatedDeathZones),
+		SteamID:                    row.SteamID,
+		TimeToFireMsAvg:            row.TimeToFireMsAvg,
+		FirstShotAccRatio:          row.FirstShotAccPct,
+		TradePctRatio:              row.TradePct,
+		IsolatedPeekDeaths:         int(row.IsolatedPeekDeaths),
+		RepeatedDeathZones:         int(row.RepeatedDeathZones),
+		TimeToStopMsAvg:            row.TimeToStopMsAvg,
+		CrouchBeforeShotCount:      int(row.CrouchBeforeShotCount),
+		CrouchInsteadOfStrafeCount: int(row.CrouchInsteadOfStrafeCount),
+		FlickBalancePct:            row.FlickBalancePct,
 	}
 
 	// First-shot accuracy: a 0% column with no extras hint is indistinguishable
@@ -170,6 +199,8 @@ func LoadHabitInputs(ctx context.Context, q *store.Queries, demoID int64, steamI
 	// Pull mech "standing_shot_pct" out of extras_json — that's the
 	// fraction-of-standing-fires we need to surface shooting-in-motion. The
 	// column of the same name on player_match_analysis is *accuracy*, not motion.
+	// Engagements rides in the same blob; we use it as the "any fires sampled"
+	// gate for the slice-11 micro metrics.
 	if row.ExtrasJson != "" && row.ExtrasJson != "{}" {
 		var extras map[string]any
 		if jsonErr := json.Unmarshal([]byte(row.ExtrasJson), &extras); jsonErr == nil {
@@ -177,6 +208,12 @@ func LoadHabitInputs(ctx context.Context, q *store.Queries, demoID int64, steamI
 				if f, ok := toFloat64(v); ok {
 					in.StandingShotMechRatio = f
 					in.HasStandingShotMechData = true
+				}
+			}
+			if v, ok := extras["engagements"]; ok {
+				if f, ok := toFloat64(v); ok {
+					in.FireCount = int(f)
+					in.HasMicroData = f > 0
 				}
 			}
 		}
@@ -213,6 +250,14 @@ type HistoryRecord struct {
 
 	StandingShotMechRatio   float64
 	HasStandingShotMechData bool
+
+	// Slice 11 micro metrics (P3-2). HasMicroData mirrors HabitInputs and
+	// gates the rows on having at least one fire sampled in this demo.
+	TimeToStopMsAvg       float64
+	CrouchBeforeShotCount int
+	FlickBalancePct       float64
+	FireCount             int
+	HasMicroData          bool
 }
 
 // HistoryPoint is one (demo, value) pair returned by HistoryForKey — the wire
@@ -257,6 +302,10 @@ func LoadHabitHistory(ctx context.Context, q *store.Queries, steamID string, lim
 			RepeatedDeathZones: int(r.RepeatedDeathZones),
 
 			UntradedDeathsCount: int(r.UntradedCount),
+
+			TimeToStopMsAvg:       r.TimeToStopMsAvg,
+			CrouchBeforeShotCount: int(r.CrouchBeforeShotCount),
+			FlickBalancePct:       r.FlickBalancePct,
 		}
 		if r.ExtrasJson != "" && r.ExtrasJson != "{}" {
 			var extras map[string]any
@@ -265,6 +314,12 @@ func LoadHabitHistory(ctx context.Context, q *store.Queries, steamID string, lim
 					if f, ok := toFloat64(v); ok {
 						rec.StandingShotMechRatio = f
 						rec.HasStandingShotMechData = true
+					}
+				}
+				if v, ok := extras["engagements"]; ok {
+					if f, ok := toFloat64(v); ok {
+						rec.FireCount = int(f)
+						rec.HasMicroData = f > 0
 					}
 				}
 			}
@@ -281,6 +336,11 @@ func LoadHabitHistory(ctx context.Context, q *store.Queries, steamID string, lim
 // treat it as "not present" rather than zero.
 func HabitValueFromRecord(key HabitKey, rec HistoryRecord) (float64, bool) {
 	switch key {
+	case HabitCounterStrafe:
+		if !rec.HasMicroData || rec.TimeToStopMsAvg <= 0 {
+			return 0, false
+		}
+		return rec.TimeToStopMsAvg, true
 	case HabitReaction:
 		if rec.TimeToFireMsAvg <= 0 {
 			return 0, false
@@ -303,6 +363,16 @@ func HabitValueFromRecord(key HabitKey, rec HistoryRecord) (float64, bool) {
 			motion = 100
 		}
 		return motion, true
+	case HabitCrouchBeforeShot:
+		if !rec.HasMicroData || rec.FireCount <= 0 {
+			return 0, false
+		}
+		return 100.0 * float64(rec.CrouchBeforeShotCount) / float64(rec.FireCount), true
+	case HabitFlickBalance:
+		if !rec.HasMicroData || rec.FlickBalancePct <= 0 {
+			return 0, false
+		}
+		return rec.FlickBalancePct, true
 	case HabitTradeTiming:
 		return rec.TradePctRatio * 100, true
 	case HabitUntradedDeaths:

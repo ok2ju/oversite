@@ -119,4 +119,27 @@ func TestParseDemo_NoKnifeRounds(t *testing.T) {
 			t.Errorf("round %d has no weapon_fire events", round)
 		}
 	}
+
+	// P3-1 acceptance: pitch + crouch are populated on alive samples. demoinfocs
+	// reports ViewDirectionY ≈ 0 + IsDucking == false for the very first frame
+	// after a respawn, so we measure "non-default" coverage as
+	// pitch != 0 OR crouch == true. > 95% of alive samples should clear the bar
+	// in a real match (warmup / pre-match samples are excluded by skipWarmup).
+	var aliveTicks, populatedTicks int
+	for _, ts := range result.Ticks {
+		if !ts.IsAlive {
+			continue
+		}
+		aliveTicks++
+		if ts.Pitch != 0 || ts.Crouch {
+			populatedTicks++
+		}
+	}
+	if aliveTicks == 0 {
+		t.Fatal("no alive tick samples — fixture parsed without TickSnapshots")
+	}
+	if pct := float64(populatedTicks) / float64(aliveTicks); pct < 0.95 {
+		t.Errorf("pitch/crouch populated on %.1f%% of alive ticks (%d/%d), want >= 95%%",
+			pct*100, populatedTicks, aliveTicks)
+	}
 }

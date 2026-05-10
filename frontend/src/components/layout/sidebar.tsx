@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom"
-import { Folder, Crosshair, Goal, Star, Settings } from "lucide-react"
+import { Folder, Crosshair, Goal, Star, Settings, Target } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useDemoCount } from "@/hooks/use-demos"
 import { Logo } from "@/components/brand/logo"
@@ -14,6 +14,7 @@ type NavItem = {
 
 const mainItems: NavItem[] = [
   { href: "/demos", label: "Demos", icon: Folder },
+  { href: "/coaching", label: "Coaching", icon: Target },
   { href: "/heatmaps", label: "Heatmaps", icon: Crosshair, disabled: true },
   { href: "/strats", label: "Strategies", icon: Goal, disabled: true },
   { href: "/lineups", label: "Lineups", icon: Star, disabled: true },

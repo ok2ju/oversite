@@ -21,7 +21,7 @@ describe("Sidebar", () => {
       }
     }
 
-    expect(navItems).toHaveLength(5)
+    expect(navItems).toHaveLength(6)
   })
 
   it("renders the Oversite brand", () => {

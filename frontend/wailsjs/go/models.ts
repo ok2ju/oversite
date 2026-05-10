@@ -14,6 +14,136 @@ export namespace main {
 	        this.status = source["status"];
 	    }
 	}
+	export class HistoryPoint {
+	    demo_id: string;
+	    match_date: string;
+	    value: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new HistoryPoint(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.demo_id = source["demo_id"];
+	        this.match_date = source["match_date"];
+	        this.value = source["value"];
+	    }
+	}
+	export class CoachingHabitRow {
+	    key: string;
+	    label: string;
+	    description: string;
+	    unit: string;
+	    direction: string;
+	    value: number;
+	    status: string;
+	    good_threshold: number;
+	    warn_threshold: number;
+	    good_min: number;
+	    good_max: number;
+	    warn_min: number;
+	    warn_max: number;
+	    previous_value?: number;
+	    delta?: number;
+	    trend: HistoryPoint[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CoachingHabitRow(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.label = source["label"];
+	        this.description = source["description"];
+	        this.unit = source["unit"];
+	        this.direction = source["direction"];
+	        this.value = source["value"];
+	        this.status = source["status"];
+	        this.good_threshold = source["good_threshold"];
+	        this.warn_threshold = source["warn_threshold"];
+	        this.good_min = source["good_min"];
+	        this.good_max = source["good_max"];
+	        this.warn_min = source["warn_min"];
+	        this.warn_max = source["warn_max"];
+	        this.previous_value = source["previous_value"];
+	        this.delta = source["delta"];
+	        this.trend = this.convertValues(source["trend"], HistoryPoint);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class MistakeKindCount {
+	    kind: string;
+	    total: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MistakeKindCount(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.total = source["total"];
+	    }
+	}
+	export class CoachingReport {
+	    steam_id: string;
+	    lookback: number;
+	    habits: CoachingHabitRow[];
+	    errors: MistakeKindCount[];
+	    latest_demo_id: string;
+	    last_demo_at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CoachingReport(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.steam_id = source["steam_id"];
+	        this.lookback = source["lookback"];
+	        this.habits = this.convertValues(source["habits"], CoachingHabitRow);
+	        this.errors = this.convertValues(source["errors"], MistakeKindCount);
+	        this.latest_demo_id = source["latest_demo_id"];
+	        this.last_demo_at = source["last_demo_at"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class DamageByOpponent {
 	    steam_id: string;
 	    player_name: string;
@@ -203,22 +333,6 @@ export namespace main {
 	        this.extra_data = source["extra_data"];
 	    }
 	}
-	export class HeatmapPoint {
-	    x: number;
-	    y: number;
-	    kill_count: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new HeatmapPoint(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.x = source["x"];
-	        this.y = source["y"];
-	        this.kill_count = source["kill_count"];
-	    }
-	}
 	export class HabitRow {
 	    key: string;
 	    label: string;
@@ -233,13 +347,13 @@ export namespace main {
 	    good_max: number;
 	    warn_min: number;
 	    warn_max: number;
-	    previous_value: number | null;
-	    delta: number | null;
-
+	    previous_value?: number;
+	    delta?: number;
+	
 	    static createFrom(source: any = {}) {
 	        return new HabitRow(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.key = source["key"];
@@ -264,11 +378,11 @@ export namespace main {
 	    steam_id: string;
 	    as_of: string;
 	    habits: HabitRow[];
-
+	
 	    static createFrom(source: any = {}) {
 	        return new HabitReport(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.demo_id = source["demo_id"];
@@ -276,7 +390,7 @@ export namespace main {
 	        this.as_of = source["as_of"];
 	        this.habits = this.convertValues(source["habits"], HabitRow);
 	    }
-
+	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
 		    if (!a) {
 		        return a;
@@ -295,32 +409,34 @@ export namespace main {
 		    return a;
 		}
 	}
-	export class HistoryPoint {
-	    demo_id: string;
-	    match_date: string;
-	    value: number;
-
+	
+	export class HeatmapPoint {
+	    x: number;
+	    y: number;
+	    kill_count: number;
+	
 	    static createFrom(source: any = {}) {
-	        return new HistoryPoint(source);
+	        return new HeatmapPoint(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.demo_id = source["demo_id"];
-	        this.match_date = source["match_date"];
-	        this.value = source["value"];
+	        this.x = source["x"];
+	        this.y = source["y"];
+	        this.kill_count = source["kill_count"];
 	    }
 	}
+	
 	export class HitGroupBreakdown {
 	    hit_group: number;
 	    label: string;
 	    damage: number;
 	    hits: number;
-
+	
 	    static createFrom(source: any = {}) {
 	        return new HitGroupBreakdown(source);
 	    }
-
+	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.hit_group = source["hit_group"];
@@ -419,6 +535,24 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class MistakeCoOccurrence {
+	    id: number;
+	    kind: string;
+	    title: string;
+	    tick: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MistakeCoOccurrence(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.kind = source["kind"];
+	        this.title = source["title"];
+	        this.tick = source["tick"];
+	    }
+	}
 	export class MistakeEntry {
 	    id: number;
 	    kind: string;
@@ -426,6 +560,7 @@ export namespace main {
 	    severity: number;
 	    title: string;
 	    suggestion: string;
+	    why_it_hurts: string;
 	    round_number: number;
 	    tick: number;
 	    steam_id: string;
@@ -443,6 +578,7 @@ export namespace main {
 	        this.severity = source["severity"];
 	        this.title = source["title"];
 	        this.suggestion = source["suggestion"];
+	        this.why_it_hurts = source["why_it_hurts"];
 	        this.round_number = source["round_number"];
 	        this.tick = source["tick"];
 	        this.steam_id = source["steam_id"];
@@ -454,6 +590,7 @@ export namespace main {
 	    round_start_tick: number;
 	    round_end_tick: number;
 	    freeze_end_tick: number;
+	    co_occurring: MistakeCoOccurrence[];
 	
 	    static createFrom(source: any = {}) {
 	        return new MistakeContext(source);
@@ -465,6 +602,7 @@ export namespace main {
 	        this.round_start_tick = source["round_start_tick"];
 	        this.round_end_tick = source["round_end_tick"];
 	        this.freeze_end_tick = source["freeze_end_tick"];
+	        this.co_occurring = this.convertValues(source["co_occurring"], MistakeCoOccurrence);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -485,6 +623,7 @@ export namespace main {
 		    return a;
 		}
 	}
+	
 	
 	export class MovementStats {
 	    distance_units: number;
@@ -508,6 +647,26 @@ export namespace main {
 	        this.stationary_ratio = source["stationary_ratio"];
 	        this.walking_ratio = source["walking_ratio"];
 	        this.running_ratio = source["running_ratio"];
+	    }
+	}
+	export class NextDrill {
+	    key: string;
+	    title: string;
+	    why: string;
+	    duration: string;
+	    chips: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new NextDrill(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.title = source["title"];
+	        this.why = source["why"];
+	        this.duration = source["duration"];
+	        this.chips = source["chips"];
 	    }
 	}
 	
@@ -863,6 +1022,8 @@ export namespace main {
 	    y: number;
 	    z: number;
 	    yaw: number;
+	    pitch: number;
+	    crouch: boolean;
 	    health: number;
 	    armor: number;
 	    is_alive: boolean;
@@ -885,6 +1046,8 @@ export namespace main {
 	        this.y = source["y"];
 	        this.z = source["z"];
 	        this.yaw = source["yaw"];
+	        this.pitch = source["pitch"];
+	        this.crouch = source["crouch"];
 	        this.health = source["health"];
 	        this.armor = source["armor"];
 	        this.is_alive = source["is_alive"];

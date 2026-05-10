@@ -10,7 +10,8 @@ import type { MistakeContext } from "@/types/mistake"
 export function useMistakeContext(id: number | null) {
   return useQuery({
     queryKey: ["mistake-context", id],
-    queryFn: () => GetMistakeContext(id!) as Promise<MistakeContext | null>,
+    queryFn: () =>
+      GetMistakeContext(id!) as unknown as Promise<MistakeContext | null>,
     enabled: id != null,
     staleTime: Infinity,
   })

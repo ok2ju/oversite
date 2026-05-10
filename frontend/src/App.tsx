@@ -11,6 +11,7 @@ const HeatmapsPage = lazy(() => import("@/routes/heatmaps"))
 const StratsPage = lazy(() => import("@/routes/strats"))
 const StratBoardPage = lazy(() => import("@/routes/strat-board"))
 const LineupsPage = lazy(() => import("@/routes/lineups"))
+const CoachingPage = lazy(() => import("@/routes/coaching"))
 const SettingsPage = lazy(() => import("@/routes/settings"))
 
 function RouteFallback() {
@@ -40,6 +41,7 @@ function App() {
                 <Route path="strats" element={<StratsPage />} />
                 <Route path="strats/:id" element={<StratBoardPage />} />
                 <Route path="lineups" element={<LineupsPage />} />
+                <Route path="coaching" element={<CoachingPage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
             </Routes>

@@ -392,6 +392,100 @@ export const mockAppBindings = {
     >()
     .mockResolvedValue([]),
 
+  GetNextDrill: vi
+    .fn<
+      (
+        demoId: string,
+        steamId: string,
+      ) => Promise<{
+        key: string
+        title: string
+        why: string
+        duration: string
+        chips: string[]
+      }>
+    >()
+    .mockResolvedValue({
+      key: "",
+      title: "Light warmup — keep your routine",
+      why: "You're hitting your norms. Keep the muscle memory warm.",
+      duration: "5 min",
+      chips: ["warmup", "maintenance"],
+    }),
+
+  GetCoachingReport: vi
+    .fn<
+      (
+        steamId: string,
+        lookback: number,
+      ) => Promise<{
+        steam_id: string
+        lookback: number
+        habits: Array<{
+          key: string
+          label: string
+          description: string
+          unit: string
+          direction: string
+          value: number
+          status: string
+          good_threshold: number
+          warn_threshold: number
+          good_min: number
+          good_max: number
+          warn_min: number
+          warn_max: number
+          previous_value: number | null
+          delta: number | null
+          trend: Array<{
+            demo_id: string
+            match_date: string
+            value: number
+          }>
+        }>
+        errors: Array<{ kind: string; total: number }>
+        latest_demo_id: string
+        last_demo_at: string
+      }>
+    >()
+    .mockResolvedValue({
+      steam_id: "",
+      lookback: 8,
+      habits: [],
+      errors: [],
+      latest_demo_id: "",
+      last_demo_at: "",
+    }),
+
+  GetMistakeContext: vi
+    .fn<
+      (mistakeId: number) => Promise<{
+        entry: {
+          id: number
+          kind: string
+          category: string
+          severity: number
+          title: string
+          suggestion: string
+          why_it_hurts: string
+          round_number: number
+          tick: number
+          steam_id: string
+          extras: Record<string, unknown> | null
+        }
+        round_start_tick: number
+        round_end_tick: number
+        freeze_end_tick: number
+        co_occurring: Array<{
+          id: number
+          kind: string
+          title: string
+          tick: number
+        }> | null
+      } | null>
+    >()
+    .mockResolvedValue(null),
+
   GetPlayerRoundAnalysis: vi
     .fn<
       (

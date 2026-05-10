@@ -34,9 +34,11 @@ type fixtureAnalysisTick struct {
 	Y       float32 `json:"y"`
 	Z       float32 `json:"z"`
 	Yaw     float32 `json:"yaw"`
+	Pitch   float32 `json:"pitch,omitempty"`
 	Vx      float32 `json:"vx"`
 	Vy      float32 `json:"vy"`
 	IsAlive *bool   `json:"is_alive,omitempty"`
+	Crouch  bool    `json:"crouch,omitempty"`
 }
 
 type fixtureRound struct {
@@ -139,9 +141,11 @@ func (fi fixtureInput) toParseResult() *demo.ParseResult {
 				Y:       t.Y,
 				Z:       t.Z,
 				Yaw:     t.Yaw,
+				Pitch:   t.Pitch,
 				Vx:      t.Vx,
 				Vy:      t.Vy,
 				IsAlive: alive,
+				Crouch:  t.Crouch,
 			}
 		}
 	}

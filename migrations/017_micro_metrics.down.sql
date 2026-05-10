@@ -1,0 +1,6 @@
+ALTER TABLE player_match_analysis DROP COLUMN flick_balance_pct;
+ALTER TABLE player_match_analysis DROP COLUMN flick_undershoot_avg_deg;
+ALTER TABLE player_match_analysis DROP COLUMN flick_overshoot_avg_deg;
+ALTER TABLE player_match_analysis DROP COLUMN crouch_instead_of_strafe_count;
+ALTER TABLE player_match_analysis DROP COLUMN crouch_before_shot_count;
+ALTER TABLE player_match_analysis DROP COLUMN time_to_stop_ms_avg;

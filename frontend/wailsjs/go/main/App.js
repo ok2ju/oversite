@@ -18,6 +18,10 @@ export function GetAnalysisStatus(arg1) {
   return window['go']['main']['App']['GetAnalysisStatus'](arg1);
 }
 
+export function GetCoachingReport(arg1, arg2) {
+  return window['go']['main']['App']['GetCoachingReport'](arg1, arg2);
+}
+
 export function GetDemoByID(arg1) {
   return window['go']['main']['App']['GetDemoByID'](arg1);
 }
@@ -64,6 +68,10 @@ export function GetMistakeContext(arg1) {
 
 export function GetMistakeTimeline(arg1, arg2) {
   return window['go']['main']['App']['GetMistakeTimeline'](arg1, arg2);
+}
+
+export function GetNextDrill(arg1, arg2) {
+  return window['go']['main']['App']['GetNextDrill'](arg1, arg2);
 }
 
 export function GetPlayerAnalysis(arg1, arg2) {

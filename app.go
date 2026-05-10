@@ -834,6 +834,7 @@ func (a *App) GetMistakeTimeline(demoID, steamID string) ([]MistakeEntry, error)
 			Severity:    severity,
 			Title:       tpl.Title,
 			Suggestion:  tpl.Suggestion,
+			WhyItHurts:  tpl.WhyItHurts,
 			RoundNumber: int(r.RoundNumber),
 			Tick:        r.Tick,
 			SteamID:     r.SteamID,
@@ -882,6 +883,7 @@ func (a *App) GetMistakeContext(mistakeID int64) (*MistakeContext, error) {
 		Severity:    severity,
 		Title:       tpl.Title,
 		Suggestion:  tpl.Suggestion,
+		WhyItHurts:  tpl.WhyItHurts,
 		RoundNumber: int(row.RoundNumber),
 		Tick:        row.Tick,
 		SteamID:     row.SteamID,
@@ -904,7 +906,60 @@ func (a *App) GetMistakeContext(mistakeID int64) (*MistakeContext, error) {
 			out.FreezeEndTick = r.FreezeEndTick
 		}
 	}
+	// Co-occurring mistakes — same (demo, player), within ±coOccurringWindowTicks
+	// of the pinned tick, excluding self. Reuses the existing list query so we
+	// don't have to add a tick-range SQL — match-level mistake counts are small
+	// enough (hundreds, not thousands) that an in-memory filter is cheaper than
+	// a new index.
+	if siblings, err := a.queries.ListAnalysisMistakesByDemoIDAndSteamID(a.ctx, store.ListAnalysisMistakesByDemoIDAndSteamIDParams{
+		DemoID:  row.DemoID,
+		SteamID: row.SteamID,
+	}); err == nil {
+		out.CoOccurring = collectCoOccurring(row.ID, row.Tick, siblings)
+	}
 	return out, nil
+}
+
+// coOccurringWindowTicks bounds the per-mistake co-occurrence chip row. Half a
+// second at 64 tickrate is wide enough to capture a multi-fault duel but
+// narrow enough that the chips refer to the same fight, not the next one.
+const coOccurringWindowTicks = 32
+
+// collectCoOccurring filters the player's full mistake list to those within
+// ±coOccurringWindowTicks of pinnedTick and not equal to pinnedID. Title /
+// kind come from analysis.TemplateForKind so the chip row can render without
+// extra round-trips. Capped at 4 entries — more than that overflows the chip
+// row visually and tends to indicate a noisy detection.
+func collectCoOccurring(pinnedID, pinnedTick int64, siblings []store.ListAnalysisMistakesByDemoIDAndSteamIDRow) []MistakeCoOccurrence {
+	const maxChips = 4
+	out := make([]MistakeCoOccurrence, 0, maxChips)
+	for _, s := range siblings {
+		if s.ID == pinnedID {
+			continue
+		}
+		dt := s.Tick - pinnedTick
+		if dt < 0 {
+			dt = -dt
+		}
+		if dt > coOccurringWindowTicks {
+			continue
+		}
+		tpl := analysis.TemplateForKind(s.Kind)
+		title := tpl.Title
+		if title == "" {
+			title = s.Kind
+		}
+		out = append(out, MistakeCoOccurrence{
+			ID:    s.ID,
+			Kind:  s.Kind,
+			Title: title,
+			Tick:  s.Tick,
+		})
+		if len(out) >= maxChips {
+			break
+		}
+	}
+	return out
 }
 
 // GetPlayerAnalysis returns the per-(demo, player) summary row written by the
@@ -1052,6 +1107,112 @@ func (a *App) GetHabitHistory(steamID, habitKey string, limit int) ([]HistoryPoi
 		}
 	}
 	return out, nil
+}
+
+// GetNextDrill returns the single drill prescribed for the player's worst
+// habit (priority: bad > warn, ties broken by impact rank — see
+// analysis.PickNextDrill / docs §6.2). Empty steamID, unknown
+// (demo, player), and "all good" all return the maintenance fallback so
+// the frontend can render the card without try/catching.
+func (a *App) GetNextDrill(demoID, steamID string) (NextDrill, error) {
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return NextDrill{}, fmt.Errorf("invalid demo id: %w", err)
+	}
+	if steamID == "" {
+		return drillToBinding(analysis.MaintenanceDrill), nil
+	}
+
+	in, ok, err := analysis.LoadHabitInputs(a.ctx, a.queries, id, steamID)
+	if err != nil {
+		return NextDrill{}, fmt.Errorf("loading habit inputs: %w", err)
+	}
+	if !ok {
+		return drillToBinding(analysis.MaintenanceDrill), nil
+	}
+
+	rows := analysis.BuildHabitReport(in)
+	return drillToBinding(analysis.PickNextDrill(rows)), nil
+}
+
+// drillToBinding flattens analysis.Drill to the wire-shape NextDrill. Lives
+// here so types.go stays free of analysis-package imports (mirrors
+// habitRowToBinding's pattern).
+func drillToBinding(d analysis.Drill) NextDrill {
+	chips := d.Chips
+	if chips == nil {
+		chips = []string{}
+	}
+	return NextDrill{
+		Key:      string(d.Key),
+		Title:    d.Title,
+		Why:      d.Why,
+		Duration: d.Duration,
+		Chips:    chips,
+	}
+}
+
+// GetCoachingReport returns the player's coaching landing surface — six
+// micro-habit cards aggregated across the last `lookback` analyzed demos plus
+// the per-kind mistake taxonomy strip. Empty steamID and "no demos for this
+// player" both return the empty report so the route can render an empty state
+// without try/catching the call.
+func (a *App) GetCoachingReport(steamID string, lookback int) (CoachingReport, error) {
+	if lookback <= 0 {
+		lookback = 8
+	}
+	out := CoachingReport{
+		SteamID:  steamID,
+		Lookback: lookback,
+		Habits:   []CoachingHabitRow{},
+		Errors:   []MistakeKindCount{},
+	}
+	if steamID == "" {
+		return out, nil
+	}
+
+	history, err := analysis.LoadHabitHistory(a.ctx, a.queries, steamID, lookback)
+	if err != nil {
+		return CoachingReport{}, fmt.Errorf("loading habit history: %w", err)
+	}
+
+	errors, err := analysis.LoadMistakeKindCounts(a.ctx, a.queries, steamID, lookback)
+	if err != nil {
+		return CoachingReport{}, fmt.Errorf("loading mistake kind counts: %w", err)
+	}
+
+	report := analysis.BuildCoachingReport(steamID, lookback, history, errors)
+
+	out.Habits = make([]CoachingHabitRow, len(report.Habits))
+	for i, r := range report.Habits {
+		out.Habits[i] = coachingHabitRowToBinding(r)
+	}
+	out.Errors = make([]MistakeKindCount, len(report.Errors))
+	for i, e := range report.Errors {
+		out.Errors[i] = MistakeKindCount{Kind: e.Kind, Total: e.Total}
+	}
+	if report.LatestDemoID != 0 {
+		out.LatestDemoID = strconv.FormatInt(report.LatestDemoID, 10)
+	}
+	out.LastDemoAt = report.LastDemoAt
+	return out, nil
+}
+
+// coachingHabitRowToBinding flattens analysis.CoachingHabitRow to the
+// wire-shape CoachingHabitRow, mapping the trend points to wire HistoryPoint.
+func coachingHabitRowToBinding(r analysis.CoachingHabitRow) CoachingHabitRow {
+	trend := make([]HistoryPoint, len(r.Trend))
+	for i, p := range r.Trend {
+		trend[i] = HistoryPoint{
+			DemoID:    strconv.FormatInt(p.DemoID, 10),
+			MatchDate: p.MatchDate,
+			Value:     p.Value,
+		}
+	}
+	return CoachingHabitRow{
+		HabitRow: habitRowToBinding(r.HabitRow),
+		Trend:    trend,
+	}
 }
 
 // habitRowToBinding flattens the typed enums to wire-friendly strings. Living
@@ -1745,6 +1906,8 @@ func storeTickDatumToBinding(d store.TickDatum) TickData {
 		Y:           roundToInt16(d.Y),
 		Z:           roundToInt16(d.Z),
 		Yaw:         roundToInt16(d.Yaw),
+		Pitch:       roundToInt16(d.Pitch),
+		Crouch:      d.Crouch != 0,
 		Health:      int(d.Health),
 		Armor:       int(d.Armor),
 		IsAlive:     d.IsAlive != 0,

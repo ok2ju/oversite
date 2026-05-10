@@ -145,10 +145,19 @@ type RoundParticipant struct {
 // covers the team-bars use case at ~5000× fewer rows. See RoundParticipant
 // and migration 011.
 type TickSnapshot struct {
-	Tick       int
-	SteamID    string // Steam64ID as string
-	X, Y, Z    float64
-	Yaw        float64
+	Tick    int
+	SteamID string // Steam64ID as string
+	X, Y, Z float64
+	Yaw     float64
+	// Pitch is the player's vertical view angle (Player.ViewDirectionY()),
+	// degrees, downward-positive in the demoinfocs convention. Powers the
+	// over/under-flick classifier and the per-mistake mouse-spiral viz (P3-1).
+	Pitch float64
+	// Crouch reports Player.IsDucking() at the sample. Used by the
+	// crouch_before_shot habit + cause-tag (P2-1). False on demos imported
+	// before the slice-11 parser change so analyzer rules treat absence as
+	// "not crouched" rather than "unknown".
+	Crouch     bool
 	Health     int
 	Armor      int
 	IsAlive    bool
@@ -189,8 +198,17 @@ type AnalysisTick struct {
 	SteamID uint64
 	X, Y, Z float32
 	Yaw     float32
+	// Pitch (degrees, downward-positive) powers the over/under-flick
+	// classifier and the per-mistake mouse-spiral viz (P3-2 / P4-1). Demos
+	// imported before slice 11 carry zero pitch — analyzer rules that read
+	// it should treat zero as "not measured" rather than "looking dead-on".
+	Pitch   float32
 	Vx, Vy  float32
 	IsAlive bool
+	// Crouch reports Player.IsDucking() at the sample. Drives the
+	// crouch_before_shot habit metric (P3-2). Old demos default to false so
+	// counters degrade gracefully to zero.
+	Crouch bool
 	// AmmoClip is the active weapon's clip count at the sample. Used by the
 	// caught-reloading rule to detect "died with clip < full" without poking
 	// per-weapon max-clip tables — the rule only flags clip == 0 cases (the
@@ -1056,9 +1074,11 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 					Y:        float32(pos.Y),
 					Z:        float32(pos.Z),
 					Yaw:      float32(player.ViewDirectionX()),
+					Pitch:    float32(player.ViewDirectionY()),
 					Vx:       vx,
 					Vy:       vy,
 					IsAlive:  player.IsAlive(),
+					Crouch:   player.IsDucking(),
 					AmmoClip: int16(ammoClip),
 				})
 			}
@@ -1070,6 +1090,8 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 				Y:           pos.Y,
 				Z:           pos.Z,
 				Yaw:         float64(player.ViewDirectionX()),
+				Pitch:       float64(player.ViewDirectionY()),
+				Crouch:      player.IsDucking(),
 				Health:      player.Health(),
 				Armor:       player.Armor(),
 				IsAlive:     player.IsAlive(),

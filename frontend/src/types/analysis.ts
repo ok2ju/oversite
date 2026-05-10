@@ -153,3 +153,40 @@ export interface HistoryPoint {
   match_date: string
   value: number
 }
+
+// Mirrors main.NextDrill — the single drill prescription rendered by the
+// NextDrillCard on the analysis page. `key` is empty when the maintenance
+// fallback is returned (no bad/warn habit found); the card uses that as
+// the discriminator for "you're hitting your norms" copy.
+export interface NextDrill {
+  key: HabitKey | ""
+  title: string
+  why: string
+  duration: string
+  chips: string[]
+}
+
+// Mirrors main.CoachingHabitRow — a HabitRow with a per-card Trend sequence
+// powering the sparkline. Aggregated value is already classified server-side
+// via the norm catalog so the card never re-implements thresholds.
+export interface CoachingHabitRow extends HabitRow {
+  trend: HistoryPoint[]
+}
+
+// Mirrors main.MistakeKindCount — one row in the coaching errors strip.
+export interface MistakeKindCount {
+  kind: string
+  total: number
+}
+
+// Mirrors main.CoachingReport — the response shape of GetCoachingReport.
+// `latest_demo_id` is the empty string when the player has no analyzed demos
+// yet; the CTA is hidden in that case.
+export interface CoachingReport {
+  steam_id: string
+  lookback: number
+  habits: CoachingHabitRow[]
+  errors: MistakeKindCount[]
+  latest_demo_id: string
+  last_demo_at: string
+}

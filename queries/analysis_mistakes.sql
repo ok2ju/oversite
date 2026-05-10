@@ -39,3 +39,4 @@ FROM analysis_mistakes
 WHERE demo_id = @demo_id
   AND steam_id = @steam_id
   AND kind = @kind;
+
