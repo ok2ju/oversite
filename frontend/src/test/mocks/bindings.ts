@@ -303,6 +303,23 @@ export const mockAppBindings = {
       { x: 300.0, y: 400.0, kill_count: 1 },
     ]),
 
+  GetMistakeTimeline: vi
+    .fn<
+      (
+        demoId: string,
+        steamId: string,
+      ) => Promise<
+        Array<{
+          kind: string
+          round_number: number
+          tick: number
+          steam_id: string
+          extras: Record<string, unknown> | null
+        }>
+      >
+    >()
+    .mockResolvedValue([]),
+
   GetUniqueWeapons: vi
     .fn<(demoIDs: number[]) => Promise<string[]>>()
     .mockResolvedValue(["AK-47", "M4A1", "AWP"]),

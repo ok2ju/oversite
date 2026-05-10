@@ -68,6 +68,7 @@ tmp/
 # Claude
 .claude/worktrees
 .claude/temp
+.claude/tasks
 
 testdata/demos
 docs/design-handoff

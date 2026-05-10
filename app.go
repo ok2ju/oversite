@@ -20,6 +20,7 @@ import (
 
 	"github.com/ok2ju/oversite/internal/database"
 	"github.com/ok2ju/oversite/internal/demo"
+	"github.com/ok2ju/oversite/internal/demo/analysis"
 	"github.com/ok2ju/oversite/internal/logging"
 	"github.com/ok2ju/oversite/internal/store"
 	"github.com/ok2ju/oversite/migrations"
@@ -445,10 +446,31 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		a.failDemo(demoID, fmt.Sprintf("ingest events: %v", err), emitProgress)
 		return
 	}
+
+	// Mechanical-analysis pass: runs over the in-memory events (still
+	// available — IngestGameEvents only reads them) and persists per-player
+	// findings into analysis_mistakes. Bracketed by progress events so the
+	// UI's parse-progress bar covers the previously silent gap between
+	// "ingest events" and "complete".
+	emitProgress("analyzing", 80)
+	mistakes, analysisErr := analysis.Run(result, roundMap)
+	if analysisErr != nil {
+		slog.Error("parseDemo: run analyzer", append(logCtx, "err", analysisErr)...)
+		a.failDemo(demoID, fmt.Sprintf("run analyzer: %v", analysisErr), emitProgress)
+		return
+	}
+	if err := analysis.Persist(a.ctx, a.db, demoID, mistakes); err != nil {
+		slog.Error("parseDemo: persist analyzer mistakes", append(logCtx, "err", err)...)
+		a.failDemo(demoID, fmt.Sprintf("persist analysis: %v", err), emitProgress)
+		return
+	}
+	emitProgress("analyzing", 95)
+
 	// Drop our reference to the (potentially 100+ MB) events slice so the
 	// next GC cycle can reclaim it before we move on to the metadata update
 	// and emit "complete". The post-parse aggregation (lineups, kill→hurt
-	// pairing) is already done by the time IngestGameEvents returns.
+	// pairing) is already done by the time IngestGameEvents returns, and
+	// analysis.Run finished consuming the slice above.
 	result.Events = nil
 	result.Lineups = nil
 	result.Rounds = nil
@@ -713,6 +735,50 @@ func (a *App) GetAllRosters(demoID string) (map[int][]PlayerRosterEntry, error) 
 			PlayerName: r.PlayerName,
 			TeamSide:   r.TeamSide,
 		})
+	}
+	return result, nil
+}
+
+// GetMistakeTimeline returns the chronologically ordered list of analyzer
+// mistakes for a (demo, player). Unknown demos / unknown players return an
+// empty slice rather than an error — the side panel renders an empty state
+// for the latter and treats the former as "no analysis yet".
+func (a *App) GetMistakeTimeline(demoID, steamID string) ([]MistakeEntry, error) {
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid demo id: %w", err)
+	}
+	if steamID == "" {
+		return []MistakeEntry{}, nil
+	}
+
+	rows, err := a.queries.ListAnalysisMistakesByDemoIDAndSteamID(a.ctx, store.ListAnalysisMistakesByDemoIDAndSteamIDParams{
+		DemoID:  id,
+		SteamID: steamID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("getting mistake timeline: %w", err)
+	}
+
+	result := make([]MistakeEntry, len(rows))
+	for i, r := range rows {
+		entry := MistakeEntry{
+			Kind:        r.Kind,
+			RoundNumber: int(r.RoundNumber),
+			Tick:        r.Tick,
+			SteamID:     r.SteamID,
+		}
+		// extras_json is stored as a TEXT blob; decode lazily so the frontend
+		// can read individual rule fields without a second round-trip. A
+		// malformed blob (shouldn't happen — Persist always marshals) is
+		// surfaced as an empty map so the panel still renders the row.
+		if r.ExtrasJson != "" && r.ExtrasJson != "{}" {
+			extras := map[string]any{}
+			if err := json.Unmarshal([]byte(r.ExtrasJson), &extras); err == nil {
+				entry.Extras = extras
+			}
+		}
+		result[i] = entry
 	}
 	return result, nil
 }

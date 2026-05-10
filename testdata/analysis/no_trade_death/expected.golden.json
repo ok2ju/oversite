@@ -1,0 +1,22 @@
+[
+  {
+    "steam_id": "alice",
+    "round_number": 1,
+    "tick": 300,
+    "kind": "no_trade_death",
+    "extras": {
+      "killer_steam_id": "carol",
+      "weapon": "m4a1"
+    }
+  },
+  {
+    "steam_id": "bob",
+    "round_number": 2,
+    "tick": 6000,
+    "kind": "no_trade_death",
+    "extras": {
+      "killer_steam_id": "alice",
+      "weapon": "ak47"
+    }
+  }
+]

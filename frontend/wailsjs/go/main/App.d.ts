@@ -20,6 +20,8 @@ export function GetEventsByTypes(arg1:string,arg2:Array<string>):Promise<Array<m
 
 export function GetHeatmapData(arg1:Array<number>,arg2:Array<string>,arg3:string,arg4:string):Promise<Array<main.HeatmapPoint>>;
 
+export function GetMistakeTimeline(arg1:string,arg2:string):Promise<Array<main.MistakeEntry>>;
+
 export function GetPlayerMatchStats(arg1:string,arg2:string):Promise<main.PlayerMatchStats>;
 
 export function GetRoundLoadouts(arg1:string):Promise<Record<number, Array<main.RoundLoadoutEntry>>>;

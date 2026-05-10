@@ -222,6 +222,17 @@ type UtilityStats struct {
 	EnemiesFlashed         int     `json:"enemies_flashed"`
 }
 
+// MistakeEntry is a single per-player analysis finding (e.g. an untraded
+// death). Returned chronologically from GetMistakeTimeline; the viewer side
+// panel renders one row per entry.
+type MistakeEntry struct {
+	Kind        string         `json:"kind"`
+	RoundNumber int            `json:"round_number"`
+	Tick        int64          `json:"tick"`
+	SteamID     string         `json:"steam_id"`
+	Extras      map[string]any `json:"extras"`
+}
+
 // HitGroupBreakdown is one row in the damage-by-hit-group breakdown.
 type HitGroupBreakdown struct {
 	HitGroup int    `json:"hit_group"`

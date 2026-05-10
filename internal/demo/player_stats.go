@@ -172,9 +172,15 @@ type DamageByOpponent struct {
 	Damage     int
 }
 
-// tradeWindowSeconds defines the window in which a kill counts as a trade for
-// a teammate's death.
-const tradeWindowSeconds = 5.0
+// TradeWindowSeconds defines the window in which a kill counts as a trade for
+// a teammate's death. Exported so internal/demo/analysis can reuse the same
+// threshold without drifting — see analysis.TradeWindowSeconds.
+const TradeWindowSeconds = 5.0
+
+// tradeWindowSeconds is retained as a package-internal alias so existing
+// consumers in this file keep their tighter spelling. Both names refer to the
+// same value; do not change one without the other.
+const tradeWindowSeconds = TradeWindowSeconds
 
 // weaponPrices is a hardcoded CS2 weapon → buy-menu price table. Used to
 // estimate per-round loadout value from the round_loadouts inventory list.

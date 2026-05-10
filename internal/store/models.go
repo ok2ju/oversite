@@ -8,6 +8,17 @@ import (
 	"database/sql"
 )
 
+type AnalysisMistake struct {
+	ID          int64
+	DemoID      int64
+	SteamID     string
+	RoundNumber int64
+	Tick        int64
+	Kind        string
+	ExtrasJson  string
+	CreatedAt   string
+}
+
 type Demo struct {
 	ID           int64
 	MapName      string
