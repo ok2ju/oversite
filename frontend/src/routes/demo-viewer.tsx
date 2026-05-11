@@ -14,7 +14,6 @@ import { Scoreboard } from "@/components/viewer/scoreboard"
 import { TeamBars } from "@/components/viewer/team-bars"
 import { KillLog } from "@/components/viewer/kill-log"
 import { PlayerStatsPanel } from "@/components/viewer/player-stats-panel"
-import { DemoRouteTabs } from "@/components/viewer/demo-route-tabs"
 
 export default function DemoViewerPage() {
   const { id } = useParams<{ id: string }>()
@@ -93,7 +92,7 @@ export default function DemoViewerPage() {
 
   if (isLoading) {
     return (
-      <div className="-m-6 flex h-[calc(100%+3rem)] items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     )
@@ -101,7 +100,7 @@ export default function DemoViewerPage() {
 
   if (isError || !demo) {
     return (
-      <div className="-m-6 flex h-[calc(100%+3rem)] items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <p className="text-muted-foreground">
           Demo not found or failed to load.
         </p>
@@ -111,7 +110,7 @@ export default function DemoViewerPage() {
 
   if (demo.status !== "ready") {
     return (
-      <div className="-m-6 flex h-[calc(100%+3rem)] items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <p className="text-muted-foreground">
           Demo is not ready for viewing (status: {demo.status}).
         </p>
@@ -121,7 +120,7 @@ export default function DemoViewerPage() {
 
   return (
     <div
-      className="relative -m-6 h-[calc(100%+3rem)] overflow-hidden bg-black"
+      className="relative h-full w-full overflow-hidden bg-black"
       data-testid="demo-viewer"
     >
       <ViewerCanvas />
@@ -136,9 +135,6 @@ export default function DemoViewerPage() {
       <PlaybackDock />
       <Scoreboard visible={scoreboardVisible} />
       <PlayerStatsPanel />
-      <div className="absolute right-3 top-3 z-40">
-        <DemoRouteTabs demoId={String(demo.id)} />
-      </div>
     </div>
   )
 }

@@ -1,10 +1,13 @@
 import { useMemo } from "react"
+import { Link } from "react-router-dom"
+import { ArrowLeft } from "lucide-react"
 import { useViewerStore } from "@/stores/viewer"
 import { useRounds } from "@/hooks/use-rounds"
 import { useRoundRoster } from "@/hooks/use-roster"
 import { formatRoundTime } from "@/lib/viewer/timeline-utils"
 import type { Round } from "@/types/round"
 import type { PlayerRosterEntry } from "@/types/roster"
+import { DemoRouteTabs } from "./demo-route-tabs"
 
 function getActiveRoundIndex(rounds: Round[], currentTick: number): number {
   for (let i = rounds.length - 1; i >= 0; i--) {
@@ -31,6 +34,7 @@ export function MatchHeader() {
   const demoId = useViewerStore((s) => s.demoId)
   const currentTick = useViewerStore((s) => s.currentTick)
   const tickRate = useViewerStore((s) => s.tickRate)
+  const mapName = useViewerStore((s) => s.mapName)
 
   const { data: rounds } = useRounds(demoId)
 
@@ -45,6 +49,7 @@ export function MatchHeader() {
     )
     return {
       roundNumber: active.round_number,
+      totalRounds: rounds.length,
       ctScore: prev?.ct_score ?? 0,
       tScore: prev?.t_score ?? 0,
       ctTeamName: active.ct_team_name,
@@ -70,66 +75,95 @@ export function MatchHeader() {
   return (
     <div
       data-testid="match-header"
-      className="pointer-events-none absolute left-1/2 top-3 z-10 flex -translate-x-1/2 items-stretch whitespace-nowrap"
+      className="pointer-events-auto absolute inset-x-0 top-0 z-30 flex h-[46px] items-center gap-4 border-b border-white/[0.06] bg-[#0b0d10]/95 px-4 backdrop-blur-md"
     >
-      {/* CT plate */}
-      <div className="hud-panel hud-stripe-ct flex items-center gap-3 rounded-l-md py-1.5 pl-4 pr-5">
-        <span
-          aria-hidden="true"
-          className="h-1.5 w-1.5 rotate-45 bg-sky-400 shadow-[0_0_8px_2px_rgba(56,189,248,0.65)]"
-        />
-        <span
-          data-testid="match-header-team-ct"
-          className="hud-callsign text-[11px] font-semibold text-sky-300"
-        >
-          {ctTeam}
+      <Link
+        to="/demos"
+        data-testid="match-header-back"
+        aria-label="Back to demos"
+        title="Back to demos"
+        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-white/65 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30"
+      >
+        <ArrowLeft className="h-4 w-4" />
+      </Link>
+
+      <span aria-hidden="true" className="h-[22px] w-px bg-white/10" />
+
+      {/* Brand lockup */}
+      <span className="hud-callsign whitespace-nowrap text-[11px] text-white/45">
+        OVERSITE · DEMO
+      </span>
+
+      <span aria-hidden="true" className="h-[22px] w-px bg-white/10" />
+
+      {/* Scoreboard: T (gold) — vs — CT (blue) */}
+      <div className="flex items-center gap-2.5 whitespace-nowrap">
+        <span className="flex items-center gap-1.5">
+          <span
+            aria-hidden="true"
+            className="h-2 w-2 rounded-sm bg-amber-400 shadow-[0_0_6px_1px_rgba(251,191,36,0.55)]"
+          />
+          <span
+            data-testid="match-header-team-t"
+            className="font-mono text-[12px] text-white/65"
+          >
+            {tTeam}
+          </span>
+          <span
+            data-testid="match-header-t-score"
+            className="ml-1 font-mono text-[18px] font-bold leading-none tabular-nums text-white"
+          >
+            {header.tScore}
+          </span>
         </span>
-        <span
-          data-testid="match-header-ct-score"
-          className="hud-display text-[28px] font-semibold leading-none tabular-nums text-sky-200"
-          style={{ textShadow: "0 0 18px rgba(56,189,248,0.45)" }}
-        >
-          {String(header.ctScore).padStart(2, "0")}
+        <span className="font-mono text-[12px] text-white/35">vs</span>
+        <span className="flex items-center gap-1.5">
+          <span
+            data-testid="match-header-ct-score"
+            className="font-mono text-[18px] font-bold leading-none tabular-nums text-white"
+          >
+            {header.ctScore}
+          </span>
+          <span
+            data-testid="match-header-team-ct"
+            className="ml-1 font-mono text-[12px] text-white/65"
+          >
+            {ctTeam}
+          </span>
+          <span
+            aria-hidden="true"
+            className="h-2 w-2 rounded-sm bg-sky-400 shadow-[0_0_6px_1px_rgba(56,189,248,0.55)]"
+          />
         </span>
       </div>
 
-      {/* Center clock */}
-      <div className="relative flex flex-col items-center justify-center bg-black/85 px-5 py-1 ring-1 ring-inset ring-white/10">
-        <span className="hud-callsign text-[9px] text-white/45">
-          ROUND {String(header.roundNumber).padStart(2, "0")}
+      <span aria-hidden="true" className="h-[22px] w-px bg-white/10" />
+
+      {/* Match meta */}
+      <div className="flex items-center gap-2 whitespace-nowrap font-mono text-[12px] text-white/55">
+        <span>MAP</span>
+        <span className="text-white/85">{mapName ?? "—"}</span>
+        <span className="ml-3">RND</span>
+        <span className="text-white/85 tabular-nums">
+          {String(header.roundNumber).padStart(2, "0")}/
+          {String(header.totalRounds).padStart(2, "0")}
         </span>
+        <span className="ml-3">CLOCK</span>
         <span
           data-testid="match-header-round-time"
-          className="font-mono text-[15px] font-semibold leading-tight tabular-nums text-white"
+          className="text-white/85 tabular-nums"
         >
           {roundTime}
         </span>
-        {/* tiny score divider dot */}
-        <span
-          aria-hidden="true"
-          className="absolute -top-1 left-1/2 h-1 w-px -translate-x-1/2 bg-white/40"
-        />
+        <span className="ml-3">TICK</span>
+        <span className="text-white/85 tabular-nums">
+          {currentTick.toLocaleString()}
+        </span>
       </div>
 
-      {/* T plate */}
-      <div className="hud-panel hud-stripe-t flex items-center gap-3 rounded-r-md py-1.5 pl-5 pr-4">
-        <span
-          data-testid="match-header-t-score"
-          className="hud-display text-[28px] font-semibold leading-none tabular-nums text-orange-200"
-          style={{ textShadow: "0 0 18px rgba(251,146,60,0.45)" }}
-        >
-          {String(header.tScore).padStart(2, "0")}
-        </span>
-        <span
-          data-testid="match-header-team-t"
-          className="hud-callsign text-[11px] font-semibold text-orange-300"
-        >
-          {tTeam}
-        </span>
-        <span
-          aria-hidden="true"
-          className="h-1.5 w-1.5 rotate-45 bg-orange-400 shadow-[0_0_8px_2px_rgba(251,146,60,0.65)]"
-        />
+      {/* Route tabs */}
+      <div className="ml-auto">
+        <DemoRouteTabs demoId={demoId} />
       </div>
     </div>
   )

@@ -32,23 +32,24 @@ function markerBetween(prev: Round, next: Round): MarkerKind | null {
 }
 
 function pillClasses(side: string, active: boolean): string {
-  // Active pills are filled with the side accent and glow gently. Inactive
-  // pills are hollow with a thin bottom border in the side color so the
-  // win/loss cadence reads at a glance even before hovering. The "sky" /
-  // "amber" substrings are preserved for downstream tests.
+  // Round picker matches the timeline design: a compact rectangular tile
+  // with a 3px winner-side underline. Active is solid white with dark text
+  // so it reads as the current selection at a glance; inactive keeps the
+  // dark chrome and lets the underline carry the win-cadence cue. The
+  // "sky" / "amber" substrings remain in both states for downstream tests.
   if (side === "CT") {
     return active
-      ? "border-sky-400/70 bg-sky-400/90 text-white shadow-[0_0_10px_-1px_rgba(56,189,248,0.7)]"
-      : "border-transparent border-b-sky-400/60 bg-white/[0.03] text-sky-300/85 hover:bg-sky-400/15 hover:text-sky-100"
+      ? "bg-white text-black border-b-sky-400 hover:bg-white"
+      : "bg-white/[0.04] text-white/85 border-b-sky-400/70 hover:bg-sky-400/15 hover:text-sky-100"
   }
   if (side === "T") {
     return active
-      ? "border-amber-400/70 bg-amber-400/90 text-white shadow-[0_0_10px_-1px_rgba(251,191,36,0.7)]"
-      : "border-transparent border-b-amber-400/60 bg-white/[0.03] text-amber-300/85 hover:bg-amber-400/15 hover:text-amber-100"
+      ? "bg-white text-black border-b-amber-400 hover:bg-white"
+      : "bg-white/[0.04] text-white/85 border-b-amber-400/70 hover:bg-amber-400/15 hover:text-amber-100"
   }
   return active
-    ? "border-gray-400 bg-gray-500 text-white"
-    : "border-gray-400/70 text-gray-300 hover:bg-gray-500/20"
+    ? "bg-white text-black border-b-white/50"
+    : "bg-white/[0.04] text-white/55 border-b-transparent hover:bg-white/10"
 }
 
 interface RoundSelectorProps {
@@ -157,7 +158,7 @@ const RoundPill = memo(function RoundPill({
         aria-label={`Round ${round.round_number}`}
         aria-current={isActive ? "true" : undefined}
         onClick={() => onSelect(round)}
-        className={`hud-display flex h-7 min-w-[1.75rem] shrink-0 items-center justify-center rounded-md border-2 px-1.5 text-[12px] font-semibold tabular-nums transition-all duration-150 ${pillClasses(round.winner_side, isActive)}`}
+        className={`flex h-8 w-7 shrink-0 items-center justify-center rounded-[3px] border-b-[3px] border-l-0 border-r-0 border-t-0 font-mono text-[12px] font-semibold tabular-nums transition-colors duration-150 ${pillClasses(round.winner_side, isActive)}`}
       >
         {round.round_number}
       </button>

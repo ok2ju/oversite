@@ -36,37 +36,6 @@ export function zoomToPoint(
   }
 }
 
-export function clampPan(
-  viewport: Viewport,
-  mapW: number,
-  mapH: number,
-  screenW: number,
-  screenH: number,
-): Viewport {
-  const scaledW = mapW * viewport.zoom
-  const scaledH = mapH * viewport.zoom
-
-  let x: number
-  let y: number
-
-  if (scaledW <= screenW) {
-    // Map smaller than screen — center it
-    x = (screenW - scaledW) / 2
-  } else {
-    const minX = screenW - scaledW
-    x = Math.min(0, Math.max(minX, viewport.x))
-  }
-
-  if (scaledH <= screenH) {
-    y = (screenH - scaledH) / 2
-  } else {
-    const minY = screenH - scaledH
-    y = Math.min(0, Math.max(minY, viewport.y))
-  }
-
-  return { x, y, zoom: viewport.zoom }
-}
-
 export function screenToWorld(
   screenX: number,
   screenY: number,
@@ -101,6 +70,10 @@ export class Camera {
   private dragStartViewportX = 0
   private dragStartViewportY = 0
   private hasDragged = false
+  // Tracks whether the user has explicitly panned or zoomed. Once true, the
+  // camera stops auto-fitting on screen / map size changes — their viewport
+  // wins. resetView() clears it so an explicit "reset" re-engages auto-fit.
+  private hasUserAdjusted = false
   private onViewportChangeCb?: (viewport: Viewport) => void
 
   private boundOnWheel: (e: WheelEvent) => void
@@ -129,17 +102,59 @@ export class Camera {
   setScreenSize(width: number, height: number): void {
     this.screenWidth = width
     this.screenHeight = height
+    // Reflow the radar so it stays centered + fitted on container resize.
+    // Once the user pans/zooms, this is skipped — their explicit viewport
+    // takes priority over auto-fit.
+    if (!this.hasUserAdjusted) {
+      this.fitToScreen()
+      return
+    }
     this.applyAndPublish()
   }
 
   setMapSize(width: number, height: number): void {
     this.mapWidth = width
     this.mapHeight = height
+    if (!this.hasUserAdjusted) {
+      this.fitToScreen()
+      return
+    }
     this.applyAndPublish()
   }
 
   resetView(): void {
-    this.viewport = { ...DEFAULT_VIEWPORT }
+    this.hasUserAdjusted = false
+    this.fitToScreen()
+  }
+
+  // Compute the zoom that fits the map within the screen along the more
+  // constrained axis, then position the viewport so the scaled map is
+  // centered. If either dimension hasn't been set yet, fall back to the
+  // default viewport so we don't divide by zero.
+  private fitToScreen(): void {
+    if (
+      this.screenWidth <= 0 ||
+      this.screenHeight <= 0 ||
+      this.mapWidth <= 0 ||
+      this.mapHeight <= 0
+    ) {
+      this.viewport = { ...DEFAULT_VIEWPORT }
+      this.applyAndPublish()
+      return
+    }
+    const zoom = clampZoom(
+      Math.min(
+        this.screenWidth / this.mapWidth,
+        this.screenHeight / this.mapHeight,
+      ),
+    )
+    const scaledW = this.mapWidth * zoom
+    const scaledH = this.mapHeight * zoom
+    this.viewport = {
+      x: (this.screenWidth - scaledW) / 2,
+      y: (this.screenHeight - scaledH) / 2,
+      zoom,
+    }
     this.applyAndPublish()
   }
 
@@ -164,13 +179,7 @@ export class Camera {
     const cursorY = e.clientY - rect.top
 
     this.viewport = zoomToPoint(this.viewport, cursorX, cursorY, newZoom)
-    this.viewport = clampPan(
-      this.viewport,
-      this.mapWidth,
-      this.mapHeight,
-      this.screenWidth,
-      this.screenHeight,
-    )
+    this.hasUserAdjusted = true
     this.applyAndPublish()
   }
 
@@ -200,19 +209,12 @@ export class Camera {
     }
 
     this.hasDragged = true
-    const newViewport: Viewport = {
+    this.viewport = {
       x: this.dragStartViewportX + dx,
       y: this.dragStartViewportY + dy,
       zoom: this.viewport.zoom,
     }
-
-    this.viewport = clampPan(
-      newViewport,
-      this.mapWidth,
-      this.mapHeight,
-      this.screenWidth,
-      this.screenHeight,
-    )
+    this.hasUserAdjusted = true
     this.applyAndPublish()
   }
 

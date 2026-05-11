@@ -13,7 +13,6 @@ vi.mock("pixi.js", () => ({
 import {
   clampZoom,
   zoomToPoint,
-  clampPan,
   screenToWorld,
   MIN_ZOOM,
   MAX_ZOOM,
@@ -86,52 +85,6 @@ describe("camera pure functions", () => {
       expect(result.x).toBeCloseTo(viewport.x)
       expect(result.y).toBeCloseTo(viewport.y)
       expect(result.zoom).toBe(1.5)
-    })
-  })
-
-  describe("clampPan", () => {
-    const mapW = 1024
-    const mapH = 1024
-
-    it("returns viewport unchanged when fully visible at zoom 1", () => {
-      const viewport: Viewport = { x: 0, y: 0, zoom: 1 }
-      const result = clampPan(viewport, mapW, mapH, 1024, 1024)
-      expect(result.x).toBe(0)
-      expect(result.y).toBe(0)
-    })
-
-    it("clamps pan to prevent scrolling past right edge", () => {
-      const viewport: Viewport = { x: -2000, y: 0, zoom: 2 }
-      const result = clampPan(viewport, mapW, mapH, 800, 800)
-      // minX = 800 - 1024*2 = -1248
-      expect(result.x).toBe(-1248)
-    })
-
-    it("clamps pan to prevent scrolling past left edge", () => {
-      const viewport: Viewport = { x: 500, y: 0, zoom: 2 }
-      const result = clampPan(viewport, mapW, mapH, 800, 800)
-      expect(result.x).toBe(0)
-    })
-
-    it("clamps pan to prevent scrolling past bottom edge", () => {
-      const viewport: Viewport = { x: 0, y: -3000, zoom: 2 }
-      const result = clampPan(viewport, mapW, mapH, 800, 800)
-      // minY = 800 - 1024*2 = -1248
-      expect(result.y).toBe(-1248)
-    })
-
-    it("clamps pan to prevent scrolling past top edge", () => {
-      const viewport: Viewport = { x: 0, y: 200, zoom: 2 }
-      const result = clampPan(viewport, mapW, mapH, 800, 800)
-      expect(result.y).toBe(0)
-    })
-
-    it("centers map when zoomed out smaller than screen", () => {
-      const viewport: Viewport = { x: 0, y: 0, zoom: 0.5 }
-      const result = clampPan(viewport, mapW, mapH, 1024, 1024)
-      // map size = 512, screen = 1024 -> centered at (256, 256)
-      expect(result.x).toBe(256)
-      expect(result.y).toBe(256)
     })
   })
 
@@ -268,16 +221,33 @@ describe("Camera class", () => {
   })
 
   describe("resetView", () => {
-    it("resets viewport to default and publishes", () => {
+    it("fits the map to the current screen and publishes", () => {
       const cam = createCamera({ onViewportChange })
-      cam.setScreenSize(800, 600)
+      // Square map, wider-than-tall screen → height is the constraint and
+      // the map gets centered horizontally with letterboxing on the sides.
+      cam.setMapSize(1024, 1024)
+      cam.setScreenSize(2048, 1024)
+      onViewportChange.mockClear()
+
+      cam.resetView()
+
+      expect(onViewportChange).toHaveBeenCalledWith({
+        x: 512,
+        y: 0,
+        zoom: 1,
+      })
+      expect(cam.container.position.set).toHaveBeenCalledWith(512, 0)
+      expect(cam.container.scale.set).toHaveBeenCalledWith(1)
+      cam.destroy()
+    })
+
+    it("falls back to the default viewport when sizes are unset", () => {
+      const cam = createCamera({ onViewportChange })
       onViewportChange.mockClear()
 
       cam.resetView()
 
       expect(onViewportChange).toHaveBeenCalledWith(DEFAULT_VIEWPORT)
-      expect(cam.container.position.set).toHaveBeenCalledWith(0, 0)
-      expect(cam.container.scale.set).toHaveBeenCalledWith(1)
       cam.destroy()
     })
   })
