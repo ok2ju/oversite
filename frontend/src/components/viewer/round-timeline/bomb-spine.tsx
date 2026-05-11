@@ -1,4 +1,3 @@
-import { cn } from "@/lib/utils"
 import type { SpineModel } from "@/lib/timeline/types"
 
 interface BombSpineProps {
@@ -41,7 +40,6 @@ export function BombSpine({
   roundStartTick,
   roundEndTick,
 }: BombSpineProps) {
-  const freeze = range(spine.freeze, roundStartTick, roundEndTick)
   const live = range(spine.live, roundStartTick, roundEndTick)
   const postPlant = range(spine.postPlant, roundStartTick, roundEndTick)
   const bombBar = range(spine.bombBar, roundStartTick, roundEndTick)
@@ -52,15 +50,6 @@ export function BombSpine({
       className="relative h-3 overflow-hidden rounded-sm bg-white/[0.02]"
       aria-hidden="true"
     >
-      {freeze ? (
-        <span
-          data-testid="round-timeline-spine-freeze"
-          className={cn(
-            "absolute inset-y-0 bg-white/[0.04] ring-1 ring-inset ring-white/5",
-          )}
-          style={freeze}
-        />
-      ) : null}
       {live ? (
         <span
           data-testid="round-timeline-spine-live"

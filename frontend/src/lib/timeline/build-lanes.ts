@@ -276,13 +276,13 @@ function finalizeCluster(
   }
 }
 
-// Compute the round-phase + bomb spine geometry. All ranges are clamped to
-// the round window so the renderer can divide by (end - start) without
+// Compute the round-phase + bomb spine geometry. The timeline starts at the
+// live-phase tick, so freeze is excluded entirely. All ranges are clamped to
+// the live window so the renderer can divide by (end - start) without
 // worrying about negative widths.
 function buildSpine(round: Round, events: GameEvent[]): SpineModel {
-  const start = round.start_tick
+  const start = liveStart(round)
   const end = round.end_tick
-  const live = liveStart(round)
   const bombPlant = events.find(
     (e) => e.event_type === "bomb_plant" && e.tick >= start && e.tick <= end,
   )
@@ -295,10 +295,9 @@ function buildSpine(round: Round, events: GameEvent[]): SpineModel {
   const plantTick = bombPlant?.tick ?? null
   const bombEnd = bombDefuse?.tick ?? bombExplode?.tick ?? end
 
-  const freeze = live > start ? { startTick: start, endTick: live } : null
   const liveEnd = plantTick ?? end
   const liveRange =
-    liveEnd > live ? { startTick: live, endTick: liveEnd } : null
+    liveEnd > start ? { startTick: start, endTick: liveEnd } : null
   const postPlant =
     plantTick !== null && bombEnd > plantTick
       ? { startTick: plantTick, endTick: bombEnd }
@@ -307,7 +306,6 @@ function buildSpine(round: Round, events: GameEvent[]): SpineModel {
     plantTick !== null ? { startTick: plantTick, endTick: bombEnd } : null
 
   return {
-    freeze,
     live: liveRange,
     postPlant,
     bombBar,
@@ -333,7 +331,9 @@ export function buildLanes(input: BuildLanesInput): RoundTimelineModel {
     filters,
     laneWidthPx,
   } = input
-  const start = round.start_tick
+  // Timeline spans the live phase only — events during freezetime are dropped
+  // and the leftmost edge of the track is freeze_end_tick.
+  const start = liveStart(round)
   const end = round.end_tick
 
   // (1) Round-window filter — events.

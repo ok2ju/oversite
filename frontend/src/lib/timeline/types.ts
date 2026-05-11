@@ -76,10 +76,9 @@ export interface EventCluster {
 }
 
 // Spine model — round phases + bomb bar geometry, expressed as tick ranges.
-// The lane renderer converts these to percentages against round.start_tick /
-// round.end_tick when drawing.
+// The lane renderer converts these to percentages against the live round
+// window (freeze_end_tick → end_tick) when drawing.
 export interface SpineModel {
-  freeze: { startTick: number; endTick: number } | null
   live: { startTick: number; endTick: number } | null
   postPlant: { startTick: number; endTick: number } | null
   // Bomb bar: plant tick → defuse/explode/end tick.

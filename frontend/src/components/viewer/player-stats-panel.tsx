@@ -6,7 +6,7 @@ import { usePlayerStats } from "@/hooks/use-player-stats"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { PlayerLiveHud } from "@/components/viewer/player-live-hud"
-import { MistakeList } from "@/components/viewer/mistake-list"
+import { AnalysisOverallGauge } from "@/components/viewer/analysis-overall-gauge"
 import type { PlayerMatchStats, PlayerRoundDetail } from "@/types/player-stats"
 import type { Round } from "@/types/round"
 
@@ -496,24 +496,20 @@ export function PlayerStatsPanel() {
       </header>
 
       <div className="flex-1 overflow-y-auto p-3">
-        <Tabs defaultValue="mistakes" className="space-y-3">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="mistakes">Mistakes</TabsTrigger>
+        <Tabs defaultValue="match" className="space-y-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="live">Live</TabsTrigger>
             <TabsTrigger value="match">Match</TabsTrigger>
             <TabsTrigger value="round">Round</TabsTrigger>
             <TabsTrigger value="detail">Detail</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="mistakes" className="space-y-2">
-            <MistakeList variant="embedded" steamId={steamId} />
-          </TabsContent>
-
           <TabsContent value="live" className="space-y-2">
             <PlayerLiveHud steamId={steamId} />
           </TabsContent>
 
           <TabsContent value="match" className="space-y-3">
+            <AnalysisOverallGauge />
             {isLoading || !stats ? (
               <p className="text-sm text-white/60">Loading match stats…</p>
             ) : (

@@ -68,8 +68,6 @@ describe("PlayerStatsPanel", () => {
     renderWithProviders(<PlayerStatsPanel />)
     await screen.findByTestId("player-stats-panel")
 
-    // Mistakes is now the default tab — switch to Match for the round strip.
-    await user.click(screen.getByRole("tab", { name: /match/i }))
     const cell = await screen.findByTestId("player-stats-round-cell-2")
     await user.click(cell)
 

@@ -73,9 +73,11 @@ export function RoundTimeline({ round }: RoundTimelineProps) {
 
   // Keep the seek closure fresh whenever the round window changes — the
   // document listeners hold a ref to it, so swapping rounds mid-drag stays
-  // accurate.
+  // accurate. The track spans the live phase only, so scrubbing maps to
+  // [freeze_end_tick, end_tick].
   useEffect(() => {
-    const start = round.start_tick
+    const start =
+      round.freeze_end_tick > 0 ? round.freeze_end_tick : round.start_tick
     const end = round.end_tick
     const span = Math.max(1, end - start)
     seekRef.current = (clientX: number) => {
@@ -88,7 +90,7 @@ export function RoundTimeline({ round }: RoundTimelineProps) {
       state.pause()
       state.setTick(tick)
     }
-  }, [round.start_tick, round.end_tick])
+  }, [round.start_tick, round.freeze_end_tick, round.end_tick])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     // Ignore clicks on interactive children (event icons, cluster popouts);

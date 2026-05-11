@@ -452,7 +452,7 @@ describe("buildLanes — filter chips", () => {
 })
 
 describe("buildLanes — spine geometry", () => {
-  it("computes freeze + live ranges from round bounds", () => {
+  it("computes the live range from the freeze-end tick to round end", () => {
     const model = buildLanes({
       events: [],
       mistakes: [],
@@ -461,10 +461,27 @@ describe("buildLanes — spine geometry", () => {
       filters: ALL_ON,
       laneWidthPx: 1000,
     })
-    expect(model.spine.freeze).toEqual({ startTick: 1000, endTick: 1100 })
     expect(model.spine.live).toEqual({ startTick: 1100, endTick: 2000 })
     expect(model.spine.bombBar).toBeNull()
     expect(model.spine.postPlant).toBeNull()
+  })
+
+  it("uses the live-phase tick as the lane window's start", () => {
+    const events = [
+      mkEvent({ event_type: "kill", tick: 1050, attacker_team: "CT" }), // freeze
+      mkEvent({ event_type: "kill", tick: 1500, attacker_team: "CT" }), // live
+    ]
+    const model = buildLanes({
+      events,
+      mistakes: [],
+      round: ROUND,
+      selectedPlayerSteamId: null,
+      filters: ALL_ON,
+      laneWidthPx: 1000,
+    })
+    expect(model.roundStartTick).toBe(1100)
+    expect(model.topLane).toHaveLength(1)
+    expect(model.topLane[0].tick).toBe(1500)
   })
 
   it("draws the bomb bar from plant to defuse when defused", () => {
