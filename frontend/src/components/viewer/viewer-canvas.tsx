@@ -233,11 +233,12 @@ export function ViewerCanvas() {
           if (engine && currentTick !== engineSetTick) {
             engine.seek(currentTick)
             tickBuffer?.seek(currentTick)
-            // While paused, the ticker is stopped, so the scrub's new frame
-            // won't render unless we paint one. engine.update short-circuits
-            // on !isPlaying so tickerFn is safe to call manually.
-            if (!useViewerStore.getState().isPlaying && tickerFn) {
-              tickerFn()
+            // While paused, app.ticker is stopped — calling tickerFn alone
+            // would update sprite positions but skip the renderer's own
+            // ticker listener, so nothing paints. ticker.update() pumps both
+            // our tickerFn and the auto-render in one pass.
+            if (!useViewerStore.getState().isPlaying) {
+              app.ticker.update()
             }
           }
         },
@@ -293,9 +294,11 @@ export function ViewerCanvas() {
                   )
                 }
                 // Map loaded asynchronously — paint a frame even if paused so
-                // the initial view renders without waiting for play.
+                // the initial view renders without waiting for play. Pump the
+                // ticker so the renderer's auto-render listener fires alongside
+                // tickerFn (calling tickerFn alone wouldn't paint).
                 if (!useViewerStore.getState().isPlaying) {
-                  tickerFn?.()
+                  app.ticker.update()
                 }
               })
               .catch(console.error)
