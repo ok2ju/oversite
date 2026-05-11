@@ -99,6 +99,7 @@ export function ViewerCanvas() {
     let tickerFn: (() => void) | null = null
     let engine: PlaybackEngine | null = null
     let seekUnsub: (() => void) | null = null
+    let selectionUnsub: (() => void) | null = null
     let playingUnsub: (() => void) | null = null
     let resizeObserver: ResizeObserver | null = null
     // rAF handle for the viewport-write coalescer so cleanup can cancel a
@@ -133,6 +134,13 @@ export function ViewerCanvas() {
             if (pendingViewport) {
               useViewerStore.getState().setViewport(pendingViewport)
               pendingViewport = null
+            }
+            // Pixi auto-renders via the ticker. When paused the ticker is
+            // stopped, so pan/zoom would update container.position but never
+            // paint. Manually render once per coalesced viewport change so
+            // the user sees their drag while paused.
+            if (!useViewerStore.getState().isPlaying) {
+              app.render()
             }
           })
         },
@@ -231,6 +239,21 @@ export function ViewerCanvas() {
             if (!useViewerStore.getState().isPlaying && tickerFn) {
               tickerFn()
             }
+          }
+        },
+      )
+
+      // Selection changes are read inside tickerFn and forwarded to the
+      // PlayerLayer, but the layer only repaints its rings on a ticker pass.
+      // While paused the ticker is stopped, so a click in the scoreboard
+      // would update the store without ever moving the indicator. Pump one
+      // ticker update so the registered callbacks run AND the renderer
+      // paints the new frame in the same pass.
+      selectionUnsub = useViewerStore.subscribe(
+        (s) => s.selectedPlayerSteamId,
+        () => {
+          if (!useViewerStore.getState().isPlaying) {
+            app.ticker.update()
           }
         },
       )
@@ -370,6 +393,7 @@ export function ViewerCanvas() {
       roundUnsub?.()
       demoUnsub?.()
       seekUnsub?.()
+      selectionUnsub?.()
       resetUnsub?.()
       playingUnsub?.()
       if (tickerFn && viewerApp) {

@@ -43,6 +43,10 @@ export class ViewerApp {
     return this.app.ticker
   }
 
+  render(): void {
+    this.app.render()
+  }
+
   get initialized() {
     return this._initialized
   }
