@@ -5,14 +5,10 @@
 // player_round_analysis. Each rule lives in mistakes.go; the aggregators in
 // this file wire them together.
 //
-// Slice 1 shipped the no_trade_death rule. Slice 3 adds
-// died_with_util_unused. Slice 5 adds RunMatchSummary (per-(demo, player)
-// aggregates). Slice 7 adds RunPlayerRoundAnalysis (per-(demo, player, round)
-// breakdowns) so the standalone analysis page can render per-round drilldowns.
-// Subsequent slices add rules without changing the public surface — Run keeps
-// returning the combined []Mistake list, stably ordered by
-// (Tick ASC, SteamID ASC) so the persisted order is independent of
-// rule-source order.
+// Run executes every analyzer rule against a parsed demo. Rules are added /
+// removed independently; Run keeps returning the combined []Mistake list,
+// stably ordered by (Tick ASC, SteamID ASC) so the persisted order is
+// independent of rule-source order.
 package analysis
 
 import (
@@ -35,36 +31,23 @@ type MistakeKind string
 
 // Known mistake kinds.
 const (
-	MistakeKindNoTradeDeath       MistakeKind = "no_trade_death"
-	MistakeKindDiedWithUtilUnused MistakeKind = "died_with_util_unused"
-	MistakeKindCrosshairTooLow    MistakeKind = "crosshair_too_low"
-	MistakeKindShotWhileMoving    MistakeKind = "shot_while_moving"
-	MistakeKindSlowReaction       MistakeKind = "slow_reaction"      // time-to-fire too high on a kill
-	MistakeKindMissedFlick        MistakeKind = "missed_flick"       // big yaw flick that didn't connect
-	MistakeKindMissedFirstShot    MistakeKind = "missed_first_shot"  // first shot after long idle missed
-	MistakeKindSprayDecay         MistakeKind = "spray_decay"        // burst kept firing past shot 7 with <10% hit rate
-	MistakeKindNoCounterStrafe    MistakeKind = "no_counter_strafe"  // fired moving without a stop
-	MistakeKindUnusedSmoke        MistakeKind = "unused_smoke"       // smoke detonated but produced no teammate kill
-	MistakeKindSurvivedWithUtil   MistakeKind = "survived_with_util" // round ended with util in inventory
-	MistakeKindIsolatedPeek       MistakeKind = "isolated_peek"      // died alone, no teammate within 600u
-	MistakeKindRepeatedDeathZone  MistakeKind = "repeated_death_zone"
-	MistakeKindWalkedIntoMolotov  MistakeKind = "walked_into_molotov"
-	MistakeKindEcoMisbuy          MistakeKind = "eco_misbuy"       // eco round detected when team should have full-bought
-	MistakeKindCaughtReloading    MistakeKind = "caught_reloading" // died with clip < full — reloaded on the angle
-	MistakeKindFlashAssist        MistakeKind = "flash_assist"     // (positive) flash that set up a teammate kill — surfaced as low-severity highlight
-	MistakeKindHeDamage           MistakeKind = "he_damage"        // (positive) HE that did 80+ damage — same low-severity highlight
+	MistakeKindShotWhileMoving   MistakeKind = "shot_while_moving"
+	MistakeKindSlowReaction      MistakeKind = "slow_reaction"     // time-to-fire too high on a kill
+	MistakeKindMissedFirstShot   MistakeKind = "missed_first_shot" // first shot after long idle missed
+	MistakeKindSprayDecay        MistakeKind = "spray_decay"       // burst kept firing past shot 7 with <10% hit rate
+	MistakeKindNoCounterStrafe   MistakeKind = "no_counter_strafe" // fired moving without a stop
+	MistakeKindIsolatedPeek      MistakeKind = "isolated_peek"     // died alone, no teammate within 600u
+	MistakeKindRepeatedDeathZone MistakeKind = "repeated_death_zone"
+	MistakeKindEcoMisbuy         MistakeKind = "eco_misbuy"       // eco round detected when team should have full-bought
+	MistakeKindCaughtReloading   MistakeKind = "caught_reloading" // died with clip < full — reloaded on the angle
+	MistakeKindFlashAssist       MistakeKind = "flash_assist"     // (positive) flash that set up a teammate kill — surfaced as low-severity highlight
+	MistakeKindHeDamage          MistakeKind = "he_damage"        // (positive) HE that did 80+ damage — same low-severity highlight
 )
 
-// RunOpts carries optional knobs for the analyzer pass. Zero-valued fields
-// mean "default" — see each field's doc comment. Callers that don't care
-// about any knob can pass `RunOpts{}`.
-type RunOpts struct {
-	// MinEngagementsForAimCritique gates the aim rule on a minimum number of
-	// fires per attacker across the match. <=0 disables the gate (every fire
-	// is eligible). Slice 8 defaults to 0 inside Run when unset; the App
-	// surfaces 8 via a binding.
-	MinEngagementsForAimCritique int
-}
+// RunOpts carries optional knobs for the analyzer pass. Currently empty —
+// kept as a struct so future rules can add gates without changing the
+// signature again.
+type RunOpts struct{}
 
 // Mistake is one analyzer finding — a single (player, round, tick, kind)
 // tuple plus an opaque extras blob carrying rule-specific context. The
@@ -81,6 +64,16 @@ type Mistake struct {
 	Category    string         `json:"category,omitempty"`
 	Severity    int            `json:"severity,omitempty"`
 	Extras      map[string]any `json:"extras,omitempty"`
+	// DuelID is the analysis_duels row this mistake attaches to. Set by
+	// AttributeMistakesToDuels after the rule pass; nil for mistakes that
+	// don't belong to a duel (eco_misbuy, he_damage) or that fell into
+	// the "unattributed" bucket (rare: cone returned zero or multiple
+	// candidates for a fire-rule shot).
+	//
+	// During detector → persistence handoff this holds the in-memory
+	// LocalID; the persistence layer rewrites it to the database rowid
+	// once duels are inserted.
+	DuelID *int64 `json:"duel_id,omitempty"`
 }
 
 // MatchSummaryRow is the per-(demo, player) aggregate persisted to
@@ -175,48 +168,48 @@ type PlayerRoundRow struct {
 // correlations don't have to change the signature again. Returns (nil, nil)
 // on a nil result.
 //
-// The two tick-driven rules (crosshair_too_low, shot_while_moving) require
-// result.AnalysisTicks to be non-nil — produced by the parser when invoked
-// with WithTickFanout(true). When the field is nil (legacy callers / fixtures
-// that pre-date slice 8) the tick rules are skipped silently and Run returns
-// successfully with only the loadout / event-driven mistakes.
-func Run(result *demo.ParseResult, roundMap map[int]int64, opts RunOpts) ([]Mistake, error) {
+// The tick-driven rules require result.AnalysisTicks to be non-nil — produced
+// by the parser when invoked with WithTickFanout(true). When the field is nil
+// (legacy callers / fixtures that pre-date the fanout) the tick rules are
+// skipped silently and Run returns successfully with only the event-driven
+// mistakes.
+func Run(result *demo.ParseResult, roundMap map[int]int64, opts RunOpts) ([]Mistake, []Duel, error) {
 	_ = roundMap // reserved for rules that look up DB round IDs (slice 2+).
+	_ = opts     // reserved for future per-rule gates.
 	if result == nil {
-		return nil, nil
-	}
-	tickRate := result.Header.TickRate
-	if tickRate <= 0 {
-		tickRate = 64
+		return nil, nil, nil
 	}
 
 	out := make([]Mistake, 0, 32)
 	// Event-only rules first — they don't need the tick index and run on
 	// legacy fixtures that pre-date AnalysisTick.
-	out = append(out, noTradeDeath(result.Events, tickRate)...)
-	out = append(out, diedWithUtilUnused(result.Events, result.Rounds)...)
-	out = append(out, survivedWithUtilUnused(result.Events, result.Rounds)...)
-	out = append(out, smokeEffectiveness(result.Events, tickRate)...)
-	out = append(out, walkedIntoMolotov(result.Events)...)
 	out = append(out, repeatedDeathZones(result.Events)...)
 	out = append(out, firstShotAccuracy(result.Events)...)
 	out = append(out, sprayDecay(result.Events)...)
 	out = append(out, ecoMisbuy(result.Rounds)...)
 	out = append(out, flashAssistHighlight(result.Events)...)
 	out = append(out, heDamageHighlight(result.Events)...)
+	var duels []Duel
 	if len(result.AnalysisTicks) > 0 {
 		idx := BuildTickIndex(result.AnalysisTicks)
-		out = append(out, crosshairTooLow(result.Events, result.Rounds, idx, opts.MinEngagementsForAimCritique, tickRate)...)
+		tickRate := result.Header.TickRate
+		if tickRate <= 0 {
+			tickRate = 64
+		}
 		out = append(out, shotWhileMoving(result.Events, idx, tickRate)...)
 		out = append(out, noCounterStrafe(result.Events, idx, tickRate)...)
 		out = append(out, timeToFire(result.Events, idx, tickRate)...)
-		out = append(out, missedFlick(result.Events, idx)...)
 		out = append(out, isolatedPeek(result.Events, idx, result.Rounds)...)
 		out = append(out, caughtReloading(result.Events, idx)...)
 		// Slice 12 (P2-1): attach per-tick speed / yaw / pitch window and a
 		// derived cause_tag to fire-related mistakes. Done after rule emission
 		// so the enrichment is layered, not folded into individual rules.
 		out = EnrichFireMistakes(out, idx, teamsByRoundFromRosters(result.Rounds))
+		// Slice 13: detect duels, then attribute each engagement-class
+		// mistake to its duel. Detector runs once and is hoisted so
+		// RunMatchSummary / RunPlayerRoundAnalysis can reuse the result.
+		duels = DetectDuels(result.Events, idx, result.Rounds, tickRate)
+		out = AttributeMistakesToDuels(out, duels, result.Events)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Tick != out[j].Tick {
@@ -224,7 +217,7 @@ func Run(result *demo.ParseResult, roundMap map[int]int64, opts RunOpts) ([]Mist
 		}
 		return out[i].SteamID < out[j].SteamID
 	})
-	return out, nil
+	return out, duels, nil
 }
 
 // RunMatchSummary computes the per-(demo, player) aggregate row written to
@@ -256,7 +249,7 @@ func RunMatchSummary(result *demo.ParseResult, roundMap map[int]int64, opts RunO
 	// Re-run every rule against the inputs so we have the full mistakes slice
 	// to drive the aggregates. Run() already does this work for analysis_mistakes
 	// — calling it directly avoids re-implementing each rule's predicate here.
-	allMistakes, _ := Run(result, roundMap, opts)
+	allMistakes, _, _ := Run(result, roundMap, opts)
 	mechAggs := computeMechanicalAggregates(result.Events, idx, allMistakes)
 	rich := computeMatchAggregates(result.Events, result.Rounds, idx, allMistakes)
 	micro := computeMicroAggregates(result.Events, idx, teamsByRoundFromRosters(result.Rounds), tickRate)
@@ -295,9 +288,8 @@ func RunMatchSummary(result *demo.ParseResult, roundMap map[int]int64, opts RunO
 			AvgTradeTicks: ts.AvgTradeTicks,
 		}
 		if hasRich && ra != nil {
-			row.CrosshairHeightAvgOff = ra.AvgCrosshairOff()
 			row.TimeToFireMsAvg = ra.AvgTimeToFireMs()
-			row.FlickCount = ra.FlickCount
+			row.FlickCount = ra.FlickFires
 			row.FlickHitPct = ra.FlickHitPctValue()
 			row.FirstShotAccPct = ra.FirstShotPct()
 			row.SprayDecaySlope = ra.DecaySlope()
@@ -307,7 +299,6 @@ func RunMatchSummary(result *demo.ParseResult, roundMap map[int]int64, opts RunO
 			row.SmokesKillAssist = ra.SmokesKillAssist
 			row.FlashAssists = ra.FlashAssists
 			row.HeDamage = ra.HeDamage
-			row.NadesUnused = ra.NadesUnused
 			row.IsolatedPeekDeaths = ra.IsolatedPeekDeaths
 			row.RepeatedDeathZones = ra.RepeatedDeathZones
 			row.FullBuyADR = ra.FullBuyADR()
@@ -323,7 +314,6 @@ func RunMatchSummary(result *demo.ParseResult, roundMap map[int]int64, opts RunO
 		}
 		if mech.Engagements > 0 {
 			row.Extras = map[string]any{
-				"aim_pct":           mech.AimPct,
 				"standing_shot_pct": mech.StandingShotPct,
 				"engagements":       mech.Engagements,
 				"avg_fire_speed":    mech.AvgFireSpeed,
@@ -361,7 +351,6 @@ func RunPlayerRoundAnalysis(result *demo.ParseResult, roundMap map[int]int64, op
 	var mechMistakes []Mistake
 	if len(result.AnalysisTicks) > 0 {
 		idx = BuildTickIndex(result.AnalysisTicks)
-		mechMistakes = append(mechMistakes, crosshairTooLow(result.Events, result.Rounds, idx, opts.MinEngagementsForAimCritique, tickRate)...)
 		mechMistakes = append(mechMistakes, shotWhileMoving(result.Events, idx, tickRate)...)
 	}
 	roundMech := computeRoundMechanicalAggregates(result.Events, idx, mechMistakes)
@@ -417,7 +406,6 @@ func RunPlayerRoundAnalysis(result *demo.ParseResult, roundMap map[int]int64, op
 		}
 		if mech.Engagements > 0 {
 			row.Extras = map[string]any{
-				"aim_pct":           mech.AimPct,
 				"standing_shot_pct": mech.StandingShotPct,
 				"engagements":       mech.Engagements,
 				"avg_fire_speed":    mech.AvgFireSpeed,
@@ -435,22 +423,18 @@ func RunPlayerRoundAnalysis(result *demo.ParseResult, roundMap map[int]int64, op
 }
 
 // composeOverallScore maps the per-player category percentages into a 0–100
-// integer score. Slice 8 weights three categories equally
-// (round((tradePct + aimPct + standingShotPct) * 100 / 3)); later slices
-// rebalance. When a category has no data (e.g. the player never fired, so
-// MechanicalAgg.Engagements is 0), it contributes 0 to the average — better
-// than dropping it (which would let a single dominant category swing the
-// score wildly when others are absent). Downstream readers must treat the
-// value as an opaque composite, not the raw trade percentage.
+// integer score. Two categories weighted equally — trade and standing-shot.
+// When the player never fired (MechanicalAgg.Engagements is 0) the standing-
+// shot category contributes 0 to the average rather than being dropped, so a
+// single dominant category can't swing the score wildly when the other is
+// absent. Downstream readers must treat the value as an opaque composite.
 func composeOverallScore(s TradesSummary, m MechanicalAgg) int {
 	tradePct := s.TradePct
-	aimPct := m.AimPct
 	standPct := m.StandingShotPct
 	if m.Engagements == 0 {
-		aimPct = 0
 		standPct = 0
 	}
-	score := int(math.Round((tradePct + aimPct + standPct) * 100 / 3))
+	score := int(math.Round((tradePct + standPct) * 100 / 2))
 	if score < 0 {
 		return 0
 	}

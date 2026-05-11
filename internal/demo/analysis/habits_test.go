@@ -20,14 +20,13 @@ func TestBuildHabitReport_FixtureValues(t *testing.T) {
 		TradePctRatio:           0.55,
 		IsolatedPeekDeaths:      1,
 		RepeatedDeathZones:      0,
-		UntradedDeathsCount:     3,
 		StandingShotMechRatio:   0.95,
 		HasStandingShotMechData: true,
 	}
 
 	rows := analysis.BuildHabitReport(in)
-	if len(rows) != 7 {
-		t.Fatalf("want 7 habits with full inputs, got %d", len(rows))
+	if len(rows) != 6 {
+		t.Fatalf("want 6 habits with full inputs, got %d", len(rows))
 	}
 
 	idx := indexByKey(rows)
@@ -36,7 +35,6 @@ func TestBuildHabitReport_FixtureValues(t *testing.T) {
 		analysis.HabitFirstShotAcc:       analysis.StatusGood,
 		analysis.HabitShootingInMotion:   analysis.StatusGood, // 5% motion
 		analysis.HabitTradeTiming:        analysis.StatusWarn, // 55%
-		analysis.HabitUntradedDeaths:     analysis.StatusWarn, // 3
 		analysis.HabitIsolatedPeekDeaths: analysis.StatusWarn, // 1
 		analysis.HabitRepeatedDeathZone:  analysis.StatusGood, // 0
 	}
@@ -59,9 +57,8 @@ func TestBuildHabitReport_OmitsMissingMetrics(t *testing.T) {
 	// Minimal row: only counts populated. The reaction / first-shot /
 	// motion habits should be omitted because we have no data for them.
 	rows := analysis.BuildHabitReport(analysis.HabitInputs{
-		IsolatedPeekDeaths:  0,
-		RepeatedDeathZones:  0,
-		UntradedDeathsCount: 0,
+		IsolatedPeekDeaths: 0,
+		RepeatedDeathZones: 0,
 	})
 
 	idx := indexByKey(rows)
@@ -75,10 +72,9 @@ func TestBuildHabitReport_OmitsMissingMetrics(t *testing.T) {
 		t.Errorf("shooting-in-motion habit should be omitted without mech extras")
 	}
 
-	// The 4 always-on rows should still be present.
+	// The 3 always-on rows should still be present.
 	for _, k := range []analysis.HabitKey{
 		analysis.HabitTradeTiming,
-		analysis.HabitUntradedDeaths,
 		analysis.HabitIsolatedPeekDeaths,
 		analysis.HabitRepeatedDeathZone,
 	} {
@@ -137,23 +133,6 @@ func TestLoadHabitInputs_RoundTrip(t *testing.T) {
 		t.Fatalf("UpsertPlayerMatchAnalysis: %v", err)
 	}
 
-	// Drop a couple of untraded-death mistakes to verify the count flows
-	// through.
-	for i := 0; i < 2; i++ {
-		if err := q.CreateAnalysisMistake(ctx, store.CreateAnalysisMistakeParams{
-			DemoID:      d.ID,
-			SteamID:     "alice",
-			RoundNumber: int64(i + 1),
-			Tick:        int64(1000 + i),
-			Kind:        string(analysis.MistakeKindNoTradeDeath),
-			Category:    "trade",
-			Severity:    2,
-			ExtrasJson:  "{}",
-		}); err != nil {
-			t.Fatalf("CreateAnalysisMistake: %v", err)
-		}
-	}
-
 	in, ok, err := analysis.LoadHabitInputs(ctx, q, d.ID, "alice")
 	if err != nil {
 		t.Fatalf("LoadHabitInputs: %v", err)
@@ -177,16 +156,13 @@ func TestLoadHabitInputs_RoundTrip(t *testing.T) {
 	if in.StandingShotMechRatio < 0.91 || in.StandingShotMechRatio > 0.93 {
 		t.Errorf("StandingShotMechRatio = %v, want ~0.92", in.StandingShotMechRatio)
 	}
-	if in.UntradedDeathsCount != 2 {
-		t.Errorf("UntradedDeathsCount = %d, want 2", in.UntradedDeathsCount)
-	}
 	if in.IsolatedPeekDeaths != 1 {
 		t.Errorf("IsolatedPeekDeaths = %d, want 1", in.IsolatedPeekDeaths)
 	}
 
 	rows := analysis.BuildHabitReport(in)
-	if len(rows) < 6 {
-		t.Errorf("BuildHabitReport returned %d rows, want >= 6 for a fixture demo", len(rows))
+	if len(rows) < 5 {
+		t.Errorf("BuildHabitReport returned %d rows, want >= 5 for a fixture demo", len(rows))
 	}
 }
 

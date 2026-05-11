@@ -41,3 +41,7 @@ When an `extra_data` (or similar TEXT-JSON) field becomes a query hotspot — `j
 ## Pattern: per-N storage for rarely-changing fields
 
 Migration 011 (`round_loadouts`) moved `tick_data.inventory` from per-tick to per-round. 1.28M rows × ~30 B → 250 rows × ~30 B per demo. Apply this whenever a per-tick column only changes on round boundaries.
+
+## Pattern: nullable FK as the loose-coupling join
+
+`analysis_mistakes.duel_id INTEGER REFERENCES analysis_duels(id) ON DELETE SET NULL` (migration 018) lets a mistake belong to a duel without making the relationship mandatory — cross-duel patterns (`eco_misbuy`, `he_damage`) keep `duel_id = NULL` and render in a separate UI surface. `ON DELETE SET NULL` (not CASCADE) means a pruned duel doesn't take its mistakes with it; the analyzer can re-run and re-attribute without losing history. Old rows from prior `AnalysisVersion` also keep `duel_id = NULL` until the user clicks Recompute.

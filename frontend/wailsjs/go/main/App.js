@@ -38,6 +38,10 @@ export function GetDemoTicks(arg1, arg2, arg3) {
   return window['go']['main']['App']['GetDemoTicks'](arg1, arg2, arg3);
 }
 
+export function GetDuelContext(arg1) {
+  return window['go']['main']['App']['GetDuelContext'](arg1);
+}
+
 export function GetEventsByTypes(arg1, arg2) {
   return window['go']['main']['App']['GetEventsByTypes'](arg1, arg2);
 }
@@ -56,10 +60,6 @@ export function GetHeatmapData(arg1, arg2, arg3, arg4) {
 
 export function GetMatchInsights(arg1) {
   return window['go']['main']['App']['GetMatchInsights'](arg1);
-}
-
-export function GetMinEngagementsForAimCritique() {
-  return window['go']['main']['App']['GetMinEngagementsForAimCritique']();
 }
 
 export function GetMistakeContext(arg1) {
@@ -130,6 +130,10 @@ export function ListDemos(arg1, arg2) {
   return window['go']['main']['App']['ListDemos'](arg1, arg2);
 }
 
+export function ListDuelsForPlayer(arg1, arg2) {
+  return window['go']['main']['App']['ListDuelsForPlayer'](arg1, arg2);
+}
+
 export function LogsDir() {
   return window['go']['main']['App']['LogsDir']();
 }
@@ -148,10 +152,6 @@ export function ProfilesDir() {
 
 export function RecomputeAnalysis(arg1) {
   return window['go']['main']['App']['RecomputeAnalysis'](arg1);
-}
-
-export function SetMinEngagementsForAimCritique(arg1) {
-  return window['go']['main']['App']['SetMinEngagementsForAimCritique'](arg1);
 }
 
 export function SetTolerateEntityErrors(arg1) {

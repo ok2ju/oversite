@@ -20,6 +20,8 @@ export function GetDemoRounds(arg1:string):Promise<Array<main.Round>>;
 
 export function GetDemoTicks(arg1:string,arg2:number,arg3:number):Promise<Array<main.TickData>>;
 
+export function GetDuelContext(arg1:number):Promise<main.DuelContext>;
+
 export function GetEventsByTypes(arg1:string,arg2:Array<string>):Promise<Array<main.GameEvent>>;
 
 export function GetHabitHistory(arg1:string,arg2:string,arg3:number):Promise<Array<main.HistoryPoint>>;
@@ -29,8 +31,6 @@ export function GetHabitReport(arg1:string,arg2:string):Promise<main.HabitReport
 export function GetHeatmapData(arg1:Array<number>,arg2:Array<string>,arg3:string,arg4:string):Promise<Array<main.HeatmapPoint>>;
 
 export function GetMatchInsights(arg1:string):Promise<main.MatchInsights>;
-
-export function GetMinEngagementsForAimCritique():Promise<number>;
 
 export function GetMistakeContext(arg1:number):Promise<main.MistakeContext>;
 
@@ -66,6 +66,8 @@ export function ImportDemoFile():Promise<void>;
 
 export function ListDemos(arg1:number,arg2:number):Promise<main.DemoListResult>;
 
+export function ListDuelsForPlayer(arg1:string,arg2:string):Promise<Array<main.DuelEntry>>;
+
 export function LogsDir():Promise<string>;
 
 export function OpenLogsFolder():Promise<void>;
@@ -75,7 +77,5 @@ export function OpenProfilesFolder():Promise<void>;
 export function ProfilesDir():Promise<string>;
 
 export function RecomputeAnalysis(arg1:string):Promise<void>;
-
-export function SetMinEngagementsForAimCritique(arg1:number):Promise<void>;
 
 export function SetTolerateEntityErrors(arg1:boolean):Promise<void>;

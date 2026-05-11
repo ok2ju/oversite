@@ -113,34 +113,6 @@ func TestGetDemoByID(t *testing.T) {
 // GetMinEngagementsForAimCritique
 // ---------------------------------------------------------------------------
 
-// TestGetMinEngagementsForAimCritique_DefaultsAndRoundtrip asserts the binding
-// reports the slice-8 default of 8 on a fresh App and roundtrips arbitrary
-// non-negative values via SetX → GetX. Matches the trivial-default-roundtrip
-// pattern; mirrors the SetTolerateEntityErrors binding shape.
-func TestGetMinEngagementsForAimCritique_DefaultsAndRoundtrip(t *testing.T) {
-	app := &App{minEngagementsForAimCritique: 8}
-	if got := app.GetMinEngagementsForAimCritique(); got != 8 {
-		t.Errorf("default = %d, want 8", got)
-	}
-
-	app.SetMinEngagementsForAimCritique(5)
-	if got := app.GetMinEngagementsForAimCritique(); got != 5 {
-		t.Errorf("after Set(5) = %d, want 5", got)
-	}
-
-	app.SetMinEngagementsForAimCritique(0)
-	if got := app.GetMinEngagementsForAimCritique(); got != 0 {
-		t.Errorf("after Set(0) = %d, want 0", got)
-	}
-
-	// Negative values are clamped to 0 — keeps the gate sensible without
-	// surfacing a typed enum to the frontend.
-	app.SetMinEngagementsForAimCritique(-3)
-	if got := app.GetMinEngagementsForAimCritique(); got != 0 {
-		t.Errorf("after Set(-3) = %d, want 0 (clamped)", got)
-	}
-}
-
 // ---------------------------------------------------------------------------
 // GetAnalysisStatus
 // ---------------------------------------------------------------------------

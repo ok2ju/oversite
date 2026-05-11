@@ -73,6 +73,7 @@ export type GameEventType =
   | "kill"
   | "weapon_fire"
   | "player_hurt"
+  | "player_flashed"
   | "grenade_throw"
   | "grenade_bounce"
   | "grenade_detonate"

@@ -164,60 +164,6 @@ func normalizeYawDeltaDeg(deg float64) float64 {
 	return deg
 }
 
-// missedFlick emits one Mistake per weapon_fire event where the attacker's
-// yaw delta over flickLookbackSamples sampled ticks before the fire exceeds
-// flickHalfAngleDeg AND the shot did not land on a player (no HitVictimSteamID
-// on the WeaponFireExtra). The aggregate "flick hit rate" is computed
-// alongside in mechanical_aggregates.go.
-//
-// Skips fires with no WeaponFireExtra (defensive — every weapon_fire ought to
-// have one), no sampled tick row for the attacker, or fewer than two samples
-// in the lookback window (we can't compute a delta with one point).
-func missedFlick(events []demo.GameEvent, idx PerPlayerTickIndex) []Mistake {
-	if len(events) == 0 || len(idx.Rows) == 0 {
-		return nil
-	}
-	out := make([]Mistake, 0, 8)
-	for _, ev := range events {
-		if ev.Type != "weapon_fire" {
-			continue
-		}
-		if ev.AttackerSteamID == "" {
-			continue
-		}
-		if isNonShotWeapon(ev.Weapon) {
-			continue
-		}
-		extra, _ := ev.ExtraData.(*demo.WeaponFireExtra)
-		if extra == nil {
-			continue
-		}
-		delta, ok := flickDeltaDeg(idx, ev.AttackerSteamID, ev.Tick, extra.Yaw)
-		if !ok {
-			continue
-		}
-		if math.Abs(delta) <= flickHalfAngleDeg {
-			continue
-		}
-		// A flick that connected isn't a mistake — it's good aim under
-		// pressure. We only flag misses.
-		if extra.HitVictimSteamID != "" {
-			continue
-		}
-		out = append(out, Mistake{
-			SteamID:     ev.AttackerSteamID,
-			RoundNumber: ev.RoundNumber,
-			Tick:        ev.Tick,
-			Kind:        string(MistakeKindMissedFlick),
-			Extras: map[string]any{
-				"yaw_delta": math.Abs(delta),
-				"weapon":    ev.Weapon,
-			},
-		})
-	}
-	return out
-}
-
 // flickDeltaDeg returns the (signed, normalized) yaw delta between the fire
 // yaw and the attacker's facing direction flickLookbackSamples ticks back.
 // Returns ok=false when no pre-fire sample is available.

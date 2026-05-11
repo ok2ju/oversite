@@ -50,12 +50,12 @@ func TestPickNextDrill(t *testing.T) {
 		},
 		{
 			name:    "habits not in drill catalog are ignored",
-			rows:    []HabitRow{row(HabitUntradedDeaths, StatusBad), row(HabitReaction, StatusWarn)},
+			rows:    []HabitRow{row(HabitIsolatedPeekDeaths, StatusBad), row(HabitReaction, StatusWarn)},
 			wantKey: HabitReaction,
 		},
 		{
 			name:     "all-bad habits but none in drill catalog returns maintenance",
-			rows:     []HabitRow{row(HabitUntradedDeaths, StatusBad), row(HabitIsolatedPeekDeaths, StatusBad)},
+			rows:     []HabitRow{row(HabitIsolatedPeekDeaths, StatusBad), row(HabitRepeatedDeathZone, StatusBad)},
 			wantKey:  "",
 			wantNote: "maintenance",
 		},

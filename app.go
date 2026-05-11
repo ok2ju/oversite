@@ -63,11 +63,6 @@ type App struct {
 	// the import fails fast instead of running away on memory. Users can opt
 	// into partial-parse tolerance via SetTolerateEntityErrors.
 	tolerateEntityErrors bool
-	// minEngagementsForAimCritique gates the slice-8 aim rule on a minimum
-	// number of fires per attacker across the match. 0 disables the gate.
-	// Default 8 — drops noise from pistol-round outliers. Surfaced via the
-	// Get/SetMinEngagementsForAimCritique bindings; no UI surface yet.
-	minEngagementsForAimCritique int
 }
 
 // NewApp opens the database, runs migrations, and returns an App ready to be
@@ -101,14 +96,13 @@ func NewApp() (*App, error) {
 	}
 
 	return &App{
-		ctx:                          context.Background(),
-		db:                           db,
-		queries:                      queries,
-		importService:                demo.NewImportService(queries, db, demosDir),
-		demosDir:                     demosDir,
-		parserHeapLimit:              heapLimits.KillSwitch,
-		profilesDir:                  profilesDir,
-		minEngagementsForAimCritique: 8,
+		ctx:             context.Background(),
+		db:              db,
+		queries:         queries,
+		importService:   demo.NewImportService(queries, db, demosDir),
+		demosDir:        demosDir,
+		parserHeapLimit: heapLimits.KillSwitch,
+		profilesDir:     profilesDir,
 	}, nil
 }
 
@@ -184,23 +178,6 @@ func (a *App) GetTolerateEntityErrors() bool {
 // on the next demo import; in-flight parses keep their original setting.
 func (a *App) SetTolerateEntityErrors(tolerate bool) {
 	a.tolerateEntityErrors = tolerate
-}
-
-// GetMinEngagementsForAimCritique returns the current minimum-fires gate for
-// the slice-8 aim rule. 0 disables the gate (every fire eligible); the
-// default is 8. No UI surface yet — exposed so a future settings page can
-// plumb the value.
-func (a *App) GetMinEngagementsForAimCritique() int {
-	return a.minEngagementsForAimCritique
-}
-
-// SetMinEngagementsForAimCritique updates the gate. Takes effect on the next
-// import / RecomputeAnalysis; in-flight runs keep their original value.
-func (a *App) SetMinEngagementsForAimCritique(n int) {
-	if n < 0 {
-		n = 0
-	}
-	a.minEngagementsForAimCritique = n
 }
 
 // ---------------------------------------------------------------------------
@@ -479,14 +456,14 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 	// UI's parse-progress bar covers the previously silent gap between
 	// "ingest events" and "complete".
 	emitProgress("analyzing", 80)
-	analysisOpts := analysis.RunOpts{MinEngagementsForAimCritique: a.minEngagementsForAimCritique}
-	mistakes, analysisErr := analysis.Run(result, roundMap, analysisOpts)
+	analysisOpts := analysis.RunOpts{}
+	mistakes, duels, analysisErr := analysis.Run(result, roundMap, analysisOpts)
 	if analysisErr != nil {
 		slog.Error("parseDemo: run analyzer", append(logCtx, "err", analysisErr)...)
 		a.failDemo(demoID, fmt.Sprintf("run analyzer: %v", analysisErr), emitProgress)
 		return
 	}
-	if err := analysis.PersistWithRoundMap(a.ctx, a.db, demoID, mistakes, roundMap); err != nil {
+	if err := analysis.PersistWithRoundMap(a.ctx, a.db, demoID, mistakes, duels, roundMap); err != nil {
 		slog.Error("parseDemo: persist analyzer mistakes", append(logCtx, "err", err)...)
 		a.failDemo(demoID, fmt.Sprintf("persist analysis: %v", err), emitProgress)
 		return
@@ -839,6 +816,10 @@ func (a *App) GetMistakeTimeline(demoID, steamID string) ([]MistakeEntry, error)
 			Tick:        r.Tick,
 			SteamID:     r.SteamID,
 		}
+		if r.DuelID.Valid {
+			v := r.DuelID.Int64
+			entry.DuelID = &v
+		}
 		// extras_json is stored as a TEXT blob; decode lazily so the frontend
 		// can read individual rule fields without a second round-trip. A
 		// malformed blob (shouldn't happen — Persist always marshals) is
@@ -887,6 +868,10 @@ func (a *App) GetMistakeContext(mistakeID int64) (*MistakeContext, error) {
 		RoundNumber: int(row.RoundNumber),
 		Tick:        row.Tick,
 		SteamID:     row.SteamID,
+	}
+	if row.DuelID.Valid {
+		v := row.DuelID.Int64
+		entry.DuelID = &v
 	}
 	if row.ExtrasJson != "" && row.ExtrasJson != "{}" {
 		extras := map[string]any{}
@@ -960,6 +945,110 @@ func collectCoOccurring(pinnedID, pinnedTick int64, siblings []store.ListAnalysi
 		}
 	}
 	return out
+}
+
+// ListDuelsForPlayer returns the directed duels (attacker→victim or
+// victim→attacker) where the supplied player is one side of the
+// engagement, ordered by (round, start_tick). Powers the duels lane on
+// the round-timeline. Unknown demos / unknown players return an empty
+// slice.
+func (a *App) ListDuelsForPlayer(demoID, steamID string) ([]DuelEntry, error) {
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid demo id: %w", err)
+	}
+	if steamID == "" {
+		return []DuelEntry{}, nil
+	}
+	rows, err := a.queries.ListAnalysisDuelsByDemoIDAndSteamID(a.ctx, store.ListAnalysisDuelsByDemoIDAndSteamIDParams{
+		DemoID:  id,
+		SteamID: steamID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("listing duels for player: %w", err)
+	}
+	out := make([]DuelEntry, len(rows))
+	for i, r := range rows {
+		out[i] = duelRowToEntry(r)
+	}
+	return out, nil
+}
+
+// GetDuelContext returns one duel and the mistakes attached to it.
+// Returns a nil pointer for unknown ids (mirrors GetMistakeContext).
+func (a *App) GetDuelContext(duelID int64) (*DuelContext, error) {
+	row, err := a.queries.GetAnalysisDuelByID(a.ctx, duelID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("getting duel by id: %w", err)
+	}
+	ctxOut := &DuelContext{Duel: duelRowToEntry(row)}
+	mistakeRows, err := a.queries.ListAnalysisMistakesByDuelID(a.ctx, sql.NullInt64{Int64: duelID, Valid: true})
+	if err != nil {
+		return ctxOut, nil
+	}
+	ctxOut.Mistakes = make([]MistakeEntry, len(mistakeRows))
+	for i, m := range mistakeRows {
+		tpl := analysis.TemplateForKind(m.Kind)
+		category := m.Category
+		if category == "" {
+			category = string(tpl.Category)
+		}
+		severity := int(m.Severity)
+		if severity == 0 {
+			severity = int(tpl.Severity)
+		}
+		entry := MistakeEntry{
+			ID:          m.ID,
+			Kind:        m.Kind,
+			Category:    category,
+			Severity:    severity,
+			Title:       tpl.Title,
+			Suggestion:  tpl.Suggestion,
+			WhyItHurts:  tpl.WhyItHurts,
+			RoundNumber: int(m.RoundNumber),
+			Tick:        m.Tick,
+			SteamID:     m.SteamID,
+		}
+		if m.DuelID.Valid {
+			v := m.DuelID.Int64
+			entry.DuelID = &v
+		}
+		if m.ExtrasJson != "" && m.ExtrasJson != "{}" {
+			extras := map[string]any{}
+			if err := json.Unmarshal([]byte(m.ExtrasJson), &extras); err == nil {
+				entry.Extras = extras
+			}
+		}
+		ctxOut.Mistakes[i] = entry
+	}
+	return ctxOut, nil
+}
+
+// duelRowToEntry converts the sqlc-generated AnalysisDuel row into the
+// wire shape consumed by the frontend. HitConfirmed is stored as an
+// INTEGER (0/1) in SQLite; the boolean conversion happens here.
+func duelRowToEntry(r store.AnalysisDuel) DuelEntry {
+	entry := DuelEntry{
+		ID:            r.ID,
+		RoundNumber:   int(r.RoundNumber),
+		AttackerSteam: r.AttackerSteam,
+		VictimSteam:   r.VictimSteam,
+		StartTick:     r.StartTick,
+		EndTick:       r.EndTick,
+		Outcome:       r.Outcome,
+		EndReason:     r.EndReason,
+		HitConfirmed:  r.HitConfirmed != 0,
+		HurtCount:     int(r.HurtCount),
+		ShotCount:     int(r.ShotCount),
+	}
+	if r.MutualDuelID.Valid {
+		v := r.MutualDuelID.Int64
+		entry.MutualDuelID = &v
+	}
+	return entry
 }
 
 // GetPlayerAnalysis returns the per-(demo, player) summary row written by the

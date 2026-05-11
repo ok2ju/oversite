@@ -63,7 +63,7 @@ func TestRun_TimeToFire_FlagsSlowReaction(t *testing.T) {
 		AnalysisTicks: idxRows,
 	}
 
-	got, err := analysis.Run(result, nil, analysis.RunOpts{})
+	got, _, err := analysis.Run(result, nil, analysis.RunOpts{})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestRun_RepeatedDeathZones_FlagsThirdDeath(t *testing.T) {
 		Rounds: rounds,
 		Events: events,
 	}
-	got, err := analysis.Run(result, nil, analysis.RunOpts{})
+	got, _, err := analysis.Run(result, nil, analysis.RunOpts{})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -149,7 +149,7 @@ func TestRun_IsolatedPeek_FlagsLoneDeath(t *testing.T) {
 		Events:        events,
 		AnalysisTicks: idxRows,
 	}
-	got, err := analysis.Run(result, nil, analysis.RunOpts{})
+	got, _, err := analysis.Run(result, nil, analysis.RunOpts{})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestRun_IsolatedPeek_FlagsLoneDeath(t *testing.T) {
 	idxRows[1].X = 200
 	idxRows[1].Y = 200
 	result.AnalysisTicks = idxRows
-	got, err = analysis.Run(result, nil, analysis.RunOpts{})
+	got, _, err = analysis.Run(result, nil, analysis.RunOpts{})
 	if err != nil {
 		t.Fatalf("Run (supported): %v", err)
 	}
@@ -175,73 +175,6 @@ func TestRun_IsolatedPeek_FlagsLoneDeath(t *testing.T) {
 		if m.Kind == string(analysis.MistakeKindIsolatedPeek) {
 			t.Errorf("did not expect isolated_peek when teammate is in range, got %+v", m)
 		}
-	}
-}
-
-func TestRun_SmokeEffectiveness_FlagsUnusedSmoke(t *testing.T) {
-	rounds := []demo.RoundData{{
-		Number: 1, EndTick: 2000,
-		Roster: []demo.RoundParticipant{
-			{SteamID: "100", TeamSide: "T", Inventory: "AK-47,Smokegrenade"},
-			{SteamID: "200", TeamSide: "T", Inventory: "AK-47"},
-			{SteamID: "300", TeamSide: "CT", Inventory: "M4A1"},
-		},
-	}}
-	events := []demo.GameEvent{
-		// 100 throws a smoke and it detonates. No teammate kill follows.
-		{Tick: 100, RoundNumber: 1, Type: "grenade_throw", AttackerSteamID: "100", Weapon: "smokegrenade"},
-		{Tick: 200, RoundNumber: 1, Type: "smoke_start", AttackerSteamID: "100", X: 500, Y: 500},
-		// CT kills T 200 — same team as thrower, so unrelated.
-		{
-			Tick: 250, RoundNumber: 1, Type: "kill",
-			AttackerSteamID: "300", VictimSteamID: "200",
-			X: 500, Y: 500, Weapon: "m4a1",
-			ExtraData: &demo.KillExtra{AttackerTeam: "CT", VictimTeam: "T"},
-		},
-	}
-	result := &demo.ParseResult{
-		Header: demo.MatchHeader{TickRate: 64},
-		Rounds: rounds,
-		Events: events,
-	}
-	got, err := analysis.Run(result, nil, analysis.RunOpts{})
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	found := false
-	for _, m := range got {
-		if m.Kind == string(analysis.MistakeKindUnusedSmoke) && m.SteamID == "100" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("expected unused_smoke mistake for thrower 100, got %+v", got)
-	}
-}
-
-func TestRun_WalkedIntoMolotov_GroupsRepeatHits(t *testing.T) {
-	events := []demo.GameEvent{
-		{Tick: 100, RoundNumber: 1, Type: "player_hurt", VictimSteamID: "100", Weapon: "inferno", ExtraData: &demo.PlayerHurtExtra{HealthDamage: 8}},
-		{Tick: 110, RoundNumber: 1, Type: "player_hurt", VictimSteamID: "100", Weapon: "inferno", ExtraData: &demo.PlayerHurtExtra{HealthDamage: 8}},
-		// 100 ticks later — counts as a separate exposure.
-		{Tick: 400, RoundNumber: 1, Type: "player_hurt", VictimSteamID: "100", Weapon: "inferno", ExtraData: &demo.PlayerHurtExtra{HealthDamage: 8}},
-	}
-	result := &demo.ParseResult{
-		Header: demo.MatchHeader{TickRate: 64},
-		Events: events,
-	}
-	got, err := analysis.Run(result, nil, analysis.RunOpts{})
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	count := 0
-	for _, m := range got {
-		if m.Kind == string(analysis.MistakeKindWalkedIntoMolotov) {
-			count++
-		}
-	}
-	if count != 2 {
-		t.Errorf("expected 2 walked_into_molotov mistakes (collapsing the burst at tick 100/110, plus the new one at 400), got %d (%+v)", count, got)
 	}
 }
 
@@ -261,7 +194,7 @@ func TestRun_EcoMisbuy_FlagsEcoVsForce(t *testing.T) {
 		Header: demo.MatchHeader{TickRate: 64},
 		Rounds: rounds,
 	}
-	got, err := analysis.Run(result, nil, analysis.RunOpts{})
+	got, _, err := analysis.Run(result, nil, analysis.RunOpts{})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}

@@ -457,6 +457,65 @@ export const mockAppBindings = {
       last_demo_at: "",
     }),
 
+  ListDuelsForPlayer: vi
+    .fn<
+      (
+        demoId: string,
+        steamId: string,
+      ) => Promise<
+        Array<{
+          id: number
+          round_number: number
+          attacker_steam: string
+          victim_steam: string
+          start_tick: number
+          end_tick: number
+          outcome: string
+          end_reason: string
+          hit_confirmed: boolean
+          hurt_count: number
+          shot_count: number
+          mutual_duel_id: number | null
+        }>
+      >
+    >()
+    .mockResolvedValue([]),
+
+  GetDuelContext: vi
+    .fn<
+      (duelId: number) => Promise<{
+        duel: {
+          id: number
+          round_number: number
+          attacker_steam: string
+          victim_steam: string
+          start_tick: number
+          end_tick: number
+          outcome: string
+          end_reason: string
+          hit_confirmed: boolean
+          hurt_count: number
+          shot_count: number
+          mutual_duel_id: number | null
+        }
+        mistakes: Array<{
+          id: number
+          kind: string
+          category: string
+          severity: number
+          title: string
+          suggestion: string
+          why_it_hurts: string
+          round_number: number
+          tick: number
+          steam_id: string
+          extras: Record<string, unknown> | null
+          duel_id: number | null
+        }>
+      } | null>
+    >()
+    .mockResolvedValue(null),
+
   GetMistakeContext: vi
     .fn<
       (mistakeId: number) => Promise<{
@@ -504,13 +563,6 @@ export const mockAppBindings = {
 
   RecomputeAnalysis: vi
     .fn<(demoId: string) => Promise<void>>()
-    .mockResolvedValue(undefined),
-
-  GetMinEngagementsForAimCritique: vi
-    .fn<() => Promise<number>>()
-    .mockResolvedValue(8),
-  SetMinEngagementsForAimCritique: vi
-    .fn<(n: number) => Promise<void>>()
     .mockResolvedValue(undefined),
 
   GetUniqueWeapons: vi

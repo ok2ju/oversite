@@ -31,7 +31,6 @@ const HABIT_CATEGORY: Record<HabitKey, string> = {
   crouch_before_shot: "aim",
   flick_balance: "aim",
   trade_timing: "trade",
-  untraded_deaths: "trade",
   utility_used: "utility",
   isolated_peek_deaths: "positioning",
   repeated_death_zone: "positioning",

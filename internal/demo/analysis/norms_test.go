@@ -63,8 +63,8 @@ func TestNormCatalog_Coverage(t *testing.T) {
 	t.Parallel()
 
 	keys := AllHabitKeys()
-	if len(keys) != 11 {
-		t.Fatalf("AllHabitKeys: got %d, want 11 (per §6.1)", len(keys))
+	if len(keys) != 10 {
+		t.Fatalf("AllHabitKeys: got %d, want 10", len(keys))
 	}
 
 	for _, k := range keys {

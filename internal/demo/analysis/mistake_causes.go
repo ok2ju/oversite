@@ -29,7 +29,6 @@ const (
 var fireCauseMistakeKinds = map[string]struct{}{
 	string(MistakeKindMissedFirstShot): {},
 	string(MistakeKindShotWhileMoving): {},
-	string(MistakeKindMissedFlick):     {},
 	string(MistakeKindSlowReaction):    {},
 	string(MistakeKindNoCounterStrafe): {},
 }
@@ -169,10 +168,10 @@ func classifyCause(
 		return CauseTagNoCounterStrafe
 	}
 
-	// 4) over/under_flick — classify only when the rule itself fired on a
-	// flick or we can confirm a flick-class yaw delta. Other kinds (e.g. a
-	// stationary missed_first_shot) won't pick this up.
-	if m.Kind == string(MistakeKindMissedFlick) || m.Kind == string(MistakeKindMissedFirstShot) {
+	// 4) over/under_flick — classify when the fire's yaw delta indicates a
+	// flick. Only missed_first_shot reaches this branch today; the dedicated
+	// missed_flick rule has been retired.
+	if m.Kind == string(MistakeKindMissedFirstShot) {
 		if cause := flickCause(m, window, idx, teamsByRound); cause != "" {
 			return cause
 		}

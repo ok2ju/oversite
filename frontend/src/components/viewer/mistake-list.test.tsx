@@ -106,7 +106,7 @@ describe("MistakeList", () => {
     useViewerStore.getState().setSelectedPlayer("STEAM_A")
     mockAppBindings.GetMistakeTimeline.mockResolvedValueOnce([
       {
-        kind: "no_trade_death",
+        kind: "isolated_peek",
         round_number: 7,
         tick: ROUND_7_TICK,
         steam_id: "STEAM_A",
@@ -117,7 +117,7 @@ describe("MistakeList", () => {
     renderWithProviders(<MistakeList />)
 
     const row = await screen.findByTestId("mistake-list-row-0")
-    expect(row).toHaveTextContent("Untraded death — round 7, 1:23")
+    expect(row).toHaveTextContent("Isolated peek — round 7, 1:23")
   })
 
   it("calls the binding with demoId + steamId", async () => {
@@ -149,7 +149,7 @@ describe("MistakeList", () => {
     useViewerStore.getState().setSelectedPlayer("STEAM_A")
     mockAppBindings.GetMistakeTimeline.mockResolvedValueOnce([
       {
-        kind: "no_trade_death",
+        kind: "isolated_peek",
         round_number: 7,
         tick: ROUND_7_TICK,
         steam_id: "STEAM_A",
@@ -179,7 +179,7 @@ describe("MistakeList", () => {
     useViewerStore.getState().setSelectedPlayer("STEAM_A")
     mockAppBindings.GetMistakeTimeline.mockResolvedValueOnce([
       {
-        kind: "no_trade_death",
+        kind: "isolated_peek",
         round_number: 7,
         tick: ROUND_7_TICK,
         steam_id: "STEAM_A",
@@ -211,14 +211,14 @@ describe("MistakeList", () => {
     useViewerStore.getState().setSelectedPlayer("STEAM_A")
     mockAppBindings.GetMistakeTimeline.mockResolvedValueOnce([
       {
-        kind: "died_with_util_unused",
+        kind: "flash_assist",
         round_number: 7,
         tick: UTIL_UNUSED_TICK,
         steam_id: "STEAM_A",
         extras: { unused: ["smokegrenade"] },
       },
       {
-        kind: "no_trade_death",
+        kind: "isolated_peek",
         round_number: 7,
         tick: ROUND_7_TICK,
         steam_id: "STEAM_A",
@@ -230,16 +230,14 @@ describe("MistakeList", () => {
     const firstRow = await screen.findByTestId("mistake-list-row-0")
     const secondRow = await screen.findByTestId("mistake-list-row-1")
 
-    expect(firstRow).toHaveTextContent(
-      "Died with utility unused — round 7, 0:30",
-    )
-    expect(secondRow).toHaveTextContent("Untraded death — round 7, 1:23")
+    expect(firstRow).toHaveTextContent("Flash assist — round 7, 0:30")
+    expect(secondRow).toHaveTextContent("Isolated peek — round 7, 1:23")
 
     expect(
-      screen.getByTestId("mistake-row-severity-died_with_util_unused"),
+      screen.getByTestId("mistake-row-severity-flash_assist"),
     ).toBeInTheDocument()
     expect(
-      screen.getByTestId("mistake-row-severity-no_trade_death"),
+      screen.getByTestId("mistake-row-severity-isolated_peek"),
     ).toBeInTheDocument()
   })
 
@@ -256,14 +254,14 @@ describe("MistakeList", () => {
       useViewerStore.getState().setSelectedPlayer("STEAM_A")
       mockAppBindings.GetMistakeTimeline.mockResolvedValue([
         {
-          kind: "died_with_util_unused",
+          kind: "flash_assist",
           round_number: 7,
           tick: UTIL_UNUSED_TICK,
           steam_id: "STEAM_A",
           extras: { unused: ["smokegrenade"] },
         },
         {
-          kind: "no_trade_death",
+          kind: "isolated_peek",
           round_number: 7,
           tick: ROUND_7_TICK,
           steam_id: "STEAM_A",
@@ -278,9 +276,11 @@ describe("MistakeList", () => {
       renderWithProviders(<MistakeList />)
       await screen.findByTestId("mistake-list-row-0")
 
-      const tradeBadge = screen.getByTestId("mistake-category-badge-trade")
+      const positioningBadge = screen.getByTestId(
+        "mistake-category-badge-positioning",
+      )
       const utilityBadge = screen.getByTestId("mistake-category-badge-utility")
-      expect(tradeBadge).toHaveTextContent("Trade 1")
+      expect(positioningBadge).toHaveTextContent("Positioning 1")
       expect(utilityBadge).toHaveTextContent("Utility 1")
       expect(
         screen.queryByTestId("mistake-category-badge-other"),
@@ -294,15 +294,13 @@ describe("MistakeList", () => {
       renderWithProviders(<MistakeList />)
       await screen.findByTestId("mistake-list-row-1")
 
-      await user.click(screen.getByTestId("mistake-category-badge-trade"))
+      await user.click(screen.getByTestId("mistake-category-badge-positioning"))
 
-      expect(useAnalysisStore.getState().selectedCategory).toBe("trade")
+      expect(useAnalysisStore.getState().selectedCategory).toBe("positioning")
       const rows = screen.getAllByTestId(/^mistake-list-row-/)
       expect(rows).toHaveLength(1)
-      expect(rows[0]).toHaveTextContent("Untraded death — round 7, 1:23")
-      expect(
-        screen.queryByText(/Died with utility unused/),
-      ).not.toBeInTheDocument()
+      expect(rows[0]).toHaveTextContent("Isolated peek — round 7, 1:23")
+      expect(screen.queryByText(/Flash assist/)).not.toBeInTheDocument()
     })
 
     it("clicking the active badge clears the filter", async () => {
@@ -312,11 +310,13 @@ describe("MistakeList", () => {
       renderWithProviders(<MistakeList />)
       await screen.findByTestId("mistake-list-row-1")
 
-      const tradeBadge = screen.getByTestId("mistake-category-badge-trade")
-      await user.click(tradeBadge)
+      const positioningBadge = screen.getByTestId(
+        "mistake-category-badge-positioning",
+      )
+      await user.click(positioningBadge)
       expect(screen.getAllByTestId(/^mistake-list-row-/)).toHaveLength(1)
 
-      await user.click(screen.getByTestId("mistake-category-badge-trade"))
+      await user.click(screen.getByTestId("mistake-category-badge-positioning"))
 
       expect(useAnalysisStore.getState().selectedCategory).toBeNull()
       expect(screen.getAllByTestId(/^mistake-list-row-/)).toHaveLength(2)
@@ -339,21 +339,21 @@ describe("MistakeList", () => {
       useViewerStore.getState().setSelectedPlayer("STEAM_A")
       mockAppBindings.GetMistakeTimeline.mockResolvedValueOnce([
         {
-          kind: "died_with_util_unused",
+          kind: "flash_assist",
           round_number: 7,
           tick: ROUND_7_FREEZE_END + 30 * TICK_RATE,
           steam_id: "STEAM_A",
           extras: { unused: ["smokegrenade"] },
         },
         {
-          kind: "no_trade_death",
+          kind: "isolated_peek",
           round_number: 7,
           tick: ROUND_7_TICK,
           steam_id: "STEAM_A",
           extras: { killer_steam_id: "STEAM_B" },
         },
         {
-          kind: "crosshair_too_low",
+          kind: "slow_reaction",
           round_number: 7,
           tick: CROSS_TICK,
           steam_id: "STEAM_A",
@@ -373,22 +373,23 @@ describe("MistakeList", () => {
 
       // Row labels for the two new kinds.
       expect(screen.getByTestId("mistake-list-row-2")).toHaveTextContent(
-        "Crosshair too low — round 7, 1:45",
+        "Slow reaction — round 7, 1:45",
       )
       expect(screen.getByTestId("mistake-list-row-3")).toHaveTextContent(
         "Shot while moving — round 7, 2:10",
       )
 
-      // Badges appear in CATEGORY_ORDER (trade, utility, aim, movement).
+      // Badges appear in CATEGORY_ORDER (utility, aim, movement) first, then
+      // categories outside the static order alphabetically (positioning).
       const bar = screen.getByTestId("mistake-category-bar")
       const badgeTexts = Array.from(
         bar.querySelectorAll('[data-testid^="mistake-category-badge-"]'),
       ).map((el) => el.textContent?.trim() ?? "")
       expect(badgeTexts).toEqual([
-        "Trade 1",
         "Utility 1",
         "Aim 1",
         "Movement 1",
+        "Positioning 1",
       ])
     })
 
@@ -405,14 +406,14 @@ describe("MistakeList", () => {
       useViewerStore.getState().setSelectedPlayer("STEAM_A")
       mockAppBindings.GetMistakeTimeline.mockResolvedValue([
         {
-          kind: "no_trade_death",
+          kind: "isolated_peek",
           round_number: 7,
           tick: ROUND_7_TICK,
           steam_id: "STEAM_A",
           extras: { killer_steam_id: "STEAM_B" },
         },
         {
-          kind: "crosshair_too_low",
+          kind: "slow_reaction",
           round_number: 7,
           tick: CROSS_TICK,
           steam_id: "STEAM_A",
@@ -426,7 +427,7 @@ describe("MistakeList", () => {
       await user.click(screen.getByTestId("mistake-category-badge-aim"))
       const rows = screen.getAllByTestId(/^mistake-list-row-/)
       expect(rows).toHaveLength(1)
-      expect(rows[0]).toHaveTextContent("Crosshair too low — round 7, 1:45")
+      expect(rows[0]).toHaveTextContent("Slow reaction — round 7, 1:45")
     })
 
     it("clears the filter when the selected player changes", async () => {
@@ -436,8 +437,8 @@ describe("MistakeList", () => {
       renderWithProviders(<MistakeList />)
       await screen.findByTestId("mistake-list-row-1")
 
-      await user.click(screen.getByTestId("mistake-category-badge-trade"))
-      expect(useAnalysisStore.getState().selectedCategory).toBe("trade")
+      await user.click(screen.getByTestId("mistake-category-badge-positioning"))
+      expect(useAnalysisStore.getState().selectedCategory).toBe("positioning")
 
       useViewerStore.getState().setSelectedPlayer("STEAM_B")
 
@@ -490,7 +491,7 @@ describe("MistakeList", () => {
       })
       mockAppBindings.GetMistakeTimeline.mockResolvedValue([
         {
-          kind: "no_trade_death",
+          kind: "isolated_peek",
           round_number: 7,
           tick: ROUND_7_TICK,
           steam_id: "STEAM_A",
@@ -511,7 +512,7 @@ describe("MistakeList", () => {
       // waitForElementToBeRemoved but immune to microtask ordering races
       // when missing → ready resolves in the same React tick.
       const row = await screen.findByTestId("mistake-list-row-0")
-      expect(row).toHaveTextContent("Untraded death — round 7, 1:23")
+      expect(row).toHaveTextContent("Isolated peek — round 7, 1:23")
       expect(
         screen.queryByTestId("mistake-list-shimmer"),
       ).not.toBeInTheDocument()

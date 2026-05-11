@@ -6,10 +6,15 @@ const SEEK_SECONDS = 5
 
 interface UseViewerKeyboardOptions {
   onToggleScoreboard: () => void
+  // Optional: jump to the prev/next event tick on the active round timeline.
+  // direction = -1 for `,` (previous), +1 for `.` (next). Return null to
+  // ignore the keystroke (no events, no model, etc.).
+  onNavigateEvent?: (direction: -1 | 1) => number | null
 }
 
 export function useViewerKeyboard({
   onToggleScoreboard,
+  onNavigateEvent,
 }: UseViewerKeyboardOptions) {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -76,10 +81,24 @@ export function useViewerKeyboard({
           state.resetViewport()
           break
         }
+        case ",": {
+          if (!onNavigateEvent) break
+          e.preventDefault()
+          const tick = onNavigateEvent(-1)
+          if (tick !== null) state.setTick(tick)
+          break
+        }
+        case ".": {
+          if (!onNavigateEvent) break
+          e.preventDefault()
+          const tick = onNavigateEvent(1)
+          if (tick !== null) state.setTick(tick)
+          break
+        }
       }
     }
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [onToggleScoreboard])
+  }, [onToggleScoreboard, onNavigateEvent])
 }

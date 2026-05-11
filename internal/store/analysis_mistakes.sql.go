@@ -74,8 +74,8 @@ func (q *Queries) CountAnalysisMistakesByKindForPlayer(ctx context.Context, arg 
 }
 
 const createAnalysisMistake = `-- name: CreateAnalysisMistake :exec
-INSERT INTO analysis_mistakes (demo_id, steam_id, round_number, round_id, tick, kind, category, severity, extras_json)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+INSERT INTO analysis_mistakes (demo_id, steam_id, round_number, round_id, tick, kind, category, severity, extras_json, duel_id)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
 `
 
 type CreateAnalysisMistakeParams struct {
@@ -88,6 +88,7 @@ type CreateAnalysisMistakeParams struct {
 	Category    string
 	Severity    int64
 	ExtrasJson  string
+	DuelID      sql.NullInt64
 }
 
 func (q *Queries) CreateAnalysisMistake(ctx context.Context, arg CreateAnalysisMistakeParams) error {
@@ -101,6 +102,7 @@ func (q *Queries) CreateAnalysisMistake(ctx context.Context, arg CreateAnalysisM
 		arg.Category,
 		arg.Severity,
 		arg.ExtrasJson,
+		arg.DuelID,
 	)
 	return err
 }
@@ -116,7 +118,7 @@ func (q *Queries) DeleteAnalysisMistakesByDemoID(ctx context.Context, demoID int
 }
 
 const getAnalysisMistakeByID = `-- name: GetAnalysisMistakeByID :one
-SELECT id, demo_id, steam_id, round_number, round_id, tick, kind, category, severity, extras_json, created_at
+SELECT id, demo_id, steam_id, round_number, round_id, tick, kind, category, severity, extras_json, duel_id, created_at
 FROM analysis_mistakes
 WHERE id = ?1
 `
@@ -132,6 +134,7 @@ type GetAnalysisMistakeByIDRow struct {
 	Category    string
 	Severity    int64
 	ExtrasJson  string
+	DuelID      sql.NullInt64
 	CreatedAt   string
 }
 
@@ -149,13 +152,14 @@ func (q *Queries) GetAnalysisMistakeByID(ctx context.Context, id int64) (GetAnal
 		&i.Category,
 		&i.Severity,
 		&i.ExtrasJson,
+		&i.DuelID,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const listAnalysisMistakesByDemoIDAndSteamID = `-- name: ListAnalysisMistakesByDemoIDAndSteamID :many
-SELECT id, demo_id, steam_id, round_number, round_id, tick, kind, category, severity, extras_json, created_at
+SELECT id, demo_id, steam_id, round_number, round_id, tick, kind, category, severity, extras_json, duel_id, created_at
 FROM analysis_mistakes
 WHERE demo_id = ?1
   AND steam_id = ?2
@@ -178,6 +182,7 @@ type ListAnalysisMistakesByDemoIDAndSteamIDRow struct {
 	Category    string
 	Severity    int64
 	ExtrasJson  string
+	DuelID      sql.NullInt64
 	CreatedAt   string
 }
 
@@ -203,6 +208,7 @@ func (q *Queries) ListAnalysisMistakesByDemoIDAndSteamID(ctx context.Context, ar
 			&i.Category,
 			&i.Severity,
 			&i.ExtrasJson,
+			&i.DuelID,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

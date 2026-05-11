@@ -43,6 +43,21 @@ Use `go test -race ./...` (not `go test ./...`) for unit tests. The race detecto
 
 ## Gotchas
 
+### Golden-file `-update` flag order
+
+`go test -update <path>` is wrong — Go parses `-update` as a package pattern when it precedes the path. Put the flag after the package:
+
+```bash
+go test ./internal/demo/analysis/ -update        # path first, flag last
+go test ./internal/demo/analysis/ -run Foo -update
+```
+
+`go test -update ./...` silently runs nothing — Go interprets `-update` as a package pattern and finds zero packages. Bumping `AnalysisVersion` is a common trigger for stale goldens (every `MatchSummaryRow.version` flips); regenerate with the above.
+
+### Loose binding-mock shapes let new fields land without test churn
+
+`mockAppBindings.GetMistakeTimeline` in `src/test/mocks/bindings.ts` declares its return shape inline with only the fields the test files actually inspect. When the real `MistakeEntry` gained `duel_id` (slice 13), no existing test had to change — the mock didn't enforce the new field, and rendering code keys on `m.duel_id != null` which is false for `undefined` too. Keep mock shapes narrow on purpose so additive field changes don't cascade into fixture rewrites.
+
 ### Querying portaled dialogs that echo on-page text
 
 Radix portals (`AlertDialog`, `Dialog`, `Popover`) render into `document.body`, so `screen.getByText(...)` searches both the open dialog **and** the underlying page. When the dialog repeats data already visible — e.g. a row's filename inside a "Remove this demo?" confirmation — a plain `getByText` matches two nodes and throws. Scope to the dialog:

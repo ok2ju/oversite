@@ -116,7 +116,6 @@ export type HabitKey =
   | "crouch_before_shot"
   | "flick_balance"
   | "trade_timing"
-  | "untraded_deaths"
   | "utility_used"
   | "isolated_peek_deaths"
   | "repeated_death_zone"

@@ -29,12 +29,6 @@ const FIRE_RELATED_KINDS: Array<{
       "Without a counter-strafe your rifle's first-bullet cone is closer to a deagle's than a tap kill.",
   },
   {
-    kind: "missed_flick",
-    label: "Missed flick",
-    whyItHurts:
-      "An overshot flick costs the opener and re-centers you out of the duel before your second shot.",
-  },
-  {
     kind: "slow_reaction",
     label: "Slow reaction",
     whyItHurts:
@@ -45,12 +39,6 @@ const FIRE_RELATED_KINDS: Array<{
     label: "Spray decay",
     whyItHurts:
       "Past shot 5 the cone is so wide most bullets miss — you're just feeding ammo into a wall.",
-  },
-  {
-    kind: "crosshair_too_low",
-    label: "Crosshair too low",
-    whyItHurts:
-      "A low crosshair forces an upward flick on every peek — the extra travel is the duel.",
   },
 ]
 

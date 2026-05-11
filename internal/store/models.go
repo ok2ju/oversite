@@ -8,6 +8,25 @@ import (
 	"database/sql"
 )
 
+type AnalysisDuel struct {
+	ID            int64
+	DemoID        int64
+	RoundNumber   int64
+	RoundID       sql.NullInt64
+	AttackerSteam string
+	VictimSteam   string
+	StartTick     int64
+	EndTick       int64
+	Outcome       string
+	EndReason     string
+	HitConfirmed  int64
+	HurtCount     int64
+	ShotCount     int64
+	MutualDuelID  sql.NullInt64
+	ExtrasJson    string
+	CreatedAt     string
+}
+
 type AnalysisMistake struct {
 	ID          int64
 	DemoID      int64
@@ -20,6 +39,7 @@ type AnalysisMistake struct {
 	Category    string
 	Severity    int64
 	RoundID     sql.NullInt64
+	DuelID      sql.NullInt64
 }
 
 type Demo struct {

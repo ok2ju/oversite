@@ -248,6 +248,10 @@ type MistakeEntry struct {
 	Tick        int64          `json:"tick"`
 	SteamID     string         `json:"steam_id"`
 	Extras      map[string]any `json:"extras"`
+	// DuelID is the analysis_duels row this mistake attaches to. nil for
+	// mistakes that don't belong to a duel (eco_misbuy, he_damage) or
+	// that fell into the "unattributed" bucket.
+	DuelID *int64 `json:"duel_id"`
 }
 
 // MistakeCoOccurrence is the lightweight reference shape for a *different*
@@ -259,6 +263,34 @@ type MistakeCoOccurrence struct {
 	Kind  string `json:"kind"`
 	Title string `json:"title"`
 	Tick  int64  `json:"tick"`
+}
+
+// DuelEntry is a single attacker→victim engagement, returned by
+// ListDuelsForPlayer. The viewer renders one band per entry on the
+// round-timeline duels lane. HitConfirmed / HurtCount / ShotCount drive
+// hit dots in the band; MutualDuelID lets the viewer stack two bands
+// when both players fired at each other in overlapping windows.
+type DuelEntry struct {
+	ID            int64  `json:"id"`
+	RoundNumber   int    `json:"round_number"`
+	AttackerSteam string `json:"attacker_steam"`
+	VictimSteam   string `json:"victim_steam"`
+	StartTick     int64  `json:"start_tick"`
+	EndTick       int64  `json:"end_tick"`
+	Outcome       string `json:"outcome"`
+	EndReason     string `json:"end_reason"`
+	HitConfirmed  bool   `json:"hit_confirmed"`
+	HurtCount     int    `json:"hurt_count"`
+	ShotCount     int    `json:"shot_count"`
+	MutualDuelID  *int64 `json:"mutual_duel_id"`
+}
+
+// DuelContext is the deep-detail variant returned by GetDuelContext —
+// one duel plus the mistakes inside it. Powers the tooltip / popover on
+// the duels lane.
+type DuelContext struct {
+	Duel     DuelEntry      `json:"duel"`
+	Mistakes []MistakeEntry `json:"mistakes"`
 }
 
 // MistakeContext is the deep-detail variant returned by GetMistakeContext.

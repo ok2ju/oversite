@@ -16,7 +16,6 @@ const (
 	HabitCrouchBeforeShot   HabitKey = "crouch_before_shot"
 	HabitFlickBalance       HabitKey = "flick_balance"
 	HabitTradeTiming        HabitKey = "trade_timing"
-	HabitUntradedDeaths     HabitKey = "untraded_deaths"
 	HabitUtilityUsed        HabitKey = "utility_used"
 	HabitIsolatedPeekDeaths HabitKey = "isolated_peek_deaths"
 	HabitRepeatedDeathZone  HabitKey = "repeated_death_zone"
@@ -178,15 +177,6 @@ var normCatalog = map[HabitKey]Norm{
 		GoodThreshold: 70,
 		WarnThreshold: 50,
 	},
-	HabitUntradedDeaths: {
-		Key:           HabitUntradedDeaths,
-		Label:         "Untraded deaths",
-		Description:   "Deaths your team never traded back.",
-		Unit:          "",
-		Direction:     LowerIsBetter,
-		GoodThreshold: 2,
-		WarnThreshold: 4,
-	},
 	HabitUtilityUsed: {
 		Key:           HabitUtilityUsed,
 		Label:         "Utility used",
@@ -236,7 +226,6 @@ func AllHabitKeys() []HabitKey {
 		HabitCrouchBeforeShot,
 		HabitFlickBalance,
 		HabitTradeTiming,
-		HabitUntradedDeaths,
 		HabitUtilityUsed,
 		HabitIsolatedPeekDeaths,
 		HabitRepeatedDeathZone,

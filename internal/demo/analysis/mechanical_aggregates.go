@@ -6,14 +6,12 @@ import (
 	"github.com/ok2ju/oversite/internal/demo"
 )
 
-// MechanicalAgg is the per-player rollup of the slice-8 tick-driven rules.
-// Counts are kept alongside the percentages so future slices can re-derive
-// confidence intervals without re-walking the events.
+// MechanicalAgg is the per-player rollup of the tick-driven rules. Counts are
+// kept alongside the percentages so future slices can re-derive confidence
+// intervals without re-walking the events.
 type MechanicalAgg struct {
 	Engagements     int     // total weapon_fire events for this player (firearm filter applied at the parser).
-	CrosshairFlags  int     // fires flagged by crosshairTooLow.
 	MovingFlags     int     // fires flagged by shotWhileMoving.
-	AimPct          float64 // 1 - CrosshairFlags / Engagements (0 when Engagements == 0).
 	StandingShotPct float64 // 1 - MovingFlags / Engagements (0 when Engagements == 0).
 	AvgFireSpeed    float64 // mean planar speed at the most-recent sampled tick over this player's fires.
 }
@@ -32,10 +30,9 @@ func computeMechanicalAggregates(events []demo.GameEvent, idx PerPlayerTickIndex
 		return nil
 	}
 	type accum struct {
-		engagements    int
-		crosshairFlags int
-		movingFlags    int
-		speedSum       float64
+		engagements int
+		movingFlags int
+		speedSum    float64
 	}
 	byPlayer := make(map[string]*accum, 16)
 	for _, ev := range events {
@@ -59,12 +56,7 @@ func computeMechanicalAggregates(events []demo.GameEvent, idx PerPlayerTickIndex
 		}
 	}
 	for _, m := range mistakes {
-		switch m.Kind {
-		case string(MistakeKindCrosshairTooLow):
-			if a, ok := byPlayer[m.SteamID]; ok {
-				a.crosshairFlags++
-			}
-		case string(MistakeKindShotWhileMoving):
+		if m.Kind == string(MistakeKindShotWhileMoving) {
 			if a, ok := byPlayer[m.SteamID]; ok {
 				a.movingFlags++
 			}
@@ -73,12 +65,10 @@ func computeMechanicalAggregates(events []demo.GameEvent, idx PerPlayerTickIndex
 	out := make(map[string]MechanicalAgg, len(byPlayer))
 	for steamID, a := range byPlayer {
 		ag := MechanicalAgg{
-			Engagements:    a.engagements,
-			CrosshairFlags: a.crosshairFlags,
-			MovingFlags:    a.movingFlags,
+			Engagements: a.engagements,
+			MovingFlags: a.movingFlags,
 		}
 		if a.engagements > 0 {
-			ag.AimPct = 1 - float64(a.crosshairFlags)/float64(a.engagements)
 			ag.StandingShotPct = 1 - float64(a.movingFlags)/float64(a.engagements)
 			ag.AvgFireSpeed = a.speedSum / float64(a.engagements)
 		}
@@ -94,10 +84,9 @@ func computeRoundMechanicalAggregates(events []demo.GameEvent, idx PerPlayerTick
 		return nil
 	}
 	type accum struct {
-		engagements    int
-		crosshairFlags int
-		movingFlags    int
-		speedSum       float64
+		engagements int
+		movingFlags int
+		speedSum    float64
 	}
 	byPlayerRound := make(map[string]map[int]*accum, 16)
 	for _, ev := range events {
@@ -126,6 +115,9 @@ func computeRoundMechanicalAggregates(events []demo.GameEvent, idx PerPlayerTick
 		}
 	}
 	for _, m := range mistakes {
+		if m.Kind != string(MistakeKindShotWhileMoving) {
+			continue
+		}
 		byRound, ok := byPlayerRound[m.SteamID]
 		if !ok {
 			continue
@@ -134,24 +126,17 @@ func computeRoundMechanicalAggregates(events []demo.GameEvent, idx PerPlayerTick
 		if !ok {
 			continue
 		}
-		switch m.Kind {
-		case string(MistakeKindCrosshairTooLow):
-			a.crosshairFlags++
-		case string(MistakeKindShotWhileMoving):
-			a.movingFlags++
-		}
+		a.movingFlags++
 	}
 	out := make(map[string]map[int]MechanicalAgg, len(byPlayerRound))
 	for steamID, byRound := range byPlayerRound {
 		inner := make(map[int]MechanicalAgg, len(byRound))
 		for roundNumber, a := range byRound {
 			ag := MechanicalAgg{
-				Engagements:    a.engagements,
-				CrosshairFlags: a.crosshairFlags,
-				MovingFlags:    a.movingFlags,
+				Engagements: a.engagements,
+				MovingFlags: a.movingFlags,
 			}
 			if a.engagements > 0 {
-				ag.AimPct = 1 - float64(a.crosshairFlags)/float64(a.engagements)
 				ag.StandingShotPct = 1 - float64(a.movingFlags)/float64(a.engagements)
 				ag.AvgFireSpeed = a.speedSum / float64(a.engagements)
 			}

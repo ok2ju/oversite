@@ -6,20 +6,13 @@ import "testing"
 // confirms templates.go stays in lock-step with analyzer.go. Add new kinds
 // here when they land in analyzer.go.
 var allMistakeKinds = []MistakeKind{
-	MistakeKindNoTradeDeath,
-	MistakeKindDiedWithUtilUnused,
-	MistakeKindCrosshairTooLow,
 	MistakeKindShotWhileMoving,
 	MistakeKindSlowReaction,
-	MistakeKindMissedFlick,
 	MistakeKindMissedFirstShot,
 	MistakeKindSprayDecay,
 	MistakeKindNoCounterStrafe,
-	MistakeKindUnusedSmoke,
-	MistakeKindSurvivedWithUtil,
 	MistakeKindIsolatedPeek,
 	MistakeKindRepeatedDeathZone,
-	MistakeKindWalkedIntoMolotov,
 	MistakeKindEcoMisbuy,
 	MistakeKindCaughtReloading,
 	MistakeKindFlashAssist,

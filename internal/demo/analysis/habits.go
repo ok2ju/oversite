@@ -36,9 +36,6 @@ type HabitInputs struct {
 	IsolatedPeekDeaths int
 	RepeatedDeathZones int
 
-	// Untraded deaths count from analysis_mistakes (kind = no_trade_death).
-	UntradedDeathsCount int
-
 	// "standing_shot_pct" from extras_json — the mech-aggregate value
 	// (fraction of fires while standing). Present-or-absent flag controls
 	// whether the shooting-in-motion habit appears in the report; the
@@ -135,7 +132,6 @@ func BuildHabitReport(in HabitInputs) []HabitRow {
 		add(HabitFlickBalance, in.FlickBalancePct)
 	}
 	add(HabitTradeTiming, in.TradePctRatio*100)
-	add(HabitUntradedDeaths, float64(in.UntradedDeathsCount))
 	add(HabitIsolatedPeekDeaths, float64(in.IsolatedPeekDeaths))
 	add(HabitRepeatedDeathZone, float64(in.RepeatedDeathZones))
 	return rows
@@ -219,16 +215,6 @@ func LoadHabitInputs(ctx context.Context, q *store.Queries, demoID int64, steamI
 		}
 	}
 
-	count, err := q.CountAnalysisMistakesByKindForPlayer(ctx, store.CountAnalysisMistakesByKindForPlayerParams{
-		DemoID:  demoID,
-		SteamID: steamID,
-		Kind:    string(MistakeKindNoTradeDeath),
-	})
-	if err != nil {
-		return HabitInputs{}, false, fmt.Errorf("count untraded deaths: %w", err)
-	}
-	in.UntradedDeathsCount = int(count)
-
 	return in, true, nil
 }
 
@@ -245,8 +231,6 @@ type HistoryRecord struct {
 	TradePctRatio      float64
 	IsolatedPeekDeaths int
 	RepeatedDeathZones int
-
-	UntradedDeathsCount int
 
 	StandingShotMechRatio   float64
 	HasStandingShotMechData bool
@@ -300,8 +284,6 @@ func LoadHabitHistory(ctx context.Context, q *store.Queries, steamID string, lim
 			TradePctRatio:      r.TradePct,
 			IsolatedPeekDeaths: int(r.IsolatedPeekDeaths),
 			RepeatedDeathZones: int(r.RepeatedDeathZones),
-
-			UntradedDeathsCount: int(r.UntradedCount),
 
 			TimeToStopMsAvg:       r.TimeToStopMsAvg,
 			CrouchBeforeShotCount: int(r.CrouchBeforeShotCount),
@@ -375,8 +357,6 @@ func HabitValueFromRecord(key HabitKey, rec HistoryRecord) (float64, bool) {
 		return rec.FlickBalancePct, true
 	case HabitTradeTiming:
 		return rec.TradePctRatio * 100, true
-	case HabitUntradedDeaths:
-		return float64(rec.UntradedDeathsCount), true
 	case HabitIsolatedPeekDeaths:
 		return float64(rec.IsolatedPeekDeaths), true
 	case HabitRepeatedDeathZone:

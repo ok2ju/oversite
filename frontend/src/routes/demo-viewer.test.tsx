@@ -15,11 +15,8 @@ import DemoViewerPage from "@/routes/demo-viewer"
 vi.mock("@/components/viewer/viewer-canvas", () => ({
   ViewerCanvas: () => <div data-testid="viewer-canvas" />,
 }))
-vi.mock("@/components/viewer/playback-controls", () => ({
-  PlaybackControls: () => <div data-testid="playback-controls" />,
-}))
-vi.mock("@/components/viewer/round-selector", () => ({
-  RoundSelector: () => <div data-testid="round-selector" />,
+vi.mock("@/components/viewer/playback-dock", () => ({
+  PlaybackDock: () => <div data-testid="playback-dock" />,
 }))
 vi.mock("@/components/viewer/scoreboard", () => ({
   Scoreboard: () => <div data-testid="scoreboard" />,
@@ -68,7 +65,7 @@ describe("DemoViewerPage", () => {
     })
 
     expect(screen.getByTestId("viewer-canvas")).toBeInTheDocument()
-    expect(screen.getByTestId("playback-controls")).toBeInTheDocument()
+    expect(screen.getByTestId("playback-dock")).toBeInTheDocument()
   })
 
   it("shows error state when demo not found", async () => {

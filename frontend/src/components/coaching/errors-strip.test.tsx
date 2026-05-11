@@ -9,7 +9,7 @@ describe("ErrorsStrip", () => {
       <ErrorsStrip
         latestDemoId="42"
         errors={[
-          { kind: "no_trade_death", total: 8 }, // not fire-related — hidden
+          { kind: "eco_misbuy", total: 8 }, // not fire-related — hidden
           { kind: "missed_first_shot", total: 5 },
           { kind: "shot_while_moving", total: 2 },
         ]}
@@ -23,7 +23,7 @@ describe("ErrorsStrip", () => {
       screen.getByTestId("errors-strip-card-shot_while_moving"),
     ).toBeInTheDocument()
     expect(
-      screen.queryByTestId("errors-strip-card-no_trade_death"),
+      screen.queryByTestId("errors-strip-card-eco_misbuy"),
     ).not.toBeInTheDocument()
     expect(
       screen.queryByTestId("errors-strip-card-slow_reaction"),
@@ -65,7 +65,7 @@ describe("ErrorsStrip", () => {
       <ErrorsStrip
         latestDemoId="42"
         errors={[
-          { kind: "no_trade_death", total: 4 },
+          { kind: "eco_misbuy", total: 4 },
           { kind: "isolated_peek", total: 3 },
         ]}
       />,

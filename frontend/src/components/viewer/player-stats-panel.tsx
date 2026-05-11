@@ -6,10 +6,11 @@ import { usePlayerStats } from "@/hooks/use-player-stats"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { PlayerLiveHud } from "@/components/viewer/player-live-hud"
+import { MistakeList } from "@/components/viewer/mistake-list"
 import type { PlayerMatchStats, PlayerRoundDetail } from "@/types/player-stats"
 import type { Round } from "@/types/round"
 
-const PANEL_WIDTH = 360
+const PANEL_WIDTH = 420
 
 const sideColor = (side: string) =>
   side === "CT"
@@ -419,17 +420,15 @@ export function PlayerStatsPanel() {
   const setSelectedPlayer = useViewerStore((s) => s.setSelectedPlayer)
   const setRound = useViewerStore((s) => s.setRound)
   const currentTick = useViewerStore((s) => s.currentTick)
-  const currentRound = useViewerStore((s) => s.currentRound)
 
   const { data: rounds } = useRounds(demoId)
   const { data: stats, isLoading } = usePlayerStats(demoId, steamId)
 
   const activeRoundNumber = useMemo(() => {
-    if (currentRound) return currentRound
     if (!rounds?.length) return 1
     const idx = getActiveRoundIndex(rounds, currentTick)
     return rounds[idx].round_number
-  }, [currentRound, rounds, currentTick])
+  }, [rounds, currentTick])
 
   if (!steamId) return null
 
@@ -497,13 +496,18 @@ export function PlayerStatsPanel() {
       </header>
 
       <div className="flex-1 overflow-y-auto p-3">
-        <Tabs defaultValue="match" className="space-y-3">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="live">Live HUD</TabsTrigger>
+        <Tabs defaultValue="mistakes" className="space-y-3">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="mistakes">Mistakes</TabsTrigger>
+            <TabsTrigger value="live">Live</TabsTrigger>
             <TabsTrigger value="match">Match</TabsTrigger>
             <TabsTrigger value="round">Round</TabsTrigger>
             <TabsTrigger value="detail">Detail</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="mistakes" className="space-y-2">
+            <MistakeList variant="embedded" steamId={steamId} />
+          </TabsContent>
 
           <TabsContent value="live" className="space-y-2">
             <PlayerLiveHud steamId={steamId} />

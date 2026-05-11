@@ -1,6 +1,6 @@
 -- name: CreateAnalysisMistake :exec
-INSERT INTO analysis_mistakes (demo_id, steam_id, round_number, round_id, tick, kind, category, severity, extras_json)
-VALUES (@demo_id, @steam_id, @round_number, @round_id, @tick, @kind, @category, @severity, @extras_json);
+INSERT INTO analysis_mistakes (demo_id, steam_id, round_number, round_id, tick, kind, category, severity, extras_json, duel_id)
+VALUES (@demo_id, @steam_id, @round_number, @round_id, @tick, @kind, @category, @severity, @extras_json, @duel_id);
 
 -- name: DeleteAnalysisMistakesByDemoID :exec
 DELETE FROM analysis_mistakes
@@ -9,14 +9,14 @@ WHERE demo_id = @demo_id;
 -- name: ListAnalysisMistakesByDemoIDAndSteamID :many
 -- Returns every mistake row for (demo, player), ordered chronologically so the
 -- viewer side panel can render them as-is.
-SELECT id, demo_id, steam_id, round_number, round_id, tick, kind, category, severity, extras_json, created_at
+SELECT id, demo_id, steam_id, round_number, round_id, tick, kind, category, severity, extras_json, duel_id, created_at
 FROM analysis_mistakes
 WHERE demo_id = @demo_id
   AND steam_id = @steam_id
 ORDER BY tick ASC, id ASC;
 
 -- name: GetAnalysisMistakeByID :one
-SELECT id, demo_id, steam_id, round_number, round_id, tick, kind, category, severity, extras_json, created_at
+SELECT id, demo_id, steam_id, round_number, round_id, tick, kind, category, severity, extras_json, duel_id, created_at
 FROM analysis_mistakes
 WHERE id = @id;
 
@@ -39,4 +39,3 @@ FROM analysis_mistakes
 WHERE demo_id = @demo_id
   AND steam_id = @steam_id
   AND kind = @kind;
-

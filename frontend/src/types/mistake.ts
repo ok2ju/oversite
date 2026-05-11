@@ -17,6 +17,10 @@ export interface MistakeEntry {
   tick: number
   steam_id: string
   extras: Record<string, unknown> | null
+  // duel_id is the analysis_duels row this mistake attaches to. Slice 13
+  // adds duel-scoped attribution: fire- and kill-anchored mistakes carry
+  // a duel_id; cross-duel patterns (eco_misbuy, he_damage) carry null.
+  duel_id: number | null
 }
 
 // MistakeCoOccurrence mirrors main.MistakeCoOccurrence — the lightweight

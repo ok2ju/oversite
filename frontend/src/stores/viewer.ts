@@ -2,6 +2,17 @@ import { create } from "zustand"
 import { subscribeWithSelector } from "zustand/middleware"
 import { DEFAULT_VIEWPORT, type Viewport } from "@/lib/pixi/camera"
 
+// Multi-select state for the round timeline's filter chips. All on by default;
+// the slice survives round + player switches so a user-tuned filter set
+// persists across context changes (per plan: "remembered when switching
+// rounds").
+export interface TimelineFilters {
+  kills: boolean
+  utility: boolean
+  bomb: boolean
+  myEvents: boolean
+}
+
 interface ViewerState {
   currentTick: number
   totalTicks: number
@@ -16,6 +27,7 @@ interface ViewerState {
   screenWidth: number
   screenHeight: number
   resetViewportCounter: number
+  timelineFilters: TimelineFilters
   setTick: (tick: number) => void
   setTotalTicks: (total: number) => void
   togglePlay: () => void
@@ -34,6 +46,7 @@ interface ViewerState {
   setViewport: (v: Viewport) => void
   setScreenSize: (w: number, h: number) => void
   resetViewport: () => void
+  setTimelineFilter: (key: keyof TimelineFilters, value: boolean) => void
   reset: () => void
 }
 
@@ -51,6 +64,12 @@ const initialState = {
   screenWidth: 0,
   screenHeight: 0,
   resetViewportCounter: 0,
+  timelineFilters: {
+    kills: true,
+    utility: true,
+    bomb: true,
+    myEvents: false,
+  } as TimelineFilters,
 }
 
 export const useViewerStore = create<ViewerState>()(
@@ -89,6 +108,10 @@ export const useViewerStore = create<ViewerState>()(
       set((state) => ({
         viewport: { ...DEFAULT_VIEWPORT },
         resetViewportCounter: state.resetViewportCounter + 1,
+      })),
+    setTimelineFilter: (key, value) =>
+      set((state) => ({
+        timelineFilters: { ...state.timelineFilters, [key]: value },
       })),
     reset: () => set(initialState),
   })),

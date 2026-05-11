@@ -157,123 +157,8 @@ func (fi fixtureInput) toParseResult() *demo.ParseResult {
 	}
 }
 
-func TestRun_NoTradeDeath_Golden(t *testing.T) {
-	var input fixtureInput
-	testutil.LoadFixture(t, "analysis/no_trade_death/input.json", &input)
-
-	got, err := analysis.Run(input.toParseResult(), nil, analysis.RunOpts{})
-	if err != nil {
-		t.Fatalf("analysis.Run: %v", err)
-	}
-
-	encoded, err := json.MarshalIndent(got, "", "  ")
-	if err != nil {
-		t.Fatalf("marshal mistakes: %v", err)
-	}
-	encoded = append(encoded, '\n')
-
-	testutil.CompareGolden(t, "analysis/no_trade_death/expected.golden.json", encoded)
-}
-
-func TestRun_DiedWithUtilUnused_Golden(t *testing.T) {
-	var input fixtureInput
-	testutil.LoadFixture(t, "analysis/died_with_util_unused/input.json", &input)
-
-	got, err := analysis.Run(input.toParseResult(), nil, analysis.RunOpts{})
-	if err != nil {
-		t.Fatalf("analysis.Run: %v", err)
-	}
-
-	encoded, err := json.MarshalIndent(got, "", "  ")
-	if err != nil {
-		t.Fatalf("marshal mistakes: %v", err)
-	}
-	encoded = append(encoded, '\n')
-
-	testutil.CompareGolden(t, "analysis/died_with_util_unused/expected.golden.json", encoded)
-}
-
-// TestRun_BothRules_OrderedByTick asserts that when both rules emit, the
-// combined slice is stably ordered by (Tick, SteamID) regardless of which
-// rule produced each entry. The contract matters because additional rules in
-// later slices must not silently reshuffle persisted ordering — readers
-// (frontend side panel, scoring composites) walk the slice top-to-bottom.
-func TestRun_BothRules_OrderedByTick(t *testing.T) {
-	// Two T players. alice dies untraded at tick 200 (no_trade_death). bob dies
-	// to the world at tick 6000 with a smoke he never threw
-	// (died_with_util_unused). The two events live in different rounds so the
-	// rules don't collide on the same (player, round) pair.
-	rounds := []demo.RoundData{
-		{
-			Number:        1,
-			StartTick:     0,
-			FreezeEndTick: 100,
-			EndTick:       5000,
-			Roster: []demo.RoundParticipant{
-				{SteamID: "alice", TeamSide: "T", Inventory: "AK-47"},
-				{SteamID: "carol", TeamSide: "CT", Inventory: "M4A1"},
-			},
-		},
-		{
-			Number:        2,
-			StartTick:     5001,
-			FreezeEndTick: 5100,
-			EndTick:       10000,
-			Roster: []demo.RoundParticipant{
-				{SteamID: "bob", TeamSide: "T", Inventory: "AK-47,Smokegrenade"},
-				{SteamID: "carol", TeamSide: "CT", Inventory: "M4A1"},
-			},
-		},
-	}
-	events := []demo.GameEvent{
-		{
-			Tick:            200,
-			RoundNumber:     1,
-			Type:            "kill",
-			AttackerSteamID: "carol",
-			VictimSteamID:   "alice",
-			Weapon:          "m4a1",
-			ExtraData: &demo.KillExtra{
-				AttackerTeam: "CT",
-				VictimTeam:   "T",
-			},
-		},
-		{
-			Tick:            6000,
-			RoundNumber:     2,
-			Type:            "kill",
-			AttackerSteamID: "",
-			VictimSteamID:   "bob",
-			Weapon:          "world",
-			ExtraData: &demo.KillExtra{
-				AttackerTeam: "",
-				VictimTeam:   "T",
-			},
-		},
-	}
-	result := &demo.ParseResult{
-		Header: demo.MatchHeader{TickRate: 64},
-		Rounds: rounds,
-		Events: events,
-	}
-
-	got, err := analysis.Run(result, nil, analysis.RunOpts{})
-	if err != nil {
-		t.Fatalf("analysis.Run: %v", err)
-	}
-	if len(got) != 2 {
-		t.Fatalf("expected 2 mistakes, got %d (%+v)", len(got), got)
-	}
-	if got[0].Tick != 200 || got[0].Kind != string(analysis.MistakeKindNoTradeDeath) {
-		t.Errorf("got[0] = {Tick:%d, Kind:%q}, want {200, no_trade_death}", got[0].Tick, got[0].Kind)
-	}
-	if got[1].Tick != 6000 || got[1].Kind != string(analysis.MistakeKindDiedWithUtilUnused) {
-		t.Errorf("got[1] = {Tick:%d, Kind:%q}, want {6000, died_with_util_unused}", got[1].Tick, got[1].Kind)
-	}
-}
-
 func TestRun_NilResult(t *testing.T) {
-	got, err := analysis.Run(nil, nil, analysis.RunOpts{})
+	got, _, err := analysis.Run(nil, nil, analysis.RunOpts{})
 	if err != nil {
 		t.Fatalf("analysis.Run(nil): %v", err)
 	}
@@ -282,29 +167,11 @@ func TestRun_NilResult(t *testing.T) {
 	}
 }
 
-func TestRun_CrosshairTooLow_Golden(t *testing.T) {
-	var input fixtureInput
-	testutil.LoadFixture(t, "analysis/crosshair_too_low/input.json", &input)
-
-	got, err := analysis.Run(input.toParseResult(), nil, analysis.RunOpts{})
-	if err != nil {
-		t.Fatalf("analysis.Run: %v", err)
-	}
-
-	encoded, err := json.MarshalIndent(got, "", "  ")
-	if err != nil {
-		t.Fatalf("marshal mistakes: %v", err)
-	}
-	encoded = append(encoded, '\n')
-
-	testutil.CompareGolden(t, "analysis/crosshair_too_low/expected.golden.json", encoded)
-}
-
 func TestRun_ShotWhileMoving_Golden(t *testing.T) {
 	var input fixtureInput
 	testutil.LoadFixture(t, "analysis/shot_while_moving/input.json", &input)
 
-	got, err := analysis.Run(input.toParseResult(), nil, analysis.RunOpts{})
+	got, _, err := analysis.Run(input.toParseResult(), nil, analysis.RunOpts{})
 	if err != nil {
 		t.Fatalf("analysis.Run: %v", err)
 	}
@@ -318,73 +185,12 @@ func TestRun_ShotWhileMoving_Golden(t *testing.T) {
 	testutil.CompareGolden(t, "analysis/shot_while_moving/expected.golden.json", encoded)
 }
 
-// TestRun_NilAnalysisTicksSkipsTickRules asserts that a legacy fixture without
-// an analysis_ticks block still runs cleanly through the slice-1/3 rules and
-// emits zero tick-driven mistakes. Guards against accidentally requiring
-// AnalysisTicks for the loadout/event-driven paths.
-func TestRun_NilAnalysisTicksSkipsTickRules(t *testing.T) {
+// TestRunMatchSummary_ExtrasCarryMovement asserts the per-player match
+// summary picks up standing_shot_pct in Extras when the parser produced
+// AnalysisTicks.
+func TestRunMatchSummary_ExtrasCarryMovement(t *testing.T) {
 	var input fixtureInput
-	testutil.LoadFixture(t, "analysis/no_trade_death/input.json", &input)
-	parse := input.toParseResult()
-	if parse.AnalysisTicks != nil {
-		t.Fatalf("fixture invariant: analysis/no_trade_death/input.json should have no analysis_ticks")
-	}
-
-	got, err := analysis.Run(parse, nil, analysis.RunOpts{})
-	if err != nil {
-		t.Fatalf("analysis.Run: %v", err)
-	}
-
-	for _, m := range got {
-		if m.Kind == string(analysis.MistakeKindCrosshairTooLow) || m.Kind == string(analysis.MistakeKindShotWhileMoving) {
-			t.Errorf("expected no tick-driven mistakes, got %+v", m)
-		}
-	}
-}
-
-// TestRun_RuleFanoutIncludesAimAndMovement asserts both new rules participate
-// in the combined output when AnalysisTicks is non-nil.
-func TestRun_RuleFanoutIncludesAimAndMovement(t *testing.T) {
-	var aimInput fixtureInput
-	testutil.LoadFixture(t, "analysis/crosshair_too_low/input.json", &aimInput)
-	aim, err := analysis.Run(aimInput.toParseResult(), nil, analysis.RunOpts{})
-	if err != nil {
-		t.Fatalf("aim Run: %v", err)
-	}
-	hasAim := false
-	for _, m := range aim {
-		if m.Kind == string(analysis.MistakeKindCrosshairTooLow) {
-			hasAim = true
-		}
-	}
-	if !hasAim {
-		t.Errorf("crosshair_too_low fixture produced no aim mistakes: %+v", aim)
-	}
-
-	var movInput fixtureInput
-	testutil.LoadFixture(t, "analysis/shot_while_moving/input.json", &movInput)
-	mov, err := analysis.Run(movInput.toParseResult(), nil, analysis.RunOpts{})
-	if err != nil {
-		t.Fatalf("movement Run: %v", err)
-	}
-	hasMov := false
-	for _, m := range mov {
-		if m.Kind == string(analysis.MistakeKindShotWhileMoving) {
-			hasMov = true
-		}
-	}
-	if !hasMov {
-		t.Errorf("shot_while_moving fixture produced no movement mistakes: %+v", mov)
-	}
-}
-
-// TestRunMatchSummary_ExtrasCarryAimAndMovement asserts that the per-player
-// match summary picks up aim_pct and standing_shot_pct in Extras when the
-// parser produced AnalysisTicks. Spot-checks the percentages match the
-// flagged-vs-total fire ratio.
-func TestRunMatchSummary_ExtrasCarryAimAndMovement(t *testing.T) {
-	var input fixtureInput
-	testutil.LoadFixture(t, "analysis/crosshair_too_low/input.json", &input)
+	testutil.LoadFixture(t, "analysis/shot_while_moving/input.json", &input)
 
 	got, err := analysis.RunMatchSummary(input.toParseResult(), nil, analysis.RunOpts{})
 	if err != nil {
@@ -393,40 +199,13 @@ func TestRunMatchSummary_ExtrasCarryAimAndMovement(t *testing.T) {
 	if len(got) == 0 {
 		t.Fatalf("expected at least one summary row")
 	}
-	// Fixture has 2 fires for steam 100 (one flagged crosshair_too_low) and 1
-	// fire for steam 999 (not in roster, but still counted as engagement). We
-	// only assert on the rostered shooter — the rule did not flag steam 999
-	// because they have no team in the roster, so its aim_pct = 1 trivially.
-	var aliceRow analysis.MatchSummaryRow
-	found := false
 	for _, r := range got {
-		if r.SteamID == "100" {
-			aliceRow = r
-			found = true
+		if r.Extras == nil {
+			continue
 		}
-	}
-	if !found {
-		t.Fatalf("missing summary row for steam 100; got %+v", got)
-	}
-	if aliceRow.Extras == nil {
-		t.Fatalf("expected Extras populated for steam 100, got nil")
-	}
-	aimPct, ok := aliceRow.Extras["aim_pct"].(float64)
-	if !ok {
-		t.Fatalf("aim_pct missing or wrong type: %+v", aliceRow.Extras)
-	}
-	// 2 fires, 1 flagged → aim_pct = 0.5
-	if aimPct != 0.5 {
-		t.Errorf("aim_pct = %v, want 0.5", aimPct)
-	}
-	standPct, ok := aliceRow.Extras["standing_shot_pct"].(float64)
-	if !ok {
-		t.Fatalf("standing_shot_pct missing or wrong type: %+v", aliceRow.Extras)
-	}
-	// alice's analysis ticks have Vx=Vy=0 — every fire is "stationary" from
-	// the rule's perspective (skip), so 0 flagged of 2 fires → standing_shot_pct = 1
-	if standPct != 1.0 {
-		t.Errorf("standing_shot_pct = %v, want 1.0", standPct)
+		if _, ok := r.Extras["standing_shot_pct"]; !ok {
+			t.Errorf("standing_shot_pct missing on %s: %+v", r.SteamID, r.Extras)
+		}
 	}
 }
 

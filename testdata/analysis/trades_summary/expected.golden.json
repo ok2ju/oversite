@@ -1,8 +1,8 @@
 [
   {
     "steam_id": "alice",
-    "overall_score": 17,
-    "version": 1,
+    "overall_score": 25,
+    "version": 2,
     "trade_pct": 0.5,
     "avg_trade_ticks": 64,
     "crosshair_height_avg_off": 0,
@@ -32,7 +32,7 @@
   {
     "steam_id": "bob",
     "overall_score": 0,
-    "version": 1,
+    "version": 2,
     "trade_pct": 0,
     "avg_trade_ticks": 0,
     "crosshair_height_avg_off": 0,
@@ -62,7 +62,7 @@
   {
     "steam_id": "enemy1",
     "overall_score": 0,
-    "version": 1,
+    "version": 2,
     "trade_pct": 0,
     "avg_trade_ticks": 0,
     "crosshair_height_avg_off": 0,

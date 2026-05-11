@@ -6,7 +6,7 @@ package analysis
 // player_match_analysis.version column. The bump cadence is intentionally
 // coarse — adding a metric to extras_json doesn't require a bump; changing the
 // crosshair-too-low pitch tolerance does.
-const AnalysisVersion = 1
+const AnalysisVersion = 2
 
 // Category names a coarse rule grouping. The frontend renders one card per
 // category; the same category names also drive the side-panel filter chips.
@@ -56,27 +56,6 @@ type Template struct {
 // to the kind string. The fallback (TemplateForKind below) covers Go-only
 // rules that haven't been taught to the frontend yet.
 var templates = map[string]Template{
-	string(MistakeKindNoTradeDeath): {
-		Category:   CategoryTrade,
-		Severity:   SeverityMed,
-		Title:      "Untraded death",
-		Suggestion: "Hold the angle your teammate just lost — even one extra trade per half lifts T-side win rate.",
-		WhyItHurts: "Your team gives up two free rounds — the kill, and the failed retake.",
-	},
-	string(MistakeKindDiedWithUtilUnused): {
-		Category:   CategoryUtility,
-		Severity:   SeverityHigh,
-		Title:      "Died with utility unused",
-		Suggestion: "Throw your nades on the way to your hold — dying with util is dropping free damage.",
-		WhyItHurts: "Every unthrown grenade is damage and map control your team paid for and never spent.",
-	},
-	string(MistakeKindCrosshairTooLow): {
-		Category:   CategoryAim,
-		Severity:   SeverityLow,
-		Title:      "Crosshair too low",
-		Suggestion: "Pre-aim head level on every common angle — flicking down loses more time than checking high.",
-		WhyItHurts: "A low crosshair forces an upward flick on every peek — the extra travel is the duel.",
-	},
 	string(MistakeKindShotWhileMoving): {
 		Category:   CategoryMovement,
 		Severity:   SeverityMed,
@@ -90,13 +69,6 @@ var templates = map[string]Template{
 		Title:      "Slow reaction",
 		Suggestion: "Pre-aim the angle and pre-fire on first sound — when you start the engagement reactive you're already losing.",
 		WhyItHurts: "If you fire 100 ms after the enemy, you've already eaten the bullet that decides the duel.",
-	},
-	string(MistakeKindMissedFlick): {
-		Category:   CategoryAim,
-		Severity:   SeverityLow,
-		Title:      "Missed flick",
-		Suggestion: "Stop swinging through the angle — flicks past 30° land far less often than a held pre-aim.",
-		WhyItHurts: "An overshot flick costs the opener and re-centers you out of the duel before your second shot.",
 	},
 	string(MistakeKindMissedFirstShot): {
 		Category:   CategorySpray,
@@ -119,20 +91,6 @@ var templates = map[string]Template{
 		Suggestion: "Tap the opposite key for one tick before firing — without a stop, even a rifle shoots like an SMG.",
 		WhyItHurts: "Without a counter-strafe your rifle's first-bullet cone is closer to a deagle's than a tap kill.",
 	},
-	string(MistakeKindUnusedSmoke): {
-		Category:   CategoryUtility,
-		Severity:   SeverityLow,
-		Title:      "Unused smoke",
-		Suggestion: "Pair smokes with a teammate's push — solo lineups without follow-up rarely win the round.",
-		WhyItHurts: "A smoke without a push is map control rented for 18 seconds and nothing else.",
-	},
-	string(MistakeKindSurvivedWithUtil): {
-		Category:   CategoryUtility,
-		Severity:   SeverityMed,
-		Title:      "Survived with utility unused",
-		Suggestion: "Drop your last flash for the 2nd bombsite hit — saving util for the next round only helps if you live.",
-		WhyItHurts: "Util banked for next round didn't help this one — you lost a fight you had a flash for.",
-	},
 	string(MistakeKindIsolatedPeek): {
 		Category:   CategoryPositioning,
 		Severity:   SeverityHigh,
@@ -146,13 +104,6 @@ var templates = map[string]Template{
 		Title:      "Repeated death zone",
 		Suggestion: "You died in this spot 3+ times — switch the position or add util support before peeking again.",
 		WhyItHurts: "The enemy has read this position — every repeat peek is a duel you're starting at a disadvantage.",
-	},
-	string(MistakeKindWalkedIntoMolotov): {
-		Category:   CategoryUtility,
-		Severity:   SeverityLow,
-		Title:      "Walked into molotov",
-		Suggestion: "Listen for the inferno tick before pushing — running through fire is 50–80 free damage every time.",
-		WhyItHurts: "Fire damage is unanswered — you take 50–80 HP and never trade a bullet for it.",
 	},
 	string(MistakeKindEcoMisbuy): {
 		Category:   CategoryEconomy,

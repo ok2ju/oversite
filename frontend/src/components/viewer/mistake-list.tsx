@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import { CATEGORY_LABEL, OTHER_CATEGORY, categoryForKind } from "@/lib/mistakes"
 import { AnalysisOverallGauge } from "@/components/viewer/analysis-overall-gauge"
 import { CategoryCard } from "@/components/viewer/category-card"
+import { PatternsSection } from "@/components/viewer/patterns-section"
 import type { MistakeEntry } from "@/types/mistake"
 import type { Round } from "@/types/round"
 
@@ -29,20 +30,13 @@ const SEVERITY_BADGE_CLASS: Record<number, string> = {
 // fields. Every kind shipped by the backend is taught here; new rules should
 // rely on the server-side title and not extend this map.
 const FALLBACK_KIND_LABEL: Record<string, string> = {
-  no_trade_death: "Untraded death",
-  died_with_util_unused: "Died with utility unused",
-  survived_with_util: "Survived with utility unused",
-  crosshair_too_low: "Crosshair too low",
   shot_while_moving: "Shot while moving",
   slow_reaction: "Slow reaction",
-  missed_flick: "Missed flick",
   missed_first_shot: "Missed first shot",
   spray_decay: "Spray decay",
   no_counter_strafe: "No counter-strafe",
-  unused_smoke: "Unused smoke",
   isolated_peek: "Isolated peek",
   repeated_death_zone: "Repeated death zone",
-  walked_into_molotov: "Walked into molotov",
   eco_misbuy: "Eco misbuy",
   caught_reloading: "Caught reloading",
   flash_assist: "Flash assist",
@@ -52,20 +46,13 @@ const FALLBACK_KIND_LABEL: Record<string, string> = {
 // FALLBACK_KIND_SEVERITY mirrors the backend's templates.go severity map —
 // used when MistakeEntry.severity is 0 (legacy / mocked rows).
 const FALLBACK_KIND_SEVERITY: Record<string, number> = {
-  no_trade_death: 2,
-  died_with_util_unused: 3,
-  survived_with_util: 2,
-  crosshair_too_low: 1,
   shot_while_moving: 2,
   slow_reaction: 2,
-  missed_flick: 1,
   missed_first_shot: 2,
   spray_decay: 2,
   no_counter_strafe: 2,
-  unused_smoke: 1,
   isolated_peek: 3,
   repeated_death_zone: 2,
-  walked_into_molotov: 1,
   eco_misbuy: 1,
   caught_reloading: 3,
   flash_assist: 1,
@@ -112,13 +99,19 @@ interface MistakeListProps {
   // (the default), the list reads selectedPlayerSteamId from useViewerStore —
   // matching the player-stats-panel.tsx convention.
   steamId?: string | null
+  // "panel" (default) renders the standalone left-aside HUD chrome.
+  // "embedded" strips the wrapper so the body can live inside a tab.
+  variant?: "panel" | "embedded"
 }
 
 // Stable display order for the count strip — known categories first, then
 // "other" so a future Go-only rule still surfaces without a frontend change.
 const CATEGORY_ORDER = ["trade", "utility", "aim", "movement", OTHER_CATEGORY]
 
-export function MistakeList({ steamId: steamIdProp }: MistakeListProps = {}) {
+export function MistakeList({
+  steamId: steamIdProp,
+  variant = "panel",
+}: MistakeListProps = {}) {
   const demoId = useViewerStore((s) => s.demoId)
   const selectedSteamId = useViewerStore((s) => s.selectedPlayerSteamId)
   const tickRate = useViewerStore((s) => s.tickRate)
@@ -209,34 +202,42 @@ export function MistakeList({ steamId: steamIdProp }: MistakeListProps = {}) {
   if (status === "imported" || status === "failed") return null
 
   // Render shimmer while the recompute is in flight or the status hasn't
-  // flipped to "ready" yet. Same <aside> shell as the populated state so the
-  // panel doesn't visually shift when the data lands.
+  // flipped to "ready" yet. Same shell as the populated state so the panel
+  // doesn't visually shift when the data lands.
   const showShimmer =
     status === "missing" || status === "parsing" || recompute.isPending
   if (showShimmer) {
+    const shimmer = (
+      <div
+        data-testid="mistake-list-shimmer"
+        className="flex flex-col gap-3 px-3 py-3"
+      >
+        <Skeleton className="h-12 w-full bg-white/10" />
+        <Skeleton className="h-20 w-full bg-white/10" />
+        <Skeleton className="h-6 w-2/3 bg-white/10" />
+      </div>
+    )
+    if (variant === "embedded") return shimmer
     return (
       <aside
         data-testid="mistake-list"
         className="hud-panel absolute left-0 top-0 z-30 flex h-full w-72 flex-col rounded-none border-l-0 border-r border-t-0 border-white/[0.07] text-white"
       >
-        <div
-          data-testid="mistake-list-shimmer"
-          className="flex flex-col gap-3 px-3 py-3"
-        >
-          <Skeleton className="h-12 w-full bg-white/10" />
-          <Skeleton className="h-20 w-full bg-white/10" />
-          <Skeleton className="h-6 w-2/3 bg-white/10" />
-        </div>
+        {shimmer}
       </aside>
     )
   }
 
-  return (
-    <aside
-      data-testid="mistake-list"
-      className="absolute left-0 top-0 z-30 flex h-full w-72 flex-col border-r border-white/10 bg-black/85 text-white shadow-2xl backdrop-blur"
-    >
-      <header className="flex flex-col gap-2.5 border-b border-white/[0.07] bg-white/[0.015] px-3 py-3">
+  const body = (
+    <>
+      <div
+        className={cn(
+          "flex flex-col gap-2.5",
+          variant === "panel"
+            ? "border-b border-white/[0.07] bg-white/[0.015] px-3 py-3"
+            : "pb-2",
+        )}
+      >
         <AnalysisOverallGauge />
         <CategoryCard category="trade" />
         <span className="hud-callsign text-[10px] font-semibold text-white/55">
@@ -269,8 +270,16 @@ export function MistakeList({ steamId: steamIdProp }: MistakeListProps = {}) {
             })}
           </div>
         ) : null}
-      </header>
-      <div className="flex-1 overflow-y-auto p-2">
+      </div>
+      <div className="px-3 py-2">
+        <PatternsSection steamId={steamId} />
+      </div>
+      <div
+        className={cn(
+          "overflow-y-auto",
+          variant === "panel" ? "flex-1 p-2" : "pt-1",
+        )}
+      >
         {isLoading ? (
           <p
             data-testid="mistake-list-loading"
@@ -299,7 +308,17 @@ export function MistakeList({ steamId: steamIdProp }: MistakeListProps = {}) {
                       aria-hidden="true"
                       className={`inline-block h-2 w-2 shrink-0 rounded-full ${SEVERITY_BADGE_CLASS[severity] ?? SEVERITY_BADGE_CLASS[1]}`}
                     />
-                    <span>{formatMistakeText(m, rounds, tickRate)}</span>
+                    <span className="flex-1">
+                      {formatMistakeText(m, rounds, tickRate)}
+                    </span>
+                    {m.duel_id != null && (
+                      <span
+                        data-testid={`mistake-row-duel-chip-${i}`}
+                        className="shrink-0 rounded-sm bg-white/10 px-1 py-0.5 text-[9px] uppercase tracking-wide text-white/60"
+                      >
+                        Duel
+                      </span>
+                    )}
                   </button>
                 </li>
               )
@@ -307,6 +326,19 @@ export function MistakeList({ steamId: steamIdProp }: MistakeListProps = {}) {
           </ul>
         )}
       </div>
+    </>
+  )
+
+  if (variant === "embedded") {
+    return <div data-testid="mistake-list-embedded">{body}</div>
+  }
+
+  return (
+    <aside
+      data-testid="mistake-list"
+      className="absolute left-0 top-0 z-30 flex h-full w-72 flex-col border-r border-white/10 bg-black/85 text-white shadow-2xl backdrop-blur"
+    >
+      {body}
     </aside>
   )
 }

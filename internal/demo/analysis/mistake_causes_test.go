@@ -137,63 +137,8 @@ func TestEnrichFireMistakes_LateReaction(t *testing.T) {
 	}
 }
 
-// TestEnrichFireMistakes_OverFlick covers the over-flick branch: yaw delta
-// past the target by more than the tolerance band.
-func TestEnrichFireMistakes_OverFlick(t *testing.T) {
-	// Pre-flick yaw = 0; target sits at yaw 30° (X=500, Y=290 places it at
-	// atan2(290,500) ≈ 30°). Fire yaw = 60° → 30° overshoot, well past the
-	// 7.5° tolerance.
-	idx := analysis.BuildTickIndex([]demo.AnalysisTick{
-		{Tick: 88, SteamID: u64("100"), X: 0, Y: 0, Yaw: 0, IsAlive: true},
-		{Tick: 92, SteamID: u64("100"), X: 0, Y: 0, Yaw: 30, IsAlive: true},
-		{Tick: 96, SteamID: u64("100"), X: 0, Y: 0, Yaw: 60, IsAlive: true},
-		{Tick: 96, SteamID: u64("200"), X: 500, Y: 290, IsAlive: true},
-	})
-	teams := map[int]map[string]string{1: {"100": "T", "200": "CT"}}
-	mistakes := []analysis.Mistake{{
-		SteamID:     "100",
-		RoundNumber: 1,
-		Tick:        100,
-		Kind:        string(analysis.MistakeKindMissedFlick),
-		Extras:      map[string]any{"weapon": "ak47", "yaw_delta": 60.0},
-	}}
-
-	got := analysis.EnrichFireMistakes(mistakes, idx, teams)
-
-	if got[0].Extras["cause_tag"] != string(analysis.CauseTagOverFlick) {
-		t.Errorf("cause_tag = %v, want over_flick", got[0].Extras["cause_tag"])
-	}
-}
-
-// TestEnrichFireMistakes_UnderFlick covers the under-flick branch: yaw delta
-// past the threshold but short of the target by more than the tolerance.
-func TestEnrichFireMistakes_UnderFlick(t *testing.T) {
-	// Target at yaw 60°; fire yaw = 35° (still a flick by the 30° threshold,
-	// but 25° short of the target — past tolerance).
-	idx := analysis.BuildTickIndex([]demo.AnalysisTick{
-		{Tick: 88, SteamID: u64("100"), X: 0, Y: 0, Yaw: 0, IsAlive: true},
-		{Tick: 92, SteamID: u64("100"), X: 0, Y: 0, Yaw: 20, IsAlive: true},
-		{Tick: 96, SteamID: u64("100"), X: 0, Y: 0, Yaw: 35, IsAlive: true},
-		{Tick: 96, SteamID: u64("200"), X: 500, Y: 866, IsAlive: true}, // ~60°
-	})
-	teams := map[int]map[string]string{1: {"100": "T", "200": "CT"}}
-	mistakes := []analysis.Mistake{{
-		SteamID:     "100",
-		RoundNumber: 1,
-		Tick:        100,
-		Kind:        string(analysis.MistakeKindMissedFlick),
-		Extras:      map[string]any{"weapon": "ak47", "yaw_delta": 35.0},
-	}}
-
-	got := analysis.EnrichFireMistakes(mistakes, idx, teams)
-
-	if got[0].Extras["cause_tag"] != string(analysis.CauseTagUnderFlick) {
-		t.Errorf("cause_tag = %v, want under_flick", got[0].Extras["cause_tag"])
-	}
-}
-
 // TestEnrichFireMistakes_NonFireKindUnchanged confirms the enrichment leaves
-// non-fire mistakes alone — an untraded death has no firing window.
+// non-fire mistakes alone — an eco misbuy has no firing window.
 func TestEnrichFireMistakes_NonFireKindUnchanged(t *testing.T) {
 	idx := analysis.BuildTickIndex([]demo.AnalysisTick{
 		{Tick: 96, SteamID: u64("100"), Vx: 100, Vy: 0, IsAlive: true},
@@ -202,17 +147,17 @@ func TestEnrichFireMistakes_NonFireKindUnchanged(t *testing.T) {
 		SteamID:     "100",
 		RoundNumber: 1,
 		Tick:        100,
-		Kind:        string(analysis.MistakeKindNoTradeDeath),
-		Extras:      map[string]any{"killer_steam_id": "200"},
+		Kind:        string(analysis.MistakeKindEcoMisbuy),
+		Extras:      map[string]any{},
 	}}
 
 	got := analysis.EnrichFireMistakes(mistakes, idx, nil)
 
 	if _, set := got[0].Extras["cause_tag"]; set {
-		t.Errorf("cause_tag should not be set on no_trade_death, got %v", got[0].Extras)
+		t.Errorf("cause_tag should not be set on eco_misbuy, got %v", got[0].Extras)
 	}
 	if _, set := got[0].Extras["speeds"]; set {
-		t.Errorf("speeds should not be set on no_trade_death")
+		t.Errorf("speeds should not be set on eco_misbuy")
 	}
 }
 
@@ -248,10 +193,8 @@ func TestIsFireRelatedMistake(t *testing.T) {
 	}{
 		{string(analysis.MistakeKindMissedFirstShot), true},
 		{string(analysis.MistakeKindShotWhileMoving), true},
-		{string(analysis.MistakeKindMissedFlick), true},
 		{string(analysis.MistakeKindSlowReaction), true},
 		{string(analysis.MistakeKindNoCounterStrafe), true},
-		{string(analysis.MistakeKindNoTradeDeath), false},
 		{string(analysis.MistakeKindEcoMisbuy), false},
 		{"unknown_kind", false},
 	}

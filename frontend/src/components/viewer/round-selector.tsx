@@ -51,7 +51,14 @@ function pillClasses(side: string, active: boolean): string {
     : "border-gray-400/70 text-gray-300 hover:bg-gray-500/20"
 }
 
-export function RoundSelector() {
+interface RoundSelectorProps {
+  // "panel" (default) keeps the absolute-positioned standalone HUD chrome.
+  // "embedded" strips it so the strip can live inside another container
+  // (e.g. PlaybackDock).
+  variant?: "panel" | "embedded"
+}
+
+export function RoundSelector({ variant = "panel" }: RoundSelectorProps = {}) {
   const demoId = useViewerStore((s) => s.demoId)
   const currentTick = useViewerStore((s) => s.currentTick)
   const setRound = useViewerStore((s) => s.setRound)
@@ -77,26 +84,39 @@ export function RoundSelector() {
 
   if (!demoId || isLoading || !rounds?.length) return null
 
+  const pills = rounds.map((round, i) => {
+    const isActive = activeRound === round.round_number
+    const prev = i > 0 ? rounds[i - 1] : null
+    const marker = prev ? markerBetween(prev, round) : null
+    return (
+      <RoundPill
+        key={round.id}
+        round={round}
+        isActive={isActive}
+        marker={marker}
+        onSelect={handleSelect}
+      />
+    )
+  })
+
+  if (variant === "embedded") {
+    return (
+      <div
+        data-testid="round-selector"
+        className="flex max-w-full items-center gap-1.5 overflow-x-auto"
+      >
+        {pills}
+      </div>
+    )
+  }
+
   return (
     <div
       data-testid="round-selector"
       className="pointer-events-none absolute bottom-16 left-4 right-[180px] z-10 flex justify-center"
     >
       <div className="hud-panel pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-md px-2.5 py-1.5">
-        {rounds.map((round, i) => {
-          const isActive = activeRound === round.round_number
-          const prev = i > 0 ? rounds[i - 1] : null
-          const marker = prev ? markerBetween(prev, round) : null
-          return (
-            <RoundPill
-              key={round.id}
-              round={round}
-              isActive={isActive}
-              marker={marker}
-              onSelect={handleSelect}
-            />
-          )
-        })}
+        {pills}
       </div>
     </div>
   )

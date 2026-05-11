@@ -75,11 +75,11 @@ function buildFixture(): HabitReport {
       {
         key: "trade_timing",
         label: "Trade timing",
-        description: "How often a teammate's death gets traded",
+        description: "Share of teammates' deaths you traded back",
         unit: "%",
         direction: "higher",
-        value: 78,
-        status: "good",
+        value: 45,
+        status: "bad",
         good_threshold: 70,
         warn_threshold: 50,
         good_min: 0,
@@ -105,23 +105,6 @@ function buildFixture(): HabitReport {
         warn_max: 60,
         previous_value: null,
         delta: null,
-      },
-      {
-        key: "untraded_deaths",
-        label: "Untraded deaths",
-        description: "Deaths your team failed to follow up on",
-        unit: "",
-        direction: "lower",
-        value: 5,
-        status: "bad",
-        good_threshold: 2,
-        warn_threshold: 4,
-        good_min: 0,
-        good_max: 0,
-        warn_min: 0,
-        warn_max: 0,
-        previous_value: 3,
-        delta: 2,
       },
     ],
   }
@@ -176,7 +159,7 @@ describe("HabitChecklist", () => {
       screen.getByTestId("habit-checklist-row-flick_balance"),
     ).toBeInTheDocument()
     expect(
-      screen.getByTestId("habit-checklist-row-untraded_deaths"),
+      screen.getByTestId("habit-checklist-row-trade_timing"),
     ).toBeInTheDocument()
   })
 
@@ -189,16 +172,16 @@ describe("HabitChecklist", () => {
     const user = userEvent.setup()
     await waitFor(() => {
       expect(
-        screen.getByTestId("habit-checklist-row-untraded_deaths"),
+        screen.getByTestId("habit-checklist-row-trade_timing"),
       ).toBeInTheDocument()
     })
 
-    await user.click(screen.getByTestId("habit-checklist-row-untraded_deaths"))
+    await user.click(screen.getByTestId("habit-checklist-row-trade_timing"))
 
     expect(useAnalysisStore.getState().selectedCategory).toBe("trade")
 
     // Click again on the same row clears the filter (toggle).
-    await user.click(screen.getByTestId("habit-checklist-row-untraded_deaths"))
+    await user.click(screen.getByTestId("habit-checklist-row-trade_timing"))
     expect(useAnalysisStore.getState().selectedCategory).toBeNull()
   })
 

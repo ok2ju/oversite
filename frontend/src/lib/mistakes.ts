@@ -8,20 +8,13 @@
 // empty (pre-slice-10 rows). New rules should not be added here; they appear
 // automatically once the backend `category` field is populated.
 export const KIND_CATEGORY: Record<string, string> = {
-  no_trade_death: "trade",
-  died_with_util_unused: "utility",
-  survived_with_util: "utility",
-  crosshair_too_low: "aim",
   shot_while_moving: "movement",
   slow_reaction: "aim",
-  missed_flick: "aim",
   missed_first_shot: "spray",
   spray_decay: "spray",
   no_counter_strafe: "movement",
-  unused_smoke: "utility",
   isolated_peek: "positioning",
   repeated_death_zone: "positioning",
-  walked_into_molotov: "utility",
   eco_misbuy: "economy",
   caught_reloading: "aim",
   flash_assist: "utility",
@@ -81,34 +74,20 @@ export function categoryForKind(kind: string): string {
 // `mistakes.test.ts` enforces that every key in `KIND_CATEGORY` also has
 // a `WHY_IT_HURTS` entry so the two stay aligned.
 export const WHY_IT_HURTS: Record<string, string> = {
-  no_trade_death:
-    "Your team gives up two free rounds — the kill, and the failed retake.",
-  died_with_util_unused:
-    "Every unthrown grenade is damage and map control your team paid for and never spent.",
-  survived_with_util:
-    "Util banked for next round didn't help this one — you lost a fight you had a flash for.",
-  crosshair_too_low:
-    "A low crosshair forces an upward flick on every peek — the extra travel is the duel.",
   shot_while_moving:
     "First-bullet accuracy collapses past ~25 u/s of drift, so the duel is decided before the spray.",
   slow_reaction:
     "If you fire 100 ms after the enemy, you've already eaten the bullet that decides the duel.",
-  missed_flick:
-    "An overshot flick costs the opener and re-centers you out of the duel before your second shot.",
   missed_first_shot:
     "The first bullet is your most accurate one — miss it and you're spraying into recoil to recover.",
   spray_decay:
     "Past shot 5 the cone is so wide most bullets miss — you're just feeding ammo into a wall.",
   no_counter_strafe:
     "Without a counter-strafe your rifle's first-bullet cone is closer to a deagle's than a tap kill.",
-  unused_smoke:
-    "A smoke without a push is map control rented for 18 seconds and nothing else.",
   isolated_peek:
     "Without a trade nearby, your death is a free pick — the enemy gets the kill and the position.",
   repeated_death_zone:
     "The enemy has read this position — every repeat peek is a duel you're starting at a disadvantage.",
-  walked_into_molotov:
-    "Fire damage is unanswered — you take 50–80 HP and never trade a bullet for it.",
   eco_misbuy:
     "Saving when the enemy is also poor concedes a round you could have stolen with pistols.",
   caught_reloading:

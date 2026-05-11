@@ -68,7 +68,8 @@ describe("PlayerStatsPanel", () => {
     renderWithProviders(<PlayerStatsPanel />)
     await screen.findByTestId("player-stats-panel")
 
-    // Match tab is the default — wait for the strip to render.
+    // Mistakes is now the default tab — switch to Match for the round strip.
+    await user.click(screen.getByRole("tab", { name: /match/i }))
     const cell = await screen.findByTestId("player-stats-round-cell-2")
     await user.click(cell)
 
@@ -97,11 +98,14 @@ describe("PlayerStatsPanel", () => {
   })
 
   it("renders the per-round distance sparkline on the Match tab", async () => {
+    const user = userEvent.setup()
     useViewerStore.getState().setDemoId("1")
     useViewerStore.getState().setSelectedPlayer("STEAM_A")
 
     renderWithProviders(<PlayerStatsPanel />)
     await screen.findByTestId("player-stats-panel")
+
+    await user.click(screen.getByRole("tab", { name: /match/i }))
 
     expect(
       await screen.findByTestId("player-stats-movement-sparkline"),

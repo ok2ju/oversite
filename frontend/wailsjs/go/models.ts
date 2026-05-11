@@ -285,6 +285,107 @@ export namespace main {
 		}
 	}
 	
+	export class MistakeEntry {
+	    id: number;
+	    kind: string;
+	    category: string;
+	    severity: number;
+	    title: string;
+	    suggestion: string;
+	    why_it_hurts: string;
+	    round_number: number;
+	    tick: number;
+	    steam_id: string;
+	    extras: Record<string, any>;
+	    duel_id?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MistakeEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.kind = source["kind"];
+	        this.category = source["category"];
+	        this.severity = source["severity"];
+	        this.title = source["title"];
+	        this.suggestion = source["suggestion"];
+	        this.why_it_hurts = source["why_it_hurts"];
+	        this.round_number = source["round_number"];
+	        this.tick = source["tick"];
+	        this.steam_id = source["steam_id"];
+	        this.extras = source["extras"];
+	        this.duel_id = source["duel_id"];
+	    }
+	}
+	export class DuelEntry {
+	    id: number;
+	    round_number: number;
+	    attacker_steam: string;
+	    victim_steam: string;
+	    start_tick: number;
+	    end_tick: number;
+	    outcome: string;
+	    end_reason: string;
+	    hit_confirmed: boolean;
+	    hurt_count: number;
+	    shot_count: number;
+	    mutual_duel_id?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DuelEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.round_number = source["round_number"];
+	        this.attacker_steam = source["attacker_steam"];
+	        this.victim_steam = source["victim_steam"];
+	        this.start_tick = source["start_tick"];
+	        this.end_tick = source["end_tick"];
+	        this.outcome = source["outcome"];
+	        this.end_reason = source["end_reason"];
+	        this.hit_confirmed = source["hit_confirmed"];
+	        this.hurt_count = source["hurt_count"];
+	        this.shot_count = source["shot_count"];
+	        this.mutual_duel_id = source["mutual_duel_id"];
+	    }
+	}
+	export class DuelContext {
+	    duel: DuelEntry;
+	    mistakes: MistakeEntry[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DuelContext(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.duel = this.convertValues(source["duel"], DuelEntry);
+	        this.mistakes = this.convertValues(source["mistakes"], MistakeEntry);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class GameEvent {
 	    id: string;
 	    demo_id: string;
@@ -551,38 +652,6 @@ export namespace main {
 	        this.kind = source["kind"];
 	        this.title = source["title"];
 	        this.tick = source["tick"];
-	    }
-	}
-	export class MistakeEntry {
-	    id: number;
-	    kind: string;
-	    category: string;
-	    severity: number;
-	    title: string;
-	    suggestion: string;
-	    why_it_hurts: string;
-	    round_number: number;
-	    tick: number;
-	    steam_id: string;
-	    extras: Record<string, any>;
-	
-	    static createFrom(source: any = {}) {
-	        return new MistakeEntry(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.kind = source["kind"];
-	        this.category = source["category"];
-	        this.severity = source["severity"];
-	        this.title = source["title"];
-	        this.suggestion = source["suggestion"];
-	        this.why_it_hurts = source["why_it_hurts"];
-	        this.round_number = source["round_number"];
-	        this.tick = source["tick"];
-	        this.steam_id = source["steam_id"];
-	        this.extras = source["extras"];
 	    }
 	}
 	export class MistakeContext {

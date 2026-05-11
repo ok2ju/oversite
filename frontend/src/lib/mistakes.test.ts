@@ -19,7 +19,7 @@ describe("WHY_IT_HURTS", () => {
 describe("whyItHurts", () => {
   it("returns the canonical copy for known kinds", () => {
     expect(whyItHurts("caught_reloading")).toBe(WHY_IT_HURTS.caught_reloading)
-    expect(whyItHurts("no_trade_death")).toBe(WHY_IT_HURTS.no_trade_death)
+    expect(whyItHurts("slow_reaction")).toBe(WHY_IT_HURTS.slow_reaction)
   })
 
   it("returns an empty string for unknown kinds", () => {

@@ -6,11 +6,11 @@ import (
 	"github.com/ok2ju/oversite/internal/demo"
 )
 
-// MatchAggregates is the per-(demo, player) rollup that backs the new
-// columns on player_match_analysis (slice 10). Each field maps 1:1 to a
-// column. Computing them lives here rather than scattered across each rule
-// file because every aggregate is a different roll-up over the same event /
-// tick streams; isolating the math keeps RunMatchSummary readable.
+// MatchAggregates is the per-(demo, player) rollup that backs the persisted
+// columns on player_match_analysis. Each field maps 1:1 to a column.
+// Computing them lives here rather than scattered across each rule file
+// because every aggregate is a different roll-up over the same event / tick
+// streams; isolating the math keeps RunMatchSummary readable.
 //
 // All fields default to zero — players who didn't fire / didn't throw / didn't
 // die in the relevant scenarios produce zero counts, which the persistence
@@ -18,12 +18,10 @@ import (
 // up with the same row a zero-event player would).
 type MatchAggregates struct {
 	// Aim.
-	CrosshairOffSum   float64 // running sum of |pitch - expectedPitch| for crosshairTooLow flags.
-	CrosshairOffCount int     // count of fires that produced a sum sample.
 	TimeToFireMsSum   float64 // running sum of reaction_ms for slow_reaction flags.
 	TimeToFireMsCount int
-	FlickCount        int
-	FlickHits         int
+	FlickFires        int // total flick-class fires (yaw delta past threshold).
+	FlickHits         int // flick-class fires that landed (HitVictimSteamID populated).
 	// Spray.
 	FirstShotFires int
 	FirstShotHits  int
@@ -39,7 +37,6 @@ type MatchAggregates struct {
 	SmokesKillAssist int
 	FlashAssists     int
 	HeDamage         int
-	NadesUnused      int
 	// Positioning.
 	IsolatedPeekDeaths int
 	RepeatedDeathZones int
@@ -74,22 +71,14 @@ func computeMatchAggregates(events []demo.GameEvent, rounds []demo.RoundData, id
 	//    bucket them).
 	for _, m := range mistakes {
 		switch m.Kind {
-		case string(MistakeKindCrosshairTooLow):
-			a := ensure(m.SteamID)
-			a.CrosshairOffSum += extractFloat(m.Extras, "expected_pitch") - extractFloat(m.Extras, "pitch")
-			a.CrosshairOffCount++
 		case string(MistakeKindSlowReaction):
 			a := ensure(m.SteamID)
 			a.TimeToFireMsSum += extractFloat(m.Extras, "reaction_ms")
 			a.TimeToFireMsCount++
-		case string(MistakeKindMissedFlick):
-			ensure(m.SteamID).FlickCount++
 		case string(MistakeKindSprayDecay):
 			a := ensure(m.SteamID)
 			a.SprayDecaySum += extractFloat(m.Extras, "burst_hit_pct")
 			a.SprayDecayCnt++
-		case string(MistakeKindUnusedSmoke):
-			ensure(m.SteamID).SmokesThrown++ // smoke that didn't help — counted in throws.
 		case string(MistakeKindFlashAssist):
 			ensure(m.SteamID).FlashAssists++
 		case string(MistakeKindHeDamage):
@@ -99,8 +88,6 @@ func computeMatchAggregates(events []demo.GameEvent, rounds []demo.RoundData, id
 			ensure(m.SteamID).IsolatedPeekDeaths++
 		case string(MistakeKindRepeatedDeathZone):
 			ensure(m.SteamID).RepeatedDeathZones++
-		case string(MistakeKindDiedWithUtilUnused), string(MistakeKindSurvivedWithUtil):
-			ensure(m.SteamID).NadesUnused++
 		}
 	}
 
@@ -140,13 +127,14 @@ func computeMatchAggregates(events []demo.GameEvent, rounds []demo.RoundData, id
 					}
 				}
 			}
-			// Flick hit/total — when the rule's lookback says this fire was a
-			// flick, count it; if it landed (HitVictimSteamID populated), it
-			// hit. The mistakes-walk above counted MISSED flicks; we need the
-			// total fires in flick state to compute hit pct.
+			// Flick hit/total — every fire whose lookback yaw delta exceeds the
+			// flick threshold counts as a flick attempt; landing flicks
+			// (HitVictimSteamID populated) increment hits. Hit pct is
+			// FlickHits / FlickFires.
 			if !isNonShotWeapon(ev.Weapon) && extra != nil && len(idx.Rows) > 0 {
 				if delta, ok := flickDeltaDeg(idx, ev.AttackerSteamID, ev.Tick, extra.Yaw); ok {
 					if math.Abs(delta) > flickHalfAngleDeg {
+						a.FlickFires++
 						if extra.HitVictimSteamID != "" {
 							a.FlickHits++
 						}
@@ -453,13 +441,6 @@ func computeRoundShots(events []demo.GameEvent) map[string]map[int][2]int {
 // shaped float64s the persistence layer writes. Centralizing the divisions
 // here keeps the persistence path declarative — it just reads the populated
 // MatchSummaryRow.
-func (a *MatchAggregates) AvgCrosshairOff() float64 {
-	if a.CrosshairOffCount == 0 {
-		return 0
-	}
-	return a.CrosshairOffSum / float64(a.CrosshairOffCount)
-}
-
 func (a *MatchAggregates) AvgTimeToFireMs() float64 {
 	if a.TimeToFireMsCount == 0 {
 		return 0
@@ -503,9 +484,8 @@ func (a *MatchAggregates) FullBuyADR() float64 {
 }
 
 func (a *MatchAggregates) FlickHitPctValue() float64 {
-	total := a.FlickCount + a.FlickHits
-	if total == 0 {
+	if a.FlickFires == 0 {
 		return 0
 	}
-	return float64(a.FlickHits) / float64(total)
+	return float64(a.FlickHits) / float64(a.FlickFires)
 }

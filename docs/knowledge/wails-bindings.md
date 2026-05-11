@@ -60,6 +60,16 @@ The viewer needs the full `Demo` (path, size, etc.); the library list only needs
 
 `fileImportMu` (in `app.go`) wraps `ImportService.ImportFile` so a 10-zst drag-and-drop only runs one zstd decompression at a time. Each decoder window holds tens of MB; in parallel they could spike RAM by 500+ MB on top of whatever parse was already running. Parse continues to serialize on its own `parseMu` — copy of file 2 *can* overlap with parse of file 1 (different mutex), which is intentional: full end-to-end serialization would block the Wails caller for the duration of a parse and lose synchronous error returns.
 
+### Auto-generated `wailsjs/go/main/App.{d.ts,js}` need manual edits when not running `wails dev`
+
+The TS bindings only regenerate during `wails dev` / `wails build`. When a session adds Go App methods without spinning up the dev server (most of ours), three files need a hand-edit so the frontend can `import` the new binding immediately:
+
+- `frontend/wailsjs/go/main/App.d.ts` — add the typed declaration.
+- `frontend/wailsjs/go/main/App.js` — add the runtime `window['go'][...]` thunk.
+- `frontend/wailsjs/go/models.ts` — only needed if frontend code references `main.NewType` directly. The hook-via-cast pattern (`(... as Promise<T>)`) used by `useMistakeTimeline` / `useDuelTimeline` skips this entirely.
+
+A subsequent `wails dev` will overwrite these files; that's fine, the generator produces the same shape.
+
 ### Diagnostic-folder binding pair convention
 
 For any app-managed folder the user might need to attach to a bug report, expose three bindings: `XxxDir()` (returns the absolute path), `OpenXxxFolder()` (Reveals it via `logging.Reveal`), and a settings toggle/setter pair if behavior is configurable. Existing instances:

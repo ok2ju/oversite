@@ -24,6 +24,20 @@ internal/store/   ← generated Go: types, Queries struct, method per query
 
 Configured for SQLite in `sqlc.yaml`. Note that sqlc's SQLite support is newer than its PostgreSQL support — a few things (like `RETURNING` with expressions) have rough edges. If a query gets weird, run the same SQL in `sqlite3` CLI first to make sure it's valid.
 
+### `:one` with `RETURNING id` returns a bare scalar
+
+When a `-- name: CreateFoo :one` query ends `RETURNING id` (no other columns), sqlc generates `func ... CreateFoo(...) (int64, error)` — not a row struct. Other `:one` queries (`SELECT id, ...`) return a generated struct. Mind the shape when reading the rowid out:
+
+```go
+rowID, err := q.CreateAnalysisDuel(ctx, params)   // bare int64
+```
+
+Worked example: `queries/analysis_duels.sql` → `internal/store/analysis_duels.sql.go`.
+
+### Two-pass insert for self-referential FKs
+
+`analysis_duels.mutual_duel_id` references `analysis_duels.id`. Both peers need rowids before they can link, so the persistence layer in `internal/demo/analysis/persist.go` does two passes inside the same tx: insert every duel and collect `localID → rowid` in a map, then `UPDATE analysis_duels SET mutual_duel_id = ?` for each linked pair. Avoids deferred-constraint gymnastics SQLite doesn't support cleanly.
+
 ## Query file organization
 
 One `.sql` file per domain (demos, rounds, tick_data, events, lineups, boards). Each file opens with schema comments describing the table's shape for readers who don't have the full DDL in mind.

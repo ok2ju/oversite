@@ -6,6 +6,16 @@ Format: `YYYY-MM-DD — <summary>` with links to affected pages.
 
 ---
 
+## 2026-05-11 — Duel-scoped mistakes (slice 13)
+
+New `Duel` analyzer entity reconstructs directed attacker→victim engagements from the merged `weapon_fire + player_hurt + kill` stream — hit-anchored target via `WeaponFireExtra.HitVictimSteamID`, falling back to cone enumeration (15° / 2200u / 2s activity). Engagement-class mistakes attach via the new `analysis_mistakes.duel_id` FK; `eco_misbuy` / `he_damage` stay duel-less. `analysis_duels` table (migration 018) carries directional outcome (`won` / `inconclusive` / `won_then_traded`) and a self-referential `mutual_duel_id` for crossfire pairs.
+
+`Run` signature changed: `([]Mistake, []Duel, error)`. Persistence inserts duels first, captures rowids in a local→DB map, then writes mistakes with resolved `duel_id` — mutual links backfilled in a second-pass UPDATE since both peers need rowids before they can reference each other. `AnalysisVersion` 1→2 triggers the existing "missing" status path so old demos surface the Recompute CTA.
+
+Frontend: new `DuelsLane` on round-timeline renders bands tinted by perspective (sky-blue when the selected player is attacker, rose-red when victim) with outcome glyph + severity dots for inline mistakes; `useDuelTimeline` hook mirrors `useMistakeTimeline`; `mistake-list.tsx` gains a `Duel` chip per attributed row plus the new `PatternsSection` for cross-duel signals.
+
+Refs: [[knowledge/wails-bindings]], [[knowledge/sqlc-workflow]], [[knowledge/migrations]], [[knowledge/testing]] (all updated), [[decisions/0019-duel-as-first-class-entity]] (new ADR).
+
 ## 2026-05-08 — File-close-on-retry fix + demoinfocs v5.1.2 → v5.2.0
 
 The corrupt-entity auto-retry added earlier today never actually retried on Windows: `gobitread.BitReader.Close` type-asserts the reader to `io.ReadCloser` and closes our `*os.File`, so the second attempt's `f.Seek(0, ...)` returned "file already closed". Wrap the reader in `struct{ io.Reader }{r}` inside `Parse` to hide `Close` from demoinfocs; new `TestParse_DoesNotCloseReader` pins the contract.
