@@ -1,0 +1,23 @@
+{
+  "name": "wallbang_taken",
+  "tick_rate": 64.0,
+  "round": {
+    "number": 5,
+    "start_tick": 7000,
+    "freeze_end_tick": 7100,
+    "end_tick": 10000,
+    "winner_side": "T",
+    "win_reason": "bomb_defused",
+    "roster": [
+      {"steam_id": "S_P",  "name": "P",  "team_side": "T",  "inventory": "ak47"},
+      {"steam_id": "S_E1", "name": "E1", "team_side": "CT", "inventory": "m4a1"}
+    ]
+  },
+  "subject": "S_P",
+  "subject_alive": {"spawn_tick": 7100, "death_tick": 0},
+  "events": [
+    {"tick": 7300, "type": "player_hurt", "attacker": "S_E1", "victim": "S_P",  "weapon": "m4a1", "extras": {"health_damage": 30, "attacker_team": "CT", "victim_team": "T", "penetrated": 1}},
+    {"tick": 7320, "type": "weapon_fire", "attacker": "S_P",  "victim": "",     "weapon": "ak47", "extras": {}}
+  ],
+  "visibility": []
+}

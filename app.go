@@ -21,6 +21,7 @@ import (
 	"github.com/ok2ju/oversite/internal/database"
 	"github.com/ok2ju/oversite/internal/demo"
 	"github.com/ok2ju/oversite/internal/demo/analysis"
+	"github.com/ok2ju/oversite/internal/demo/contacts"
 	"github.com/ok2ju/oversite/internal/logging"
 	"github.com/ok2ju/oversite/internal/store"
 	"github.com/ok2ju/oversite/migrations"
@@ -474,6 +475,22 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		a.failDemo(demoID, fmt.Sprintf("persist analysis: %v", err), emitProgress)
 		return
 	}
+	// Phase 2 of timeline-contact-moments: build per-(player, signal-cluster)
+	// contact moments from the in-memory ParseResult, then persist alongside
+	// the analyzer output. Phase 3 will layer mistake detectors on top.
+	slog.Info("starting contact build", "demo_id", demoID, "round_count", len(result.Rounds))
+	contactsList, contactsErr := contacts.Run(result, roundMap, contacts.RunOpts{})
+	if contactsErr != nil {
+		slog.Error("parseDemo: run contact builder", append(logCtx, "err", contactsErr)...)
+		a.failDemo(demoID, fmt.Sprintf("run contact builder: %v", contactsErr), emitProgress)
+		return
+	}
+	if err := contacts.Persist(a.ctx, a.db, demoID, contactsList); err != nil {
+		slog.Error("parseDemo: persist contact moments", append(logCtx, "err", err)...)
+		a.failDemo(demoID, fmt.Sprintf("persist contacts: %v", err), emitProgress)
+		return
+	}
+	slog.Info("contact build complete", "demo_id", demoID, "contact_count", len(contactsList))
 	// Per-(demo, player) summary row alongside the timeline. Each persist is
 	// its own transaction; the divergence window between mistakes-on-disk
 	// and summary-on-disk is small (single-tenant, single-process) and slice 7

@@ -6,6 +6,12 @@ Format: `YYYY-MM-DD — <summary>` with links to affected pages.
 
 ---
 
+## 2026-05-12 — Timeline contact-moments Phase 2 (builder + outcome)
+
+New `internal/demo/contacts/` package (6 files): per-(player, signal-cluster) builder with 128/160/96-tick merge/pre/post windows; 8-label outcome classifier with 5-second trade look-ahead; teams/alive-range helpers; delete-by-demo + insert tx persister. Two migrations: `contact_moments` (020) and `contact_mistakes` (021, schema-only — Phase 3 populates). Wired into `app.go` between `analysis.PersistWithRoundMap` and `RunMatchSummary` — same error-wrap + `failDemo` style as the surrounding block. 5 golden scenarios in `testdata/contacts/` plus per-helper unit tests and 8 in-line edge tests (bots, multi-kill, wallbang, flash-only, round-end, friendly-fire, teammate-flash, simultaneous double). Added `Penetrated int` (`json:"penetrated,omitempty"`) to `PlayerHurtExtra` so the wallbang flag is reachable from player_hurt signals. **SQLite blocked** the planned `PRIMARY KEY (contact_id, kind, COALESCE(tick, -1))` — expressions aren't allowed in PK/UNIQUE constraints; reworked as a separate unique index. `contact_mistakes` stays empty until Phase 3.
+
+Refs: [[knowledge/migrations]] (new SQLite gotcha), [[knowledge/demo-parser]] (Phase 2 section).
+
 ## 2026-05-12 — Timeline contact-moments Phase 1 (visibility capture)
 
 Implemented `events.PlayerSpottersChanged` capture into the new `player_visibility` table (migration 019). Handler in `internal/demo/parser.go` re-derives the spotter set per event (no `Spotters()` method on `common.Player`), applies a 4-tick defer-then-commit debounce, and flushes pending rows at `RoundEnd` + parser teardown. Measured 534 rows / 7,476 events / 24 rounds on `testdata/demos/1.dem` — well under the 50k volume budget; the parser hard-aborts above 200k via `state.limitExceeded`. Ingester (`internal/demo/visibility.go`) mirrors `IngestGameEvents`; the table is intentionally **not** exposed via Wails (pointer comment in `types.go` directs readers to `internal/demo.VisibilityChange`). Spike harness `cmd/spike-spotted` ships under `//go:build spike` for operator-driven mask-reliability checks.

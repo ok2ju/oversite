@@ -1,0 +1,27 @@
+{
+  "name": "isolated_untraded_death",
+  "tick_rate": 64.0,
+  "round": {
+    "number": 3,
+    "start_tick": 5000,
+    "freeze_end_tick": 5100,
+    "end_tick": 8000,
+    "winner_side": "CT",
+    "win_reason": "ct_killed",
+    "roster": [
+      {"steam_id": "S_P",  "name": "P",  "team_side": "T",  "inventory": "ak47"},
+      {"steam_id": "S_T2", "name": "T2", "team_side": "T",  "inventory": "ak47"},
+      {"steam_id": "S_E1", "name": "E1", "team_side": "CT", "inventory": "m4a1"}
+    ]
+  },
+  "subject": "S_P",
+  "subject_alive": {"spawn_tick": 5100, "death_tick": 5500},
+  "events": [
+    {"tick": 5495, "type": "weapon_fire", "attacker": "S_E1", "victim": "",     "weapon": "m4a1", "extras": {"hit_victim_steam_id": "S_P"}},
+    {"tick": 5498, "type": "player_hurt", "attacker": "S_E1", "victim": "S_P",  "weapon": "m4a1", "extras": {"health_damage": 100, "attacker_team": "CT", "victim_team": "T"}},
+    {"tick": 5500, "type": "kill",        "attacker": "S_E1", "victim": "S_P",  "weapon": "m4a1", "extras": {"headshot": true, "attacker_team": "CT", "victim_team": "T"}}
+  ],
+  "visibility": [
+    {"tick": 5490, "spotted": "S_P", "spotter": "S_E1", "state": 1}
+  ]
+}

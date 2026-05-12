@@ -269,6 +269,55 @@ type MistakeCoOccurrence struct {
 	Tick  int64  `json:"tick"`
 }
 
+// ContactMoment is the persisted, frontend-facing shape of one timeline
+// contact for a player. Mirrors contact_moments.* columns with the JSON
+// columns unmarshaled. Mistakes is populated by Phase 3 and stays nil
+// in Phase 2 ingest output.
+type ContactMoment struct {
+	ID           int64            `json:"id"`
+	DemoID       int64            `json:"demo_id"`
+	RoundID      int64            `json:"round_id"`
+	RoundNumber  int              `json:"round_number"`
+	SubjectSteam string           `json:"subject_steam"`
+	TFirst       int32            `json:"t_first"`
+	TLast        int32            `json:"t_last"`
+	TPre         int32            `json:"t_pre"`
+	TPost        int32            `json:"t_post"`
+	Enemies      []string         `json:"enemies"`
+	Outcome      ContactOutcome   `json:"outcome"`
+	SignalCount  int              `json:"signal_count"`
+	Extras       map[string]any   `json:"extras"`
+	Mistakes     []ContactMistake `json:"mistakes,omitempty"`
+}
+
+// ContactOutcome enumerates the eight outcome labels from analysis §4.4.
+// Source of truth for both the Go layer and the SQL outcome column.
+// Cross-referenced by internal/demo/contacts.ContactOutcome — keep the
+// two declarations in sync.
+type ContactOutcome string
+
+const (
+	ContactOutcomeWonClean           ContactOutcome = "won_clean"
+	ContactOutcomeWonDamaged         ContactOutcome = "won_damaged"
+	ContactOutcomeTradedWin          ContactOutcome = "traded_win"
+	ContactOutcomeTradedDeath        ContactOutcome = "traded_death"
+	ContactOutcomeUntradedDeath      ContactOutcome = "untraded_death"
+	ContactOutcomeDisengaged         ContactOutcome = "disengaged"
+	ContactOutcomePartialWin         ContactOutcome = "partial_win"
+	ContactOutcomeMutualDamageNoKill ContactOutcome = "mutual_damage_no_kill"
+)
+
+// ContactMistake is one detector finding attached to a contact.
+// Populated by Phase 3 detectors; Phase 2 ingest produces no rows.
+type ContactMistake struct {
+	Kind     string         `json:"kind"`
+	Category string         `json:"category"`
+	Severity int            `json:"severity"`
+	Phase    string         `json:"phase"`
+	Tick     *int32         `json:"tick,omitempty"`
+	Extras   map[string]any `json:"extras"`
+}
+
 // DuelEntry is a single attacker→victim engagement, returned by
 // ListDuelsForPlayer. The viewer renders one band per entry on the
 // round-timeline duels lane. HitConfirmed / HurtCount / ShotCount drive

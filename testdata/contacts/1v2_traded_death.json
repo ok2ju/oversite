@@ -1,0 +1,33 @@
+{
+  "name": "1v2_traded_death",
+  "tick_rate": 64.0,
+  "round": {
+    "number": 14,
+    "start_tick": 9000,
+    "freeze_end_tick": 9100,
+    "end_tick": 12000,
+    "winner_side": "CT",
+    "win_reason": "ct_killed",
+    "roster": [
+      {"steam_id": "S_P",  "name": "P",  "team_side": "T",  "inventory": "ak47"},
+      {"steam_id": "S_T2", "name": "T2", "team_side": "T",  "inventory": "ak47"},
+      {"steam_id": "S_E1", "name": "E1", "team_side": "CT", "inventory": "m4a1"},
+      {"steam_id": "S_E2", "name": "E2", "team_side": "CT", "inventory": "m4a1"}
+    ]
+  },
+  "subject": "S_P",
+  "subject_alive": {"spawn_tick": 9100, "death_tick": 9661},
+  "events": [
+    {"tick": 9612, "type": "weapon_fire", "attacker": "S_P",  "victim": "",     "weapon": "ak47", "extras": {"hit_victim_steam_id": "S_E1"}},
+    {"tick": 9620, "type": "player_hurt", "attacker": "S_P",  "victim": "S_E1", "weapon": "ak47", "extras": {"health_damage": 100, "attacker_team": "T", "victim_team": "CT"}},
+    {"tick": 9621, "type": "kill",        "attacker": "S_P",  "victim": "S_E1", "weapon": "ak47", "extras": {"headshot": false, "attacker_team": "T", "victim_team": "CT"}},
+    {"tick": 9656, "type": "weapon_fire", "attacker": "S_E2", "victim": "",     "weapon": "m4a1", "extras": {"hit_victim_steam_id": "S_P"}},
+    {"tick": 9660, "type": "player_hurt", "attacker": "S_E2", "victim": "S_P",  "weapon": "m4a1", "extras": {"health_damage": 92, "attacker_team": "CT", "victim_team": "T"}},
+    {"tick": 9661, "type": "kill",        "attacker": "S_E2", "victim": "S_P",  "weapon": "m4a1", "extras": {"headshot": true, "attacker_team": "CT", "victim_team": "T"}},
+    {"tick": 9720, "type": "kill",        "attacker": "S_T2", "victim": "S_E2", "weapon": "ak47", "extras": {"headshot": false, "attacker_team": "T", "victim_team": "CT"}}
+  ],
+  "visibility": [
+    {"tick": 9600, "spotted": "S_E1", "spotter": "S_P", "state": 1},
+    {"tick": 9648, "spotted": "S_E2", "spotter": "S_P", "state": 1}
+  ]
+}

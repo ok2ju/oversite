@@ -1,0 +1,72 @@
+[
+  {
+    "id": 0,
+    "demo_id": 0,
+    "round_id": 1,
+    "round_number": 14,
+    "subject_steam": "S_P",
+    "t_first": 9600,
+    "t_last": 9661,
+    "t_pre": 9440,
+    "t_post": 9661,
+    "enemies": [
+      "S_E1",
+      "S_E2"
+    ],
+    "outcome": "traded_win",
+    "signal_count": 8,
+    "extras": {}
+  },
+  {
+    "id": 0,
+    "demo_id": 0,
+    "round_id": 1,
+    "round_number": 14,
+    "subject_steam": "S_T2",
+    "t_first": 9720,
+    "t_last": 9720,
+    "t_pre": 9560,
+    "t_post": 9816,
+    "enemies": [
+      "S_E2"
+    ],
+    "outcome": "won_clean",
+    "signal_count": 1,
+    "extras": {}
+  },
+  {
+    "id": 0,
+    "demo_id": 0,
+    "round_id": 1,
+    "round_number": 14,
+    "subject_steam": "S_E1",
+    "t_first": 9600,
+    "t_last": 9621,
+    "t_pre": 9440,
+    "t_post": 9621,
+    "enemies": [
+      "S_P"
+    ],
+    "outcome": "traded_death",
+    "signal_count": 4,
+    "extras": {}
+  },
+  {
+    "id": 0,
+    "demo_id": 0,
+    "round_id": 1,
+    "round_number": 14,
+    "subject_steam": "S_E2",
+    "t_first": 9648,
+    "t_last": 9720,
+    "t_pre": 9488,
+    "t_post": 9720,
+    "enemies": [
+      "S_P",
+      "S_T2"
+    ],
+    "outcome": "untraded_death",
+    "signal_count": 5,
+    "extras": {}
+  }
+]

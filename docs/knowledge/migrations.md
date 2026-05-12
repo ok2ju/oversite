@@ -25,6 +25,7 @@ Numeric prefix, zero-padded: `0001_create_users.up.sql`, `0001_create_users.down
   4. Recreate any indexes that lived on the original table.
   See `migrations/005_remove_faceit_and_users.up.sql` for a worked example.
 - Drop dependent tables and indexes **before** the table they reference, since SQLite enforces FKs at migration time when `PRAGMA foreign_keys=ON`.
+- **Expressions are forbidden in `PRIMARY KEY` / `UNIQUE` table constraints.** SQLite rejects `PRIMARY KEY (a, b, COALESCE(c, -1))` at `CREATE TABLE` time with `"expressions prohibited in PRIMARY KEY and UNIQUE constraints"`. The workaround is to drop the table-level PK and add a separate `CREATE UNIQUE INDEX idx_x ON foo(a, b, COALESCE(c, -1))` — unique indexes *do* support expressions, including `COALESCE` for nullable composite uniqueness (which is the only way to make `UNIQUE` treat two NULL `c` rows as conflicting, since `UNIQUE` itself treats NULLs as distinct). Hit on migration 021 (`contact_mistakes`); see `migrations/021_contact_mistakes.up.sql` for the index form.
 
 ## Running
 

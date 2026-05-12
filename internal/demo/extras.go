@@ -83,9 +83,15 @@ func (*WeaponFireExtra) isEventExtra() {}
 // stomach, 4=left-arm, 5=right-arm, 6=left-leg, 7=right-leg, 8=neck,
 // 10=gear). Stored in the JSON blob — readers convert to a label lazily.
 type PlayerHurtExtra struct {
-	HealthDamage int    `json:"-"`
-	ArmorDamage  int    `json:"armor_damage"`
-	HitGroup     int    `json:"hit_group"`
+	HealthDamage int `json:"-"`
+	ArmorDamage  int `json:"armor_damage"`
+	HitGroup     int `json:"hit_group"`
+	// Penetrated is the wallbang count from the demoinfocs player_hurt
+	// event. The parser currently leaves this zero; the contact-moment
+	// builder reads it for the wallbang_taken flag. Populated by the
+	// contact-builder test fixture loader; a follow-up may wire it through
+	// the live parser once demoinfocs exposes it.
+	Penetrated   int    `json:"penetrated,omitempty"`
 	AttackerName string `json:"-"`
 	AttackerTeam string `json:"-"`
 	VictimName   string `json:"-"`

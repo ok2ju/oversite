@@ -185,6 +185,28 @@ Phase 2 contact builder (`.claude/plans/timeline-contact-moments/phase-2-contact
 
 Cross-link: implementation plan at [`.claude/plans/timeline-contact-moments/phase-1/`](../../.claude/plans/timeline-contact-moments/phase-1/README.md).
 
+## Contact moments (Phase 2 builder) (2026-05-12)
+
+`internal/demo/contacts/` consumes the in-memory `ParseResult` (events + visibility from Phase 1) and produces one `contact_moments` row per (subject, signal-cluster) per round. Entry point `contacts.Run(result, roundMap, opts)` mirrors `analysis.Run`'s shape; persistence is the separate `contacts.Persist(ctx, db, demoID, contacts)` call so callers (and tests) can inspect output before it lands in SQLite. Both wired into `app.go parseDemo` between `analysis.PersistWithRoundMap` and `analysis.RunMatchSummary` with the same `failDemo`/error-wrap style as the surrounding analyzer block.
+
+### Signal kinds and filters
+
+Six signal kinds (`visibility`, `weapon_fire_hit`, `player_hurt`, `kill`, `flash`, `utility_damage`) collected in `signals.go`. Filtered at collection time: freezetime (tick < `round.FreezeEndTick`), friendly-fire (`attacker_team == victim_team` on extras), bomb damage (`weapon == "c4" | "world"`), trivial flashes (`DurationSecs < 0.7`), self-kills, and visibility `state=0` (spotted_off). HE/molotov/inferno `player_hurt` rows become `utility_damage` instead of `player_hurt` so the outcome classifier can treat HE-only exchanges separately.
+
+### Builder windows are 64-tick locked
+
+`MergeWindowTicks=128`, `PreWindowTicks=160`, `PostWindowTicks=96`, `IdleCloseTicks=192`, `TradeWindowTicks=320` — all derived from a hardcoded 64-tick assumption (analysis §3.1). `contacts.Run` rejects any demo with `Header.TickRate` outside `[63.9, 64.1]` with an error rather than silently producing wrong windows; the orchestrator surfaces it as a `failDemo`.
+
+### Builder version + detector version are independent
+
+`builder_version` lives on `contact_moments` (default 1), `detector_version` on `contact_mistakes` (default 0). The split lets Phase 3 detectors rebuild mistakes without invalidating contacts. Same delete-by-demo-then-insert pattern as `analysis.PersistWithRoundMap`; both child tables `CASCADE` from `demos(id)` and the explicit `DeleteContactMistakesByDemoID` keeps the tx auditable.
+
+### Outcome decision tree is the canonical source
+
+8 labels (`won_clean`, `won_damaged`, `traded_win`, `traded_death`, `untraded_death`, `disengaged`, `partial_win`, `mutual_damage_no_kill`) implemented as a top-down switch in `outcome.go Classify`. `traded_win` fires when `subjectDied && subjectKillerTraded && subjectKills > 0` — i.e. P killed at least one E, then died, then a teammate killed P's killer. The Phase 2 plan's §5.2 scenario prose says `traded_death` for this case but contradicts its own §5.3 decision tree; the tree is canonical (matches analysis §4.4 wording).
+
+Cross-link: implementation plan at [`.claude/plans/timeline-contact-moments/phase-2/`](../../.claude/plans/timeline-contact-moments/phase-2/README.md).
+
 ## Streaming parse → ingest pipeline (2026-05-08)
 
 `Parse(ctx, r)` now accepts a `WithTickSink(chan<- TickSnapshot)` option. Ticks flow into a bounded channel; `app.go parseDemo` runs parse + ingest concurrently under `errgroup.WithContext` with `DefaultTickSinkBuffer = 5000`. Peak tick-path heap dropped from ~120 MB to ~4 MB.
@@ -208,6 +230,8 @@ The watchdog stayed in. Streaming ticks bounds the **tick** path, but `demoinfoc
 ### Typed event extras, not `map[string]interface{}`
 
 Per-kind structs in `internal/demo/extras.go` (`KillExtra`, `WeaponFireExtra`, `PlayerHurtExtra`, `GrenadeThrowExtra`, etc.) implement an `EventExtra` marker. Parser allocates one pointer-to-struct per event; `marshalExtraData` in `events.go` JSON-encodes at the ingest boundary. The wire format to the frontend is unchanged — this is purely an allocation reduction in the hot path.
+
+When adding a field to one of these structs, use `json:"foo,omitempty"`. Without it, the new key appears on every row's `extra_data` blob in `game_events` going forward, breaking any exact-JSON-match test (`internal/demo/events_test.go:434` asserts the full `KillExtra` JSON shape). `PlayerHurtExtra.Penetrated` (added 2026-05-12 for the contact-moments wallbang flag) is the worked example.
 
 ## Windows OOM safeguards (2026-05-08)
 

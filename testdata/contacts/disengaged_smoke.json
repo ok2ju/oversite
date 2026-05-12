@@ -1,0 +1,22 @@
+{
+  "name": "disengaged_smoke",
+  "tick_rate": 64.0,
+  "round": {
+    "number": 9,
+    "start_tick": 11000,
+    "freeze_end_tick": 11100,
+    "end_tick": 14000,
+    "winner_side": "T",
+    "win_reason": "bomb_exploded",
+    "roster": [
+      {"steam_id": "S_P",  "name": "P",  "team_side": "T",  "inventory": "ak47"},
+      {"steam_id": "S_E1", "name": "E1", "team_side": "CT", "inventory": "m4a1"}
+    ]
+  },
+  "subject": "S_P",
+  "subject_alive": {"spawn_tick": 11100, "death_tick": 0},
+  "events": [],
+  "visibility": [
+    {"tick": 11500, "spotted": "S_E1", "spotter": "S_P", "state": 1}
+  ]
+}

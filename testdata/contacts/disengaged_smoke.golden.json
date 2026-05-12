@@ -1,0 +1,36 @@
+[
+  {
+    "id": 0,
+    "demo_id": 0,
+    "round_id": 1,
+    "round_number": 9,
+    "subject_steam": "S_P",
+    "t_first": 11500,
+    "t_last": 11500,
+    "t_pre": 11340,
+    "t_post": 11596,
+    "enemies": [
+      "S_E1"
+    ],
+    "outcome": "disengaged",
+    "signal_count": 1,
+    "extras": {}
+  },
+  {
+    "id": 0,
+    "demo_id": 0,
+    "round_id": 1,
+    "round_number": 9,
+    "subject_steam": "S_E1",
+    "t_first": 11500,
+    "t_last": 11500,
+    "t_pre": 11340,
+    "t_post": 11596,
+    "enemies": [
+      "S_P"
+    ],
+    "outcome": "disengaged",
+    "signal_count": 1,
+    "extras": {}
+  }
+]

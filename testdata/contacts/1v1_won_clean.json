@@ -1,0 +1,26 @@
+{
+  "name": "1v1_won_clean",
+  "tick_rate": 64.0,
+  "round": {
+    "number": 7,
+    "start_tick": 8800,
+    "freeze_end_tick": 8900,
+    "end_tick": 12000,
+    "winner_side": "T",
+    "win_reason": "t_killed",
+    "roster": [
+      {"steam_id": "S_P",  "name": "P",  "team_side": "T",  "inventory": "ak47"},
+      {"steam_id": "S_E1", "name": "E1", "team_side": "CT", "inventory": "m4a1"}
+    ]
+  },
+  "subject": "S_P",
+  "subject_alive": {"spawn_tick": 8900, "death_tick": 0},
+  "events": [
+    {"tick": 9012, "type": "weapon_fire", "attacker": "S_P", "victim": "",     "weapon": "ak47", "extras": {"hit_victim_steam_id": "S_E1"}},
+    {"tick": 9015, "type": "player_hurt", "attacker": "S_P", "victim": "S_E1", "weapon": "ak47", "extras": {"health_damage": 100, "attacker_team": "T", "victim_team": "CT"}},
+    {"tick": 9020, "type": "kill",        "attacker": "S_P", "victim": "S_E1", "weapon": "ak47", "extras": {"headshot": true, "attacker_team": "T", "victim_team": "CT"}}
+  ],
+  "visibility": [
+    {"tick": 9000, "spotted": "S_E1", "spotter": "S_P", "state": 1}
+  ]
+}

@@ -42,6 +42,34 @@ type AnalysisMistake struct {
 	DuelID      sql.NullInt64
 }
 
+type ContactMistake struct {
+	ContactID       int64
+	Kind            string
+	Category        string
+	Severity        int64
+	Phase           string
+	Tick            sql.NullInt64
+	ExtrasJson      string
+	DetectorVersion int64
+}
+
+type ContactMoment struct {
+	ID             int64
+	DemoID         int64
+	RoundID        int64
+	SubjectSteam   string
+	TFirst         int64
+	TLast          int64
+	TPre           int64
+	TPost          int64
+	EnemiesJson    string
+	Outcome        string
+	SignalCount    int64
+	ExtrasJson     string
+	BuilderVersion int64
+	CreatedAt      string
+}
+
 type Demo struct {
 	ID           int64
 	MapName      string

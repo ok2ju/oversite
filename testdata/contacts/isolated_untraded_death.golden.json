@@ -1,0 +1,36 @@
+[
+  {
+    "id": 0,
+    "demo_id": 0,
+    "round_id": 1,
+    "round_number": 3,
+    "subject_steam": "S_P",
+    "t_first": 5490,
+    "t_last": 5500,
+    "t_pre": 5330,
+    "t_post": 5500,
+    "enemies": [
+      "S_E1"
+    ],
+    "outcome": "untraded_death",
+    "signal_count": 4,
+    "extras": {}
+  },
+  {
+    "id": 0,
+    "demo_id": 0,
+    "round_id": 1,
+    "round_number": 3,
+    "subject_steam": "S_E1",
+    "t_first": 5490,
+    "t_last": 5500,
+    "t_pre": 5330,
+    "t_post": 5596,
+    "enemies": [
+      "S_P"
+    ],
+    "outcome": "won_clean",
+    "signal_count": 4,
+    "extras": {}
+  }
+]

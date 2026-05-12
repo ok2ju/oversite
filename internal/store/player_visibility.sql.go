@@ -50,6 +50,46 @@ func (q *Queries) InsertPlayerVisibility(ctx context.Context, arg InsertPlayerVi
 	return err
 }
 
+const listVisibilityForDemo = `-- name: ListVisibilityForDemo :many
+SELECT demo_id, round_id, tick, spotted_steam, spotter_steam, state
+FROM player_visibility
+WHERE demo_id = ?1
+ORDER BY round_id ASC, tick ASC, spotted_steam ASC, spotter_steam ASC
+`
+
+// Phase 2 contact builder: one demo-scoped fetch, then in-Go partition
+// by round_id. Cheaper than round_id-by-round_id queries for the
+// per-(player, round) builder loop.
+func (q *Queries) ListVisibilityForDemo(ctx context.Context, demoID int64) ([]PlayerVisibility, error) {
+	rows, err := q.db.QueryContext(ctx, listVisibilityForDemo, demoID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PlayerVisibility
+	for rows.Next() {
+		var i PlayerVisibility
+		if err := rows.Scan(
+			&i.DemoID,
+			&i.RoundID,
+			&i.Tick,
+			&i.SpottedSteam,
+			&i.SpotterSteam,
+			&i.State,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listVisibilityForRound = `-- name: ListVisibilityForRound :many
 SELECT demo_id, round_id, tick, spotted_steam, spotter_steam, state
 FROM player_visibility

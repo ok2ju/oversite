@@ -1,0 +1,38 @@
+[
+  {
+    "id": 0,
+    "demo_id": 0,
+    "round_id": 1,
+    "round_number": 5,
+    "subject_steam": "S_P",
+    "t_first": 7300,
+    "t_last": 7300,
+    "t_pre": 7140,
+    "t_post": 7396,
+    "enemies": [
+      "S_E1"
+    ],
+    "outcome": "disengaged",
+    "signal_count": 1,
+    "extras": {
+      "wallbang_taken": true
+    }
+  },
+  {
+    "id": 0,
+    "demo_id": 0,
+    "round_id": 1,
+    "round_number": 5,
+    "subject_steam": "S_E1",
+    "t_first": 7300,
+    "t_last": 7300,
+    "t_pre": 7140,
+    "t_post": 7396,
+    "enemies": [
+      "S_P"
+    ],
+    "outcome": "disengaged",
+    "signal_count": 1,
+    "extras": {}
+  }
+]
