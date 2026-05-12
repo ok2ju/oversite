@@ -170,6 +170,35 @@ func previousTickRows(idx PerPlayerTickIndex, steamID string, fireTick, n int) [
 	return out
 }
 
+// NearestTick is the exported counterpart to nearestTick — kept as a shim
+// so internal/demo/contacts/detectors can reuse the same lookup without
+// copying the implementation. New callers prefer the upper-case name.
+func NearestTick(idx PerPlayerTickIndex, steamID string, tick int) (demo.AnalysisTick, bool) {
+	return nearestTick(idx, steamID, tick)
+}
+
+// NearestEnemyTick is the exported counterpart to nearestEnemyTick.
+func NearestEnemyTick(idx PerPlayerTickIndex, teams map[string]string, attackerTeam string, tick int) (demo.AnalysisTick, bool) {
+	return nearestEnemyTick(idx, teams, attackerTeam, tick)
+}
+
+// PreviousTickRows is the exported counterpart to previousTickRows.
+func PreviousTickRows(idx PerPlayerTickIndex, steamID string, fireTick, n int) []demo.AnalysisTick {
+	return previousTickRows(idx, steamID, fireTick, n)
+}
+
+// TickRangeRows is the exported counterpart to tickRangeRows.
+func TickRangeRows(idx PerPlayerTickIndex, steamID string, lo, hi int) []demo.AnalysisTick {
+	return tickRangeRows(idx, steamID, lo, hi)
+}
+
+// TeamsByRoundFromRosters is the exported counterpart to
+// teamsByRoundFromRosters — re-exposed for use by
+// internal/demo/contacts/detectors.
+func TeamsByRoundFromRosters(rounds []demo.RoundData) map[int]map[string]string {
+	return teamsByRoundFromRosters(rounds)
+}
+
 // tickRangeRows returns AnalysisTick rows for the given player whose tick
 // falls in the inclusive [lo, hi] range, ordered ascending. Empty when the
 // player has no samples in the window. Used by positioning's

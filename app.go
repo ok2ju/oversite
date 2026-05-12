@@ -22,6 +22,7 @@ import (
 	"github.com/ok2ju/oversite/internal/demo"
 	"github.com/ok2ju/oversite/internal/demo/analysis"
 	"github.com/ok2ju/oversite/internal/demo/contacts"
+	"github.com/ok2ju/oversite/internal/demo/contacts/detectors"
 	"github.com/ok2ju/oversite/internal/logging"
 	"github.com/ok2ju/oversite/internal/store"
 	"github.com/ok2ju/oversite/migrations"
@@ -470,14 +471,11 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		a.failDemo(demoID, fmt.Sprintf("run analyzer: %v", analysisErr), emitProgress)
 		return
 	}
-	if err := analysis.PersistWithRoundMap(a.ctx, a.db, demoID, mistakes, duels, roundMap); err != nil {
-		slog.Error("parseDemo: persist analyzer mistakes", append(logCtx, "err", err)...)
-		a.failDemo(demoID, fmt.Sprintf("persist analysis: %v", err), emitProgress)
-		return
-	}
 	// Phase 2 of timeline-contact-moments: build per-(player, signal-cluster)
-	// contact moments from the in-memory ParseResult, then persist alongside
-	// the analyzer output. Phase 3 will layer mistake detectors on top.
+	// contact moments from the in-memory ParseResult and persist. Phase 3
+	// layers mistake detectors on top, both reading from the persisted
+	// contact set and emitting an aggregate slice that joins the analyzer
+	// mistakes before they hit analysis_mistakes.
 	slog.Info("starting contact build", "demo_id", demoID, "round_count", len(result.Rounds))
 	contactsList, contactsErr := contacts.Run(result, roundMap, contacts.RunOpts{})
 	if contactsErr != nil {
@@ -491,6 +489,41 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		return
 	}
 	slog.Info("contact build complete", "demo_id", demoID, "contact_count", len(contactsList))
+	// Phase 3: mistake detectors run over the persisted contact set.
+	// boundMistakes are written to contact_mistakes; aggregateMistakes
+	// merge into the analyzer mistake slice so the four WriteAggregate
+	// kinds (slow_reaction / missed_first_shot / isolated_peek /
+	// shot_while_moving) appear in analysis_mistakes alongside the
+	// existing round-level rules.
+	boundMistakes, aggregateMistakes, detectorsSkipped, detectorsErr := detectors.Run(
+		a.ctx, a.db, demoID, result, contactsList, detectors.RunOpts{},
+	)
+	if detectorsErr != nil {
+		slog.Error("parseDemo: run mistake detectors", append(logCtx, "err", detectorsErr)...)
+		a.failDemo(demoID, fmt.Sprintf("run detectors: %v", detectorsErr), emitProgress)
+		return
+	}
+	if !detectorsSkipped {
+		mistakes = append(mistakes, aggregateMistakes...)
+	}
+	if err := analysis.PersistWithRoundMap(a.ctx, a.db, demoID, mistakes, duels, roundMap); err != nil {
+		slog.Error("parseDemo: persist analyzer mistakes", append(logCtx, "err", err)...)
+		a.failDemo(demoID, fmt.Sprintf("persist analysis: %v", err), emitProgress)
+		return
+	}
+	if !detectorsSkipped {
+		if err := detectors.Persist(a.ctx, a.db, demoID, boundMistakes); err != nil {
+			slog.Error("parseDemo: persist contact mistakes", append(logCtx, "err", err)...)
+			a.failDemo(demoID, fmt.Sprintf("persist contact mistakes: %v", err), emitProgress)
+			return
+		}
+	}
+	slog.Info("mistake detectors complete",
+		"demo_id", demoID,
+		"contact_mistakes", len(boundMistakes),
+		"aggregate_mistakes", len(aggregateMistakes),
+		"skipped", detectorsSkipped,
+	)
 	// Per-(demo, player) summary row alongside the timeline. Each persist is
 	// its own transaction; the divergence window between mistakes-on-disk
 	// and summary-on-disk is small (single-tenant, single-process) and slice 7

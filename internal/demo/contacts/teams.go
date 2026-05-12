@@ -7,6 +7,24 @@ import (
 	"github.com/ok2ju/oversite/internal/demo"
 )
 
+// PartitionEventsByRound is the exported counterpart of
+// partitionEventsByRound, exposed for use by
+// internal/demo/contacts/detectors.
+func PartitionEventsByRound(events []demo.GameEvent) map[int][]demo.GameEvent {
+	return partitionEventsByRound(events)
+}
+
+// PartitionVisibilityByRound is the exported counterpart of
+// partitionVisibilityByRound.
+func PartitionVisibilityByRound(vis []demo.VisibilityChange) map[int][]demo.VisibilityChange {
+	return partitionVisibilityByRound(vis)
+}
+
+// BuildEnemyTeam is the exported counterpart of buildEnemyTeam.
+func BuildEnemyTeam(roster []demo.RoundParticipant) map[string]string {
+	return buildEnemyTeam(roster)
+}
+
 // buildEnemyTeam returns a map from steam_id to team side ("CT"/"T")
 // covering everyone in the round roster.
 func buildEnemyTeam(roster []demo.RoundParticipant) map[string]string {

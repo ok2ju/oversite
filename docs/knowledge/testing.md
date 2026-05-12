@@ -94,3 +94,20 @@ for _, k := range kills {
 ```
 
 Hit during the Phase 1 visibility test's kill-correlation query — 5-minute timeout before the cause was obvious from the goroutine dump.
+
+### In-memory `AnalysisTick` fixtures over `analysis.BuildTickIndex`
+
+Detector tests in `internal/demo/contacts/detectors/*_test.go` need per-player tick lookups (positions, ammo, velocity, pitch). Build them inline:
+
+```go
+ticks := []demo.AnalysisTick{
+    mkTick(9600, 1, 0, 0, 0, 0, 30, 0, 0, true, 30),   // subject
+    mkTick(9600, 2, 1000, 0, 0, 0, 0, 0, 0, true, 30), // enemy
+}
+ctx := &DetectorCtx{
+    Subject: "1", TickRate: 64,
+    Ticks: mkTickIndex(ticks), // analysis.BuildTickIndex wrapper
+}
+```
+
+`SteamID` on `AnalysisTick` is `uint64` and the lookup converts to decimal string internally — `mkTick(..., steam: 1, ...)` produces a row keyed by `"1"`, so `ctx.Subject` / `c.Enemies` are decimal-string SteamIDs in the fixtures. Phase 2's contact JSON fixtures (`testdata/contacts/*.json`) don't carry `AnalysisTicks` at all, so they can't be reused for Phase 3 scenario goldens — the inline approach is the path.

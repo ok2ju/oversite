@@ -34,6 +34,23 @@ rowID, err := q.CreateAnalysisDuel(ctx, params)   // bare int64
 
 Worked example: `queries/analysis_duels.sql` → `internal/store/analysis_duels.sql.go`.
 
+### `COALESCE(MAX(col), 0)` in a `:one` returns `interface{}`
+
+sqlc's SQLite generator can't infer the column type of `SELECT COALESCE(MAX(builder_version), 0) AS version` and produces `func (q *Queries) MaxBuilderVersionForDemo(ctx, demoID int64) (interface{}, error)`. Same shape for the Phase 3 `MaxDetectorVersionForDemo` query. Callers must type-assert; the contacts/detectors runner uses a small helper:
+
+```go
+func coerceInt64(v interface{}) int64 {
+    switch n := v.(type) {
+    case int64: return n
+    case int:   return int64(n)
+    case nil:   return 0
+    default:    return 0
+    }
+}
+```
+
+SQLite returns the column as `int64` in practice, but the `nil` branch matters for an empty table (the wrapping COALESCE means it shouldn't fire, but defense in depth costs nothing).
+
 ### Two-pass insert for self-referential FKs
 
 `analysis_duels.mutual_duel_id` references `analysis_duels.id`. Both peers need rowids before they can link, so the persistence layer in `internal/demo/analysis/persist.go` does two passes inside the same tx: insert every duel and collect `localID → rowid` in a map, then `UPDATE analysis_duels SET mutual_duel_id = ?` for each linked pair. Avoids deferred-constraint gymnastics SQLite doesn't support cleanly.

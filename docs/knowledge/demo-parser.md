@@ -201,6 +201,20 @@ Six signal kinds (`visibility`, `weapon_fire_hit`, `player_hurt`, `kill`, `flash
 
 `builder_version` lives on `contact_moments` (default 1), `detector_version` on `contact_mistakes` (default 0). The split lets Phase 3 detectors rebuild mistakes without invalidating contacts. Same delete-by-demo-then-insert pattern as `analysis.PersistWithRoundMap`; both child tables `CASCADE` from `demos(id)` and the explicit `DeleteContactMistakesByDemoID` keeps the tx auditable.
 
+### Detector catalog uses `init()` to break the registration cycle
+
+`internal/demo/contacts/detectors/catalog.go` declares `Registered []Entry` and populates it inside `func init()`. The straight-line `var Registered = []Entry{{Func: SlowReaction, ...}}` form trips Go's package-init cycle analysis: `Registered → SlowReaction → NewContactMistake → lookupCatalogEntry → Registered`. The functions only invoke each other at runtime, but the initializer expression syntactically references them, which is enough for the compiler to refuse.
+
+`init()` is exempt from the same analysis — by the time it runs, package-level vars are zero-initialized and the cycle is broken into a temporal sequence. Adding a v1 detector means appending one row in `init()`; no other registration ceremony.
+
+### `types.ContactMistake` lives in the detectors package, not `types.go`
+
+Root `types.go` is `package main` so it can't be imported by `internal/demo/contacts/detectors`. The detectors package defines its own `ContactMistake` with the same JSON shape; Phase 4's Wails binding will reshape `store.ContactMistake` (the sqlc row) into `main.ContactMistake` (the wire format) without going through the detectors-package type. The duplicated definition is intentional: detectors don't depend on the Wails layer, and the wire shape is small enough that drift is easy to spot in code review.
+
+### Phase 3 pipeline order: detectors run between contacts.Persist and analysis.PersistWithRoundMap
+
+The aggregate-writeback kinds (`slow_reaction`, `missed_first_shot`, `isolated_peek`, `shot_while_moving`) emit both a `contact_mistakes` row and an `analysis_mistakes` row. The latter must ride the analyzer's existing `delete-by-demo + insert` tx, so `analysis.PersistWithRoundMap` runs **after** `detectors.Run` returns its `aggregate []analysis.Mistake` slice (appended to the analyzer's `mistakes` before persist). `detectors.Persist` runs after `analysis.PersistWithRoundMap` because the FK on `contact_mistakes.contact_id` requires `contact_moments` rows to exist — those landed two steps earlier. Final `parseDemo` order: `analysis.Run → contacts.Run → contacts.Persist → detectors.Run → mistakes ∪= aggregate → analysis.PersistWithRoundMap → detectors.Persist → analysis.RunMatchSummary`.
+
 ### Outcome decision tree is the canonical source
 
 8 labels (`won_clean`, `won_damaged`, `traded_win`, `traded_death`, `untraded_death`, `disengaged`, `partial_win`, `mutual_damage_no_kill`) implemented as a top-down switch in `outcome.go Classify`. `traded_win` fires when `subjectDied && subjectKillerTraded && subjectKills > 0` — i.e. P killed at least one E, then died, then a teammate killed P's killer. The Phase 2 plan's §5.2 scenario prose says `traded_death` for this case but contradicts its own §5.3 decision tree; the tree is canonical (matches analysis §4.4 wording).

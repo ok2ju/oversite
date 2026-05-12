@@ -101,3 +101,17 @@ func (q *Queries) ListContactMistakesByContact(ctx context.Context, contactID in
 	}
 	return items, nil
 }
+
+const maxDetectorVersionForDemo = `-- name: MaxDetectorVersionForDemo :one
+SELECT COALESCE(MAX(detector_version), 0) AS version
+FROM contact_mistakes
+WHERE contact_id IN (SELECT id FROM contact_moments WHERE demo_id = ?1)
+`
+
+// Phase 3 rebuild gate: if MAX < compiled DetectorVersion, rewrite for demo.
+func (q *Queries) MaxDetectorVersionForDemo(ctx context.Context, demoID int64) (interface{}, error) {
+	row := q.db.QueryRowContext(ctx, maxDetectorVersionForDemo, demoID)
+	var version interface{}
+	err := row.Scan(&version)
+	return version, err
+}
