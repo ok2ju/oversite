@@ -1,24 +1,26 @@
 import { useCallback } from "react"
 import { useViewerStore } from "@/stores/viewer"
-import { useAnalysisStore } from "@/stores/analysis"
 import { cn } from "@/lib/utils"
 import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip"
-import { formatElapsedTime } from "@/lib/viewer/timeline-utils"
-import type { MistakeMarker } from "@/lib/timeline/types"
+import { ContactTooltip } from "./contact-tooltip"
+import type { ContactMarker } from "@/lib/timeline/types"
 
-interface MistakesLaneProps {
-  mistakes: MistakeMarker[]
+interface ContactsLaneProps {
+  contacts: ContactMarker[]
   roundStartTick: number
   roundEndTick: number
-  // When false, render the "Select a player…" placeholder banner instead.
+  // When false, render the "Select a player…" placeholder (round mode).
   hasPlayer: boolean
 }
 
 const SEVERITY_CLASS: Record<number, string> = {
+  // Severity 0 = clean contact; gray pill so the moment is visible but not
+  // read as a problem.
+  0: "bg-white/30 ring-white/20",
   1: "bg-yellow-400/70 ring-yellow-300/40",
   2: "bg-orange-400/80 ring-orange-300/40",
   3: "bg-red-500/85 ring-red-300/40",
@@ -29,60 +31,72 @@ function position(tick: number, start: number, end: number): number {
   return Math.max(0, Math.min(1, (tick - start) / span))
 }
 
-export function MistakesLane({
-  mistakes,
+export function ContactsLane({
+  contacts,
   roundStartTick,
   roundEndTick,
   hasPlayer,
-}: MistakesLaneProps) {
+}: ContactsLaneProps) {
   const tickRate = useViewerStore((s) => s.tickRate)
   const setTick = useViewerStore((s) => s.setTick)
   const pause = useViewerStore((s) => s.pause)
-  const setSelectedMistakeId = useAnalysisStore((s) => s.setSelectedMistakeId)
 
+  // Click → pause first, then seek to t_pre (lead-up tick) so the user sees
+  // the approach. Pausing first prevents the next tick advance from racing
+  // the seek.
   const handleClick = useCallback(
-    (m: MistakeMarker) => {
+    (c: ContactMarker) => {
       pause()
-      setTick(m.tick)
-      setSelectedMistakeId(m.id || null)
+      setTick(c.tPre)
     },
-    [pause, setTick, setSelectedMistakeId],
+    [pause, setTick],
   )
 
   if (!hasPlayer) {
     return (
       <div
-        data-testid="round-timeline-mistakes-placeholder"
+        data-testid="round-timeline-contacts-placeholder"
         className="relative flex h-5 items-center justify-center rounded-sm bg-white/[0.02] text-[10px] text-white/40"
       >
-        Select a player to see mistakes for this round
+        Select a player to see contacts for this round
+      </div>
+    )
+  }
+
+  if (contacts.length === 0) {
+    return (
+      <div
+        data-testid="round-timeline-contacts-empty"
+        className="relative flex h-5 items-center justify-center rounded-sm bg-white/[0.02] text-[10px] text-white/40"
+      >
+        No contacts this round
       </div>
     )
   }
 
   return (
     <div
-      data-testid="round-timeline-mistakes"
+      data-testid="round-timeline-contacts"
       className="relative h-5 rounded-sm bg-white/[0.02]"
-      aria-label="Mistakes timeline"
+      aria-label="Contacts timeline"
     >
       <span
         aria-hidden="true"
         className="hud-callsign pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-[9px] font-semibold tracking-wider text-white/50"
       >
-        ISSUES
+        CONTACTS
       </span>
-      {mistakes.map((m) => {
-        const pos = position(m.tick, roundStartTick, roundEndTick)
-        const sev = SEVERITY_CLASS[m.severity] ?? SEVERITY_CLASS[1]
+      {contacts.map((c) => {
+        const pos = position(c.tFirst, roundStartTick, roundEndTick)
+        const sev = SEVERITY_CLASS[c.worstSeverity] ?? SEVERITY_CLASS[0]
         return (
-          <Tooltip key={`${m.id}-${m.tick}`}>
+          <Tooltip key={c.id}>
             <TooltipTrigger asChild>
               <button
                 type="button"
-                data-testid={`mistake-marker-${m.id || m.tick}`}
-                onClick={() => handleClick(m)}
-                aria-label={`${m.title || m.kind} at ${formatElapsedTime(m.tick - roundStartTick, tickRate)}`}
+                data-testid={`contact-marker-${c.id}`}
+                onClick={() => handleClick(c)}
+                aria-label={`Contact at ${c.tFirst - roundStartTick} ticks, ${c.outcome}`}
                 className={cn(
                   "absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 cursor-pointer rounded-sm ring-1 ring-inset transition-transform hover:scale-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/50",
                   sev,
@@ -90,11 +104,12 @@ export function MistakesLane({
                 style={{ left: `${pos * 100}%` }}
               />
             </TooltipTrigger>
-            <TooltipContent side="bottom" align="center">
-              <div className="font-semibold">{m.title || m.kind}</div>
-              <div className="text-white/50">
-                @ {formatElapsedTime(m.tick - roundStartTick, tickRate)}
-              </div>
+            <TooltipContent side="bottom" align="center" className="max-w-xs">
+              <ContactTooltip
+                contact={c}
+                tickRate={tickRate}
+                roundStartTick={roundStartTick}
+              />
             </TooltipContent>
           </Tooltip>
         )

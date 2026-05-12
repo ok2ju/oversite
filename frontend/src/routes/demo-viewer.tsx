@@ -46,7 +46,7 @@ export default function DemoViewerPage() {
       }
       const model = buildLanes({
         events,
-        mistakes: [],
+        contacts: [],
         round: activeRound,
         selectedPlayerSteamId,
         filters,

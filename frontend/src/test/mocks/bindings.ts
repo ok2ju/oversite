@@ -320,6 +320,56 @@ export const mockAppBindings = {
     >()
     .mockResolvedValue([]),
 
+  GetContactMoments: vi
+    .fn<
+      (
+        demoId: string,
+        roundNumber: number,
+        steamId: string,
+      ) => Promise<
+        Array<{
+          id: number
+          demo_id: number
+          round_id: number
+          round_number: number
+          subject_steam: string
+          t_first: number
+          t_last: number
+          t_pre: number
+          t_post: number
+          enemies: string[]
+          outcome: string
+          signal_count: number
+          extras: Record<string, unknown> | null
+          mistakes: Array<{
+            kind: string
+            category: string
+            severity: number
+            phase: string
+            tick: number | null
+            extras: Record<string, unknown> | null
+          }>
+        }>
+      >
+    >()
+    .mockResolvedValue([]),
+
+  GetRoundImportantMoments: vi
+    .fn<
+      (
+        demoId: string,
+        roundNumber: number,
+      ) => Promise<
+        Array<{
+          id: string
+          demo_id: string
+          tick: number
+          event_type: string
+        }>
+      >
+    >()
+    .mockResolvedValue([]),
+
   GetPlayerAnalysis: vi
     .fn<
       (

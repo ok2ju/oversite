@@ -1,7 +1,7 @@
 import { useMemo } from "react"
 import { useViewerStore } from "@/stores/viewer"
 import { useGameEvents } from "./use-game-events"
-import { useMistakeTimeline } from "./use-mistake-timeline"
+import { useContactMoments } from "./use-contact-moments"
 import { buildLanes } from "@/lib/timeline/build-lanes"
 import type { RoundTimelineModel } from "@/lib/timeline/types"
 import type { Round } from "@/types/round"
@@ -18,8 +18,9 @@ export function useRoundTimelineModel(
   const filters = useViewerStore((s) => s.timelineFilters)
 
   const { data: events, isLoading: eventsLoading } = useGameEvents(demoId)
-  const { data: mistakes, isLoading: mistakesLoading } = useMistakeTimeline(
+  const { data: contacts, isLoading: contactsLoading } = useContactMoments(
     demoId,
+    round?.round_number ?? null,
     selectedPlayerSteamId,
   )
 
@@ -28,16 +29,16 @@ export function useRoundTimelineModel(
     if (!events) return null
     return buildLanes({
       events,
-      mistakes: mistakes ?? [],
+      contacts: contacts ?? [],
       round,
       selectedPlayerSteamId,
       filters,
       laneWidthPx,
     })
-  }, [round, events, mistakes, selectedPlayerSteamId, filters, laneWidthPx])
+  }, [round, events, contacts, selectedPlayerSteamId, filters, laneWidthPx])
 
   return {
     model,
-    isLoading: eventsLoading || (!!selectedPlayerSteamId && mistakesLoading),
+    isLoading: eventsLoading || (!!selectedPlayerSteamId && contactsLoading),
   }
 }

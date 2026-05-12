@@ -1147,5 +1147,87 @@ export namespace main {
 	    }
 	}
 
+	export type ContactOutcome = string;
+
+	export class ContactMistake {
+	    kind: string;
+	    category: string;
+	    severity: number;
+	    phase: string;
+	    tick?: number;
+	    extras: Record<string, any>;
+
+	    static createFrom(source: any = {}) {
+	        return new ContactMistake(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.category = source["category"];
+	        this.severity = source["severity"];
+	        this.phase = source["phase"];
+	        this.tick = source["tick"];
+	        this.extras = source["extras"];
+	    }
+	}
+
+	export class ContactMoment {
+	    id: number;
+	    demo_id: number;
+	    round_id: number;
+	    round_number: number;
+	    subject_steam: string;
+	    t_first: number;
+	    t_last: number;
+	    t_pre: number;
+	    t_post: number;
+	    enemies: string[];
+	    outcome: ContactOutcome;
+	    signal_count: number;
+	    extras: Record<string, any>;
+	    mistakes?: ContactMistake[];
+
+	    static createFrom(source: any = {}) {
+	        return new ContactMoment(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.demo_id = source["demo_id"];
+	        this.round_id = source["round_id"];
+	        this.round_number = source["round_number"];
+	        this.subject_steam = source["subject_steam"];
+	        this.t_first = source["t_first"];
+	        this.t_last = source["t_last"];
+	        this.t_pre = source["t_pre"];
+	        this.t_post = source["t_post"];
+	        this.enemies = source["enemies"];
+	        this.outcome = source["outcome"];
+	        this.signal_count = source["signal_count"];
+	        this.extras = source["extras"];
+	        this.mistakes = this.convertValues(source["mistakes"], ContactMistake);
+	    }
+
+	    convertValues(a: any, classs: any, asMap: boolean = false): any {
+	        if (!a) {
+	            return a;
+	        }
+	        if (a.slice && a.map) {
+	            return (a as any[]).map(elem => this.convertValues(elem, classs));
+	        } else if ("object" === typeof a) {
+	            if (asMap) {
+	                for (const key of Object.keys(a)) {
+	                    a[key] = new classs(a[key]);
+	                }
+	                return a;
+	            }
+	            return new classs(a);
+	        }
+	        return a;
+	    }
+	}
+
 }
 

@@ -657,6 +657,18 @@ func (a *App) failDemo(demoID int64, errMsg string, emitProgress func(string, fl
 // Viewer bindings
 // ---------------------------------------------------------------------------
 
+// roundImportantEventTypes are the event types the round-mode timeline lane
+// considers. Excludes kill/player_hurt/player_flashed — those collapse into
+// the per-player contact lane in player mode and don't render in round mode
+// at all (per analysis §4.5).
+var roundImportantEventTypes = []string{
+	"grenade_throw",
+	"grenade_detonate",
+	"bomb_plant",
+	"bomb_defuse",
+	"bomb_explode",
+}
+
 // GetDemoByID returns a single demo by its ID.
 func (a *App) GetDemoByID(id string) (*Demo, error) {
 	demoID, err := strconv.ParseInt(id, 10, 64)
@@ -957,6 +969,106 @@ func (a *App) GetMistakeContext(mistakeID int64) (*MistakeContext, error) {
 		SteamID: row.SteamID,
 	}); err == nil {
 		out.CoOccurring = collectCoOccurring(row.ID, row.Tick, siblings)
+	}
+	return out, nil
+}
+
+// GetContactMoments returns the contact list for one (demo, round, player)
+// with each contact's mistakes embedded. Unknown demos / unknown rounds /
+// unknown players return an empty slice rather than an error — the frontend
+// renders an empty lane in that case, mirroring GetMistakeTimeline's contract.
+//
+// Mistakes are populated from contact_mistakes; the slice ordering is
+// (phase ASC, severity DESC, tick ASC), matching the
+// ListContactMistakesByContact SQL ORDER BY.
+func (a *App) GetContactMoments(demoID string, roundNumber int, subjectSteam string) ([]ContactMoment, error) {
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid demo id: %w", err)
+	}
+	if subjectSteam == "" {
+		return []ContactMoment{}, nil
+	}
+
+	round, err := a.queries.GetRoundByDemoAndNumber(a.ctx, store.GetRoundByDemoAndNumberParams{
+		DemoID:      id,
+		RoundNumber: int64(roundNumber),
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return []ContactMoment{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("getting round: %w", err)
+	}
+
+	rows, err := a.queries.ListContactsByDemoRoundSubject(a.ctx, store.ListContactsByDemoRoundSubjectParams{
+		DemoID:       id,
+		RoundID:      round.ID,
+		SubjectSteam: subjectSteam,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("listing contacts: %w", err)
+	}
+
+	out := make([]ContactMoment, 0, len(rows))
+	for _, r := range rows {
+		cm, err := storeContactToBinding(r, int(round.RoundNumber))
+		if err != nil {
+			return nil, fmt.Errorf("decoding contact id=%d: %w", r.ID, err)
+		}
+		mistakeRows, err := a.queries.ListContactMistakesByContact(a.ctx, r.ID)
+		if err != nil {
+			return nil, fmt.Errorf("listing mistakes for contact %d: %w", r.ID, err)
+		}
+		cm.Mistakes = make([]ContactMistake, 0, len(mistakeRows))
+		for _, m := range mistakeRows {
+			cm.Mistakes = append(cm.Mistakes, storeContactMistakeToBinding(m))
+		}
+		out = append(out, cm)
+	}
+	return out, nil
+}
+
+// GetRoundImportantMoments returns only the events the round-mode timeline
+// lane considers important: grenade lifecycle + bomb lifecycle. Phase 4 uses
+// this to drop kill/player_hurt/player_flashed from the round-mode lane
+// (analysis §4.5: round-mode shows what the team did, not who individually
+// died). Equivalent to GetEventsByTypes(demoID, roundImportantEventTypes),
+// filtered in-Go to the supplied round. Returns an empty slice for unknown
+// demos / unknown rounds.
+func (a *App) GetRoundImportantMoments(demoID string, roundNumber int) ([]GameEvent, error) {
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid demo id: %w", err)
+	}
+
+	round, err := a.queries.GetRoundByDemoAndNumber(a.ctx, store.GetRoundByDemoAndNumberParams{
+		DemoID:      id,
+		RoundNumber: int64(roundNumber),
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return []GameEvent{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("getting round: %w", err)
+	}
+
+	typesJSON, err := json.Marshal(roundImportantEventTypes)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling event types: %w", err)
+	}
+
+	events, err := a.queries.GetGameEventsByTypes(a.ctx, id, string(typesJSON))
+	if err != nil {
+		return nil, fmt.Errorf("getting events by types: %w", err)
+	}
+
+	out := make([]GameEvent, 0, len(events))
+	for _, e := range events {
+		if e.Tick < round.StartTick || e.Tick > round.EndTick {
+			continue
+		}
+		out = append(out, storeGameEventToBinding(e))
 	}
 	return out, nil
 }
@@ -2041,6 +2153,56 @@ func storeGameEventToBinding(e store.GameEvent) GameEvent {
 		ge.ExtraData = json.RawMessage(e.ExtraData)
 	}
 	return ge
+}
+
+func storeContactToBinding(r store.ContactMoment, roundNumber int) (ContactMoment, error) {
+	cm := ContactMoment{
+		ID:           r.ID,
+		DemoID:       r.DemoID,
+		RoundID:      r.RoundID,
+		RoundNumber:  roundNumber,
+		SubjectSteam: r.SubjectSteam,
+		TFirst:       int32(r.TFirst),
+		TLast:        int32(r.TLast),
+		TPre:         int32(r.TPre),
+		TPost:        int32(r.TPost),
+		Outcome:      ContactOutcome(r.Outcome),
+		SignalCount:  int(r.SignalCount),
+	}
+	if r.EnemiesJson != "" && r.EnemiesJson != "[]" {
+		if err := json.Unmarshal([]byte(r.EnemiesJson), &cm.Enemies); err != nil {
+			return ContactMoment{}, fmt.Errorf("decoding enemies: %w", err)
+		}
+	}
+	if r.ExtrasJson != "" && r.ExtrasJson != "{}" {
+		cm.Extras = map[string]any{}
+		if err := json.Unmarshal([]byte(r.ExtrasJson), &cm.Extras); err != nil {
+			// Mirror GetMistakeTimeline's lenient extras decode — a malformed
+			// blob yields empty extras instead of failing the row.
+			cm.Extras = map[string]any{}
+		}
+	}
+	return cm, nil
+}
+
+func storeContactMistakeToBinding(r store.ContactMistake) ContactMistake {
+	cm := ContactMistake{
+		Kind:     r.Kind,
+		Category: r.Category,
+		Severity: int(r.Severity),
+		Phase:    r.Phase,
+	}
+	if r.Tick.Valid {
+		v := int32(r.Tick.Int64)
+		cm.Tick = &v
+	}
+	if r.ExtrasJson != "" && r.ExtrasJson != "{}" {
+		extras := map[string]any{}
+		if err := json.Unmarshal([]byte(r.ExtrasJson), &extras); err == nil {
+			cm.Extras = extras
+		}
+	}
+	return cm
 }
 
 func storeTickDatumToBinding(d store.TickDatum) TickData {

@@ -1,13 +1,13 @@
 import type { GameEvent } from "@/types/demo"
-import type { MistakeEntry } from "@/types/mistake"
 import type { Round } from "@/types/round"
+import type { main } from "@wailsjs/go/models"
 import { getEventIconPath } from "./icons"
 import type {
+  ContactMarker,
   EventCluster,
   FilterSet,
   GrenadeMarker,
   LaneSide,
-  MistakeMarker,
   RoundTimelineModel,
   SpineModel,
   TimelineEvent,
@@ -21,7 +21,7 @@ export const MIN_GAP_PX = 12
 
 interface BuildLanesInput {
   events: GameEvent[]
-  mistakes: MistakeEntry[]
+  contacts: main.ContactMoment[]
   round: Round
   selectedPlayerSteamId: string | null
   filters: FilterSet
@@ -321,11 +321,11 @@ function buildSpine(round: Round, events: GameEvent[]): SpineModel {
 //   4. Assign each surviving event to a lane (CT/T or Caused/Affected).
 //   5. Cluster within each lane.
 //   6. Build the spine model.
-//   7. Project mistakes into the mistakes lane (player mode only).
+//   7. Project contacts into the contacts lane (player mode only).
 export function buildLanes(input: BuildLanesInput): RoundTimelineModel {
   const {
     events,
-    mistakes,
+    contacts,
     round,
     selectedPlayerSteamId,
     filters,
@@ -356,6 +356,17 @@ export function buildLanes(input: BuildLanesInput): RoundTimelineModel {
       e.event_type === "decoy_start" ||
       e.event_type === "fire_start" ||
       e.event_type === "weapon_fire"
+    ) {
+      return false
+    }
+    // Round-mode lane shows only grenades + bomb. Drop kill / player_hurt /
+    // player_flashed in round mode (no player selected); the per-player
+    // contact lane encodes those signals in player mode.
+    if (
+      !selectedPlayerSteamId &&
+      (e.event_type === "kill" ||
+        e.event_type === "player_hurt" ||
+        e.event_type === "player_flashed")
     ) {
       return false
     }
@@ -408,31 +419,47 @@ export function buildLanes(input: BuildLanesInput): RoundTimelineModel {
   // (6) Spine geometry.
   const spine = buildSpine(round, inRound)
 
-  // (7) Mistakes lane.
-  const roundMistakes: MistakeMarker[] = []
+  // (7) Contacts lane.
+  const roundContacts: ContactMarker[] = []
   if (selectedPlayerSteamId) {
-    for (const m of mistakes) {
-      if (m.tick < start || m.tick > end) continue
-      roundMistakes.push({
-        id: m.id,
-        kind: m.kind,
-        title: m.title,
-        severity: m.severity,
-        tick: m.tick,
+    for (const c of contacts) {
+      // Only render contacts inside the live round window. The Phase 2
+      // builder doesn't emit contacts outside the round, but defensive
+      // bounds mirror the legacy mistakes projection.
+      if (c.t_first < start || c.t_first > end) continue
+      roundContacts.push({
+        id: c.id,
+        subjectSteam: c.subject_steam,
+        tFirst: c.t_first,
+        tPre: c.t_pre,
+        tLast: c.t_last,
+        tPost: c.t_post,
+        outcome: c.outcome,
+        enemies: c.enemies ?? [],
+        mistakes: c.mistakes ?? [],
+        worstSeverity: worstSeverity(c.mistakes ?? []),
       })
     }
-    // Sort by severity ascending so the highest-severity marker renders last
-    // (on top in DOM z-order).
-    roundMistakes.sort((a, b) => a.severity - b.severity)
+    // Sort by worstSeverity ascending so the highest-severity marker renders
+    // last (on top in DOM z-order).
+    roundContacts.sort((a, b) => a.worstSeverity - b.worstSeverity)
   }
 
   return {
     topLane,
     bottomLane,
-    mistakes: roundMistakes,
+    contacts: roundContacts,
     spine,
     roundStartTick: start,
     roundEndTick: end,
     selectedPlayerSteamId,
   }
+}
+
+function worstSeverity(mistakes: main.ContactMistake[]): number {
+  let max = 0
+  for (const m of mistakes) {
+    if (m.severity > max) max = m.severity
+  }
+  return max
 }

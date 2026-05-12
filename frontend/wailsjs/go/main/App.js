@@ -14,6 +14,14 @@ export function GetAllRosters(arg1) {
   return window['go']['main']['App']['GetAllRosters'](arg1);
 }
 
+export function GetContactMoments(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GetContactMoments'](arg1, arg2, arg3);
+}
+
+export function GetRoundImportantMoments(arg1, arg2) {
+  return window['go']['main']['App']['GetRoundImportantMoments'](arg1, arg2);
+}
+
 export function GetAnalysisStatus(arg1) {
   return window['go']['main']['App']['GetAnalysisStatus'](arg1);
 }

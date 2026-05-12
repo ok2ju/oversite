@@ -111,3 +111,40 @@ ctx := &DetectorCtx{
 ```
 
 `SteamID` on `AnalysisTick` is `uint64` and the lookup converts to decimal string internally — `mkTick(..., steam: 1, ...)` produces a row keyed by `"1"`, so `ctx.Subject` / `c.Enemies` are decimal-string SteamIDs in the fixtures. Phase 2's contact JSON fixtures (`testdata/contacts/*.json`) don't carry `AnalysisTicks` at all, so they can't be reused for Phase 3 scenario goldens — the inline approach is the path.
+
+### Shadcn `<Tooltip>` needs `<TooltipProvider>` even under `renderWithProviders`
+
+`renderWithProviders` supplies `QueryClientProvider` + `ThemeProvider` + `MemoryRouter`, but **not** `<TooltipProvider>`. Any lane component that renders a `<Tooltip>` will throw `Tooltip must be used within TooltipProvider` from `useContext2` if rendered bare. Pattern from `duels-lane.test.tsx` and `contacts-lane.test.tsx`:
+
+```tsx
+import { TooltipProvider } from "@/components/ui/tooltip"
+
+renderWithProviders(
+  <TooltipProvider>
+    <ContactsLane contacts={…} … />
+  </TooltipProvider>,
+)
+```
+
+Don't move `TooltipProvider` into `renderWithProviders` itself — most non-tooltip tests don't need it and the wrapper stays small on purpose.
+
+### Hook tests use `renderHookWithProviders`, not raw `renderHook`
+
+`src/test/render.tsx` exports `renderHookWithProviders` alongside `renderWithProviders` — same provider tree (Query + Theme + Router), `renderHook` instead of `render`. Use it for any TanStack-Query hook test:
+
+```ts
+import { renderHookWithProviders } from "@/test/render"
+
+const { result } = renderHookWithProviders(() => useContactMoments("42", 1, "player-1"))
+await waitFor(() => expect(result.current.isSuccess).toBe(true))
+```
+
+The `initialProps` / `rerender` flow works the same as RTL's `renderHook` because it's just a wrapper:
+
+```ts
+const { rerender, result } = renderHookWithProviders(
+  ({ round }: { round: number }) => useContactMoments("42", round, "player-1"),
+  { initialProps: { round: 1 } },
+)
+rerender({ round: 2 })
+```

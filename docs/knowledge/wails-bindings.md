@@ -66,9 +66,15 @@ The TS bindings only regenerate during `wails dev` / `wails build`. When a sessi
 
 - `frontend/wailsjs/go/main/App.d.ts` — add the typed declaration.
 - `frontend/wailsjs/go/main/App.js` — add the runtime `window['go'][...]` thunk.
-- `frontend/wailsjs/go/models.ts` — only needed if frontend code references `main.NewType` directly. The hook-via-cast pattern (`(... as Promise<T>)`) used by `useMistakeTimeline` / `useDuelTimeline` skips this entirely.
+- `frontend/wailsjs/go/models.ts` — needed whenever frontend code references `main.NewType` directly. The hook-via-cast pattern (`(... as Promise<T>)`) used by `useMistakeTimeline` / `useDuelTimeline` skips this entirely, but lane builders / shared `@/lib` modules that import `import type { main } from "@wailsjs/go/models"` do not.
 
 A subsequent `wails dev` will overwrite these files; that's fine, the generator produces the same shape.
+
+`wails generate module` is supposed to regenerate these without booting the dev server, but in practice it fails silently — `exit status 1` with no stderr, even at `-v 2 -nocolour`. When it errors, hand-edit the three files above (the PreToolUse hook only blocks lock files and sqlc-generated `*.sql.go`, not anything under `frontend/wailsjs/`). Phase 4 (contact moments) hit this; Phase 2's types had to be back-filled into `models.ts` retroactively as a result.
+
+### Go string-type aliases do not emit a TS type
+
+`type ContactOutcome string` in `types.go` is inlined as bare `string` in the generated `models.ts`. If frontend code needs the namespaced reference (`main.ContactOutcome`) — e.g. to constrain a `ContactMarker.outcome` field — add `export type ContactOutcome = string;` inside the `main` namespace by hand. Wails won't write it for you, and string-typing the field as plain `string` loses the documentation value.
 
 ### Diagnostic-folder binding pair convention
 

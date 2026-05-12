@@ -1,4 +1,9 @@
-import { render, type RenderOptions } from "@testing-library/react"
+import {
+  render,
+  renderHook,
+  type RenderOptions,
+  type RenderHookOptions,
+} from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { ThemeProvider } from "@/components/providers/theme-provider"
@@ -41,6 +46,24 @@ export function renderWithProviders(
 ) {
   const { initialRoute, ...renderOptions } = options ?? {}
   return render(ui, {
+    wrapper: createAllProviders({ initialRoute }),
+    ...renderOptions,
+  })
+}
+
+interface RenderHookWithProvidersOptions<TProps> extends Omit<
+  RenderHookOptions<TProps>,
+  "wrapper"
+> {
+  initialRoute?: string
+}
+
+export function renderHookWithProviders<TResult, TProps>(
+  callback: (props: TProps) => TResult,
+  options?: RenderHookWithProvidersOptions<TProps>,
+) {
+  const { initialRoute, ...renderOptions } = options ?? {}
+  return renderHook(callback, {
     wrapper: createAllProviders({ initialRoute }),
     ...renderOptions,
   })

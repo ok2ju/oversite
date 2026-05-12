@@ -7,7 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { clientXToPercent } from "@/lib/viewer/timeline-utils"
 import { Lane } from "./lane"
 import { BombSpine } from "./bomb-spine"
-import { MistakesLane } from "./mistakes-lane"
+import { ContactsLane } from "./contacts-lane"
 import { DuelsLane } from "./duels-lane"
 import { Playhead } from "./playhead"
 import { useDuelTimeline } from "@/hooks/use-duel-timeline"
@@ -185,8 +185,8 @@ export function RoundTimeline({ round }: RoundTimelineProps) {
           variant="bottom"
           side={side}
         />
-        <MistakesLane
-          mistakes={model.mistakes}
+        <ContactsLane
+          contacts={model.contacts}
           roundStartTick={model.roundStartTick}
           roundEndTick={model.roundEndTick}
           hasPlayer={isPlayerMode}

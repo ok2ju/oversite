@@ -1,4 +1,5 @@
 import type { GameEvent } from "@/types/demo"
+import type { main } from "@wailsjs/go/models"
 
 // Logical event-type vocabulary the round timeline thinks in. This is a
 // projection of GameEventType — multiple wire-level event types collapse to a
@@ -85,14 +86,27 @@ export interface SpineModel {
   bombBar: { startTick: number; endTick: number } | null
 }
 
-// Mistakes projected onto the mistakes lane. Severity-sorted (highest last so
-// the worst mistake renders on top).
-export interface MistakeMarker {
+// Contacts projected onto the contacts lane (player mode only). Sorted
+// by worstSeverity ascending so the most severe marker renders last
+// (on top in DOM z-order). Embeds the full mistakes list so the tooltip
+// can render without an additional query.
+export interface ContactMarker {
   id: number
-  kind: string
-  title: string
-  severity: number
-  tick: number
+  subjectSteam: string
+  // Tick the marker sits at on the lane (= t_first).
+  tFirst: number
+  // Lead-up tick — where the click handler seeks playback to.
+  tPre: number
+  tLast: number
+  tPost: number
+  outcome: main.ContactOutcome
+  enemies: string[]
+  // Mistakes attached to this contact. Sorted (phase ASC, severity DESC,
+  // tick ASC) by the SQL ORDER BY in ListContactMistakesByContact.
+  mistakes: main.ContactMistake[]
+  // Max severity across mistakes (0 for clean contacts). Drives the
+  // marker color.
+  worstSeverity: number
 }
 
 // Full model the <RoundTimeline /> component consumes.
@@ -101,8 +115,8 @@ export interface RoundTimelineModel {
   topLane: EventCluster[]
   // Bottom lane: T events in team mode, events-affecting-player in player mode.
   bottomLane: EventCluster[]
-  // Mistakes (player mode only — empty when no player is selected).
-  mistakes: MistakeMarker[]
+  // Contacts (player mode only — empty when no player is selected).
+  contacts: ContactMarker[]
   // Round phase + bomb spine.
   spine: SpineModel
   // The round bounds the lanes are positioned against.

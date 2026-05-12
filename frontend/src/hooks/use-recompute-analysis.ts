@@ -27,6 +27,7 @@ export function useRecomputeAnalysis() {
       qc.invalidateQueries({ queryKey: ["mistakes", demoId] })
       qc.invalidateQueries({ queryKey: ["player-analysis", demoId] })
       qc.invalidateQueries({ queryKey: ["player-round-analysis", demoId] })
+      qc.invalidateQueries({ queryKey: ["contact-moments", demoId] })
     },
   })
 }
