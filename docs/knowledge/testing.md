@@ -68,3 +68,29 @@ expect(within(dialog).getByText(/awesome-clutch\.dem/)).toBeInTheDocument()
 ```
 
 The portaled surface is reachable via `getByRole("alertdialog" | "dialog")` with the title as `name`; pair with `within()` for any further assertions.
+
+### `testutil.NewTestDB` is single-connection — don't hold a cursor across statements
+
+`internal/testutil/db.go:26` calls `db.SetMaxOpenConns(1)` (matches production's WAL-mode single-writer policy). Holding a `*sql.Rows` from `db.QueryContext` and then issuing another statement on the **same DB** — `db.PrepareContext`, `db.QueryRowContext`, etc. — deadlocks: the cursor owns the only connection and the second call blocks waiting for it. Symptom is a test that hangs for the full timeout with a goroutine stuck in `database/sql.(*DB).conn → connectionOpener`.
+
+Fix: materialize the cursor into a slice before the next statement, or run both inside an explicit `*sql.Tx`.
+
+```go
+// WRONG — second statement on db deadlocks while rows is open.
+rows, _ := db.QueryContext(ctx, "SELECT ... FROM kills")
+defer rows.Close()
+for rows.Next() {
+    db.QueryRowContext(ctx, "SELECT COUNT(*) FROM visibility WHERE ...")  // hangs
+}
+
+// RIGHT — drain the cursor first.
+var kills []kill
+rows, _ := db.QueryContext(ctx, "SELECT ... FROM kills")
+for rows.Next() { /* scan into kills */ }
+_ = rows.Close()
+for _, k := range kills {
+    db.QueryRowContext(ctx, "SELECT COUNT(*) FROM visibility WHERE ...")
+}
+```
+
+Hit during the Phase 1 visibility test's kill-correlation query — 5-minute timeout before the cause was obvious from the goroutine dump.

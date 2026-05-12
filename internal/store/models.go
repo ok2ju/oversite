@@ -165,6 +165,15 @@ type PlayerRoundAnalysis struct {
 	ShotsHit    int64
 }
 
+type PlayerVisibility struct {
+	DemoID       int64
+	RoundID      int64
+	Tick         int64
+	SpottedSteam string
+	SpotterSteam string
+	State        int64
+}
+
 type Round struct {
 	ID            int64
 	DemoID        int64

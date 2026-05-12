@@ -450,6 +450,12 @@ func (a *App) parseDemo(demoID int64, filePath string) {
 		return
 	}
 
+	if _, err := demo.IngestPlayerVisibility(a.ctx, a.db, demoID, result.Visibility, roundMap); err != nil {
+		slog.Error("parseDemo: ingest visibility", append(logCtx, "err", err)...)
+		a.failDemo(demoID, fmt.Sprintf("ingest visibility: %v", err), emitProgress)
+		return
+	}
+
 	// Mechanical-analysis pass: runs over the in-memory events (still
 	// available — IngestGameEvents only reads them) and persists per-player
 	// findings into analysis_mistakes. Bracketed by progress events so the

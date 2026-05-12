@@ -6,6 +6,18 @@ Format: `YYYY-MM-DD — <summary>` with links to affected pages.
 
 ---
 
+## 2026-05-12 — Timeline contact-moments Phase 1 (visibility capture)
+
+Implemented `events.PlayerSpottersChanged` capture into the new `player_visibility` table (migration 019). Handler in `internal/demo/parser.go` re-derives the spotter set per event (no `Spotters()` method on `common.Player`), applies a 4-tick defer-then-commit debounce, and flushes pending rows at `RoundEnd` + parser teardown. Measured 534 rows / 7,476 events / 24 rounds on `testdata/demos/1.dem` — well under the 50k volume budget; the parser hard-aborts above 200k via `state.limitExceeded`. Ingester (`internal/demo/visibility.go`) mirrors `IngestGameEvents`; the table is intentionally **not** exposed via Wails (pointer comment in `types.go` directs readers to `internal/demo.VisibilityChange`). Spike harness `cmd/spike-spotted` ships under `//go:build spike` for operator-driven mask-reliability checks.
+
+Refs: [[knowledge/demo-parser]] (section flipped from "gap" → "captured"), [[knowledge/testing]] (new `SetMaxOpenConns(1)` gotcha).
+
+## 2026-05-12 — Contact-moments design (analysis only, no code)
+
+Drafted full design for player-mode timeline "contact moments" in [[../.claude/analysis/timeline-contact-moments.md]] — definition (visibility + shots/damage/kills/flashes), 2.0s multi-enemy merge window, 2.5s pre-window for crosshair/positioning analysis, 8-outcome taxonomy (won_clean / traded_win / untraded_death / disengaged / partial_win / …), ~20 phase-bucketed mistake detectors, three new tables (`player_visibility`, `contact_moments`, `contact_mistakes`), two new Wails bindings. Foundational gap identified: `events.PlayerSpottersChanged` / `IsSpottedBy()` (authoritative server-side LoS) is exposed by demoinfocs v5 but not captured today — blocks Full-LoS contacts and most pre-engagement detectors.
+
+Refs: [[knowledge/demo-parser]] (updated).
+
 ## 2026-05-11 — Duel-scoped mistakes (slice 13)
 
 New `Duel` analyzer entity reconstructs directed attacker→victim engagements from the merged `weapon_fire + player_hurt + kill` stream — hit-anchored target via `WeaponFireExtra.HitVictimSteamID`, falling back to cone enumeration (15° / 2200u / 2s activity). Engagement-class mistakes attach via the new `analysis_mistakes.duel_id` FK; `eco_misbuy` / `he_damage` stay duel-less. `analysis_duels` table (migration 018) carries directional outcome (`won` / `inconclusive` / `won_then_traded`) and a self-referential `mutual_duel_id` for crossfire pairs.

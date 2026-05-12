@@ -25,6 +25,8 @@ linters:
 run:
   timeout: 3m
   tests: true
+  build-tags:
+    - spike
 
 issues:
   max-issues-per-linter: 0

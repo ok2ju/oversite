@@ -154,6 +154,37 @@ Pairing a throw with its endpoint requires checking all four: `grenade_detonate`
 
 Per the demoinfocs docs: "Returns CWeaponCSBase.m_iPrimaryReserveAmmoCount for most weapons and 'Owner.AmmoLeft[AmmoType] - 1' for grenades." A player whose active item is a single grenade therefore reads `clip=0, reserve=0`, indistinguishable from a knife at the parser level. The viewer's formatter (`frontend/src/lib/viewer/weapon-label.ts`) hides the ammo suffix when both values are zero, so the displayed result is just the weapon name — but if you ever need true grenade counts, prefer the `Inventory` slice over inferring from ammo.
 
+## Player visibility / spotted mask (captured) (2026-05-12)
+
+Captured via `events.PlayerSpottersChanged` in [`internal/demo/parser.go`](../../internal/demo/parser.go) (handler `handleSpottersChanged`). The demoinfocs event fires whenever `m_bSpottedByMask.0000` or `m_bSpottedByMask.0001` changes; for each `Spotted` player we re-derive the full spotter set by iterating `p.GameState().Participants().Playing()` and calling `spotted.IsSpottedBy(other)` (no `Spotters()` method exists on `common.Player`). Transitions are persisted to the `player_visibility` table (migration 019) as one row per `(spotted_steam, spotter_steam, state, tick)` — `state=1` is spotted_on, `state=0` is spotted_off.
+
+### Filters (drop the event when any are true)
+
+- warmup period (when `skipWarmup` is on);
+- pre-match (`state.currentRound == 0`);
+- freezetime (`tick < round.freeze_end_tick`);
+- either side is a bot, nil, or has `SteamID64 == 0` (`shouldSkipPlayer`);
+- either side is dead;
+- either side is not on `TERRORIST` / `COUNTER_TERRORIST`.
+
+### Debounce — defer-then-commit, 4 ticks
+
+Each candidate transition is held as `pending`. If a flip-back arrives on the same pair within `visibilityDebounceTicks = 4` ticks, both are dropped (flicker rejection). Otherwise the row commits at its original tick, and the per-pair last-emitted state is updated. `RoundEnd` and parser teardown flush any still-pending rows unconditionally so a fight ending exactly at a round boundary is not lost. The per-round flush also clears all per-pair maps so visibility never crosses a round boundary.
+
+### Volume
+
+Measured on the reference fixture `testdata/demos/1.dem` (24 rounds, de_ancient, Faceit MR12): **534 visibility rows** for 7,476 events. Budget is 50 000 rows per demo; the parser hard-fails (sets `state.limitExceeded`) above 200 000 — at that point the fallback is run-length-window storage (see analysis §9.1).
+
+### Downstream consumer
+
+Phase 2 contact builder (`.claude/plans/timeline-contact-moments/phase-2-contact-builder.md`) reads `player_visibility` via `ListVisibilityForRound`. The table is *not* exposed via Wails bindings; the frontend never reads it directly. A pointer comment in [`types.go`](../../types.go) directs future contributors to `internal/demo.VisibilityChange` instead of re-introducing a frontend type.
+
+### Pre-merge spike
+
+`cmd/spike-spotted` (build with `-tags spike`) prints `tick / spotted / spotters` triples for any demo. Confirmed on the reference Faceit demo: entry-fight bursts of spotter additions at round start, no freezetime fires (the parser guard skips them), no per-frame spam for a single pair.
+
+Cross-link: implementation plan at [`.claude/plans/timeline-contact-moments/phase-1/`](../../.claude/plans/timeline-contact-moments/phase-1/README.md).
+
 ## Streaming parse → ingest pipeline (2026-05-08)
 
 `Parse(ctx, r)` now accepts a `WithTickSink(chan<- TickSnapshot)` option. Ticks flow into a bounded channel; `app.go parseDemo` runs parse + ingest concurrently under `errgroup.WithContext` with `DefaultTickSinkBuffer = 5000`. Peak tick-path heap dropped from ~120 MB to ~4 MB.

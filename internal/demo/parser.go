@@ -34,6 +34,15 @@ import (
 const (
 	maxTickRows  = 5_000_000
 	maxGameEvent = 100_000
+	// maxVisibilityRows is the hard cap on persisted visibility transitions per
+	// demo. 4× the expected p99 (~50k) — above this the parser aborts via
+	// state.limitExceeded and the run-length-window storage fallback in
+	// analysis §9.1 is required.
+	maxVisibilityRows = 200_000
+	// visibilityDebounceTicks is the defer-then-commit window for
+	// PlayerSpottersChanged transitions. A flip-back inside this window drops
+	// both rows (flicker rejection).
+	visibilityDebounceTicks = 4
 )
 
 // defaultMaxHeapBytes is the fallback heap ceiling used when the caller didn't
@@ -97,6 +106,7 @@ type ParseResult struct {
 	Events        []GameEvent
 	Lineups       []GrenadeLineup
 	AnalysisTicks []AnalysisTick
+	Visibility    []VisibilityChange
 }
 
 // MatchHeader contains match-level metadata.
@@ -214,6 +224,17 @@ type AnalysisTick struct {
 	// per-weapon max-clip tables — the rule only flags clip == 0 cases (the
 	// only state where reloading is unambiguous and high-impact).
 	AmmoClip int16
+}
+
+// VisibilityChange is one debounced transition row destined for the
+// player_visibility table. RoundNumber is the in-demo counter; the
+// ingester resolves it to a database round_id via roundMap.
+type VisibilityChange struct {
+	RoundNumber  int
+	Tick         int
+	SpottedSteam string // SteamID64 as decimal string (project convention)
+	SpotterSteam string
+	State        int8 // 1 = on, 0 = off
 }
 
 // GameEvent represents a parsed game event (kill, grenade, bomb, round boundary).
@@ -390,6 +411,12 @@ type parseState struct {
 	// sample after a respawn produces a large delta, but the velocity field
 	// is still consumed by the analyzer rule which decides whether to skip).
 	prevAnalysisPos map[uint64]analysisPos
+	// Visibility capture (Phase 1). All four are zero-valued until the first
+	// PlayerSpottersChanged event fires; lazy-init inside handleSpottersChanged.
+	visibility        []VisibilityChange           // committed, debounced transitions
+	visibilityState   map[visibilityKey]int8       // last emitted state per pair (1 on, 0 off)
+	visibilityPending map[visibilityKey]pendingVis // pending defer-and-commit row
+	prevSpotters      map[uint64]map[uint64]bool   // last-observed spotter set per spotted SteamID64
 }
 
 // analysisPos is the previous-sample bookkeeping for AnalysisTick velocity
@@ -397,6 +424,22 @@ type parseState struct {
 type analysisPos struct {
 	tick int
 	x, y float64
+}
+
+// visibilityKey identifies a single (spotted, spotter) ordered pair. Maps
+// keyed by SteamID64 (uint64) inside the parser; only the final emitted
+// VisibilityChange row converts to decimal-string steam IDs.
+type visibilityKey struct {
+	Spotted uint64
+	Spotter uint64
+}
+
+// pendingVis is the in-flight defer-then-commit row held between
+// PlayerSpottersChanged event firings. One per pair; replaced or dropped
+// when a subsequent transition arrives within visibilityDebounceTicks.
+type pendingVis struct {
+	Tick  int
+	State int8 // 1 = on, 0 = off
 }
 
 // steamID returns the decimal string form of p.SteamID64, cached per player.
@@ -519,6 +562,10 @@ func (s *parseState) resetForPreMatchRestart() {
 	s.knifeRoundNumbers = nil
 	s.analysisTicks = nil
 	s.prevAnalysisPos = nil
+	s.visibility = nil
+	s.visibilityState = nil
+	s.visibilityPending = nil
+	s.prevSpotters = nil
 	// Keep steamIDs across restart — same players, same SteamID64s.
 }
 
@@ -647,10 +694,17 @@ func (dp *DemoParser) Parse(ctx context.Context, r io.Reader) (result *ParseResu
 
 	lineups := ExtractGrenadeLineups(state.mapName, events)
 
+	// Belt-and-suspenders: RoundEnd flushes pending visibility rows on the
+	// common path, but a demo can end without a clean RoundEnd (truncated
+	// demo, panic mid-round). Drain anything still pending before assigning
+	// state.visibility into the result.
+	dp.flushPendingUnconditional(state)
+
 	slog.Info("parser: completed",
 		"rounds", len(rounds),
 		"ticks", state.tickCount,
 		"events", len(events),
+		"visibility", len(state.visibility),
 		"map", state.mapName,
 		"total_ticks", totalTicks)
 
@@ -668,6 +722,7 @@ func (dp *DemoParser) Parse(ctx context.Context, r io.Reader) (result *ParseResu
 		Events:        events,
 		Lineups:       lineups,
 		AnalysisTicks: state.analysisTicks,
+		Visibility:    state.visibility,
 	}, nil
 }
 
@@ -929,6 +984,13 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			TTeamName:     tClan,
 			Roster:        state.currentRoster,
 		})
+
+		// Visibility (Phase 1): commit any still-pending transitions and clear
+		// per-pair state so visibility never crosses a round boundary.
+		dp.flushPendingUnconditional(state)
+		state.prevSpotters = nil
+		state.visibilityState = nil
+		state.visibilityPending = nil
 
 		// Report progress proportional to rounds parsed.
 		// Rough estimate: most Faceit demos have 24-30 rounds.
@@ -1552,6 +1614,13 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 			p.Cancel()
 		}
 	})
+
+	// Visibility capture (Phase 1): server-side spotted-mask transitions.
+	// Subscribed per the timeline contact-moments plan
+	// (.claude/plans/timeline-contact-moments/phase-1/02-parser.md).
+	p.RegisterEventHandler(func(e events.PlayerSpottersChanged) {
+		dp.handleSpottersChanged(p, state, e)
+	})
 }
 
 // shouldSampleTick returns true if tick should be sampled at the given interval.
@@ -1640,5 +1709,195 @@ func roundEndReasonString(r events.RoundEndReason) string {
 		return "ct_surrender"
 	default:
 		return fmt.Sprintf("reason_%d", r)
+	}
+}
+
+// handleSpottersChanged derives per-pair visibility transitions from a
+// PlayerSpottersChanged event. The demoinfocs event exposes only the Spotted
+// player, so the spotter set is re-derived by iterating playing participants
+// and calling spotted.IsSpottedBy(other). Each candidate transition is run
+// through proposeVisibilityChange for 4-tick defer-then-commit debouncing.
+func (dp *DemoParser) handleSpottersChanged(
+	p demoinfocs.Parser,
+	state *parseState,
+	e events.PlayerSpottersChanged,
+) {
+	spotted := e.Spotted
+	if spotted == nil {
+		return
+	}
+
+	gs := p.GameState()
+	tick := gs.IngameTick()
+
+	// Round / freezetime / warmup guards.
+	if dp.skipWarmup && gs.IsWarmupPeriod() {
+		return
+	}
+	if state.currentRound == 0 {
+		return // pre-match: round counter not yet started
+	}
+	if tick < state.freezeEndTick {
+		return // freezetime — skip until round goes live
+	}
+
+	// Subject filter on the spotted player itself.
+	if !isVisibilitySubject(spotted, dp.includeBots) {
+		return
+	}
+
+	// Build current spotter set. PlayerSpottersChanged exposes only the
+	// Spotted player; there is no Spotters() method on common.Player.
+	current := make(map[uint64]bool, 8)
+	for _, other := range gs.Participants().Playing() {
+		if other == nil || other.SteamID64 == spotted.SteamID64 {
+			continue
+		}
+		if !isVisibilitySubject(other, dp.includeBots) {
+			continue
+		}
+		if spotted.IsSpottedBy(other) {
+			current[other.SteamID64] = true
+		}
+	}
+
+	// Lazy-init maps on first use.
+	if state.prevSpotters == nil {
+		state.prevSpotters = make(map[uint64]map[uint64]bool)
+	}
+	if state.visibilityState == nil {
+		state.visibilityState = make(map[visibilityKey]int8)
+	}
+	if state.visibilityPending == nil {
+		state.visibilityPending = make(map[visibilityKey]pendingVis)
+	}
+
+	prev := state.prevSpotters[spotted.SteamID64]
+
+	// Diff: spotter additions => spotted_on candidates.
+	for spotterID := range current {
+		if !prev[spotterID] {
+			dp.proposeVisibilityChange(
+				state,
+				visibilityKey{Spotted: spotted.SteamID64, Spotter: spotterID},
+				1,
+				tick,
+			)
+		}
+	}
+	// Diff: spotter removals => spotted_off candidates.
+	for spotterID := range prev {
+		if !current[spotterID] {
+			dp.proposeVisibilityChange(
+				state,
+				visibilityKey{Spotted: spotted.SteamID64, Spotter: spotterID},
+				0,
+				tick,
+			)
+		}
+	}
+
+	state.prevSpotters[spotted.SteamID64] = current
+
+	// Opportunistically commit any pending rows whose 4-tick window has
+	// passed (the only other commit points are RoundEnd / parser teardown).
+	dp.flushExpiredPending(state, tick)
+}
+
+// isVisibilitySubject filters players to T/CT, non-bot, alive, with a
+// real SteamID. Used for both the spotted and each potential spotter.
+func isVisibilitySubject(pl *common.Player, includeBots bool) bool {
+	if shouldSkipPlayer(pl, includeBots) {
+		return false
+	}
+	if !pl.IsAlive() {
+		return false
+	}
+	switch pl.Team {
+	case common.TeamTerrorists, common.TeamCounterTerrorists:
+		return true
+	default:
+		return false
+	}
+}
+
+// proposeVisibilityChange runs a candidate (spotted, spotter, state) row
+// through the 4-tick defer-then-commit debounce. A flip-back inside the
+// window drops both rows (flicker rejection); a same-state pending is a
+// no-op; an aged pending commits before evaluating the new candidate.
+func (dp *DemoParser) proposeVisibilityChange(
+	state *parseState,
+	key visibilityKey,
+	newState int8,
+	tick int,
+) {
+	if pending, ok := state.visibilityPending[key]; ok {
+		// A row is pending for this pair.
+		if pending.State != newState && tick-pending.Tick <= visibilityDebounceTicks {
+			// Flip-back inside the window: cancel the pending row, leave
+			// visibilityState unchanged. This is the flicker rejection.
+			delete(state.visibilityPending, key)
+			return
+		}
+		// Same state pending (no-op) OR pending has aged past window —
+		// commit it now, then continue to evaluate the new candidate.
+		dp.commitPending(state, key, pending)
+		delete(state.visibilityPending, key)
+	}
+
+	// No-op transition (already committed in this state).
+	if last, ok := state.visibilityState[key]; ok && last == newState {
+		return
+	}
+
+	state.visibilityPending[key] = pendingVis{Tick: tick, State: newState}
+}
+
+// commitPending appends a pending row to state.visibility and updates the
+// per-pair last-emitted state. Trips state.limitExceeded once the row count
+// exceeds maxVisibilityRows so the parse aborts cleanly.
+func (dp *DemoParser) commitPending(state *parseState, key visibilityKey, pending pendingVis) {
+	// Idempotency: never emit two consecutive rows in the same state.
+	if last, ok := state.visibilityState[key]; ok && last == pending.State {
+		return
+	}
+	state.visibility = append(state.visibility, VisibilityChange{
+		RoundNumber:  state.currentRound,
+		Tick:         pending.Tick,
+		SpottedSteam: strconv.FormatUint(key.Spotted, 10),
+		SpotterSteam: strconv.FormatUint(key.Spotter, 10),
+		State:        pending.State,
+	})
+	state.visibilityState[key] = pending.State
+
+	// Volume guard — abort parse cleanly if we exceed the budget.
+	if len(state.visibility) > maxVisibilityRows && state.limitExceeded == nil {
+		state.limitExceeded = fmt.Errorf(
+			"player_visibility exceeded %d rows — fall back to run-length-window storage",
+			maxVisibilityRows,
+		)
+	}
+}
+
+// flushExpiredPending commits any pending row whose tick is older than
+// visibilityDebounceTicks relative to the current tick. Called from the
+// PlayerSpottersChanged handler so debounce decisions don't sit indefinitely
+// when a pair stops generating events.
+func (dp *DemoParser) flushExpiredPending(state *parseState, tick int) {
+	for key, pending := range state.visibilityPending {
+		if tick-pending.Tick > visibilityDebounceTicks {
+			dp.commitPending(state, key, pending)
+			delete(state.visibilityPending, key)
+		}
+	}
+}
+
+// flushPendingUnconditional commits every pending row regardless of the
+// debounce window. Called at RoundEnd and at parser teardown so a fight
+// ending exactly at round end isn't lost.
+func (dp *DemoParser) flushPendingUnconditional(state *parseState) {
+	for key, pending := range state.visibilityPending {
+		dp.commitPending(state, key, pending)
+		delete(state.visibilityPending, key)
 	}
 }

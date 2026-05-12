@@ -138,6 +138,10 @@ type TickData struct {
 	AmmoReserve int     `json:"ammo_reserve"`
 }
 
+// PlayerVisibility transitions are not exposed via Wails bindings; the
+// internal type lives at github.com/ok2ju/oversite/internal/demo.VisibilityChange
+// and is consumed by the Phase 2 contact builder, not the frontend.
+
 // RoundLoadoutEntry is one player's freeze-end loadout for a specific round.
 // Inventory is a comma-separated weapon list (encodeInventory output) the
 // frontend splits on receipt. Returned from GetRoundLoadouts as a map keyed
