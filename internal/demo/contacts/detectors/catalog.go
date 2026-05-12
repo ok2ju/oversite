@@ -41,7 +41,12 @@ func init() {
 		{Kind: "walked_into_known_angle", Category: "positioning", Severity: 2, Phase: PhasePre, CrossRound: true, V2Priority: true, Note: "v2: cross-round heatmap"},
 
 		// --- during-engagement (analysis §4.2) ---
-		{Kind: "shot_while_moving", Category: "movement", Severity: 2, Phase: PhaseDuring, Func: ShotWhileMoving, WriteAggregate: true, Note: "velocity > 110 u/s at any subject-aggressor weapon_fire tick"},
+		// shot_while_moving: severity lowered to 1 in Phase 5 (plan
+		// 02-severity-tuning.md §4.2). A single contact can emit one of these
+		// per offending shot — keeping severity at medium drowned the
+		// tooltip's top-3 list. Granularity preserved; the higher-impact
+		// findings displace these in the top-3 via severity DESC ordering.
+		{Kind: "shot_while_moving", Category: "movement", Severity: 1, Phase: PhaseDuring, Func: ShotWhileMoving, WriteAggregate: true, Note: "velocity > 110 u/s at any subject-aggressor weapon_fire tick"},
 		{Kind: "aim_while_flashed", Category: "aim", Severity: 2, Phase: PhaseDuring, Func: AimWhileFlashed, Note: "P fired while subject-victim flash duration active"},
 		{Kind: "lost_hp_advantage", Category: "trade", Severity: 3, Phase: PhaseDuring, Func: LostHPAdvantage, Note: "at TFirst P.hp - E.hp > 25 but P dies in contact"},
 

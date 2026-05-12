@@ -73,6 +73,7 @@ tmp/
 .claude/analysis
 
 testdata/demos
+testdata/corpus
 docs/design-handoff
 
 # Obsidian

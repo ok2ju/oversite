@@ -46,10 +46,14 @@ const fovLookbackSamples = 64
 // already on-target at the start of the lookback window (we cannot bound the
 // reaction time in that case — flagging would be a false positive).
 //
-// Why this is not perfect: we don't have line-of-sight from the parsed demo,
-// so a kill where the victim was around a corner for 800 ms before entering
-// FOV at the last moment will not be flagged here. The plan accepts this
-// limitation; it's a reaction-speed signal, not a wallhack detector.
+// Note on line-of-sight: this rule reads the FOV-entry tick directly from
+// view-angle samples without consulting visibility data. The contact-moment
+// pipeline (internal/demo/contacts/) does use the player_visibility table
+// (populated by the PlayerSpottersChanged handler — Phase 1 of the timeline
+// contact-moments plan) to build true-LoS contact windows. For round-level
+// aim aggregates we keep the view-angle-only heuristic because the
+// false-positive rate on a single-tick LoS flicker is too high; the contact
+// pipeline coalesces these via signal clustering before scoring them.
 func timeToFire(events []demo.GameEvent, idx PerPlayerTickIndex, tickRate float64) []Mistake {
 	if len(events) == 0 || len(idx.Rows) == 0 {
 		return nil

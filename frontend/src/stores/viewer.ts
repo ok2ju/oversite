@@ -116,3 +116,13 @@ export const useViewerStore = create<ViewerState>()(
     reset: () => set(initialState),
   })),
 )
+
+// DEV-only: expose the store on window so the Playwright e2e specs can
+// read currentTick / isPlaying / setTick directly. Guarded by
+// import.meta.env.DEV so production bundles ship without the global.
+const __viteEnv = (import.meta as unknown as { env?: { DEV?: boolean } }).env
+if (__viteEnv?.DEV && typeof window !== "undefined") {
+  ;(
+    window as unknown as { __useViewerStore: typeof useViewerStore }
+  ).__useViewerStore = useViewerStore
+}

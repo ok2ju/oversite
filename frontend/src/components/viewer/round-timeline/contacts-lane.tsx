@@ -15,6 +15,9 @@ interface ContactsLaneProps {
   roundEndTick: number
   // When false, render the "Select a player…" placeholder (round mode).
   hasPlayer: boolean
+  // ID of the contact whose [tPre, tPost] window contains the current
+  // playhead, or null. Derived in the parent — see findActiveContact.
+  activeContactId: number | null
 }
 
 const SEVERITY_CLASS: Record<number, string> = {
@@ -36,6 +39,7 @@ export function ContactsLane({
   roundStartTick,
   roundEndTick,
   hasPlayer,
+  activeContactId,
 }: ContactsLaneProps) {
   const tickRate = useViewerStore((s) => s.tickRate)
   const setTick = useViewerStore((s) => s.setTick)
@@ -89,17 +93,21 @@ export function ContactsLane({
       {contacts.map((c) => {
         const pos = position(c.tFirst, roundStartTick, roundEndTick)
         const sev = SEVERITY_CLASS[c.worstSeverity] ?? SEVERITY_CLASS[0]
+        const isActive = c.id === activeContactId
         return (
           <Tooltip key={c.id}>
             <TooltipTrigger asChild>
               <button
                 type="button"
                 data-testid={`contact-marker-${c.id}`}
+                data-active={isActive ? "true" : undefined}
                 onClick={() => handleClick(c)}
                 aria-label={`Contact at ${c.tFirst - roundStartTick} ticks, ${c.outcome}`}
                 className={cn(
                   "absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 cursor-pointer rounded-sm ring-1 ring-inset transition-transform hover:scale-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/50",
                   sev,
+                  isActive &&
+                    "scale-125 ring-2 ring-amber-300 ring-offset-1 animate-pulse",
                 )}
                 style={{ left: `${pos * 100}%` }}
               />

@@ -14,6 +14,8 @@ LLM-maintained wiki of implementation entities and patterns. These pages capture
 - [[coordinate-calibration]] — world-space ↔ pixel-space transform
 - [[demo-parser]] — demoinfocs-golang findings + ongoing edge cases
 - [[testing]] — shared test utilities by layer
+- [[contact-moments]] — v1 contact-moment pipeline (parser → builder → detectors → lane)
+- [[contact-mistake-severity-calibration]] — severity tuning protocol + harness
 
 ## Conventions
 

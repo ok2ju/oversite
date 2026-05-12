@@ -128,6 +128,21 @@ renderWithProviders(
 
 Don't move `TooltipProvider` into `renderWithProviders` itself — most non-tooltip tests don't need it and the wrapper stays small on purpose.
 
+### Opt-in build-tagged tests (`//go:build calibration`, `//go:build spike`)
+
+Operator-run, corpus-style work belongs in a build-tagged `*_test.go` file in the same package as the code under test, not as a separate `cmd/` binary. Examples:
+
+- `internal/demo/contacts/detectors/calibration_test.go` (`//go:build calibration`) — runs the full Phase 5 pipeline over a 20–30 demo corpus and emits a Markdown report.
+- `cmd/spike-spotted/main.go` (`//go:build spike`) — Phase 1 mask-reliability check.
+
+Why test, not binary:
+- Reuses the package's own type surface and `testutil.NewTestDB(t)` directly — a binary would duplicate ~150 LOC of "open SQLite → run migrations → parse" scaffold.
+- Excluded from `go test ./...` by default. The default `go test` reports `[no tests to run]` for the gated test name; only `go test -tags=calibration -run TestX` includes it. CI is unchanged.
+- Operator passes flags via `flag.String` + `flag.Parse` like a normal CLI (`-corpus=/abs/path`).
+- Sanity-asserts inside the test fail the run when a kind silently produces zero rows — catches detector pipeline regressions during corpus runs.
+
+Hand-edited content inside the emitted report survives across runs by bracketing it with anchored markers (`<!-- BEGIN RATIONALE: kind --> ... <!-- END RATIONALE: kind -->`) and `regexp.ReplaceAllStringFunc` over the freshly rendered report before write.
+
 ### Hook tests use `renderHookWithProviders`, not raw `renderHook`
 
 `src/test/render.tsx` exports `renderHookWithProviders` alongside `renderWithProviders` — same provider tree (Query + Theme + Router), `renderHook` instead of `render`. Use it for any TanStack-Query hook test:

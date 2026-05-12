@@ -88,6 +88,7 @@ export function EventMarker({
         <button
           type="button"
           data-testid={`event-marker-${event.id}`}
+          data-kind={event.kind}
           onClick={handleClick}
           aria-label={`${label} at ${clock}`}
           className={cn(

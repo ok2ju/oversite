@@ -35,6 +35,7 @@ describe("ContactsLane", () => {
         roundStartTick={1000}
         roundEndTick={5000}
         hasPlayer={false}
+        activeContactId={null}
       />,
     )
     expect(
@@ -50,6 +51,7 @@ describe("ContactsLane", () => {
         roundStartTick={1000}
         roundEndTick={5000}
         hasPlayer={true}
+        activeContactId={null}
       />,
     )
     expect(getByTestId("round-timeline-contacts-empty")).toBeInTheDocument()
@@ -63,6 +65,7 @@ describe("ContactsLane", () => {
           roundStartTick={1000}
           roundEndTick={5000}
           hasPlayer={true}
+          activeContactId={null}
         />
       </TooltipProvider>,
     )
@@ -78,6 +81,7 @@ describe("ContactsLane", () => {
           roundStartTick={1000}
           roundEndTick={5000}
           hasPlayer={true}
+          activeContactId={null}
         />
       </TooltipProvider>,
     )
@@ -94,6 +98,7 @@ describe("ContactsLane", () => {
           roundStartTick={1000}
           roundEndTick={5000}
           hasPlayer={true}
+          activeContactId={null}
         />
       </TooltipProvider>,
     )
@@ -109,10 +114,46 @@ describe("ContactsLane", () => {
           roundStartTick={1000}
           roundEndTick={5000}
           hasPlayer={true}
+          activeContactId={null}
         />
       </TooltipProvider>,
     )
     const btn = getByTestId("contact-marker-1")
     expect(btn.getAttribute("style")).toMatch(/left:\s*50%/)
+  })
+
+  it("renders the highlight on the marker matching activeContactId", () => {
+    const { getByTestId } = renderWithProviders(
+      <TooltipProvider>
+        <ContactsLane
+          contacts={[marker({ id: 1 }), marker({ id: 2 })]}
+          roundStartTick={1000}
+          roundEndTick={5000}
+          hasPlayer={true}
+          activeContactId={2}
+        />
+      </TooltipProvider>,
+    )
+    const a = getByTestId("contact-marker-1")
+    const b = getByTestId("contact-marker-2")
+    expect(a).not.toHaveAttribute("data-active")
+    expect(b).toHaveAttribute("data-active", "true")
+    expect(b).toHaveClass("ring-2")
+  })
+
+  it("renders no highlight when activeContactId is null", () => {
+    const { getByTestId } = renderWithProviders(
+      <TooltipProvider>
+        <ContactsLane
+          contacts={[marker({ id: 1 }), marker({ id: 2 })]}
+          roundStartTick={1000}
+          roundEndTick={5000}
+          hasPlayer={true}
+          activeContactId={null}
+        />
+      </TooltipProvider>,
+    )
+    expect(getByTestId("contact-marker-1")).not.toHaveAttribute("data-active")
+    expect(getByTestId("contact-marker-1")).not.toHaveClass("ring-2")
   })
 })

@@ -76,6 +76,8 @@ A subsequent `wails dev` will overwrite these files; that's fine, the generator 
 
 `type ContactOutcome string` in `types.go` is inlined as bare `string` in the generated `models.ts`. If frontend code needs the namespaced reference (`main.ContactOutcome`) — e.g. to constrain a `ContactMarker.outcome` field — add `export type ContactOutcome = string;` inside the `main` namespace by hand. Wails won't write it for you, and string-typing the field as plain `string` loses the documentation value.
 
+A wails regen — or a formatter/hook that triggers one mid-session — will silently strip the hand-added alias. Symptom: `tsc` explodes with `TS2694: 'main' has no exported member 'ContactOutcome'` across every file that imports it (six in Phase 5). Quick fix: `git checkout HEAD -- frontend/wailsjs/go/models.ts` if the regen wasn't intended, then re-add the alias if the regen was. Check `git diff frontend/wailsjs/` before assuming typecheck is broken from your own edits.
+
 ### Diagnostic-folder binding pair convention
 
 For any app-managed folder the user might need to attach to a bug report, expose three bindings: `XxxDir()` (returns the absolute path), `OpenXxxFolder()` (Reveals it via `logging.Reveal`), and a settings toggle/setter pair if behavior is configurable. Existing instances:

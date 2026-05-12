@@ -1,10 +1,11 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useViewerStore } from "@/stores/viewer"
 import { useRoundTimelineModel } from "@/hooks/use-round-timeline-model"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { clientXToPercent } from "@/lib/viewer/timeline-utils"
+import { findActiveContact } from "@/lib/timeline/contacts"
 import { Lane } from "./lane"
 import { BombSpine } from "./bomb-spine"
 import { ContactsLane } from "./contacts-lane"
@@ -48,8 +49,20 @@ export function RoundTimeline({ round }: RoundTimelineProps) {
   const { model } = useRoundTimelineModel(round, width)
   const demoId = useViewerStore((s) => s.demoId)
   const selectedPlayerSteamId = useViewerStore((s) => s.selectedPlayerSteamId)
+  const currentTick = useViewerStore((s) => s.currentTick)
   const { data: duels } = useDuelTimeline(demoId, selectedPlayerSteamId)
   const { data: mistakes } = useMistakeTimeline(demoId, selectedPlayerSteamId)
+
+  // Derive the active-contact id from the playhead. `currentTick` is the
+  // single source of truth — every seek (click / scrub / round switch)
+  // updates this without store coupling. useMemo short-circuits the
+  // marker re-render when the playhead stays inside the same window.
+  const contacts = model?.contacts
+  const activeContactId = useMemo(
+    () =>
+      contacts ? (findActiveContact(contacts, currentTick)?.id ?? null) : null,
+    [contacts, currentTick],
+  )
 
   // Detach any in-flight document listeners on unmount so a drag that's still
   // active when the component goes away doesn't leak handlers.
@@ -190,6 +203,7 @@ export function RoundTimeline({ round }: RoundTimelineProps) {
           roundStartTick={model.roundStartTick}
           roundEndTick={model.roundEndTick}
           hasPlayer={isPlayerMode}
+          activeContactId={activeContactId}
         />
         <DuelsLane
           duels={duels ?? []}
