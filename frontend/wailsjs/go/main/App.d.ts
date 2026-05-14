@@ -34,6 +34,8 @@ export function GetHeatmapData(arg1:Array<number>,arg2:Array<string>,arg3:string
 
 export function GetMatchInsights(arg1:string):Promise<main.MatchInsights>;
 
+export function GetMatchOverview(arg1:string):Promise<main.MatchOverview>;
+
 export function GetMistakeContext(arg1:number):Promise<main.MistakeContext>;
 
 export function GetMistakeTimeline(arg1:string,arg2:string):Promise<Array<main.MistakeEntry>>;

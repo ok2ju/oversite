@@ -60,6 +60,10 @@ func IngestRounds(ctx context.Context, db *sql.DB, demoID int64, result *ParseRe
 
 		// Insert player round stats for this round.
 		for _, ps := range statsMap[rd.Number] {
+			moneySpent := ps.MoneyAtRoundStart - ps.MoneyAtFreezeEnd
+			if moneySpent < 0 {
+				moneySpent = 0
+			}
 			if _, err := q.CreatePlayerRound(ctx, store.CreatePlayerRoundParams{
 				RoundID:       round.ID,
 				SteamID:       ps.SteamID,
@@ -73,6 +77,10 @@ func IngestRounds(ctx context.Context, db *sql.DB, demoID int64, result *ParseRe
 				FirstKill:     boolToInt64(ps.FirstKill),
 				FirstDeath:    boolToInt64(ps.FirstDeath),
 				ClutchKills:   int64(ps.ClutchKills),
+				Survived:      boolToInt64(ps.Survived),
+				EquipValue:    int64(ps.EquipValue),
+				MoneySpent:    int64(moneySpent),
+				KastRound:     boolToInt64(ps.KastRound),
 			}); err != nil {
 				return nil, fmt.Errorf("insert player round (round %d, steam %s): %w", rd.Number, ps.SteamID, err)
 			}

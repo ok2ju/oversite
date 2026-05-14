@@ -1861,6 +1861,408 @@ func (a *App) GetScoreboard(demoID string) ([]ScoreboardEntry, error) {
 	return result, nil
 }
 
+// GetMatchOverview returns the full ready-to-render payload for the match-
+// overview page. Every number on the page is derived server-side here from
+// rounds + player_rounds — the frontend reads it as a flat shape with zero
+// math. KAST and HLTV 2.0 rating depend on the survived / kast_round columns
+// added in migration 022; demos parsed before that migration carry zeros for
+// those columns and surface a degraded (but non-broken) overview.
+func (a *App) GetMatchOverview(demoID string) (*MatchOverview, error) {
+	id, err := strconv.ParseInt(demoID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid demo id: %w", err)
+	}
+
+	dRow, err := a.queries.GetDemoByID(a.ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting demo: %w", err)
+	}
+	roundRows, err := a.queries.GetRoundsByDemoID(a.ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting rounds: %w", err)
+	}
+	prRows, err := a.queries.GetPlayerRoundsForOverview(a.ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("getting player rounds: %w", err)
+	}
+
+	out := &MatchOverview{
+		Demo: storeDemoToBinding(dRow),
+		TeamA: TeamOverview{
+			Side:    "A",
+			Players: []PlayerOverview{},
+		},
+		TeamB: TeamOverview{
+			Side:    "B",
+			Players: []PlayerOverview{},
+		},
+		Rounds: []RoundOverview{},
+		Halves: []HalfOverview{},
+	}
+	if len(roundRows) == 0 {
+		return out, nil
+	}
+
+	// Detect format from rounds.
+	summaries := make([]demo.RoundSummary, len(roundRows))
+	for i, r := range roundRows {
+		summaries[i] = demo.RoundSummary{
+			Number:     int(r.RoundNumber),
+			IsOvertime: r.IsOvertime != 0,
+		}
+	}
+	mf := demo.DetectMatchFormat(summaries)
+
+	// Canonical team identity: Team A = T-side starter (rounds[0].t_team_name),
+	// Team B = CT-side starter. Falls back to "Team A"/"Team B" when team
+	// names aren't present (matchmaking demos).
+	teamARaw := roundRows[0].TTeamName
+	teamBRaw := roundRows[0].CtTeamName
+	teamAName := teamARaw
+	if teamAName == "" {
+		teamAName = "Team A"
+	}
+	teamBName := teamBRaw
+	if teamBName == "" {
+		teamBName = "Team B"
+	}
+	out.TeamA.Name = teamAName
+	out.TeamB.Name = teamBName
+
+	// Per-round damage / equip-value sums + per-(round, team) bookkeeping.
+	// Build the round map keyed by round_number for O(1) joins below.
+	type roundAcc struct {
+		damageA, damageB int
+		equipA, equipB   int
+	}
+	roundIdx := make(map[int]int, len(roundRows))
+	for i, r := range roundRows {
+		roundIdx[int(r.RoundNumber)] = i
+	}
+	roundAccs := make([]roundAcc, len(roundRows))
+
+	// Per-player aggregates. Use the player's first-observed side as their
+	// canonical team-anchor (T-starters → Team A, CT-starters → Team B).
+	type playerAcc struct {
+		steamID      string
+		playerName   string
+		teamSide     string // "T" or "CT" of the first round we saw them in
+		kills        int
+		deaths       int
+		assists      int
+		damage       int
+		hsKills      int
+		kastRounds   int
+		roundsPlayed int
+	}
+	playerAccs := make(map[string]*playerAcc, 10)
+
+	for _, pr := range prRows {
+		rIdx, ok := roundIdx[int(pr.RoundNumber)]
+		if !ok {
+			continue
+		}
+		teamASide := demo.HalfTeamASide(int(pr.RoundNumber), mf)
+		acc := &roundAccs[rIdx]
+		if pr.TeamSide == teamASide {
+			acc.damageA += int(pr.Damage)
+			acc.equipA += int(pr.EquipValue)
+		} else if pr.TeamSide != "" {
+			acc.damageB += int(pr.Damage)
+			acc.equipB += int(pr.EquipValue)
+		}
+
+		p, ok := playerAccs[pr.SteamID]
+		if !ok {
+			p = &playerAcc{
+				steamID:    pr.SteamID,
+				playerName: pr.PlayerName,
+				teamSide:   pr.TeamSide,
+			}
+			playerAccs[pr.SteamID] = p
+		}
+		if p.playerName == "" && pr.PlayerName != "" {
+			p.playerName = pr.PlayerName
+		}
+		p.kills += int(pr.Kills)
+		p.deaths += int(pr.Deaths)
+		p.assists += int(pr.Assists)
+		p.damage += int(pr.Damage)
+		p.hsKills += int(pr.HeadshotKills)
+		if pr.KastRound != 0 {
+			p.kastRounds++
+		}
+		p.roundsPlayed++
+	}
+
+	// Build the per-round payload + KPIs.
+	pistolA, pistolB := 0, 0
+	maxLead := 0
+	var streakLen int
+	var streakTeam string
+	var bestStreakLen int
+	var bestStreakTeam string
+	tallyA, tallyB := 0, 0
+	for i, r := range roundRows {
+		teamASide := demo.HalfTeamASide(int(r.RoundNumber), mf)
+		winner := demo.WinnerForRound(r.WinnerSide, r.TTeamName, r.CtTeamName, teamARaw, teamASide)
+		isPistol := mf.IsPistolRound(int(r.RoundNumber))
+		acc := roundAccs[i]
+		out.Rounds = append(out.Rounds, RoundOverview{
+			RoundNumber: int(r.RoundNumber),
+			WinnerSide:  r.WinnerSide,
+			WinReason:   r.WinReason,
+			Winner:      winner,
+			IsPistol:    isPistol,
+			IsOvertime:  r.IsOvertime != 0,
+			TeamADamage: acc.damageA,
+			TeamBDamage: acc.damageB,
+			TeamAEquip:  acc.equipA,
+			TeamBEquip:  acc.equipB,
+		})
+		if winner == "a" {
+			tallyA++
+			if isPistol {
+				pistolA++
+			}
+		} else {
+			tallyB++
+			if isPistol {
+				pistolB++
+			}
+		}
+		if streakTeam == winner {
+			streakLen++
+		} else {
+			streakTeam = winner
+			streakLen = 1
+		}
+		if streakLen > bestStreakLen {
+			bestStreakLen = streakLen
+			bestStreakTeam = streakTeam
+		}
+		if diff := tallyA - tallyB; diff < 0 {
+			diff = -diff
+			if diff > maxLead {
+				maxLead = diff
+			}
+		} else if diff > maxLead {
+			maxLead = diff
+		}
+	}
+
+	out.TeamA.Score = tallyA
+	out.TeamB.Score = tallyB
+	out.TeamA.PistolWins = pistolA
+	out.TeamB.PistolWins = pistolB
+
+	// Halves: split rounds by halftime + each overtime half boundary.
+	out.Halves = buildHalves(roundRows, mf, teamARaw)
+
+	// Per-player overview, including HLTV 2.0 rating.
+	for _, p := range playerAccs {
+		var hsPct float64
+		if p.kills > 0 {
+			hsPct = float64(p.hsKills) / float64(p.kills) * 100
+		}
+		var adr float64
+		if p.roundsPlayed > 0 {
+			adr = float64(p.damage) / float64(p.roundsPlayed)
+		}
+		kast := demo.ComputeKASTPercent(p.kastRounds, p.roundsPlayed)
+		rating := demo.ComputeRating2(p.kills, p.deaths, p.assists, kast, adr, p.roundsPlayed)
+		row := PlayerOverview{
+			SteamID:      p.steamID,
+			PlayerName:   p.playerName,
+			Kills:        p.kills,
+			Deaths:       p.deaths,
+			Assists:      p.assists,
+			HSPercent:    hsPct,
+			ADR:          adr,
+			KAST:         kast,
+			Rating2:      rating,
+			RoundsPlayed: p.roundsPlayed,
+		}
+		// Team A = first-observed-side T; Team B = first-observed-side CT. The
+		// player's `teamSide` was captured at the first round they appeared
+		// in — round 1 in regulation = T-starter → Team A.
+		switch p.teamSide {
+		case "T":
+			out.TeamA.Players = append(out.TeamA.Players, row)
+		case "CT":
+			out.TeamB.Players = append(out.TeamB.Players, row)
+		}
+	}
+
+	// Sort each team by rating desc (top performer first).
+	sortByRatingDesc(out.TeamA.Players)
+	sortByRatingDesc(out.TeamB.Players)
+
+	out.TeamA.Totals = teamTotalsFromPlayers(out.TeamA.Players)
+	out.TeamB.Totals = teamTotalsFromPlayers(out.TeamB.Players)
+	if len(out.TeamA.Players) > 0 {
+		top := out.TeamA.Players[0]
+		out.TeamA.TopPerformer = &top
+	}
+	if len(out.TeamB.Players) > 0 {
+		top := out.TeamB.Players[0]
+		out.TeamB.TopPerformer = &top
+	}
+
+	out.Format = MatchFormat{
+		RegulationRounds:   mf.RegulationRounds,
+		HalftimeRound:      mf.HalftimeRound,
+		OvertimeHalfLen:    mf.OvertimeHalfLen,
+		HasOvertime:        mf.HasOvertime,
+		TotalRounds:        mf.TotalRounds,
+		PistolRoundNumbers: mf.PistolRoundNumbers,
+	}
+	out.KPIs = MatchKPIs{
+		TotalRounds:   mf.TotalRounds,
+		PistolA:       pistolA,
+		PistolB:       pistolB,
+		LongestStreak: bestStreakLen,
+		StreakTeam:    bestStreakTeam,
+		MaxLead:       maxLead,
+	}
+	return out, nil
+}
+
+// sortByRatingDesc sorts the players slice in place by Rating2 descending.
+// Stable enough for the top-performer pick; ties broken by player name for
+// determinism in tests.
+func sortByRatingDesc(players []PlayerOverview) {
+	for i := 1; i < len(players); i++ {
+		for j := i; j > 0; j-- {
+			if players[j].Rating2 > players[j-1].Rating2 ||
+				(players[j].Rating2 == players[j-1].Rating2 && players[j].PlayerName < players[j-1].PlayerName) {
+				players[j], players[j-1] = players[j-1], players[j]
+			} else {
+				break
+			}
+		}
+	}
+}
+
+// teamTotalsFromPlayers rolls up a team's match-wide totals from its player
+// rows. ADR / HS% / KAST / Rating are simple means across players that played
+// at least one round.
+func teamTotalsFromPlayers(players []PlayerOverview) TeamTotals {
+	var t TeamTotals
+	if len(players) == 0 {
+		return t
+	}
+	var adrSum, hsSum, kastSum, ratingSum float64
+	denom := 0
+	for _, p := range players {
+		t.Kills += p.Kills
+		t.Deaths += p.Deaths
+		t.Assists += p.Assists
+		if p.RoundsPlayed > 0 {
+			adrSum += p.ADR
+			hsSum += p.HSPercent
+			kastSum += p.KAST
+			ratingSum += p.Rating2
+			denom++
+		}
+	}
+	if denom > 0 {
+		d := float64(denom)
+		t.ADR = adrSum / d
+		t.HSPercent = hsSum / d
+		t.KAST = kastSum / d
+		t.Rating = ratingSum / d
+	}
+	return t
+}
+
+// buildHalves splits the rounds slice into halves (regulation 1st + 2nd, plus
+// one entry per overtime half) and tallies wins per team for each.
+func buildHalves(roundRows []store.Round, mf demo.MatchFormat, teamARaw string) []HalfOverview {
+	halves := []HalfOverview{}
+	if len(roundRows) == 0 {
+		return halves
+	}
+	// Walk rounds and accumulate per-half. A "half" is identified by its
+	// boundary round numbers: 1..halftime, halftime+1..regulation, then
+	// overtime halves starting at regulation+1.
+	type bucket struct {
+		label     string
+		teamASide string
+		teamBSide string
+		from, to  int
+	}
+	var buckets []bucket
+	if mf.HalftimeRound > 0 {
+		buckets = append(buckets, bucket{
+			label:     "1st half",
+			teamASide: "T",
+			teamBSide: "CT",
+			from:      1,
+			to:        mf.HalftimeRound,
+		})
+	}
+	if mf.RegulationRounds > mf.HalftimeRound {
+		buckets = append(buckets, bucket{
+			label:     "2nd half",
+			teamASide: "CT",
+			teamBSide: "T",
+			from:      mf.HalftimeRound + 1,
+			to:        mf.RegulationRounds,
+		})
+	}
+	// Overtime halves: each is otHalfLen long, sides alternate T/CT for Team A.
+	if mf.HasOvertime && mf.OvertimeHalfLen > 0 {
+		otIdx := 0
+		for from := mf.RegulationRounds + 1; from <= mf.TotalRounds; from += mf.OvertimeHalfLen {
+			otNumber := otIdx/2 + 1
+			isFirstHalfOfOT := otIdx%2 == 0
+			var label, aSide, bSide string
+			if isFirstHalfOfOT {
+				label = fmtOTLabel(otNumber, "first")
+				aSide = "T"
+				bSide = "CT"
+			} else {
+				label = fmtOTLabel(otNumber, "second")
+				aSide = "CT"
+				bSide = "T"
+			}
+			to := from + mf.OvertimeHalfLen - 1
+			if to > mf.TotalRounds {
+				to = mf.TotalRounds
+			}
+			buckets = append(buckets, bucket{label: label, teamASide: aSide, teamBSide: bSide, from: from, to: to})
+			otIdx++
+		}
+	}
+
+	for _, b := range buckets {
+		h := HalfOverview{
+			Label:     b.label,
+			TeamASide: b.teamASide,
+			TeamBSide: b.teamBSide,
+		}
+		for _, r := range roundRows {
+			n := int(r.RoundNumber)
+			if n < b.from || n > b.to {
+				continue
+			}
+			winner := demo.WinnerForRound(r.WinnerSide, r.TTeamName, r.CtTeamName, teamARaw, b.teamASide)
+			if winner == "a" {
+				h.TeamAWins++
+			} else {
+				h.TeamBWins++
+			}
+		}
+		halves = append(halves, h)
+	}
+	return halves
+}
+
+func fmtOTLabel(otNumber int, half string) string {
+	return fmt.Sprintf("OT%d %s", otNumber, half)
+}
+
 // GetPlayerMatchStats returns the deep-stats payload for a single player in a
 // demo. Computed on demand from already-ingested rounds, events, and loadouts
 // — no new ingest write path. The frontend caches the result via TanStack

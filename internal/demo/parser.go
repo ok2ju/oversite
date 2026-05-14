@@ -142,11 +142,21 @@ type RoundData struct {
 // output). Persisted into round_loadouts (migration 011) so the team bars can
 // render the player's purchased loadout without paying for tick-rate inventory
 // snapshots — mid-round pickups/drops are intentionally not tracked.
+//
+// EquipValue / MoneyAtRoundStart / MoneyAtFreezeEnd / Survived feed the
+// match-overview aggregator's per-round economy and KAST series. Survived is
+// resolved at RoundEnd from Player.IsAlive(); the money fields are snapshots
+// at RoundStart and at freeze-end so the ingester can persist a clean
+// "money spent this round = round_start - freeze_end" value.
 type RoundParticipant struct {
-	SteamID    string
-	PlayerName string
-	TeamSide   string // "CT" or "T"
-	Inventory  string
+	SteamID           string
+	PlayerName        string
+	TeamSide          string // "CT" or "T"
+	Inventory         string
+	EquipValue        int
+	MoneyAtRoundStart int
+	MoneyAtFreezeEnd  int
+	Survived          bool
 }
 
 // TickSnapshot is one player's state at a sampled tick.
@@ -391,16 +401,20 @@ type parseState struct {
 	tScore              int
 	maxRegulationRounds int // mp_maxrounds; 0 until the convar is observed.
 	currentRoster       []RoundParticipant
-	rounds              []RoundData
-	ticks               []TickSnapshot      // populated only when tickSink is nil
-	tickSink            chan<- TickSnapshot // when non-nil, snapshots are pushed here instead of appended to ticks
-	tickCount           int                 // number of TickSnapshots produced (sink + slice combined); enforces maxTickRows
-	events              []GameEvent
-	lastSampledTick     int
-	knifeRoundNumbers   map[int]bool
-	limitExceeded       error             // set when ticks/events exceed maxTickRows/maxGameEvent
-	frameCount          int               // total FrameDone events seen; drives the heartbeat
-	steamIDs            map[uint64]string // SteamID64 → decimal string cache; saves millions of strconv allocs across all event handlers
+	// roundStartMoney is the per-player money snapshot captured at RoundStart.
+	// Resolved into RoundParticipant.MoneyAtRoundStart when the roster is
+	// captured at freeze-end. Reset every RoundStart.
+	roundStartMoney   map[string]int
+	rounds            []RoundData
+	ticks             []TickSnapshot      // populated only when tickSink is nil
+	tickSink          chan<- TickSnapshot // when non-nil, snapshots are pushed here instead of appended to ticks
+	tickCount         int                 // number of TickSnapshots produced (sink + slice combined); enforces maxTickRows
+	events            []GameEvent
+	lastSampledTick   int
+	knifeRoundNumbers map[int]bool
+	limitExceeded     error             // set when ticks/events exceed maxTickRows/maxGameEvent
+	frameCount        int               // total FrameDone events seen; drives the heartbeat
+	steamIDs          map[uint64]string // SteamID64 → decimal string cache; saves millions of strconv allocs across all event handlers
 	// analysisTicks is the slim per-(player, tick) fanout populated when
 	// DemoParser.analysisFanout is set. nil otherwise — see ParseResult.AnalysisTicks.
 	analysisTicks []AnalysisTick
@@ -555,6 +569,7 @@ func (s *parseState) resetForPreMatchRestart() {
 	s.freezeEndTick = 0
 	s.lastSampledTick = 0
 	s.currentRoster = nil
+	s.roundStartMoney = nil
 	s.rounds = nil
 	s.ticks = nil
 	s.tickCount = 0
@@ -855,6 +870,16 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 		state.roundStart = p.GameState().IngameTick()
 		state.freezeEndTick = 0
 		state.currentRoster = nil
+		// Snapshot per-player money at round start so freeze-end can resolve
+		// money_spent = round_start - freeze_end without keeping a second
+		// per-tick sample stream.
+		state.roundStartMoney = make(map[string]int, 10)
+		for _, player := range p.GameState().Participants().Playing() {
+			if shouldSkipPlayer(player, dp.includeBots) {
+				continue
+			}
+			state.roundStartMoney[state.steamID(player)] = player.Money()
+		}
 	})
 
 	// Freeze time end — the round goes live. Capture the tick once per round
@@ -881,11 +906,21 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 				continue
 			}
 			weapons := player.Weapons()
+			inventory := encodeInventory(weapons)
+			sid := state.steamID(player)
+			moneyFreezeEnd := player.Money()
+			moneyStart := moneyFreezeEnd
+			if v, ok := state.roundStartMoney[sid]; ok {
+				moneyStart = v
+			}
 			roster = append(roster, RoundParticipant{
-				SteamID:    state.steamID(player),
-				PlayerName: player.Name,
-				TeamSide:   teamSideString(player.Team),
-				Inventory:  encodeInventory(weapons),
+				SteamID:           sid,
+				PlayerName:        player.Name,
+				TeamSide:          teamSideString(player.Team),
+				Inventory:         inventory,
+				EquipValue:        sumLoadoutValue(inventory) + armorAndKitValue(player),
+				MoneyAtRoundStart: moneyStart,
+				MoneyAtFreezeEnd:  moneyFreezeEnd,
 			})
 			inv := make([]common.EquipmentType, 0, len(weapons))
 			for _, w := range weapons {
@@ -968,6 +1003,24 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 		if !isOT && state.maxRegulationRounds > 0 && state.currentRound > state.maxRegulationRounds {
 			slog.Warn("round number exceeds mp_maxrounds but OvertimeCount is 0",
 				"round", state.currentRound, "max_rounds", state.maxRegulationRounds)
+		}
+
+		// Resolve survived: any roster member still alive at round-end. The
+		// roster was captured at freeze-end; lookup by SteamID64 against the
+		// current Playing() set keeps this O(roster × playing).
+		if len(state.currentRoster) > 0 {
+			aliveBySteamID := make(map[string]bool, 10)
+			for _, player := range gs.Participants().Playing() {
+				if shouldSkipPlayer(player, dp.includeBots) {
+					continue
+				}
+				if player.IsAlive() {
+					aliveBySteamID[state.steamID(player)] = true
+				}
+			}
+			for i := range state.currentRoster {
+				state.currentRoster[i].Survived = aliveBySteamID[state.currentRoster[i].SteamID]
+			}
 		}
 
 		state.rounds = append(state.rounds, RoundData{
@@ -1651,6 +1704,29 @@ func encodeInventory(weapons []*common.Equipment) string {
 		names = append(names, s)
 	}
 	return strings.Join(names, ",")
+}
+
+// armorAndKitValue returns the dollar value of armor (vest / vest+helmet) and
+// defuse-kit a player holds at freeze-end. Player.Weapons() — the source for
+// encodeInventory — does not surface these, so the loadout-string sum misses
+// them. Prices match the CS2 buy menu (kevlar $650, kevlar+helmet $1000,
+// defuse-kit $400).
+func armorAndKitValue(player *common.Player) int {
+	if player == nil {
+		return 0
+	}
+	v := 0
+	if player.Armor() > 0 {
+		if player.HasHelmet() {
+			v += 1000
+		} else {
+			v += 650
+		}
+	}
+	if player.HasDefuseKit() {
+		v += 400
+	}
+	return v
 }
 
 // shouldSkipPlayer returns true if the player should be excluded from tick snapshots.

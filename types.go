@@ -631,3 +631,104 @@ type DamageByOpponent struct {
 	TeamSide   string `json:"team_side"`
 	Damage     int    `json:"damage"`
 }
+
+// MatchOverview is the flat, ready-to-render payload for the match-overview
+// page. Aggregated server-side from rounds + player_rounds so the frontend
+// runs zero math: every number on the page reads directly from one of the
+// fields below. Returned by GetMatchOverview.
+type MatchOverview struct {
+	Demo   Demo            `json:"demo"`
+	Format MatchFormat     `json:"format"`
+	TeamA  TeamOverview    `json:"team_a"` // T-side starter (canonical identity)
+	TeamB  TeamOverview    `json:"team_b"` // CT-side starter
+	Rounds []RoundOverview `json:"rounds"`
+	Halves []HalfOverview  `json:"halves"`
+	KPIs   MatchKPIs       `json:"kpis"`
+}
+
+// MatchFormat describes the rule set the demo was played under — used to
+// render "of N max" and to drive the per-half breakdown. Computed from the
+// rounds table (no hardcoded MR12 / MR15 assumption).
+type MatchFormat struct {
+	RegulationRounds   int   `json:"regulation_rounds"` // 24 (MR12) or 30 (MR15)
+	HalftimeRound      int   `json:"halftime_round"`    // 12 or 15
+	OvertimeHalfLen    int   `json:"overtime_half_len"` // 3 for MR12, 5 for MR15
+	HasOvertime        bool  `json:"has_overtime"`
+	TotalRounds        int   `json:"total_rounds"`
+	PistolRoundNumbers []int `json:"pistol_round_numbers"` // [1, 13, 25, 28, …]
+}
+
+// TeamOverview rolls up one team's match-wide stats. Side is "A" (T-side
+// starter) or "B" (CT-side starter); TopPerformer is the highest-rated
+// player on the team, nil if the team has no players.
+type TeamOverview struct {
+	Name         string           `json:"name"`
+	Side         string           `json:"side"`
+	Score        int              `json:"score"`
+	Players      []PlayerOverview `json:"players"`
+	Totals       TeamTotals       `json:"totals"`
+	TopPerformer *PlayerOverview  `json:"top_performer"`
+	PistolWins   int              `json:"pistol_wins"`
+}
+
+// TeamTotals aggregates a team's match-wide K/D/A/ADR/HS/KAST/Rating means.
+type TeamTotals struct {
+	Kills     int     `json:"kills"`
+	Deaths    int     `json:"deaths"`
+	Assists   int     `json:"assists"`
+	ADR       float64 `json:"adr"`
+	HSPercent float64 `json:"hs_percent"`
+	KAST      float64 `json:"kast"`
+	Rating    float64 `json:"rating"` // mean of HLTV 2.0
+}
+
+// PlayerOverview is one player's match-wide stats for the scoreboard rows on
+// the match-overview page. Real KAST / HLTV 2.0 rating, both computed in Go.
+type PlayerOverview struct {
+	SteamID      string  `json:"steam_id"`
+	PlayerName   string  `json:"player_name"`
+	Kills        int     `json:"kills"`
+	Deaths       int     `json:"deaths"`
+	Assists      int     `json:"assists"`
+	HSPercent    float64 `json:"hs_percent"`
+	ADR          float64 `json:"adr"`
+	KAST         float64 `json:"kast"`     // 0-100
+	Rating2      float64 `json:"rating_2"` // HLTV 2.0
+	RoundsPlayed int     `json:"rounds_played"`
+}
+
+// RoundOverview is the per-round payload — winner attribution, pistol flag,
+// overtime flag, and the real per-team damage / equipment value sums.
+type RoundOverview struct {
+	RoundNumber int    `json:"round_number"`
+	WinnerSide  string `json:"winner_side"`
+	WinReason   string `json:"win_reason"`
+	Winner      string `json:"winner"` // "a" or "b"
+	IsPistol    bool   `json:"is_pistol"`
+	IsOvertime  bool   `json:"is_overtime"`
+	TeamADamage int    `json:"team_a_damage"`
+	TeamBDamage int    `json:"team_b_damage"`
+	TeamAEquip  int    `json:"team_a_equip_value"`
+	TeamBEquip  int    `json:"team_b_equip_value"`
+}
+
+// HalfOverview is one half of the match — first half, second half, plus per-
+// overtime halves when present. Renders the score-by-half block.
+type HalfOverview struct {
+	Label     string `json:"label"`
+	TeamAWins int    `json:"team_a_wins"`
+	TeamBWins int    `json:"team_b_wins"`
+	TeamASide string `json:"team_a_side"` // "T"/"CT" Team A's side during this half
+	TeamBSide string `json:"team_b_side"`
+}
+
+// MatchKPIs is the KPI strip — round count, pistol-round wins, longest streak
+// and max lead. Everything is pre-computed server-side.
+type MatchKPIs struct {
+	TotalRounds   int    `json:"total_rounds"`
+	PistolA       int    `json:"pistol_a"`
+	PistolB       int    `json:"pistol_b"`
+	LongestStreak int    `json:"longest_streak"`
+	StreakTeam    string `json:"streak_team"` // "a" or "b"
+	MaxLead       int    `json:"max_lead"`
+}

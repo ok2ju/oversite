@@ -589,6 +589,26 @@ export namespace main {
 		}
 	}
 	
+	export class HalfOverview {
+	    label: string;
+	    team_a_wins: number;
+	    team_b_wins: number;
+	    team_a_side: string;
+	    team_b_side: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HalfOverview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.label = source["label"];
+	        this.team_a_wins = source["team_a_wins"];
+	        this.team_b_wins = source["team_b_wins"];
+	        this.team_a_side = source["team_a_side"];
+	        this.team_b_side = source["team_b_side"];
+	    }
+	}
 	export class HeatmapPoint {
 	    x: number;
 	    y: number;
@@ -622,6 +642,28 @@ export namespace main {
 	        this.label = source["label"];
 	        this.damage = source["damage"];
 	        this.hits = source["hits"];
+	    }
+	}
+	export class MatchFormat {
+	    regulation_rounds: number;
+	    halftime_round: number;
+	    overtime_half_len: number;
+	    has_overtime: boolean;
+	    total_rounds: number;
+	    pistol_round_numbers: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new MatchFormat(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.regulation_rounds = source["regulation_rounds"];
+	        this.halftime_round = source["halftime_round"];
+	        this.overtime_half_len = source["overtime_half_len"];
+	        this.has_overtime = source["has_overtime"];
+	        this.total_rounds = source["total_rounds"];
+	        this.pistol_round_numbers = source["pistol_round_numbers"];
 	    }
 	}
 	export class PlayerHighlight {
@@ -694,6 +736,196 @@ export namespace main {
 	        this.ct_summary = this.convertValues(source["ct_summary"], TeamSummary);
 	        this.t_summary = this.convertValues(source["t_summary"], TeamSummary);
 	        this.standouts = this.convertValues(source["standouts"], PlayerHighlight);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class MatchKPIs {
+	    total_rounds: number;
+	    pistol_a: number;
+	    pistol_b: number;
+	    longest_streak: number;
+	    streak_team: string;
+	    max_lead: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new MatchKPIs(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.total_rounds = source["total_rounds"];
+	        this.pistol_a = source["pistol_a"];
+	        this.pistol_b = source["pistol_b"];
+	        this.longest_streak = source["longest_streak"];
+	        this.streak_team = source["streak_team"];
+	        this.max_lead = source["max_lead"];
+	    }
+	}
+	export class RoundOverview {
+	    round_number: number;
+	    winner_side: string;
+	    win_reason: string;
+	    winner: string;
+	    is_pistol: boolean;
+	    is_overtime: boolean;
+	    team_a_damage: number;
+	    team_b_damage: number;
+	    team_a_equip_value: number;
+	    team_b_equip_value: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new RoundOverview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.round_number = source["round_number"];
+	        this.winner_side = source["winner_side"];
+	        this.win_reason = source["win_reason"];
+	        this.winner = source["winner"];
+	        this.is_pistol = source["is_pistol"];
+	        this.is_overtime = source["is_overtime"];
+	        this.team_a_damage = source["team_a_damage"];
+	        this.team_b_damage = source["team_b_damage"];
+	        this.team_a_equip_value = source["team_a_equip_value"];
+	        this.team_b_equip_value = source["team_b_equip_value"];
+	    }
+	}
+	export class TeamTotals {
+	    kills: number;
+	    deaths: number;
+	    assists: number;
+	    adr: number;
+	    hs_percent: number;
+	    kast: number;
+	    rating: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TeamTotals(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kills = source["kills"];
+	        this.deaths = source["deaths"];
+	        this.assists = source["assists"];
+	        this.adr = source["adr"];
+	        this.hs_percent = source["hs_percent"];
+	        this.kast = source["kast"];
+	        this.rating = source["rating"];
+	    }
+	}
+	export class PlayerOverview {
+	    steam_id: string;
+	    player_name: string;
+	    kills: number;
+	    deaths: number;
+	    assists: number;
+	    hs_percent: number;
+	    adr: number;
+	    kast: number;
+	    rating_2: number;
+	    rounds_played: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PlayerOverview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.steam_id = source["steam_id"];
+	        this.player_name = source["player_name"];
+	        this.kills = source["kills"];
+	        this.deaths = source["deaths"];
+	        this.assists = source["assists"];
+	        this.hs_percent = source["hs_percent"];
+	        this.adr = source["adr"];
+	        this.kast = source["kast"];
+	        this.rating_2 = source["rating_2"];
+	        this.rounds_played = source["rounds_played"];
+	    }
+	}
+	export class TeamOverview {
+	    name: string;
+	    side: string;
+	    score: number;
+	    players: PlayerOverview[];
+	    totals: TeamTotals;
+	    top_performer?: PlayerOverview;
+	    pistol_wins: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TeamOverview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.side = source["side"];
+	        this.score = source["score"];
+	        this.players = this.convertValues(source["players"], PlayerOverview);
+	        this.totals = this.convertValues(source["totals"], TeamTotals);
+	        this.top_performer = this.convertValues(source["top_performer"], PlayerOverview);
+	        this.pistol_wins = source["pistol_wins"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class MatchOverview {
+	    demo: Demo;
+	    format: MatchFormat;
+	    team_a: TeamOverview;
+	    team_b: TeamOverview;
+	    rounds: RoundOverview[];
+	    halves: HalfOverview[];
+	    kpis: MatchKPIs;
+	
+	    static createFrom(source: any = {}) {
+	        return new MatchOverview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.demo = this.convertValues(source["demo"], Demo);
+	        this.format = this.convertValues(source["format"], MatchFormat);
+	        this.team_a = this.convertValues(source["team_a"], TeamOverview);
+	        this.team_b = this.convertValues(source["team_b"], TeamOverview);
+	        this.rounds = this.convertValues(source["rounds"], RoundOverview);
+	        this.halves = this.convertValues(source["halves"], HalfOverview);
+	        this.kpis = this.convertValues(source["kpis"], MatchKPIs);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1048,6 +1280,7 @@ export namespace main {
 		    return a;
 		}
 	}
+	
 	export class PlayerRosterEntry {
 	    steam_id: string;
 	    player_name: string;
@@ -1129,6 +1362,7 @@ export namespace main {
 	        this.t_team_name = source["t_team_name"];
 	    }
 	}
+	
 	export class ScoreboardEntry {
 	    steam_id: string;
 	    player_name: string;
@@ -1161,6 +1395,8 @@ export namespace main {
 	        this.adr = source["adr"];
 	    }
 	}
+	
+	
 	
 	export class TickData {
 	    tick: number;

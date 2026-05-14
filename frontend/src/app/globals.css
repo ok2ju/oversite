@@ -1695,14 +1695,20 @@
   }
 
   /* Second half: flip the y-axis to the outer (right) edge so the bar
-     regions on both halves are equidistant from the HT divider. */
+     regions on both halves are equidistant from the HT divider. Both
+     children need an explicit grid-row or auto-placement reads the
+     explicit grid-column on .mo-chart-yaxis (col 3) as "row 1 filled,"
+     pushes .mo-chart-bars to row 2, and the plot grows a second row —
+     leaving the bars in a ~73px slice instead of the full 180px. */
   .mo-chart-body > .mo-chart-half:last-child > .mo-chart-plot > .mo-chart-yaxis {
     grid-column: 3;
+    grid-row: 1;
     align-items: flex-start;
   }
 
   .mo-chart-body > .mo-chart-half:last-child > .mo-chart-plot > .mo-chart-bars {
     grid-column: 2;
+    grid-row: 1;
   }
 
   .mo-chart-yaxis {
@@ -1861,13 +1867,17 @@
   }
 
   /* Mirror the y-axis flip on the rounds strip for the second half so the
-     round cells stay aligned with the bars above. */
+     round cells stay aligned with the bars above. Pin both to row 1 for
+     the same reason as the plot — without it, auto-placement pushes
+     the cells into a second row. */
   .mo-rounds-bar > .mo-rounds-bar-half:last-child > span {
     grid-column: 3;
+    grid-row: 1;
   }
 
   .mo-rounds-bar > .mo-rounds-bar-half:last-child > .mo-rounds-bar-cells {
     grid-column: 2;
+    grid-row: 1;
   }
 
   .mo-rounds-bar-cells {

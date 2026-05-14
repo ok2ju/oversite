@@ -1,18 +1,30 @@
 package demo
 
 // PlayerRoundStats holds per-player statistics for a single round.
+//
+// EquipValue / MoneyAtRoundStart / MoneyAtFreezeEnd / Survived / TradeKill /
+// KastRound feed the match-overview aggregator. They are seeded from the
+// freeze-end roster (which already carries Survived once RoundEnd sets it) and
+// TradeKill is computed against the same trade-window pass used by
+// ComputePlayerMatchStats.
 type PlayerRoundStats struct {
-	SteamID       string
-	PlayerName    string
-	TeamSide      string
-	Kills         int
-	Deaths        int
-	Assists       int
-	Damage        int
-	HeadshotKills int
-	ClutchKills   int
-	FirstKill     bool
-	FirstDeath    bool
+	SteamID           string
+	PlayerName        string
+	TeamSide          string
+	Kills             int
+	Deaths            int
+	Assists           int
+	Damage            int
+	HeadshotKills     int
+	ClutchKills       int
+	FirstKill         bool
+	FirstDeath        bool
+	Survived          bool
+	EquipValue        int
+	MoneyAtRoundStart int
+	MoneyAtFreezeEnd  int
+	TradeKill         bool
+	KastRound         bool
 }
 
 // CalculatePlayerRoundStats computes per-player stats for each round from
@@ -51,17 +63,22 @@ func CalculatePlayerRoundStats(rounds []RoundData, events []GameEvent) map[int][
 
 // playerAccum accumulates stats for a single player within a round.
 type playerAccum struct {
-	steamID       string
-	playerName    string
-	teamSide      string
-	kills         int
-	deaths        int
-	assists       int
-	damage        int
-	headshotKills int
-	clutchKills   int
-	firstKill     bool
-	firstDeath    bool
+	steamID           string
+	playerName        string
+	teamSide          string
+	kills             int
+	deaths            int
+	assists           int
+	damage            int
+	headshotKills     int
+	clutchKills       int
+	firstKill         bool
+	firstDeath        bool
+	survived          bool
+	equipValue        int
+	moneyAtRoundStart int
+	moneyAtFreezeEnd  int
+	tradeKill         bool
 }
 
 func calculateRound(roster []RoundParticipant, events []GameEvent) []PlayerRoundStats {
@@ -75,9 +92,13 @@ func calculateRound(roster []RoundParticipant, events []GameEvent) []PlayerRound
 			continue
 		}
 		players[rp.SteamID] = &playerAccum{
-			steamID:    rp.SteamID,
-			playerName: rp.PlayerName,
-			teamSide:   rp.TeamSide,
+			steamID:           rp.SteamID,
+			playerName:        rp.PlayerName,
+			teamSide:          rp.TeamSide,
+			survived:          rp.Survived,
+			equipValue:        rp.EquipValue,
+			moneyAtRoundStart: rp.MoneyAtRoundStart,
+			moneyAtFreezeEnd:  rp.MoneyAtFreezeEnd,
 		}
 	}
 
@@ -212,21 +233,74 @@ func calculateRound(roster []RoundParticipant, events []GameEvent) []PlayerRound
 		}
 	}
 
+	// Trade-kill detection: did the player kill an enemy within
+	// tradeWindowSeconds of a teammate's death? Mirrors the per-match pass in
+	// ComputePlayerMatchStats but runs once per round so the match-overview
+	// aggregator gets a per-round kast bit. A fixed 64-tps window is used
+	// (matching the parser default) because CalculatePlayerRoundStats is not
+	// threaded with tickRate; the off-by-tick error on 128-tps demos is small
+	// against a 5-second window.
+	tradeWindowTicks := int(tradeWindowSeconds * 64)
+	for _, ev := range killEvents {
+		if ev.AttackerSteamID == "" || ev.AttackerSteamID == ev.VictimSteamID {
+			continue
+		}
+		attacker, ok := players[ev.AttackerSteamID]
+		if !ok || attacker.tradeKill {
+			continue
+		}
+		k, _ := ev.ExtraData.(*KillExtra)
+		if k == nil {
+			continue
+		}
+		attackerTeam := k.AttackerTeam
+		if attackerTeam == "" {
+			attackerTeam = attacker.teamSide
+		}
+		for j := len(killEvents) - 1; j >= 0; j-- {
+			prev := killEvents[j]
+			if prev.Tick > ev.Tick {
+				continue
+			}
+			if ev.Tick-prev.Tick > tradeWindowTicks {
+				break
+			}
+			if prev.VictimSteamID == "" || prev.VictimSteamID == ev.AttackerSteamID {
+				continue
+			}
+			pk, _ := prev.ExtraData.(*KillExtra)
+			if pk == nil {
+				continue
+			}
+			if pk.VictimTeam == attackerTeam {
+				attacker.tradeKill = true
+				break
+			}
+		}
+	}
+
 	// Convert accumulators to result slice.
 	stats := make([]PlayerRoundStats, 0, len(players))
 	for _, p := range players {
+		kast := p.kills > 0 || p.assists > 0 || p.survived || p.tradeKill
 		stats = append(stats, PlayerRoundStats{
-			SteamID:       p.steamID,
-			PlayerName:    p.playerName,
-			TeamSide:      p.teamSide,
-			Kills:         p.kills,
-			Deaths:        p.deaths,
-			Assists:       p.assists,
-			Damage:        p.damage,
-			HeadshotKills: p.headshotKills,
-			ClutchKills:   p.clutchKills,
-			FirstKill:     p.firstKill,
-			FirstDeath:    p.firstDeath,
+			SteamID:           p.steamID,
+			PlayerName:        p.playerName,
+			TeamSide:          p.teamSide,
+			Kills:             p.kills,
+			Deaths:            p.deaths,
+			Assists:           p.assists,
+			Damage:            p.damage,
+			HeadshotKills:     p.headshotKills,
+			ClutchKills:       p.clutchKills,
+			FirstKill:         p.firstKill,
+			FirstDeath:        p.firstDeath,
+			Survived:          p.survived,
+			EquipValue:        p.equipValue,
+			MoneyAtRoundStart: p.moneyAtRoundStart,
+			MoneyAtFreezeEnd:  p.moneyAtFreezeEnd,
+			TradeKill:         p.tradeKill,
+			KastRound:         kast,
 		})
 	}
 	return stats

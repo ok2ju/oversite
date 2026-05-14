@@ -175,6 +175,10 @@ type PlayerRound struct {
 	FirstKill     int64
 	FirstDeath    int64
 	ClutchKills   int64
+	Survived      int64
+	EquipValue    int64
+	MoneySpent    int64
+	KastRound     int64
 }
 
 type PlayerRoundAnalysis struct {

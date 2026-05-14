@@ -11,9 +11,9 @@ import (
 )
 
 const createPlayerRound = `-- name: CreatePlayerRound :one
-INSERT INTO player_rounds (round_id, steam_id, player_name, team_side, kills, deaths, assists, damage, headshot_kills, first_kill, first_death, clutch_kills)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
-RETURNING id, round_id, steam_id, player_name, team_side, kills, deaths, assists, damage, headshot_kills, first_kill, first_death, clutch_kills
+INSERT INTO player_rounds (round_id, steam_id, player_name, team_side, kills, deaths, assists, damage, headshot_kills, first_kill, first_death, clutch_kills, survived, equip_value, money_spent, kast_round)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
+RETURNING id, round_id, steam_id, player_name, team_side, kills, deaths, assists, damage, headshot_kills, first_kill, first_death, clutch_kills, survived, equip_value, money_spent, kast_round
 `
 
 type CreatePlayerRoundParams struct {
@@ -29,6 +29,10 @@ type CreatePlayerRoundParams struct {
 	FirstKill     int64
 	FirstDeath    int64
 	ClutchKills   int64
+	Survived      int64
+	EquipValue    int64
+	MoneySpent    int64
+	KastRound     int64
 }
 
 func (q *Queries) CreatePlayerRound(ctx context.Context, arg CreatePlayerRoundParams) (PlayerRound, error) {
@@ -45,6 +49,10 @@ func (q *Queries) CreatePlayerRound(ctx context.Context, arg CreatePlayerRoundPa
 		arg.FirstKill,
 		arg.FirstDeath,
 		arg.ClutchKills,
+		arg.Survived,
+		arg.EquipValue,
+		arg.MoneySpent,
+		arg.KastRound,
 	)
 	var i PlayerRound
 	err := row.Scan(
@@ -61,6 +69,10 @@ func (q *Queries) CreatePlayerRound(ctx context.Context, arg CreatePlayerRoundPa
 		&i.FirstKill,
 		&i.FirstDeath,
 		&i.ClutchKills,
+		&i.Survived,
+		&i.EquipValue,
+		&i.MoneySpent,
+		&i.KastRound,
 	)
 	return i, err
 }
@@ -75,7 +87,7 @@ func (q *Queries) DeletePlayerRoundsByRoundID(ctx context.Context, roundID int64
 }
 
 const getPlayerRoundsByRoundID = `-- name: GetPlayerRoundsByRoundID :many
-SELECT id, round_id, steam_id, player_name, team_side, kills, deaths, assists, damage, headshot_kills, first_kill, first_death, clutch_kills FROM player_rounds WHERE round_id = ?1
+SELECT id, round_id, steam_id, player_name, team_side, kills, deaths, assists, damage, headshot_kills, first_kill, first_death, clutch_kills, survived, equip_value, money_spent, kast_round FROM player_rounds WHERE round_id = ?1
 `
 
 func (q *Queries) GetPlayerRoundsByRoundID(ctx context.Context, roundID int64) ([]PlayerRound, error) {
@@ -101,6 +113,10 @@ func (q *Queries) GetPlayerRoundsByRoundID(ctx context.Context, roundID int64) (
 			&i.FirstKill,
 			&i.FirstDeath,
 			&i.ClutchKills,
+			&i.Survived,
+			&i.EquipValue,
+			&i.MoneySpent,
+			&i.KastRound,
 		); err != nil {
 			return nil, err
 		}
@@ -116,7 +132,7 @@ func (q *Queries) GetPlayerRoundsByRoundID(ctx context.Context, roundID int64) (
 }
 
 const getPlayerRoundsBySteamID = `-- name: GetPlayerRoundsBySteamID :many
-SELECT id, round_id, steam_id, player_name, team_side, kills, deaths, assists, damage, headshot_kills, first_kill, first_death, clutch_kills FROM player_rounds WHERE steam_id = ?1
+SELECT id, round_id, steam_id, player_name, team_side, kills, deaths, assists, damage, headshot_kills, first_kill, first_death, clutch_kills, survived, equip_value, money_spent, kast_round FROM player_rounds WHERE steam_id = ?1
 ORDER BY round_id
 `
 
@@ -143,6 +159,83 @@ func (q *Queries) GetPlayerRoundsBySteamID(ctx context.Context, steamID string) 
 			&i.FirstKill,
 			&i.FirstDeath,
 			&i.ClutchKills,
+			&i.Survived,
+			&i.EquipValue,
+			&i.MoneySpent,
+			&i.KastRound,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPlayerRoundsForOverview = `-- name: GetPlayerRoundsForOverview :many
+SELECT r.round_number, r.is_overtime,
+       pr.steam_id, pr.player_name, pr.team_side,
+       pr.kills, pr.deaths, pr.assists, pr.damage, pr.headshot_kills,
+       pr.first_kill, pr.first_death, pr.clutch_kills,
+       pr.survived, pr.equip_value, pr.money_spent, pr.kast_round
+FROM player_rounds pr
+JOIN rounds r ON pr.round_id = r.id
+WHERE r.demo_id = ?1
+ORDER BY r.round_number, pr.steam_id
+`
+
+type GetPlayerRoundsForOverviewRow struct {
+	RoundNumber   int64
+	IsOvertime    int64
+	SteamID       string
+	PlayerName    string
+	TeamSide      string
+	Kills         int64
+	Deaths        int64
+	Assists       int64
+	Damage        int64
+	HeadshotKills int64
+	FirstKill     int64
+	FirstDeath    int64
+	ClutchKills   int64
+	Survived      int64
+	EquipValue    int64
+	MoneySpent    int64
+	KastRound     int64
+}
+
+func (q *Queries) GetPlayerRoundsForOverview(ctx context.Context, demoID int64) ([]GetPlayerRoundsForOverviewRow, error) {
+	rows, err := q.db.QueryContext(ctx, getPlayerRoundsForOverview, demoID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetPlayerRoundsForOverviewRow
+	for rows.Next() {
+		var i GetPlayerRoundsForOverviewRow
+		if err := rows.Scan(
+			&i.RoundNumber,
+			&i.IsOvertime,
+			&i.SteamID,
+			&i.PlayerName,
+			&i.TeamSide,
+			&i.Kills,
+			&i.Deaths,
+			&i.Assists,
+			&i.Damage,
+			&i.HeadshotKills,
+			&i.FirstKill,
+			&i.FirstDeath,
+			&i.ClutchKills,
+			&i.Survived,
+			&i.EquipValue,
+			&i.MoneySpent,
+			&i.KastRound,
 		); err != nil {
 			return nil, err
 		}
@@ -238,10 +331,6 @@ type GetRostersByDemoIDRow struct {
 	TeamSide    string
 }
 
-// Returns one row per (round, player) for the whole demo, ordered by round
-// number and steam_id. Used by the viewer to preload every round's roster in
-// a single Wails round-trip rather than firing GetRoundRoster on each round
-// transition (24-30 trips per match).
 func (q *Queries) GetRostersByDemoID(ctx context.Context, demoID int64) ([]GetRostersByDemoIDRow, error) {
 	rows, err := q.db.QueryContext(ctx, getRostersByDemoID, demoID)
 	if err != nil {

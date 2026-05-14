@@ -66,6 +66,10 @@ export function GetMatchInsights(arg1) {
   return window['go']['main']['App']['GetMatchInsights'](arg1);
 }
 
+export function GetMatchOverview(arg1) {
+  return window['go']['main']['App']['GetMatchOverview'](arg1);
+}
+
 export function GetMistakeContext(arg1) {
   return window['go']['main']['App']['GetMistakeContext'](arg1);
 }

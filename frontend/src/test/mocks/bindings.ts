@@ -644,6 +644,64 @@ export const mockAppBindings = {
       { weapon: "AWP", kill_count: 4, hs_count: 0 },
     ]),
 
+  GetMatchOverview: vi
+    .fn<(demoId: string) => Promise<unknown>>()
+    .mockResolvedValue({
+      demo: mockDemos[0],
+      format: {
+        regulation_rounds: 24,
+        halftime_round: 12,
+        overtime_half_len: 3,
+        has_overtime: false,
+        total_rounds: 0,
+        pistol_round_numbers: [1, 13],
+      },
+      team_a: {
+        name: "Team A",
+        side: "A",
+        score: 0,
+        players: [],
+        totals: {
+          kills: 0,
+          deaths: 0,
+          assists: 0,
+          adr: 0,
+          hs_percent: 0,
+          kast: 0,
+          rating: 0,
+        },
+        top_performer: null,
+        pistol_wins: 0,
+      },
+      team_b: {
+        name: "Team B",
+        side: "B",
+        score: 0,
+        players: [],
+        totals: {
+          kills: 0,
+          deaths: 0,
+          assists: 0,
+          adr: 0,
+          hs_percent: 0,
+          kast: 0,
+          rating: 0,
+        },
+        top_performer: null,
+        pistol_wins: 0,
+      },
+      rounds: [],
+      halves: [],
+      kpis: {
+        total_rounds: 0,
+        pistol_a: 0,
+        pistol_b: 0,
+        longest_streak: 0,
+        streak_team: "",
+        max_lead: 0,
+      },
+    }),
+
   LogsDir: vi
     .fn<() => Promise<string>>()
     .mockResolvedValue("/tmp/oversite/logs"),
