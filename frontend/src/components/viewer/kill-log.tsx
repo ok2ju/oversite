@@ -43,30 +43,14 @@ export function KillLog() {
 }
 
 const KillRow = memo(function KillRow({ kill }: { kill: KillEntry }) {
-  // Side-stripe color keyed off the attacker so the eye finds "who fragged"
-  // first. Same sky/orange identity used elsewhere in the viewer.
-  const stripe =
-    kill.attackerSide === "CT"
-      ? "before:bg-sky-400"
-      : kill.attackerSide === "T"
-        ? "before:bg-orange-400"
-        : "before:bg-white/40"
-
   return (
     <div
       data-testid={`kill-log-row-${kill.id}`}
-      className={cn(
-        "relative flex items-center gap-2 overflow-hidden rounded-[4px] border border-white/[0.06] bg-[#15181D]/95 px-3 py-1 text-xs font-medium tracking-tight text-white backdrop-blur-sm",
-        "before:absolute before:left-0 before:top-1/2 before:h-3 before:w-[2px] before:-translate-y-1/2 before:rounded-r before:content-['']",
-        stripe,
-      )}
+      className="relative flex items-center gap-2 overflow-hidden rounded-[4px] border border-white/[0.06] bg-[#15181D]/95 px-3 py-1 text-xs font-medium tracking-tight text-white backdrop-blur-sm"
     >
       <span
         data-testid={`kill-attacker-${kill.id}`}
-        className={cn(
-          "hud-callsign truncate text-[11px]",
-          nameColor(kill.attackerSide),
-        )}
+        className={cn("truncate text-[11px]", nameColor(kill.attackerSide))}
       >
         {kill.attackerName || "?"}
       </span>
@@ -85,7 +69,7 @@ const KillRow = memo(function KillRow({ kill }: { kill: KillEntry }) {
       <span
         data-testid={`kill-victim-${kill.id}`}
         className={cn(
-          "hud-callsign truncate text-[11px] opacity-80",
+          "truncate text-[11px] opacity-80",
           nameColor(kill.victimSide),
         )}
       >
