@@ -14,20 +14,16 @@ export function GetAllRosters(arg1) {
   return window['go']['main']['App']['GetAllRosters'](arg1);
 }
 
-export function GetContactMoments(arg1, arg2, arg3) {
-  return window['go']['main']['App']['GetContactMoments'](arg1, arg2, arg3);
-}
-
-export function GetRoundImportantMoments(arg1, arg2) {
-  return window['go']['main']['App']['GetRoundImportantMoments'](arg1, arg2);
-}
-
 export function GetAnalysisStatus(arg1) {
   return window['go']['main']['App']['GetAnalysisStatus'](arg1);
 }
 
 export function GetCoachingReport(arg1, arg2) {
   return window['go']['main']['App']['GetCoachingReport'](arg1, arg2);
+}
+
+export function GetContactMoments(arg1, arg2, arg3) {
+  return window['go']['main']['App']['GetContactMoments'](arg1, arg2, arg3);
 }
 
 export function GetDemoByID(arg1) {
@@ -92,6 +88,10 @@ export function GetPlayerMatchStats(arg1, arg2) {
 
 export function GetPlayerRoundAnalysis(arg1, arg2) {
   return window['go']['main']['App']['GetPlayerRoundAnalysis'](arg1, arg2);
+}
+
+export function GetRoundImportantMoments(arg1, arg2) {
+  return window['go']['main']['App']['GetRoundImportantMoments'](arg1, arg2);
 }
 
 export function GetRoundLoadouts(arg1) {

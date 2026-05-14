@@ -193,7 +193,7 @@ export function MousePath({
           </g>
         ))}
 
-        <circle cx={CENTER} cy={CENTER} r={1.5} fill="rgba(255,122,26,0.9)" />
+        <circle cx={CENTER} cy={CENTER} r={1.5} fill="rgba(232,155,42,0.9)" />
       </svg>
       <p className="text-[10px] leading-snug text-white/45">
         First bullet at center. Outer dots = mouse path leading up to the fire

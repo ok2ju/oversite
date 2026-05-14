@@ -11,6 +11,7 @@ import { LibraryTable } from "@/components/demos/library-table"
 import { DropZone } from "@/components/demos/drop-zone"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DemosHeaderActions } from "@/components/demos/demos-header-actions"
+import { DemosEmptyHero } from "@/components/demos/empty-hero"
 import type { HeaderActionsContext } from "@/routes/root"
 
 export default function DemosPage() {
@@ -37,30 +38,39 @@ export default function DemosPage() {
     }
   }
 
+  const showEmptyHero = !isLoading && demos.length === 0
+
   return (
     <DropZone onFilesDropped={handleFilesDropped}>
-      <div className="flex flex-col gap-[18px]">
+      <div className="flex flex-col gap-4">
         <ImportQueue />
-        <DemosToolbar
-          search={search}
-          onSearchChange={setSearch}
-          filter={filter}
-          onFilterChange={setFilter}
-        />
-
-        {isLoading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </div>
+        {showEmptyHero ? (
+          <DemosEmptyHero />
         ) : (
-          <LibraryTable
-            demos={demos}
-            search={search}
-            filter={filter}
-            onDelete={(id) => deleteDemo.mutate(id)}
-          />
+          <>
+            <DemosToolbar
+              search={search}
+              onSearchChange={setSearch}
+              filter={filter}
+              onFilterChange={setFilter}
+              totalCount={demos.length}
+            />
+
+            {isLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
+            ) : (
+              <LibraryTable
+                demos={demos}
+                search={search}
+                filter={filter}
+                onDelete={(id) => deleteDemo.mutate(id)}
+              />
+            )}
+          </>
         )}
       </div>
     </DropZone>

@@ -13,10 +13,13 @@ export default function RootLayout() {
     () => ({ setHeaderActions: setActions }),
     [],
   )
-  // The 2D viewer owns its own chrome (MatchHeader + in-viewer back button),
-  // so the global app header is suppressed here only. /demos/:id/analysis and
-  // every other route keep the breadcrumbed header.
+  // The 2D viewer and match overview own their own chrome (back button +
+  // contextual topbar), so the global app header is suppressed for both.
+  // Only the viewer needs a flush, non-scrolling body (the map fills the
+  // frame); the overview keeps the standard padded, scrollable body.
   const isDemoViewer = useMatch("/demos/:id") !== null
+  const isMatchOverview = useMatch("/demos/:id/overview") !== null
+  const hideHeader = isDemoViewer || isMatchOverview
 
   return (
     <div className="app-shell">
@@ -24,10 +27,10 @@ export default function RootLayout() {
         <Sidebar />
         <div
           className={
-            isDemoViewer ? "main-wrap main-wrap--no-header" : "main-wrap"
+            hideHeader ? "main-wrap main-wrap--no-header" : "main-wrap"
           }
         >
-          {isDemoViewer ? null : <Header actions={actions} />}
+          {hideHeader ? null : <Header actions={actions} />}
           <main
             className={
               isDemoViewer ? "main-body main-body--flush" : "main-body"

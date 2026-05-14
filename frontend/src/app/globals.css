@@ -19,12 +19,12 @@
   --text-subtle: #6e7480;
   --text-faint: #4a5058;
 
-  /* Accent — hot orange */
-  --accent: #ff7a1a;
-  --accent-hover: #ff8f3d;
-  --accent-soft: rgba(255, 122, 26, 0.14);
-  --accent-ink: #ff7a1a;
-  --accent-gradient-end: #b44500;
+  /* Accent — handoff "Oversite" orange */
+  --accent: #e89b2a;
+  --accent-hover: #f2ae45;
+  --accent-soft: rgba(232, 155, 42, 0.14);
+  --accent-ink: #e89b2a;
+  --accent-gradient-end: #8a5a14;
 
   /* Semantic */
   --win: #4ade80;
@@ -56,12 +56,12 @@
   --round-loss-t-fg: #f87171;
   --round-loss-ct-fg: #f87171;
 
-  /* Radius */
-  --radius: 8px;
+  /* Radius — match handoff styles.css scale */
   --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 10px;
+  --radius: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
 
   /* Density */
   --row-h: 38px;
@@ -154,6 +154,7 @@
 }
 
 @layer components {
+
   /* App shell */
   .app-shell {
     display: grid;
@@ -164,8 +165,12 @@
 
   .app-body {
     display: grid;
-    grid-template-columns: 220px 1fr;
+    grid-template-columns: var(--side-w, 220px) 1fr;
     min-height: 0;
+  }
+
+  [data-sidebar="icons"] .app-body {
+    --side-w: 56px;
   }
 
   .main-wrap {
@@ -267,6 +272,74 @@
   .btn-sm.primary:hover:not(:disabled) {
     background: var(--accent-hover);
     border-color: var(--accent-hover);
+  }
+
+  /* Demos toolbar — search input + filter chips */
+  .demos-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .demos-search {
+    flex: 1;
+    max-width: 320px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
+    height: 30px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    background: var(--bg-elevated);
+    font-size: 12.5px;
+  }
+
+  .demos-search input {
+    border: 0;
+    outline: 0;
+    flex: 1;
+    background: transparent;
+    font-family: inherit;
+    font-size: 12.5px;
+    color: var(--text);
+    height: 100%;
+  }
+
+  .demos-search input::placeholder {
+    color: var(--text-subtle);
+  }
+
+  .demos-search svg {
+    color: var(--text-subtle);
+    flex-shrink: 0;
+  }
+
+  .filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 26px;
+    padding: 0 10px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-elevated);
+    border-radius: 100px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 80ms ease, color 80ms ease, border-color 80ms ease;
+  }
+
+  .filter-chip:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
+
+  .filter-chip.on {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: color-mix(in oklab, var(--accent) 45%, transparent);
   }
 
   /* Demos library table — matches handoff design */
@@ -419,25 +492,100 @@
   .sidebar {
     display: flex;
     flex-direction: column;
-    width: 220px;
+    width: var(--side-w, 220px);
     background: var(--bg-elevated);
     border-right: 1px solid var(--border);
     min-height: 0;
+    position: relative;
   }
 
   .side-brand {
     display: flex;
     align-items: center;
-    padding: 14px 16px;
+    padding: 14px 14px 12px 18px;
     border-bottom: 1px solid var(--divider);
     color: var(--text);
+    gap: 9px;
+  }
+
+  .side-brand .brand-label {
+    font-family: "Inter Tight", var(--font-sans);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    font-size: 15px;
+    line-height: 1;
+    color: var(--text);
+  }
+
+  [data-sidebar="icons"] .side-brand {
+    padding: 14px 0 12px;
+    justify-content: center;
+  }
+
+  [data-sidebar="icons"] .side-brand .brand-label {
+    display: none;
+  }
+
+  [data-sidebar="icons"] .side-label {
+    display: none;
+  }
+
+  [data-sidebar="icons"] .nav-item {
+    justify-content: center;
+    padding: 0;
+    margin: 0 8px;
+    gap: 0;
+  }
+
+  [data-sidebar="icons"] .nav-item .nav-text,
+  [data-sidebar="icons"] .nav-item .nav-badge {
+    display: none;
+  }
+
+  .side-collapse-btn {
+    margin-left: auto;
+    width: 26px;
+    height: 26px;
+    border: 0;
+    background: transparent;
+    border-radius: var(--radius-md);
+    color: var(--text-subtle);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0;
+    -webkit-app-region: no-drag;
+    transition: background 80ms ease, color 80ms ease;
+  }
+
+  .side-collapse-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
+
+  [data-sidebar="icons"] .side-collapse-btn {
+    position: absolute;
+    top: 44px;
+    right: -13px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    width: 22px;
+    height: 22px;
+    z-index: 5;
+    margin: 0;
   }
 
   .side-section {
     display: flex;
     flex-direction: column;
-    padding: 10px 8px 4px;
-    gap: 2px;
+    padding: 10px 8px 0;
+    gap: 1px;
+  }
+
+  .side-section+.side-section {
+    padding-top: 4px;
   }
 
   .side-label {
@@ -445,8 +593,8 @@
     font-weight: 600;
     color: var(--text-subtle);
     text-transform: uppercase;
-    letter-spacing: 0.06em;
-    padding: 6px 10px;
+    letter-spacing: 0.08em;
+    padding: 10px 10px 4px;
   }
 
   .nav-item {
@@ -494,13 +642,84 @@
     color: var(--text-muted);
     font-size: 10.5px;
     font-weight: 600;
-    padding: 1px 7px;
+    padding: 1px 6px;
+    min-width: 18px;
+    text-align: center;
     border-radius: 100px;
   }
 
   .nav-item.active .nav-badge {
-    background: var(--accent-soft);
+    background: #ffffff;
     color: var(--accent-ink);
+  }
+
+  /* User block pinned to the bottom of the sidebar */
+  .side-user {
+    margin-top: auto;
+    padding: 10px;
+    border-top: 1px solid var(--divider);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .side-user .avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, #ff8a3d, #e11d48);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .side-user .who {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--text);
+  }
+
+  .side-user .sub {
+    font-size: 11px;
+    color: var(--text-subtle);
+    line-height: 1.2;
+  }
+
+  .side-user .logout-btn {
+    margin-left: auto;
+    width: 28px;
+    height: 28px;
+    border: 0;
+    background: transparent;
+    border-radius: var(--radius-md);
+    color: var(--text-subtle);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0;
+    transition: background 80ms ease, color 80ms ease;
+  }
+
+  .side-user .logout-btn:hover {
+    background: var(--bg-hover);
+    color: var(--loss);
+  }
+
+  [data-sidebar="icons"] .side-user {
+    justify-content: center;
+    padding: 10px 0;
+  }
+
+  [data-sidebar="icons"] .side-user .who-block,
+  [data-sidebar="icons"] .side-user .logout-btn {
+    display: none;
   }
 
   /* Main header */
@@ -528,20 +747,16 @@
     position: absolute;
     inset: 0;
     background:
-      radial-gradient(
-        600px 140px at 85% 0%,
-        rgba(255, 122, 26, 0.08),
-        transparent 60%
-      ),
-      radial-gradient(
-        400px 120px at 15% 100%,
-        rgba(255, 122, 26, 0.04),
-        transparent 60%
-      );
+      radial-gradient(600px 140px at 85% 0%,
+        rgba(232, 155, 42, 0.08),
+        transparent 60%),
+      radial-gradient(400px 120px at 15% 100%,
+        rgba(232, 155, 42, 0.04),
+        transparent 60%);
     pointer-events: none;
   }
 
-  .hero-card > * {
+  .hero-card>* {
     position: relative;
   }
 
@@ -560,15 +775,13 @@
     content: "";
     position: absolute;
     inset: 0;
-    background: radial-gradient(
-      800px 200px at 50% 0%,
-      rgba(255, 122, 26, 0.08),
-      transparent 70%
-    );
+    background: radial-gradient(800px 200px at 50% 0%,
+        rgba(232, 155, 42, 0.08),
+        transparent 70%);
     pointer-events: none;
   }
 
-  .empty-hero > * {
+  .empty-hero>* {
     position: relative;
   }
 
@@ -595,11 +808,9 @@
   /* Frosted panel — used by every HUD chrome element. */
   .hud-panel {
     position: relative;
-    background: linear-gradient(
-      180deg,
-      rgba(11, 13, 16, 0.78) 0%,
-      rgba(11, 13, 16, 0.92) 100%
-    );
+    background: linear-gradient(180deg,
+        rgba(11, 13, 16, 0.78) 0%,
+        rgba(11, 13, 16, 0.92) 100%);
     border: 1px solid rgba(255, 255, 255, 0.06);
     box-shadow:
       0 1px 0 rgba(255, 255, 255, 0.04) inset,
@@ -614,13 +825,11 @@
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background-image: repeating-linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.025) 0px,
-      rgba(255, 255, 255, 0.025) 1px,
-      transparent 1px,
-      transparent 3px
-    );
+    background-image: repeating-linear-gradient(to bottom,
+        rgba(255, 255, 255, 0.025) 0px,
+        rgba(255, 255, 255, 0.025) 1px,
+        transparent 1px,
+        transparent 3px);
     mix-blend-mode: overlay;
     border-radius: inherit;
     opacity: 0.5;
@@ -645,23 +854,26 @@
      the edges. */
   .hud-vignette {
     background:
-      radial-gradient(
-        140% 80% at 50% 0%,
+      radial-gradient(140% 80% at 50% 0%,
         transparent 70%,
-        rgba(0, 0, 0, 0.22) 100%
-      ),
-      radial-gradient(
-        100% 60% at 50% 100%,
+        rgba(0, 0, 0, 0.22) 100%),
+      radial-gradient(100% 60% at 50% 100%,
         transparent 70%,
-        rgba(0, 0, 0, 0.2) 100%
-      );
+        rgba(0, 0, 0, 0.2) 100%);
   }
 
   /* Soft glow used by the play button / score divider; pulses gently
      when the viewer is actively playing. */
   @keyframes hud-pulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 122, 26, 0.55); }
-    50%      { box-shadow: 0 0 0 6px rgba(255, 122, 26, 0); }
+
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(232, 155, 42, 0.55);
+    }
+
+    50% {
+      box-shadow: 0 0 0 6px rgba(232, 155, 42, 0);
+    }
   }
 
   .hud-pulse {
@@ -671,13 +883,1197 @@
   /* Diagonal corner notch — applied via clip-path on the score plate
      so the broadcast bar reads as a single hardware-edged unit. */
   .hud-notch {
-    clip-path: polygon(
-      10px 0,
-      calc(100% - 10px) 0,
-      100% 50%,
-      calc(100% - 10px) 100%,
-      10px 100%,
-      0 50%
-    );
+    clip-path: polygon(10px 0,
+        calc(100% - 10px) 0,
+        100% 50%,
+        calc(100% - 10px) 100%,
+        10px 100%,
+        0 50%);
+  }
+
+  /* ============================================================
+   * Match Overview — pre-viewer summary screen
+   *
+   * Two team identity colors are scoped to this page only. Team A is
+   * the side that started the match on T; Team B is the CT-starter.
+   * Accent (orange) is reserved for app-wide affordances (the "Open
+   * in viewer" button, KPI stripes) so the team identities don't
+   * fight the brand color.
+   * ============================================================ */
+  .mo-wrap {
+    --team-a: #b070ff;
+    --team-a-strong: #c990ff;
+    --team-a-soft: rgba(176, 112, 255, 0.18);
+    --team-a-faint: rgba(176, 112, 255, 0.08);
+    --team-b: #2dd4bf;
+    --team-b-strong: #5be7d4;
+    --team-b-soft: rgba(45, 212, 191, 0.18);
+    --team-b-faint: rgba(45, 212, 191, 0.08);
+    /* CS2 side identity — orange for T, sky blue for CT. Used in the half
+       breakdown pills, round result strip, and anywhere we surface which
+       side won, independent of team identity. */
+    --side-t: #fb923c;
+    --side-t-strong: #fdba74;
+    --side-t-soft: rgba(251, 146, 60, 0.18);
+    --side-ct: #38bdf8;
+    --side-ct-strong: #7dd3fc;
+    --side-ct-soft: rgba(56, 189, 248, 0.18);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .mo-topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .mo-crumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+  }
+
+  .mo-crumb-id {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 1px 6px;
+    background: var(--bg-sunken);
+    border-radius: 3px;
+    color: var(--text);
+  }
+
+  .mo-crumb-sep {
+    color: var(--text-faint);
+  }
+
+  /* Cinematic hero */
+  .mo-hero {
+    position: relative;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    min-height: 220px;
+    isolation: isolate;
+    background: linear-gradient(180deg, #1a1d22 0%, var(--bg-elevated) 100%);
+  }
+
+  .mo-hero-band-a,
+  .mo-hero-band-b {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 38%;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .mo-hero-band-a {
+    left: 0;
+    background: linear-gradient(95deg,
+        color-mix(in oklab, var(--accent) 22%, transparent) 0%,
+        transparent 100%);
+    clip-path: polygon(0 0, 100% 0, 75% 100%, 0 100%);
+  }
+
+  .mo-hero-band-b {
+    right: 0;
+    background: linear-gradient(265deg,
+        rgba(61, 143, 224, 0.22) 0%,
+        transparent 100%);
+    clip-path: polygon(25% 0, 100% 0, 100% 100%, 0 100%);
+  }
+
+  .mo-hero-map-ghost {
+    position: absolute;
+    left: 50%;
+    top: 38%;
+    transform: translate(-50%, -50%);
+    font-family: var(--font-sans);
+    font-size: 180px;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    color: rgba(255, 255, 255, 0.025);
+    white-space: nowrap;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .mo-hero-inner {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 24px;
+    padding: 36px 36px 20px;
+  }
+
+  .mo-hero-side {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .mo-hero-side.them {
+    flex-direction: row-reverse;
+    text-align: right;
+  }
+
+  .mo-team-flag {
+    width: 56px;
+    height: 56px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-sans);
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #0b0d10;
+    flex-shrink: 0;
+  }
+
+  .mo-team-flag.a {
+    background: var(--team-a);
+    box-shadow: 0 0 24px var(--team-a-soft);
+  }
+
+  .mo-team-flag.b {
+    background: var(--team-b);
+    box-shadow: 0 0 24px var(--team-b-soft);
+  }
+
+  .mo-team-block {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .mo-hero-side.them .mo-team-block {
+    text-align: right;
+    align-items: flex-end;
+  }
+
+  .mo-team-eyebrow {
+    font-size: 9.5px;
+    letter-spacing: 0.14em;
+    color: var(--text-subtle);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .mo-team-name {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .mo-team-meta {
+    font-size: 11.5px;
+    color: var(--text-subtle);
+  }
+
+  .mo-hero-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .mo-hero-eyebrow {
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+    color: var(--text-subtle);
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .mo-score {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-family: var(--font-sans);
+    font-size: 76px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mo-score-a {
+    color: var(--team-a);
+  }
+
+  .mo-score-b {
+    color: var(--team-b);
+  }
+
+  .mo-score-sep {
+    font-size: 56px;
+    font-weight: 200;
+    color: var(--text-faint);
+  }
+
+  .mo-map-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .mo-map {
+    font-weight: 600;
+    color: var(--text);
+    text-transform: capitalize;
+  }
+
+  .mo-sep {
+    color: var(--text-faint);
+  }
+
+  /* Half breakdown */
+  .mo-hero-halves {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    padding: 16px 36px 22px;
+    border-top: 1px solid var(--border);
+    margin-top: 6px;
+  }
+
+  .mo-hh {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .mo-hh-label {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--text-subtle);
+    text-transform: uppercase;
+  }
+
+  .mo-hh-score {
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    gap: 4px;
+  }
+
+  .mo-hh-score .t {
+    color: var(--side-t);
+  }
+
+  .mo-hh-score .ct {
+    color: var(--side-ct);
+  }
+
+  .mo-hh-score i {
+    color: var(--text-faint);
+    font-style: normal;
+  }
+
+  .mo-hh-sides {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .mo-hh-vs {
+    font-size: 9px;
+    color: var(--text-faint);
+  }
+
+  .pill-t,
+  .pill-ct {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 5px;
+    border-radius: 3px;
+    letter-spacing: 0.06em;
+  }
+
+  .pill-t {
+    background: var(--side-t-soft);
+    color: var(--side-t-strong);
+  }
+
+  .pill-ct {
+    background: var(--side-ct-soft);
+    color: var(--side-ct-strong);
+  }
+
+  /* KPI strip */
+  .mo-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+
+  .mo-kpi {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .mo-kpi::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--accent);
+    opacity: 0.7;
+  }
+
+  .mo-kpi-eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--text-subtle);
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .mo-kpi-num {
+    font-family: var(--font-sans);
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    margin-top: 8px;
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+
+  .mo-kpi-num .a {
+    color: var(--team-a);
+  }
+
+  .mo-kpi-num .b {
+    color: var(--team-b);
+  }
+
+  .mo-kpi-num i {
+    color: var(--text-faint);
+    font-style: normal;
+    font-weight: 300;
+    font-size: 24px;
+  }
+
+  .mo-kpi-foot {
+    font-size: 11px;
+    color: var(--text-subtle);
+    margin-top: 6px;
+  }
+
+  /* Compare / Top performers grid */
+  .mo-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 14px;
+  }
+
+  .mo-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .mo-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--divider);
+  }
+
+  .mo-card-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .mo-card-sub {
+    font-size: 11px;
+    color: var(--text-subtle);
+    margin-top: 1px;
+  }
+
+  .mo-compare {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 18px;
+  }
+
+  .mo-cmp-row {
+    display: grid;
+    grid-template-columns: 56px 1fr 56px 80px;
+    align-items: center;
+    gap: 12px;
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mo-cmp-val {
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .mo-cmp-val.left {
+    text-align: right;
+  }
+
+  .mo-cmp-val.right {
+    text-align: left;
+  }
+
+  .mo-cmp-val.win {
+    color: var(--text);
+    font-weight: 700;
+  }
+
+  .mo-cmp-bar {
+    display: flex;
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+    background: var(--bg-sunken);
+  }
+
+  .mo-cmp-fill {
+    height: 100%;
+    transition: width 240ms ease;
+  }
+
+  .mo-cmp-fill.mine {
+    background: var(--team-a);
+  }
+
+  .mo-cmp-fill.mine.win {
+    background: var(--team-a);
+  }
+
+  .mo-cmp-fill.them {
+    background: color-mix(in oklab, var(--team-b) 75%, #1b3833);
+  }
+
+  .mo-cmp-fill.them.win {
+    background: var(--team-b);
+  }
+
+  .mo-cmp-label {
+    font-size: 11px;
+    color: var(--text-subtle);
+    text-align: right;
+  }
+
+  .mo-mvps {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .mo-mvp {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: var(--bg-sunken);
+    border-radius: var(--radius);
+    border-left: 2px solid transparent;
+  }
+
+  .mo-mvp.a {
+    border-left-color: var(--team-a);
+  }
+
+  .mo-mvp.b {
+    border-left-color: var(--team-b);
+  }
+
+  .mo-mvp-name {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .mo-mvp-stats {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-subtle);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mo-mvp-stats b {
+    color: var(--text);
+    font-weight: 700;
+  }
+
+  .mo-mvp-stats i {
+    color: var(--text-faint);
+    font-style: normal;
+    margin: 0 2px;
+  }
+
+  .mo-mvp-stat {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    padding-left: 14px;
+    border-left: 1px solid var(--border);
+  }
+
+  .mo-mvp-stat i {
+    font-size: 9.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .mo-mvp-rating-n {
+    font-family: var(--font-sans);
+    font-size: 18px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    line-height: 1;
+    text-align: right;
+  }
+
+  .mo-mvp-rating-l {
+    font-size: 9px;
+    color: var(--text-subtle);
+    letter-spacing: 0.06em;
+    text-align: right;
+    margin-top: 2px;
+  }
+
+  /* Round strip */
+  .mo-rounds-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(28px, 1fr));
+    gap: 3px;
+    padding: 12px 14px;
+  }
+
+  .mo-rs {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 5px 0 4px;
+    border-radius: 4px;
+    font-family: var(--font-sans);
+    font-variant-numeric: tabular-nums;
+    border: 1px solid transparent;
+  }
+
+  .mo-rs.a {
+    background: var(--team-a-soft);
+    border-color: color-mix(in oklab, var(--team-a) 28%, transparent);
+  }
+
+  .mo-rs.b {
+    background: var(--team-b-soft);
+    border-color: color-mix(in oklab, var(--team-b) 28%, transparent);
+  }
+
+  .mo-rs-n {
+    font-size: 10px;
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .mo-rs-side {
+    font-size: 8px;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+  }
+
+  .mo-rs-side.t {
+    color: var(--team-a-strong);
+  }
+
+  .mo-rs-side.ct {
+    color: var(--team-b-strong);
+  }
+
+  /* Compact scoreboard reusing rounded card frame */
+  .mo-sb {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .mo-sb-team-label {
+    padding: 10px 16px 4px;
+    font-size: 10.5px;
+    color: var(--text-subtle);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+    background: var(--bg-sunken);
+    border-bottom: 1px solid var(--divider);
+  }
+
+  .mo-sb-head {
+    display: grid;
+    grid-template-columns: 1fr 56px 56px 56px 56px 56px;
+    padding: 8px 16px;
+    background: var(--bg-sunken);
+    border-bottom: 1px solid var(--border);
+    font-size: 10.5px;
+    color: var(--text-subtle);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+  }
+
+  .mo-sb-head>*:first-child {
+    text-align: left;
+  }
+
+  .mo-sb-head>* {
+    text-align: right;
+  }
+
+  .mo-sb-row {
+    display: grid;
+    grid-template-columns: 1fr 56px 56px 56px 56px 56px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--divider);
+    align-items: center;
+    font-size: 12.5px;
+  }
+
+  .mo-sb-row:last-child {
+    border-bottom: 0;
+  }
+
+  .mo-sb-row>span {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    font-weight: 500;
+  }
+
+  .mo-sb-row>.name {
+    text-align: left;
+    font-weight: 600;
+  }
+
+  /* Per-round charts (Economy / Damage) ============================== */
+  .mo-chart-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px 18px 14px;
+  }
+
+  .mo-chart-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .mo-chart-title {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .mo-chart-sub {
+    font-size: 11px;
+    color: var(--text-subtle);
+    margin-top: 2px;
+  }
+
+  .mo-chart-legend {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .mo-chart-legend-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .mo-chart-legend-dot::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--team-a);
+  }
+
+  .mo-chart-legend-dot.b::before {
+    background: var(--team-b);
+  }
+
+  .mo-chart-body {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 32px 1fr;
+    gap: 0;
+    align-items: stretch;
+  }
+
+  .mo-chart-half {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .mo-chart-half-label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--text-subtle);
+    text-transform: uppercase;
+    font-weight: 600;
+    /* Align the "1ST HALF" / "avg" pair with the bars below, which are
+       inset by the y-axis column (28px) + gap (4px) on the outer edge of
+       each chart-half. */
+    padding-right: 32px;
+  }
+
+  .mo-chart-body > .mo-chart-half:last-child > .mo-chart-half-label {
+    padding-right: 0;
+    padding-left: 32px;
+  }
+
+  .mo-chart-half-avg {
+    color: var(--text-faint);
+    font-size: 10px;
+    letter-spacing: 0;
+    text-transform: none;
+    font-weight: 500;
+  }
+
+  .mo-chart-plot {
+    position: relative;
+    height: 180px;
+    display: grid;
+    grid-template-columns: 28px 1fr 28px;
+    gap: 4px;
+  }
+
+  /* Second half: flip the y-axis to the outer (right) edge so the bar
+     regions on both halves are equidistant from the HT divider. */
+  .mo-chart-body > .mo-chart-half:last-child > .mo-chart-plot > .mo-chart-yaxis {
+    grid-column: 3;
+    align-items: flex-start;
+  }
+
+  .mo-chart-body > .mo-chart-half:last-child > .mo-chart-plot > .mo-chart-bars {
+    grid-column: 2;
+  }
+
+  .mo-chart-yaxis {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-end;
+    font-size: 9.5px;
+    color: var(--text-faint);
+    line-height: 1;
+    padding: 2px 0;
+  }
+
+  .mo-chart-bars {
+    position: relative;
+    height: 100%;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    align-items: end;
+    gap: 4px;
+    border-bottom: 1px dashed color-mix(in oklab, var(--border-strong) 70%, transparent);
+  }
+
+  .mo-chart-bars::before,
+  .mo-chart-bars::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: color-mix(in oklab, var(--border) 70%, transparent);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .mo-chart-bars::before {
+    top: 33%;
+    border-top: 1px dashed color-mix(in oklab, var(--border) 80%, transparent);
+    background: transparent;
+  }
+
+  .mo-chart-bars::after {
+    top: 66%;
+    border-top: 1px dashed color-mix(in oklab, var(--border) 80%, transparent);
+    background: transparent;
+  }
+
+  .mo-chart-pair {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: end;
+    justify-content: center;
+    gap: 2px;
+    height: 100%;
+  }
+
+  .mo-chart-bar {
+    width: 100%;
+    max-width: 8px;
+    min-height: 2px;
+    border-radius: 1px 1px 0 0;
+    transition: height 200ms ease;
+  }
+
+  .mo-chart-bar.a {
+    background: var(--team-a);
+  }
+
+  .mo-chart-bar.b {
+    background: var(--team-b);
+  }
+
+  .mo-chart-xaxis {
+    display: grid;
+    grid-template-columns: 28px 1fr 28px;
+    gap: 4px;
+    margin-top: 6px;
+    font-size: 10.5px;
+    color: var(--text-subtle);
+  }
+
+  .mo-chart-xaxis-label {
+    text-align: right;
+    letter-spacing: 0.06em;
+  }
+
+  .mo-chart-xaxis-nums {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 4px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Mirror the y-axis flip on the x-axis label for the second half. */
+  .mo-chart-body > .mo-chart-half:last-child > .mo-chart-xaxis > .mo-chart-xaxis-label {
+    grid-column: 3;
+    text-align: left;
+  }
+
+  .mo-chart-body > .mo-chart-half:last-child > .mo-chart-xaxis > .mo-chart-xaxis-nums {
+    grid-column: 2;
+  }
+
+  /* Vertical dashed split between the two halves. The HT pill itself lives
+     inline in the rounds-bar below, so this is purely the line. */
+  .mo-chart-divider {
+    position: relative;
+    align-self: stretch;
+  }
+
+  .mo-chart-divider::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 26px;
+    bottom: 0;
+    border-left: 1px dashed color-mix(in oklab, var(--border-strong) 60%, transparent);
+  }
+
+  .mo-chart-ht {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px 8px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    align-self: center;
+    justify-self: center;
+  }
+
+  /* Round indicator strip below each chart. The middle column hosts the
+     HT pill inline with the round cells. */
+  .mo-rounds-bar {
+    display: grid;
+    grid-template-columns: 1fr 32px 1fr;
+    gap: 0;
+    margin-top: 10px;
+    align-items: center;
+  }
+
+  .mo-rounds-bar-half {
+    display: grid;
+    grid-template-columns: 28px 1fr 28px;
+    gap: 4px;
+    align-items: center;
+  }
+
+  /* Mirror the y-axis flip on the rounds strip for the second half so the
+     round cells stay aligned with the bars above. */
+  .mo-rounds-bar > .mo-rounds-bar-half:last-child > span {
+    grid-column: 3;
+  }
+
+  .mo-rounds-bar > .mo-rounds-bar-half:last-child > .mo-rounds-bar-cells {
+    grid-column: 2;
+  }
+
+  .mo-rounds-bar-cells {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .mo-rb-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 0 3px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mo-rb-cell.a {
+    background: var(--team-a-soft);
+    border-color: color-mix(in oklab, var(--team-a) 30%, transparent);
+  }
+
+  .mo-rb-cell.b {
+    background: var(--team-b-soft);
+    border-color: color-mix(in oklab, var(--team-b) 30%, transparent);
+  }
+
+  .mo-rb-n {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .mo-rb-side {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+
+  .mo-rb-side.t {
+    color: var(--side-t-strong);
+  }
+
+  .mo-rb-side.ct {
+    color: var(--side-ct-strong);
+  }
+
+  /* Top performers — compact dual card */
+  .mo-top {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .mo-top-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px 12px 16px;
+    background: var(--bg-sunken);
+    border-radius: var(--radius);
+    border-left: 2px solid transparent;
+  }
+
+  .mo-top-row.a {
+    border-left-color: var(--team-a);
+  }
+
+  .mo-top-row.b {
+    border-left-color: var(--team-b);
+  }
+
+  .mo-top-name {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .mo-top-stats {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-top: 5px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mo-top-stats .kda {
+    color: var(--text);
+    font-weight: 700;
+  }
+
+  .mo-top-stats .kda i {
+    color: var(--text-faint);
+    font-style: normal;
+    font-weight: 400;
+    margin: 0 2px;
+  }
+
+  .mo-top-stats .stat {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  .mo-top-stats .stat i {
+    font-style: normal;
+    font-size: 9.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+    font-weight: 600;
+  }
+
+  .mo-top-stats .stat b {
+    color: var(--text);
+    font-weight: 700;
+  }
+
+  .mo-top-rating-n {
+    font-size: 22px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    text-align: right;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  .mo-top-rating-l {
+    font-size: 9px;
+    color: var(--text-subtle);
+    letter-spacing: 0.08em;
+    text-align: right;
+    margin-top: 3px;
+    text-transform: capitalize;
+  }
+
+  /* Expanded scoreboard — Player / K / A / D / HS% / ADR / KAST% / RATING */
+  .mo-sb-team {
+    padding: 14px 20px 6px;
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+    background: transparent;
+    color: var(--text-muted);
+    border-bottom: 0;
+  }
+
+  .mo-sb-team.a {
+    color: var(--team-a-strong);
+  }
+
+  .mo-sb-team.b {
+    color: var(--team-b-strong);
+  }
+
+  .mo-sb-row,
+  .mo-sb-head {
+    grid-template-columns:
+      minmax(0, 1.4fr) 52px 52px 52px 56px 60px 64px 64px;
+  }
+
+  .mo-sb-head {
+    padding: 8px 20px;
+  }
+
+  .mo-sb-row {
+    padding: 12px 20px;
+  }
+
+  .mo-rating {
+    font-weight: 700;
+  }
+
+  .mo-rating.hi {
+    color: #4ade80;
+  }
+
+  .mo-rating.lo {
+    color: #f87171;
+  }
+
+  @media (max-width: 1000px) {
+    .mo-kpis {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .mo-hero-map-ghost {
+      font-size: 110px;
+    }
+
+    .mo-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .mo-chart-plot {
+      height: 140px;
+    }
   }
 }

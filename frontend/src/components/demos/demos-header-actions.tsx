@@ -12,7 +12,7 @@ export function DemosHeaderActions() {
       disabled={isImporting}
     >
       <Plus className="h-3 w-3" />
-      {isImporting ? "Importing…" : "Import demos"}
+      {isImporting ? "Importing…" : "Import demo"}
     </button>
   )
 }

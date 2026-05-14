@@ -190,7 +190,7 @@ export function MistakesFeed() {
             className={cn(
               "rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors",
               selectedCategory == null
-                ? "border-[var(--accent)] bg-[rgba(255,122,26,0.12)] text-[var(--accent-ink)]"
+                ? "border-[var(--accent)] bg-[rgba(232,155,42,0.12)] text-[var(--accent-ink)]"
                 : "border-[var(--border-strong)] bg-transparent text-[var(--text-muted)] hover:bg-white/[0.04] hover:text-[var(--text)]",
             )}
           >
@@ -208,7 +208,7 @@ export function MistakesFeed() {
                 className={cn(
                   "rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors",
                   active
-                    ? "border-[var(--accent)] bg-[rgba(255,122,26,0.12)] text-[var(--accent-ink)]"
+                    ? "border-[var(--accent)] bg-[rgba(232,155,42,0.12)] text-[var(--accent-ink)]"
                     : "border-[var(--border-strong)] bg-transparent text-[var(--text-muted)] hover:bg-white/[0.04] hover:text-[var(--text)]",
                 )}
               >
@@ -245,7 +245,7 @@ export function MistakesFeed() {
                 className={cn(
                   "group flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors",
                   active
-                    ? "border-[var(--accent)]/60 bg-[rgba(255,122,26,0.07)]"
+                    ? "border-[var(--accent)]/60 bg-[rgba(232,155,42,0.07)]"
                     : cn(
                         "border-[var(--border)]",
                         meta.bg,
@@ -290,7 +290,7 @@ export function MistakesFeed() {
                   type="button"
                   data-testid={`mistakes-feed-watch-${i}`}
                   onClick={() => onPick(m)}
-                  className="flex shrink-0 items-center gap-1.5 rounded-md border border-[var(--border-strong)] bg-[var(--bg-sunken)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--text)] transition-colors hover:border-[var(--accent)]/60 hover:bg-[rgba(255,122,26,0.08)] hover:text-[var(--accent-ink)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                  className="flex shrink-0 items-center gap-1.5 rounded-md border border-[var(--border-strong)] bg-[var(--bg-sunken)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--text)] transition-colors hover:border-[var(--accent)]/60 hover:bg-[rgba(232,155,42,0.08)] hover:text-[var(--accent-ink)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                 >
                   <span aria-hidden="true" className="-mt-px">
                     ▶

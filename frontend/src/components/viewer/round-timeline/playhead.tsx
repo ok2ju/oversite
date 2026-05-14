@@ -37,7 +37,8 @@ export function Playhead({ roundStartTick, roundEndTick }: PlayheadProps) {
       ref={ref}
       data-testid="round-timeline-playhead"
       aria-hidden="true"
-      className="pointer-events-none absolute inset-y-0 left-0 z-10 w-px -translate-x-1/2 bg-orange-400 shadow-[0_0_6px_0_rgba(255,122,26,0.7)]"
+      className="pointer-events-none absolute inset-y-0 left-0 z-10 w-px -translate-x-1/2 shadow-[0_0_6px_0_rgba(232,155,42,0.7)]"
+      style={{ background: "var(--accent)" }}
     />
   )
 }

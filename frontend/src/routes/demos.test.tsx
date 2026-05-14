@@ -27,23 +27,26 @@ describe("DemosPage", () => {
   it("renders the toolbar chips", async () => {
     renderWithProviders(<DemosPage />)
 
-    for (const chip of ["All", "Wins", "Losses", "Parsing"]) {
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^All/ })).toBeInTheDocument()
+    })
+    for (const chip of ["Ready", "Parsing", "Failed"]) {
       expect(screen.getByRole("button", { name: chip })).toBeInTheDocument()
     }
   })
 
-  it("calls ImportDemoFile when Import demos is clicked", async () => {
+  it("calls ImportDemoFile when Import demo is clicked", async () => {
     const user = userEvent.setup()
     renderPageWithHeader()
 
-    await user.click(screen.getByRole("button", { name: /import demos/i }))
+    await user.click(screen.getByRole("button", { name: /import demo/i }))
 
     await waitFor(() => {
       expect(mockAppBindings.ImportDemoFile).toHaveBeenCalled()
     })
   })
 
-  it("shows an empty-state row when there are no demos", async () => {
+  it("shows the empty hero when there are no demos", async () => {
     mockAppBindings.ListDemos.mockResolvedValueOnce({
       data: [],
       meta: { total: 0, page: 1, per_page: 20 },
@@ -52,7 +55,7 @@ describe("DemosPage", () => {
     renderWithProviders(<DemosPage />)
 
     await waitFor(() => {
-      expect(screen.getByText(/No demos match/i)).toBeInTheDocument()
+      expect(screen.getByText(/Add your first demo/i)).toBeInTheDocument()
     })
   })
 

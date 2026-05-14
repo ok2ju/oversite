@@ -8,7 +8,7 @@ describe("Header", () => {
     renderWithProviders(<Header />, { initialRoute: "/demos" })
     expect(
       screen
-        .getAllByText("Demos")
+        .getAllByText("Demos library")
         .some((el) => el.classList.contains("page-title")),
     ).toBe(true)
   })
@@ -41,8 +41,13 @@ describe("Header", () => {
     ).toBe(true)
   })
 
-  it("renders a breadcrumb with Home link to /demos", () => {
+  it("hides the breadcrumb on the home (/demos) route", () => {
     renderWithProviders(<Header />, { initialRoute: "/demos" })
+    expect(screen.queryByRole("link", { name: "Home" })).toBeNull()
+  })
+
+  it("renders a breadcrumb on non-home routes", () => {
+    renderWithProviders(<Header />, { initialRoute: "/demos/123/overview" })
     const home = screen.getByRole("link", { name: "Home" })
     expect(home).toHaveAttribute("href", "/demos")
   })

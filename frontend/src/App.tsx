@@ -5,6 +5,7 @@ import { QueryProvider } from "@/components/providers/query-provider"
 import RootLayout from "@/routes/root"
 
 const DemosPage = lazy(() => import("@/routes/demos"))
+const MatchOverviewPage = lazy(() => import("@/routes/match-overview"))
 const DemoViewerPage = lazy(() => import("@/routes/demo-viewer"))
 const DemoAnalysisPage = lazy(() => import("@/routes/demo-analysis"))
 const HeatmapsPage = lazy(() => import("@/routes/heatmaps"))
@@ -32,6 +33,10 @@ function App() {
               <Route path="/" element={<RootLayout />}>
                 <Route index element={<Navigate to="/demos" replace />} />
                 <Route path="demos" element={<DemosPage />} />
+                <Route
+                  path="demos/:id/overview"
+                  element={<MatchOverviewPage />}
+                />
                 <Route path="demos/:id" element={<DemoViewerPage />} />
                 <Route
                   path="demos/:id/analysis"

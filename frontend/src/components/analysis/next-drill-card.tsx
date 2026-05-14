@@ -51,7 +51,7 @@ export function NextDrillCard() {
         style={{
           background: isMaintenance
             ? "radial-gradient(360px 140px at 12% -10%, rgba(155,188,90,0.10), transparent 65%)"
-            : "radial-gradient(440px 160px at 12% -10%, rgba(255,122,26,0.14), transparent 65%)",
+            : "radial-gradient(440px 160px at 12% -10%, rgba(232,155,42,0.14), transparent 65%)",
         }}
       />
 

@@ -79,9 +79,14 @@ describe("filterDemos", () => {
     expect(result.map((d) => d.id)).toEqual([1, 4])
   })
 
-  it("leaves Wins/Losses as no-ops until backend result data lands", () => {
-    expect(filterDemos(demos, "", "wins")).toHaveLength(4)
-    expect(filterDemos(demos, "", "losses")).toHaveLength(4)
+  it("narrows to ready demos when the Ready chip is active", () => {
+    const result = filterDemos(demos, "", "ready")
+    expect(result.map((d) => d.id)).toEqual([1])
+  })
+
+  it("narrows to failed demos when the Failed chip is active", () => {
+    const result = filterDemos(demos, "", "error")
+    expect(result.map((d) => d.id)).toEqual([3])
   })
 })
 
@@ -98,14 +103,14 @@ describe("LibraryTable row navigation", () => {
     )
   }
 
-  it("navigates to /demos/:id when a ready row is clicked", async () => {
+  it("navigates to the match overview when a ready row is clicked", async () => {
     const user = userEvent.setup()
     const demo = makeDemo({ id: 7, status: "ready" })
     render([demo])
 
     await user.click(screen.getByTestId("demo-row-7"))
 
-    expect(mockNavigate).toHaveBeenCalledWith("/demos/7")
+    expect(mockNavigate).toHaveBeenCalledWith("/demos/7/overview")
   })
 
   it("does not navigate when clicking a parsing row, shows waiting indicator", async () => {
@@ -135,7 +140,7 @@ describe("LibraryTable row navigation", () => {
     })
 
     await vi.waitFor(() =>
-      expect(mockNavigate).toHaveBeenCalledWith("/demos/11"),
+      expect(mockNavigate).toHaveBeenCalledWith("/demos/11/overview"),
     )
   })
 })

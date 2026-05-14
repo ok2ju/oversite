@@ -8,13 +8,11 @@ export function DeleteDemo(arg1:number):Promise<void>;
 
 export function GetAllRosters(arg1:string):Promise<Record<number, Array<main.PlayerRosterEntry>>>;
 
-export function GetContactMoments(arg1:string,arg2:number,arg3:string):Promise<Array<main.ContactMoment>>;
-
-export function GetRoundImportantMoments(arg1:string,arg2:number):Promise<Array<main.GameEvent>>;
-
 export function GetAnalysisStatus(arg1:string):Promise<main.AnalysisStatus>;
 
 export function GetCoachingReport(arg1:string,arg2:number):Promise<main.CoachingReport>;
+
+export function GetContactMoments(arg1:string,arg2:number,arg3:string):Promise<Array<main.ContactMoment>>;
 
 export function GetDemoByID(arg1:string):Promise<main.Demo>;
 
@@ -47,6 +45,8 @@ export function GetPlayerAnalysis(arg1:string,arg2:string):Promise<main.PlayerAn
 export function GetPlayerMatchStats(arg1:string,arg2:string):Promise<main.PlayerMatchStats>;
 
 export function GetPlayerRoundAnalysis(arg1:string,arg2:string):Promise<Array<main.PlayerRoundEntry>>;
+
+export function GetRoundImportantMoments(arg1:string,arg2:number):Promise<Array<main.GameEvent>>;
 
 export function GetRoundLoadouts(arg1:string):Promise<Record<number, Array<main.RoundLoadoutEntry>>>;
 

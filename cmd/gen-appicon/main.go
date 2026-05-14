@@ -1,10 +1,13 @@
-// Renders the Oversite reticle into:
+// Renders the Oversite aperture glyph into:
 //   - build/appicon.png            (1024×1024, source for Wails build pipeline)
 //   - build/darwin/iconfile.icns   (multi-resolution macOS icon)
 //
-// Pure-stdlib SDF rasterization — no external deps, no sips/iconutil.
+// Mirrors the brand logo from frontend/src/components/brand/logo.tsx —
+// a 5-blade aperture/iris pinwheel around a centered accent dot.
+//
+// Pure-stdlib rasterization — no external deps, no sips/iconutil.
 // Each iconset slot is rendered at its native resolution so small icons
-// (16×16) get crisp strokes instead of downscaling artifacts.
+// (16×16) get crisp edges instead of downscaling artifacts.
 package main
 
 import (
@@ -27,7 +30,7 @@ const (
 var (
 	bg     = color.NRGBA{R: 0x0B, G: 0x0D, B: 0x10, A: 0xFF}
 	ink    = color.NRGBA{R: 0xE8, G: 0xEA, B: 0xED, A: 0xFF}
-	accent = color.NRGBA{R: 0xF1, G: 0x8A, B: 0x4B, A: 0xFF}
+	accent = color.NRGBA{R: 0xE8, G: 0x9B, B: 0x2A, A: 0xFF}
 )
 
 func smoothstep(edge0, edge1, x float64) float64 {
@@ -46,32 +49,35 @@ func diskCoverage(px, py, cx, cy, r float64) float64 {
 	return 1.0 - smoothstep(r-0.5, r+0.5, d)
 }
 
-func ringCoverage(px, py, cx, cy, r, sw float64) float64 {
-	d := math.Hypot(px-cx, py-cy)
-	half := sw / 2.0
-	return 1.0 - smoothstep(half-0.5, half+0.5, math.Abs(d-r))
+func pointInTriangle(px, py, x0, y0, x1, y1, x2, y2 float64) bool {
+	d1 := (px-x1)*(y0-y1) - (x0-x1)*(py-y1)
+	d2 := (px-x2)*(y1-y2) - (x1-x2)*(py-y2)
+	d3 := (px-x0)*(y2-y0) - (x2-x0)*(py-y0)
+	hasNeg := d1 < 0 || d2 < 0 || d3 < 0
+	hasPos := d1 > 0 || d2 > 0 || d3 > 0
+	return !hasNeg || !hasPos
 }
 
-func rectCoverage(px, py, x0, y0, x1, y1 float64) float64 {
-	if x0 > x1 {
-		x0, x1 = x1, x0
+// 4×4 supersampling gives smooth blade edges without the cost of a full SDF.
+func triangleCoverage(px, py, x0, y0, x1, y1, x2, y2 float64) float64 {
+	const n = 4
+	inside := 0
+	for sy := 0; sy < n; sy++ {
+		for sx := 0; sx < n; sx++ {
+			qx := px - 0.5 + (float64(sx)+0.5)/float64(n)
+			qy := py - 0.5 + (float64(sy)+0.5)/float64(n)
+			if pointInTriangle(qx, qy, x0, y0, x1, y1, x2, y2) {
+				inside++
+			}
+		}
 	}
-	if y0 > y1 {
-		y0, y1 = y1, y0
-	}
-	xCov := smoothstep(x0-0.5, x0+0.5, px) - smoothstep(x1-0.5, x1+0.5, px)
-	yCov := smoothstep(y0-0.5, y0+0.5, py) - smoothstep(y1-0.5, y1+0.5, py)
-	return xCov * yCov
+	return float64(inside) / float64(n*n)
 }
 
-func vlineCoverage(px, py, x, y0, y1, sw float64) float64 {
-	half := sw / 2.0
-	return rectCoverage(px, py, x-half, y0, x+half, y1)
-}
-
-func hlineCoverage(px, py, y, x0, x1, sw float64) float64 {
-	half := sw / 2.0
-	return rectCoverage(px, py, x0, y-half, x1, y+half)
+func rotate(x, y, cx, cy, angleRad float64) (float64, float64) {
+	s, c := math.Sin(angleRad), math.Cos(angleRad)
+	dx, dy := x-cx, y-cy
+	return cx + dx*c - dy*s, cy + dx*s + dy*c
 }
 
 func over(dst, src color.NRGBA, coverage float64) color.NRGBA {
@@ -92,27 +98,38 @@ func over(dst, src color.NRGBA, coverage float64) color.NRGBA {
 	}
 }
 
-// renderReticle renders the reticle at any square resolution. Geometry is
-// expressed as fractions of size, so the same SDF works at 16px and 1024px.
-func renderReticle(size int) *image.NRGBA {
+// renderAperture renders the 5-blade aperture glyph at any square resolution.
+// Geometry mirrors the brand SVG's 0–64 viewBox; blade vertices are scaled
+// to a centered inset square so the same logic works at 16px and 1024px.
+func renderAperture(size int) *image.NRGBA {
 	img := image.NewNRGBA(image.Rect(0, 0, size, size))
 
 	s := float64(size)
-	inset := s * 0.75
+	inset := s * 0.76
 	off := (s - inset) / 2.0
-
-	stroke := s * 0.039
-	if stroke < 1.6 {
-		stroke = 1.6
-	}
-	innerStroke := stroke * 0.7
-
 	cx := off + inset/2.0
 	cy := off + inset/2.0
-	rOuter := (inset-stroke)/2.0 - inset*0.04
-	rInner := rOuter * 0.42
-	tickEnd := inset * 0.22
-	dotR := inset * 0.08
+
+	scale := inset / 64.0
+	toImg := func(x, y float64) (float64, float64) {
+		return off + x*scale, off + y*scale
+	}
+
+	// Blade vertices from the brand SVG path "M 32 32 L 32 6 L 22 14 Z".
+	bv0x, bv0y := toImg(32, 32)
+	bv1x, bv1y := toImg(32, 6)
+	bv2x, bv2y := toImg(22, 14)
+
+	type tri struct{ ax, ay, bx, by, cx, cy float64 }
+	blades := make([]tri, 5)
+	for i := 0; i < 5; i++ {
+		ang := float64(i) * 72.0 * math.Pi / 180.0
+		b1x, b1y := rotate(bv1x, bv1y, cx, cy, ang)
+		b2x, b2y := rotate(bv2x, bv2y, cx, cy, ang)
+		blades[i] = tri{bv0x, bv0y, b1x, b1y, b2x, b2y}
+	}
+
+	dotR := inset * (4.5 / 64.0)
 
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
@@ -120,12 +137,9 @@ func renderReticle(size int) *image.NRGBA {
 			py := float64(y) + 0.5
 
 			pix := bg
-			pix = over(pix, ink, ringCoverage(px, py, cx, cy, rOuter, stroke))
-			pix = over(pix, ink, ringCoverage(px, py, cx, cy, rInner, innerStroke)*0.55)
-			pix = over(pix, ink, vlineCoverage(px, py, cx, off, off+tickEnd, stroke))
-			pix = over(pix, ink, vlineCoverage(px, py, cx, off+inset-tickEnd, off+inset, stroke))
-			pix = over(pix, ink, hlineCoverage(px, py, cy, off, off+tickEnd, stroke))
-			pix = over(pix, ink, hlineCoverage(px, py, cy, off+inset-tickEnd, off+inset, stroke))
+			for _, t := range blades {
+				pix = over(pix, ink, triangleCoverage(px, py, t.ax, t.ay, t.bx, t.by, t.cx, t.cy))
+			}
 			pix = over(pix, accent, diskCoverage(px, py, cx, cy, dotR))
 
 			img.SetNRGBA(x, y, pix)
@@ -195,7 +209,7 @@ func main() {
 		if data, ok := cache[size]; ok {
 			return data, nil
 		}
-		img := renderReticle(size)
+		img := renderAperture(size)
 		data, err := encodePNG(img)
 		if err != nil {
 			return nil, err

@@ -118,7 +118,7 @@ function HabitChecklistRow({ row, active, onToggle }: RowProps) {
         className={cn(
           "group flex w-full items-center gap-4 rounded-lg border px-4 py-3 text-left transition-colors",
           active
-            ? "border-[var(--accent)]/60 bg-[rgba(255,122,26,0.08)]"
+            ? "border-[var(--accent)]/60 bg-[rgba(232,155,42,0.08)]"
             : "border-[var(--border)] bg-white/[0.02] hover:border-[var(--border-strong)] hover:bg-white/[0.04]",
         )}
       >

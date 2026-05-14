@@ -60,15 +60,15 @@ export function BombSpine({
       {postPlant ? (
         <span
           data-testid="round-timeline-spine-postplant"
-          className="absolute inset-y-0 bg-orange-500/15"
-          style={postPlant}
+          className="absolute inset-y-0"
+          style={{ ...postPlant, background: "var(--accent-soft)" }}
         />
       ) : null}
       {bombBar ? (
         <span
           data-testid="round-timeline-spine-bombbar"
-          className="absolute left-0 top-1/2 h-[2px] -translate-y-1/2 rounded-full bg-orange-400 shadow-[0_0_6px_-1px_rgba(255,122,26,0.7)]"
-          style={bombBar}
+          className="absolute left-0 top-1/2 h-[2px] -translate-y-1/2 rounded-full shadow-[0_0_6px_-1px_rgba(232,155,42,0.7)]"
+          style={{ ...bombBar, background: "var(--accent)" }}
         />
       ) : null}
     </div>

@@ -48,9 +48,9 @@ export function filterDemos(
 ): DemoSummary[] {
   const q = search.trim().toLowerCase()
   return demos.filter((demo) => {
+    if (filter === "ready" && demo.status !== "ready") return false
     if (filter === "parsing" && demo.status !== "parsing") return false
-    // 'wins' / 'losses' are spec labels without backing match-result data on
-    // the Demo model yet — treat them as no-ops alongside 'all'.
+    if (filter === "error" && demo.status !== "failed") return false
     if (!q) return true
     const haystack = `${demo.map_name} ${demo.file_name}`.toLowerCase()
     return haystack.includes(q)
@@ -93,7 +93,7 @@ export function LibraryTable({
     ) {
       const id = waitingDemoId
       setWaitingDemoId(null)
-      navigate(`/demos/${id}`)
+      navigate(`/demos/${id}/overview`)
     }
   }, [waitingDemoId, importProgress, navigate])
 
@@ -117,7 +117,7 @@ export function LibraryTable({
       setWaitingDemoId(demo.id)
       return
     }
-    navigate(`/demos/${demo.id}`)
+    navigate(`/demos/${demo.id}/overview`)
   }
 
   if (rows.length === 0) {

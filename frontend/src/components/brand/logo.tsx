@@ -1,11 +1,12 @@
 import type { CSSProperties } from "react"
 
-const BRAND_ACCENT = "oklch(0.72 0.18 45)"
+const BRAND_ACCENT = "#E89B2A"
 
 interface ReticleGlyphProps {
   size?: number
   color?: string
   accent?: string
+  /** kept for API compatibility; the aperture mark is solid, not stroked */
   stroke?: number
   className?: string
   title?: string
@@ -15,71 +16,34 @@ export function ReticleGlyph({
   size = 22,
   color = "currentColor",
   accent = BRAND_ACCENT,
-  stroke,
   className,
   title,
 }: ReticleGlyphProps) {
-  const c = size / 2
-  const s = stroke ?? Math.max(1.6, size * 0.09)
-  const r = (size - s) / 2 - size * 0.04
+  // 5-blade aperture/iris pinwheel around a centered accent dot.
+  // Single-path blade, rotated 72° five times in a 0–64 viewBox.
+  const blade = "M 32 32 L 32 6 L 22 14 Z"
   return (
     <svg
       width={size}
       height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      fill="none"
+      viewBox="0 0 64 64"
       className={className}
       role={title ? "img" : "presentation"}
       aria-hidden={title ? undefined : true}
       aria-label={title}
     >
       {title ? <title>{title}</title> : null}
-      <circle cx={c} cy={c} r={r} stroke={color} strokeWidth={s} />
-      <circle
-        cx={c}
-        cy={c}
-        r={r * 0.42}
-        stroke={color}
-        strokeWidth={s * 0.7}
-        opacity={0.55}
-      />
-      <line
-        x1={c}
-        y1={0}
-        x2={c}
-        y2={size * 0.22}
-        stroke={color}
-        strokeWidth={s}
-        strokeLinecap="square"
-      />
-      <line
-        x1={c}
-        y1={size}
-        x2={c}
-        y2={size * 0.78}
-        stroke={color}
-        strokeWidth={s}
-        strokeLinecap="square"
-      />
-      <line
-        x1={0}
-        y1={c}
-        x2={size * 0.22}
-        y2={c}
-        stroke={color}
-        strokeWidth={s}
-        strokeLinecap="square"
-      />
-      <line
-        x1={size}
-        y1={c}
-        x2={size * 0.78}
-        y2={c}
-        stroke={color}
-        strokeWidth={s}
-        strokeLinecap="square"
-      />
-      <circle cx={c} cy={c} r={size * 0.08} fill={accent} />
+      <g>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <path
+            key={i}
+            d={blade}
+            fill={color}
+            transform={`rotate(${i * 72} 32 32)`}
+          />
+        ))}
+      </g>
+      <circle cx="32" cy="32" r="4.5" fill={accent} />
     </svg>
   )
 }

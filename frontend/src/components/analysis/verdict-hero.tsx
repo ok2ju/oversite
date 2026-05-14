@@ -17,8 +17,8 @@ const TIERS: Tier[] = [
   {
     letter: "S",
     label: "Match-defining",
-    ringColor: "#ff7a1a",
-    textColor: "#ff7a1a",
+    ringColor: "#e89b2a",
+    textColor: "#e89b2a",
   },
   { letter: "A", label: "Strong", ringColor: "#9bbc5a", textColor: "#9bbc5a" },
   { letter: "B", label: "Solid", ringColor: "#9bbc5a", textColor: "#9bbc5a" },
@@ -129,7 +129,7 @@ export function VerdictHero() {
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(640px 220px at 88% -10%, rgba(255,122,26,0.16), transparent 60%), radial-gradient(420px 160px at 6% 110%, rgba(255,122,26,0.06), transparent 70%)",
+            "radial-gradient(640px 220px at 88% -10%, rgba(232,155,42,0.16), transparent 60%), radial-gradient(420px 160px at 6% 110%, rgba(232,155,42,0.06), transparent 70%)",
         }}
       />
 
