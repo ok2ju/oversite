@@ -100,10 +100,12 @@ type GameEvent struct {
 
 // TickData represents a player's state at a specific tick.
 //
-// Inventory used to live here (as a comma-separated string) but was moved to
-// per-round storage in migration 011 — see RoundLoadoutEntry and
-// GetRoundLoadouts. The viewer team-bars merge live tick fields with the
-// round-scoped loadout in the frontend hook.
+// Inventory is the comma-split weapon list at this sampled tick. It returned
+// to per-tick storage in migration 023 — round_loadouts still holds the
+// freeze-end snapshot used for equip-value math, but the team-bars render
+// from this live field so throws, drops, and pickups during the round show
+// up on the player cards. Pre-023 demos serialize as an empty slice; the
+// frontend falls back to the round-scoped loadout in that case.
 //
 // Coordinate precision: X/Y/Z and Yaw are sent as int16 instead of float64.
 // A CS2 unit is ~2.5 cm and map extents fit comfortably in ±32k units; the
@@ -126,16 +128,17 @@ type TickData struct {
 	// Crouch is Player.IsDucking() at the sample. Used by the analysis page's
 	// crouch-before-shot evidence; viewer renders unchanged on legacy demos
 	// (false defaults).
-	Crouch      bool    `json:"crouch"`
-	Health      int     `json:"health"`
-	Armor       int     `json:"armor"`
-	IsAlive     bool    `json:"is_alive"`
-	Weapon      *string `json:"weapon"`
-	Money       int     `json:"money"`
-	HasHelmet   bool    `json:"has_helmet"`
-	HasDefuser  bool    `json:"has_defuser"`
-	AmmoClip    int     `json:"ammo_clip"`
-	AmmoReserve int     `json:"ammo_reserve"`
+	Crouch      bool     `json:"crouch"`
+	Health      int      `json:"health"`
+	Armor       int      `json:"armor"`
+	IsAlive     bool     `json:"is_alive"`
+	Weapon      *string  `json:"weapon"`
+	Money       int      `json:"money"`
+	HasHelmet   bool     `json:"has_helmet"`
+	HasDefuser  bool     `json:"has_defuser"`
+	AmmoClip    int      `json:"ammo_clip"`
+	AmmoReserve int      `json:"ammo_reserve"`
+	Inventory   []string `json:"inventory"`
 }
 
 // PlayerVisibility transitions are not exposed via Wails bindings; the

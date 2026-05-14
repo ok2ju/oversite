@@ -19,7 +19,7 @@ func (q *Queries) DeleteTickDataByDemoID(ctx context.Context, demoID int64) erro
 }
 
 const getTickDataByRange = `-- name: GetTickDataByRange :many
-SELECT demo_id, tick, steam_id, x, y, z, yaw, health, armor, is_alive, weapon, money, has_helmet, has_defuser, ammo_clip, ammo_reserve, pitch, crouch FROM tick_data
+SELECT demo_id, tick, steam_id, x, y, z, yaw, health, armor, is_alive, weapon, money, has_helmet, has_defuser, ammo_clip, ammo_reserve, pitch, crouch, inventory FROM tick_data
 WHERE demo_id = ?1 AND tick >= ?2 AND tick <= ?3
 ORDER BY tick, steam_id
 `
@@ -58,6 +58,7 @@ func (q *Queries) GetTickDataByRange(ctx context.Context, arg GetTickDataByRange
 			&i.AmmoReserve,
 			&i.Pitch,
 			&i.Crouch,
+			&i.Inventory,
 		); err != nil {
 			return nil, err
 		}
@@ -73,7 +74,7 @@ func (q *Queries) GetTickDataByRange(ctx context.Context, arg GetTickDataByRange
 }
 
 const getTickDataByRangeAndPlayers = `-- name: GetTickDataByRangeAndPlayers :many
-SELECT demo_id, tick, steam_id, x, y, z, yaw, health, armor, is_alive, weapon, money, has_helmet, has_defuser, ammo_clip, ammo_reserve, pitch, crouch FROM tick_data
+SELECT demo_id, tick, steam_id, x, y, z, yaw, health, armor, is_alive, weapon, money, has_helmet, has_defuser, ammo_clip, ammo_reserve, pitch, crouch, inventory FROM tick_data
 WHERE demo_id = ?1 AND tick >= ?2 AND tick <= ?3
   AND steam_id IN (SELECT value FROM json_each(@steam_ids))
 ORDER BY tick, steam_id
@@ -113,6 +114,7 @@ func (q *Queries) GetTickDataByRangeAndPlayers(ctx context.Context, arg GetTickD
 			&i.AmmoReserve,
 			&i.Pitch,
 			&i.Crouch,
+			&i.Inventory,
 		); err != nil {
 			return nil, err
 		}
@@ -128,8 +130,8 @@ func (q *Queries) GetTickDataByRangeAndPlayers(ctx context.Context, arg GetTickD
 }
 
 const insertTickData = `-- name: InsertTickData :exec
-INSERT INTO tick_data (demo_id, tick, steam_id, x, y, z, yaw, pitch, crouch, health, armor, is_alive, weapon, money, has_helmet, has_defuser, ammo_clip, ammo_reserve)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
+INSERT INTO tick_data (demo_id, tick, steam_id, x, y, z, yaw, pitch, crouch, health, armor, is_alive, weapon, money, has_helmet, has_defuser, ammo_clip, ammo_reserve, inventory)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
 `
 
 type InsertTickDataParams struct {
@@ -151,6 +153,7 @@ type InsertTickDataParams struct {
 	HasDefuser  int64
 	AmmoClip    int64
 	AmmoReserve int64
+	Inventory   string
 }
 
 func (q *Queries) InsertTickData(ctx context.Context, arg InsertTickDataParams) error {
@@ -173,6 +176,7 @@ func (q *Queries) InsertTickData(ctx context.Context, arg InsertTickDataParams) 
 		arg.HasDefuser,
 		arg.AmmoClip,
 		arg.AmmoReserve,
+		arg.Inventory,
 	)
 	return err
 }

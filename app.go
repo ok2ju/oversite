@@ -2625,11 +2625,23 @@ func storeTickDatumToBinding(d store.TickDatum) TickData {
 		HasDefuser:  d.HasDefuser != 0,
 		AmmoClip:    int(d.AmmoClip),
 		AmmoReserve: int(d.AmmoReserve),
+		Inventory:   splitInventory(d.Inventory),
 	}
 	if d.Weapon != "" {
 		td.Weapon = &d.Weapon
 	}
 	return td
+}
+
+// splitInventory turns the comma-separated weapon list persisted on tick_data
+// into the []string the frontend consumes. Empty (pre-023 rows or empty
+// inventories) maps to a non-nil empty slice so the JSON wire shape is
+// always `[]` rather than `null`.
+func splitInventory(csv string) []string {
+	if csv == "" {
+		return []string{}
+	}
+	return strings.Split(csv, ",")
 }
 
 // roundToInt16 clamps and rounds a float to the int16 range. CS2 world

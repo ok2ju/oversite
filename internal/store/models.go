@@ -256,4 +256,5 @@ type TickDatum struct {
 	AmmoReserve int64
 	Pitch       float64
 	Crouch      int64
+	Inventory   string
 }

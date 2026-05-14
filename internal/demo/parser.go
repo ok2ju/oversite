@@ -160,10 +160,6 @@ type RoundParticipant struct {
 }
 
 // TickSnapshot is one player's state at a sampled tick.
-//
-// Inventory is intentionally not part of this struct: the freeze-end loadout
-// covers the team-bars use case at ~5000× fewer rows. See RoundParticipant
-// and migration 011.
 type TickSnapshot struct {
 	Tick    int
 	SteamID string // Steam64ID as string
@@ -189,6 +185,12 @@ type TickSnapshot struct {
 	// Both 0 when the active item has no ammo (e.g. knife) or no active weapon.
 	AmmoClip    int
 	AmmoReserve int
+	// Inventory is the comma-separated weapon list at this sampled tick
+	// (encodeInventory output, same format as RoundParticipant.Inventory).
+	// Migration 023 brought this back so team-bars reflect throws, drops, and
+	// pickups during a round — round_loadouts remains the freeze-end snapshot
+	// used for equip-value calculations.
+	Inventory string
 }
 
 // AnalysisTick is the slim per-(player, tick) row produced by WithTickFanout.
@@ -1158,6 +1160,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 				ammoClip = w.AmmoInMagazine()
 				ammoReserve = w.AmmoReserve()
 			}
+			inventory := encodeInventory(player.Weapons())
 
 			if dp.analysisFanout {
 				// Compute planar velocity from the delta between this sample
@@ -1216,6 +1219,7 @@ func (dp *DemoParser) registerHandlers(p demoinfocs.Parser, state *parseState) {
 				HasDefuser:  player.HasDefuseKit(),
 				AmmoClip:    ammoClip,
 				AmmoReserve: ammoReserve,
+				Inventory:   inventory,
 			}) {
 				slog.Warn("parser: tick push failed; cancelling parse",
 					"tick", tick, "ticks_captured", state.tickCount,

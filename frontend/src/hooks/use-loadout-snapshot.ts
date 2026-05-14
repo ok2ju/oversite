@@ -66,9 +66,9 @@ export function useLoadoutSnapshot(): LoadoutSnapshot {
   return snapshot
 }
 
-// Inventory intentionally omitted: it's per-round (migration 011) and
-// supplied separately via useRoundLoadouts, so the per-tick equality check
-// only covers fields that actually mutate during a round.
+// Inventory is per-tick again (migration 023) so equality has to track it —
+// without this check, the team-bars wouldn't re-render after a throw/drop
+// since none of the other mutable fields necessarily changed on the same tick.
 function sameLoadout(a: TickData, b: TickData): boolean {
   return (
     a.is_alive === b.is_alive &&
@@ -79,6 +79,20 @@ function sameLoadout(a: TickData, b: TickData): boolean {
     a.has_defuser === b.has_defuser &&
     a.weapon === b.weapon &&
     a.ammo_clip === b.ammo_clip &&
-    a.ammo_reserve === b.ammo_reserve
+    a.ammo_reserve === b.ammo_reserve &&
+    sameInventory(a.inventory, b.inventory)
   )
+}
+
+function sameInventory(
+  a: string[] | undefined,
+  b: string[] | undefined,
+): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false
+  }
+  return true
 }

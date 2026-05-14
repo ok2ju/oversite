@@ -4,7 +4,7 @@ VALUES (@round_id, @steam_id, @player_name, @team_side, @kills, @deaths, @assist
 RETURNING *;
 
 -- name: GetPlayerRoundsByRoundID :many
-SELECT * FROM player_rounds WHERE round_id = @round_id;
+SELECT * FROM player_rounds WHERE round_id = @round_id ORDER BY steam_id;
 
 -- name: GetRostersByDemoID :many
 SELECT r.round_number, pr.steam_id, pr.player_name, pr.team_side

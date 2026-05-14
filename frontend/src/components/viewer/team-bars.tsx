@@ -5,21 +5,21 @@ import { useRounds } from "@/hooks/use-rounds"
 import { useRoundRoster } from "@/hooks/use-roster"
 import { useLoadoutSnapshot } from "@/hooks/use-loadout-snapshot"
 import { useRoundLoadouts } from "@/hooks/use-round-loadouts"
-import { useScoreboard } from "@/hooks/use-scoreboard"
+import { useLiveKDA, type LiveKDAMap } from "@/hooks/use-live-kda"
 import { cn } from "@/lib/utils"
 import type { Round } from "@/types/round"
 import type { TickData } from "@/types/demo"
 import type { PlayerRosterEntry, TeamSide } from "@/types/roster"
-import type { ScoreboardEntry } from "@/types/scoreboard"
 import { WeaponIcon } from "./weapon-icon"
 
 interface PlayerLoadout {
   steamId: string
   name: string
   data: TickData | null
-  // inventory comes from round_loadouts (migration 011) — captured at
-  // freeze-end and stable across the round, separate from the per-tick
-  // mutable fields on `data`.
+  // inventory is the player's live weapon list at the current tick (migration
+  // 023). When the live tick doesn't carry one (pre-023 demos backfill to '')
+  // we fall back to the round-scoped freeze-end loadout — same display as
+  // before, just stale for that demo.
   inventory: string[]
   kills: number
   assists: number
@@ -43,25 +43,36 @@ function joinRoster(
   roster: PlayerRosterEntry[] | undefined,
   loadouts: Record<string, TickData>,
   inventories: Record<string, string[]> | undefined,
-  scoreboard: ScoreboardEntry[] | undefined,
+  kda: LiveKDAMap,
   side: TeamSide,
 ): PlayerLoadout[] {
   if (!roster) return []
-  const stats = new Map<string, ScoreboardEntry>(
-    (scoreboard ?? []).map((s) => [s.steam_id, s]),
-  )
+  // Sort by steam_id so player cards keep the same vertical order across
+  // rounds. The Go ingest path builds per-round stats from a map (random
+  // iteration order) and GetPlayerRoundsByRoundID has no ORDER BY, so the
+  // roster array arrives in a different order each round without this sort.
   return roster
     .filter((r) => r.team_side === side)
+    .slice()
+    .sort((a, b) =>
+      a.steam_id < b.steam_id ? -1 : a.steam_id > b.steam_id ? 1 : 0,
+    )
     .map((r) => {
-      const s = stats.get(r.steam_id)
+      const data = loadouts[r.steam_id] ?? null
+      const live = data?.inventory
+      const inventory =
+        live && live.length > 0
+          ? live
+          : (inventories?.[r.steam_id] ?? EMPTY_INVENTORY)
+      const k = kda[r.steam_id]
       return {
         steamId: r.steam_id,
         name: r.player_name,
-        data: loadouts[r.steam_id] ?? null,
-        inventory: inventories?.[r.steam_id] ?? EMPTY_INVENTORY,
-        kills: s?.kills ?? 0,
-        assists: s?.assists ?? 0,
-        deaths: s?.deaths ?? 0,
+        data,
+        inventory,
+        kills: k?.kills ?? 0,
+        assists: k?.assists ?? 0,
+        deaths: k?.deaths ?? 0,
       }
     })
 }
@@ -94,18 +105,18 @@ export function TeamBars() {
 
   const loadouts = useLoadoutSnapshot()
   const { data: roundLoadouts } = useRoundLoadouts(demoId)
-  const { data: scoreboard } = useScoreboard(demoId)
+  const kda = useLiveKDA()
   const activeInventories = activeRound
     ? roundLoadouts?.[activeRound.round_number]
     : undefined
 
   const ctPlayers = useMemo(
-    () => joinRoster(roster, loadouts, activeInventories, scoreboard, "CT"),
-    [roster, loadouts, activeInventories, scoreboard],
+    () => joinRoster(roster, loadouts, activeInventories, kda, "CT"),
+    [roster, loadouts, activeInventories, kda],
   )
   const tPlayers = useMemo(
-    () => joinRoster(roster, loadouts, activeInventories, scoreboard, "T"),
-    [roster, loadouts, activeInventories, scoreboard],
+    () => joinRoster(roster, loadouts, activeInventories, kda, "T"),
+    [roster, loadouts, activeInventories, kda],
   )
 
   if (!demoId || !roster) return null

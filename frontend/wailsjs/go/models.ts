@@ -1416,6 +1416,7 @@ export namespace main {
 	    has_defuser: boolean;
 	    ammo_clip: number;
 	    ammo_reserve: number;
+	    inventory: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new TickData(source);
@@ -1440,6 +1441,7 @@ export namespace main {
 	        this.has_defuser = source["has_defuser"];
 	        this.ammo_clip = source["ammo_clip"];
 	        this.ammo_reserve = source["ammo_reserve"];
+	        this.inventory = source["inventory"];
 	    }
 	}
 	

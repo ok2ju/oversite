@@ -23,6 +23,7 @@ function row(overrides: Partial<TickData>): TickData {
     has_defuser: false,
     ammo_clip: 30,
     ammo_reserve: 90,
+    inventory: [],
     ...overrides,
   }
 }

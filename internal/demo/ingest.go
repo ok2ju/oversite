@@ -28,9 +28,9 @@ const DefaultTickSinkBuffer = 5000
 
 // tickColumnCount is the number of columns inserted per row in tick_data.
 // Must match the column list in tickInsertColumns.
-const tickColumnCount = 18
+const tickColumnCount = 19
 
-const tickInsertColumns = "demo_id, tick, steam_id, x, y, z, yaw, pitch, crouch, health, armor, is_alive, weapon, money, has_helmet, has_defuser, ammo_clip, ammo_reserve"
+const tickInsertColumns = "demo_id, tick, steam_id, x, y, z, yaw, pitch, crouch, health, armor, is_alive, weapon, money, has_helmet, has_defuser, ammo_clip, ammo_reserve, inventory"
 
 // TickIngester batch-inserts tick data into SQLite.
 type TickIngester struct {
@@ -165,7 +165,7 @@ func (ti *TickIngester) IngestStream(ctx context.Context, demoID int64, ticksIn 
 
 // buildTickBatchInsert returns an INSERT statement with rowCount value tuples.
 func buildTickBatchInsert(rowCount int) string {
-	const tuple = "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+	const tuple = "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
 	var b strings.Builder
 	b.Grow(64 + len(tickInsertColumns) + rowCount*(len(tuple)+1))
 	b.WriteString("INSERT INTO tick_data (")
@@ -199,6 +199,7 @@ func appendTickBatchArgs(args []any, demoID int64, batch []TickSnapshot) []any {
 			boolToInt64(t.HasDefuser),
 			int64(t.AmmoClip),
 			int64(t.AmmoReserve),
+			t.Inventory,
 		)
 	}
 	return args

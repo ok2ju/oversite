@@ -53,6 +53,9 @@ export interface TickData {
   has_defuser: boolean
   ammo_clip: number
   ammo_reserve: number
+  // Per-tick inventory (migration 023). Empty array on pre-023 demos —
+  // team-bars falls back to the round-scoped freeze-end loadout in that case.
+  inventory: string[]
 }
 
 // One player's freeze-end loadout for a single round. Inventory is a parsed

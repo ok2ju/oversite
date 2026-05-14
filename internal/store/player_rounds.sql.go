@@ -87,7 +87,7 @@ func (q *Queries) DeletePlayerRoundsByRoundID(ctx context.Context, roundID int64
 }
 
 const getPlayerRoundsByRoundID = `-- name: GetPlayerRoundsByRoundID :many
-SELECT id, round_id, steam_id, player_name, team_side, kills, deaths, assists, damage, headshot_kills, first_kill, first_death, clutch_kills, survived, equip_value, money_spent, kast_round FROM player_rounds WHERE round_id = ?1
+SELECT id, round_id, steam_id, player_name, team_side, kills, deaths, assists, damage, headshot_kills, first_kill, first_death, clutch_kills, survived, equip_value, money_spent, kast_round FROM player_rounds WHERE round_id = ?1 ORDER BY steam_id
 `
 
 func (q *Queries) GetPlayerRoundsByRoundID(ctx context.Context, roundID int64) ([]PlayerRound, error) {
