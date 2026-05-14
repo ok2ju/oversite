@@ -75,90 +75,75 @@ export function MatchHeader() {
   return (
     <div
       data-testid="match-header"
-      className="pointer-events-auto absolute inset-x-0 top-0 z-30 flex h-[46px] items-center gap-4 border-b border-white/[0.06] bg-[#0b0d10]/95 px-4 backdrop-blur-md"
+      className="pointer-events-auto absolute inset-x-0 top-0 z-30 flex h-[48px] items-center gap-6 border-b border-white/[0.07] bg-[#14171c] px-5"
     >
       <Link
         to="/demos"
         data-testid="match-header-back"
         aria-label="Back to demos"
         title="Back to demos"
-        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-white/65 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30"
+        className="inline-flex items-center gap-2 rounded-md px-1.5 py-1 text-[12.5px] text-white/55 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30"
       >
-        <ArrowLeft className="h-4 w-4" />
+        <ArrowLeft className="h-3.5 w-3.5" />
+        <span>Demo</span>
       </Link>
 
-      <span aria-hidden="true" className="h-[22px] w-px bg-white/10" />
-
-      {/* Brand lockup */}
-      <span className="hud-callsign whitespace-nowrap text-[11px] text-white/45">
-        OVERSITE · DEMO
-      </span>
-
-      <span aria-hidden="true" className="h-[22px] w-px bg-white/10" />
-
       {/* Scoreboard: T (gold) — vs — CT (blue) */}
-      <div className="flex items-center gap-2.5 whitespace-nowrap">
-        <span className="flex items-center gap-1.5">
+      <div className="flex items-baseline gap-2.5 whitespace-nowrap">
+        <span className="flex items-baseline gap-1.5">
           <span
             aria-hidden="true"
-            className="h-2 w-2 rounded-sm bg-amber-400 shadow-[0_0_6px_1px_rgba(251,191,36,0.55)]"
+            className="relative top-[-1px] inline-block h-1.5 w-1.5 self-center rounded-full bg-amber-400"
           />
           <span
             data-testid="match-header-team-t"
-            className="font-mono text-[12px] text-white/65"
+            className="text-[12.5px] text-white/70"
           >
             {tTeam}
           </span>
           <span
             data-testid="match-header-t-score"
-            className="ml-1 font-mono text-[18px] font-bold leading-none tabular-nums text-white"
+            className="font-sans text-[14px] font-semibold leading-none tabular-nums text-white"
           >
             {header.tScore}
           </span>
         </span>
-        <span className="font-mono text-[12px] text-white/35">vs</span>
-        <span className="flex items-center gap-1.5">
+        <span className="text-[11.5px] text-white/30">vs</span>
+        <span className="flex items-baseline gap-1.5">
           <span
             data-testid="match-header-ct-score"
-            className="font-mono text-[18px] font-bold leading-none tabular-nums text-white"
+            className="font-sans text-[14px] font-semibold leading-none tabular-nums text-white"
           >
             {header.ctScore}
           </span>
           <span
             data-testid="match-header-team-ct"
-            className="ml-1 font-mono text-[12px] text-white/65"
+            className="text-[12.5px] text-white/70"
           >
             {ctTeam}
           </span>
           <span
             aria-hidden="true"
-            className="h-2 w-2 rounded-sm bg-sky-400 shadow-[0_0_6px_1px_rgba(56,189,248,0.55)]"
+            className="relative top-[-1px] inline-block h-1.5 w-1.5 self-center rounded-full bg-sky-400"
           />
         </span>
       </div>
 
-      <span aria-hidden="true" className="h-[22px] w-px bg-white/10" />
-
       {/* Match meta */}
-      <div className="flex items-center gap-2 whitespace-nowrap font-mono text-[12px] text-white/55">
-        <span>MAP</span>
-        <span className="text-white/85">{mapName ?? "—"}</span>
-        <span className="ml-3">RND</span>
-        <span className="text-white/85 tabular-nums">
-          {String(header.roundNumber).padStart(2, "0")}/
-          {String(header.totalRounds).padStart(2, "0")}
-        </span>
-        <span className="ml-3">CLOCK</span>
-        <span
-          data-testid="match-header-round-time"
-          className="text-white/85 tabular-nums"
-        >
-          {roundTime}
-        </span>
-        <span className="ml-3">TICK</span>
-        <span className="text-white/85 tabular-nums">
-          {currentTick.toLocaleString()}
-        </span>
+      <div className="flex items-baseline gap-5 whitespace-nowrap text-[11.5px]">
+        <MetaItem label="Map" value={mapName ?? "—"} />
+        <MetaItem
+          label="Round"
+          value={`${String(header.roundNumber).padStart(2, "0")}/${String(
+            header.totalRounds,
+          ).padStart(2, "0")}`}
+        />
+        <MetaItem
+          label="Clock"
+          value={roundTime}
+          testId="match-header-round-time"
+        />
+        <MetaItem label="Tick" value={currentTick.toLocaleString()} />
       </div>
 
       {/* Route tabs */}
@@ -166,5 +151,27 @@ export function MatchHeader() {
         <DemoRouteTabs demoId={demoId} />
       </div>
     </div>
+  )
+}
+
+function MetaItem({
+  label,
+  value,
+  testId,
+}: {
+  label: string
+  value: string
+  testId?: string
+}) {
+  return (
+    <span className="flex items-baseline gap-1.5">
+      <span className="text-white/40">{label}</span>
+      <span
+        data-testid={testId}
+        className="font-sans font-medium tabular-nums text-white/90"
+      >
+        {value}
+      </span>
+    </span>
   )
 }

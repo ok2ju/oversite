@@ -32,34 +32,33 @@ function findPlayer(
 }
 
 // Focal player chip — gold pill when a player is selected, neutral chip when
-// nothing is. Mirrors the design's "george" tag attached to the round
-// picker row.
+// nothing is. Mirrors the design's player tag attached to the round picker row.
 function FocalPlayerChip({ player }: { player: PlayerRosterEntry | null }) {
   if (!player) {
     return (
       <span
         data-testid="focal-player-chip"
-        className="hud-callsign inline-flex h-5 items-center rounded-[3px] bg-white/[0.06] px-2 text-[10px] font-semibold text-white/55"
+        className="inline-flex h-6 items-center rounded-[4px] bg-white/[0.06] px-2.5 text-[10.5px] font-medium text-white/60"
       >
-        ALL PLAYERS
+        All players
       </span>
     )
   }
   const isT = player.team_side === "T"
-  const initials = player.player_name.slice(0, 2).toUpperCase()
   return (
     <span
       data-testid="focal-player-chip"
       data-player-side={player.team_side}
       className={cn(
-        "inline-flex h-5 items-center gap-1.5 rounded-[3px] pl-0.5 pr-2",
+        "inline-flex h-6 shrink-0 items-center gap-1.5 rounded-[4px] px-2",
         isT ? "bg-amber-400" : "bg-sky-400",
       )}
     >
-      <span className="flex h-[18px] w-[18px] items-center justify-center rounded-[2px] bg-black/30 font-mono text-[9px] font-bold text-white">
-        {initials}
-      </span>
-      <span className="font-mono text-[10px] font-bold tracking-[0.02em] text-black">
+      <span
+        aria-hidden="true"
+        className="h-1.5 w-1.5 rounded-full bg-black/55"
+      />
+      <span className="text-[11.5px] font-semibold leading-none text-black">
         {player.player_name}
       </span>
     </span>
@@ -159,18 +158,18 @@ const TransportRow = memo(function TransportRow({
 
   return (
     <div
-      className="flex items-center gap-2 px-1 pt-0.5 pb-1.5 font-mono text-[11px] text-white/55"
+      className="flex items-center gap-3 pb-2 pt-1.5 text-[11.5px] text-white/55"
       data-testid="playback-transport"
     >
-      <div className="inline-flex items-center gap-px">
+      <div className="inline-flex items-center gap-1">
         <button
           type="button"
           onClick={handlePrev}
           aria-label="Step back 5 seconds"
           data-testid="playback-prev"
-          className="inline-flex h-5 w-5 items-center justify-center rounded-[3px] bg-white/[0.05] text-white/80 transition-colors hover:bg-white/15"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-[4px] text-white/70 transition-colors hover:bg-white/[0.08] hover:text-white"
         >
-          <SkipBack size={10} className="fill-current" />
+          <SkipBack size={12} className="fill-current" />
         </button>
         <button
           type="button"
@@ -178,16 +177,16 @@ const TransportRow = memo(function TransportRow({
           aria-label={isPlaying ? "Pause" : "Play"}
           data-testid="playback-dock-play"
           className={cn(
-            "inline-flex h-5 w-5 items-center justify-center rounded-[3px] transition-colors",
+            "inline-flex h-6 w-6 items-center justify-center rounded-[4px] transition-colors",
             isPlaying
-              ? "bg-orange-400 text-black hover:bg-orange-300"
+              ? "bg-amber-400 text-black hover:bg-amber-300"
               : "bg-white text-black hover:bg-white/90",
           )}
         >
           {isPlaying ? (
-            <Pause size={9} className="fill-current" />
+            <Pause size={11} className="fill-current" />
           ) : (
-            <Play size={9} className="ml-px fill-current" />
+            <Play size={11} className="ml-0.5 fill-current" />
           )}
         </button>
         <button
@@ -195,9 +194,9 @@ const TransportRow = memo(function TransportRow({
           onClick={handleNext}
           aria-label="Step forward 5 seconds"
           data-testid="playback-next"
-          className="inline-flex h-5 w-5 items-center justify-center rounded-[3px] bg-white/[0.05] text-white/80 transition-colors hover:bg-white/15"
+          className="inline-flex h-6 w-6 items-center justify-center rounded-[4px] text-white/70 transition-colors hover:bg-white/[0.08] hover:text-white"
         >
-          <SkipForward size={10} className="fill-current" />
+          <SkipForward size={12} className="fill-current" />
         </button>
       </div>
 
@@ -206,12 +205,12 @@ const TransportRow = memo(function TransportRow({
         aria-label="Playback speed"
         value={speed}
         onChange={(e) => setSpeed(Number(e.target.value))}
-        className="h-5 w-[52px] cursor-pointer appearance-none rounded-[3px] border border-white/10 bg-white/[0.04] py-0 pl-1.5 pr-3.5 font-mono text-[10px] tabular-nums text-white/85 outline-none transition-colors hover:bg-white/10 focus:border-white/25"
+        className="h-6 w-[56px] cursor-pointer appearance-none rounded-[4px] border border-white/10 bg-white/[0.04] py-0 pl-2 pr-4 text-[11px] tabular-nums text-white/85 outline-none transition-colors hover:bg-white/[0.08] focus:border-white/25"
         style={{
           backgroundImage:
             "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='6' viewBox='0 0 8 6'><path fill='%23a0a3aa' d='M0 0h8L4 6z'/></svg>\")",
           backgroundRepeat: "no-repeat",
-          backgroundPosition: "right 4px center",
+          backgroundPosition: "right 5px center",
         }}
       >
         {SPEED_OPTIONS.map((s) => (
@@ -222,21 +221,41 @@ const TransportRow = memo(function TransportRow({
       </select>
 
       {activeRound ? (
-        <>
-          <span className="tabular-nums text-white/85" data-testid="round-time">
+        <div className="flex items-baseline gap-1.5 leading-none">
+          <span
+            className="font-semibold tabular-nums text-white"
+            data-testid="round-time"
+          >
             {formatElapsedTime(elapsed, tickRate)}
           </span>
-          <span className="text-white/30">·</span>
+          <span className="text-white/25">·</span>
           <span className="text-white/55">
-            ROUND {activeRound.round_number}
+            Round {activeRound.round_number}
           </span>
-        </>
+          <span className="text-white/35 tabular-nums">
+            {formatElapsedTime(total, tickRate)}
+          </span>
+        </div>
       ) : (
         <span>—</span>
       )}
 
-      <span className="ml-auto tabular-nums text-white/55">
-        {formatElapsedTime(total, tickRate)}
+      <span className="ml-auto inline-flex items-center gap-1 text-white/55">
+        <span className="text-[11px] tabular-nums">1×</span>
+        <button
+          type="button"
+          aria-label="Zoom out"
+          className="inline-flex h-5 w-5 items-center justify-center rounded text-white/55 transition-colors hover:bg-white/[0.06] hover:text-white"
+        >
+          −
+        </button>
+        <button
+          type="button"
+          aria-label="Zoom in"
+          className="inline-flex h-5 w-5 items-center justify-center rounded text-white/55 transition-colors hover:bg-white/[0.06] hover:text-white"
+        >
+          +
+        </button>
       </span>
     </div>
   )
@@ -282,24 +301,12 @@ export function PlaybackDock() {
       onMouseDown={stop}
       onPointerDown={stop}
       onClick={stop}
-      className="hud-panel pointer-events-auto absolute bottom-4 left-4 right-4 flex flex-col rounded-lg px-3 pt-2 pb-2"
+      className="pointer-events-auto absolute bottom-4 left-4 right-4 flex flex-col gap-1 rounded-lg border border-white/[0.06] bg-[#0e1115]/95 px-4 pb-3 pt-2.5 backdrop-blur-md"
     >
-      {/* Row 1 — focal player chip + round picker + side-win legend */}
-      <div className="flex items-center gap-2.5 pb-2">
+      {/* Row 1 — focal player chip + round picker */}
+      <div className="flex items-center gap-2.5">
         <FocalPlayerChip player={focalPlayer} />
         <RoundSelector variant="embedded" />
-        <div
-          aria-hidden="true"
-          className="ml-auto flex items-center gap-3 font-mono text-[10px] text-white/55"
-        >
-          <span className="inline-flex items-center gap-1.5">
-            <span className="inline-block h-[3px] w-2.5 bg-amber-400" />T win
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span className="inline-block h-[3px] w-2.5 bg-sky-400" />
-            CT win
-          </span>
-        </div>
       </div>
 
       {/* Row 2 — compact transport, speed select, round clock */}

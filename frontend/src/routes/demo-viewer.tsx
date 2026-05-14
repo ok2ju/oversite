@@ -120,20 +120,22 @@ export default function DemoViewerPage() {
 
   return (
     <div
-      className="relative h-full w-full overflow-hidden bg-black"
+      className="flex h-full w-full overflow-hidden bg-black"
       data-testid="demo-viewer"
     >
-      <ViewerCanvas />
-      {/* Soft edge vignette so the chrome lifts off the radar without darkening the playable centre */}
-      <div
-        aria-hidden="true"
-        className="hud-vignette pointer-events-none absolute inset-0 z-[5]"
-      />
-      <MatchHeader />
-      <TeamBars />
-      <KillLog />
-      <PlaybackDock />
-      <Scoreboard visible={scoreboardVisible} />
+      <div className="relative min-w-0 flex-1 overflow-hidden">
+        <ViewerCanvas />
+        {/* Soft edge vignette so the chrome lifts off the radar without darkening the playable centre */}
+        <div
+          aria-hidden="true"
+          className="hud-vignette pointer-events-none absolute inset-0 z-[5]"
+        />
+        <MatchHeader />
+        <TeamBars />
+        <KillLog />
+        <PlaybackDock />
+        <Scoreboard visible={scoreboardVisible} />
+      </div>
       <PlayerStatsPanel />
     </div>
   )

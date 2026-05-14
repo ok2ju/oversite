@@ -497,6 +497,9 @@
     border-right: 1px solid var(--border);
     min-height: 0;
     position: relative;
+    /* Lift above viewer chrome (match-header z-30) so the collapse handle,
+       which protrudes -13px into the main pane when collapsed, stays clickable. */
+    z-index: 40;
   }
 
   .side-brand {

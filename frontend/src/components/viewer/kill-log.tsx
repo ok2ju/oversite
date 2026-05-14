@@ -33,7 +33,7 @@ export function KillLog() {
   return (
     <div
       data-testid="kill-log"
-      className="pointer-events-none absolute right-3 top-16 z-20 flex flex-col items-end gap-1"
+      className="pointer-events-none absolute left-1/2 top-[60px] z-20 flex -translate-x-1/2 flex-col items-center gap-1"
     >
       {visible.map((kill) => (
         <KillRow key={kill.id} kill={kill} />
@@ -56,7 +56,7 @@ const KillRow = memo(function KillRow({ kill }: { kill: KillEntry }) {
     <div
       data-testid={`kill-log-row-${kill.id}`}
       className={cn(
-        "hud-panel relative flex items-center gap-2 overflow-hidden rounded-sm py-1 pl-3 pr-2.5 text-xs font-semibold tracking-tight text-white",
+        "relative flex items-center gap-2 overflow-hidden rounded-[4px] border border-white/[0.06] bg-[#15181D]/95 px-3 py-1 text-xs font-medium tracking-tight text-white backdrop-blur-sm",
         "before:absolute before:left-0 before:top-1/2 before:h-3 before:w-[2px] before:-translate-y-1/2 before:rounded-r before:content-['']",
         stripe,
       )}

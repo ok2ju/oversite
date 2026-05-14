@@ -5,10 +5,12 @@ import { useRounds } from "@/hooks/use-rounds"
 import { useRoundRoster } from "@/hooks/use-roster"
 import { useLoadoutSnapshot } from "@/hooks/use-loadout-snapshot"
 import { useRoundLoadouts } from "@/hooks/use-round-loadouts"
+import { useScoreboard } from "@/hooks/use-scoreboard"
 import { cn } from "@/lib/utils"
 import type { Round } from "@/types/round"
 import type { TickData } from "@/types/demo"
 import type { PlayerRosterEntry, TeamSide } from "@/types/roster"
+import type { ScoreboardEntry } from "@/types/scoreboard"
 import { WeaponIcon } from "./weapon-icon"
 
 interface PlayerLoadout {
@@ -19,6 +21,9 @@ interface PlayerLoadout {
   // freeze-end and stable across the round, separate from the per-tick
   // mutable fields on `data`.
   inventory: string[]
+  kills: number
+  assists: number
+  deaths: number
 }
 
 const EMPTY_INVENTORY: string[] = []
@@ -38,17 +43,38 @@ function joinRoster(
   roster: PlayerRosterEntry[] | undefined,
   loadouts: Record<string, TickData>,
   inventories: Record<string, string[]> | undefined,
+  scoreboard: ScoreboardEntry[] | undefined,
   side: TeamSide,
 ): PlayerLoadout[] {
   if (!roster) return []
+  const stats = new Map<string, ScoreboardEntry>(
+    (scoreboard ?? []).map((s) => [s.steam_id, s]),
+  )
   return roster
     .filter((r) => r.team_side === side)
-    .map((r) => ({
-      steamId: r.steam_id,
-      name: r.player_name,
-      data: loadouts[r.steam_id] ?? null,
-      inventory: inventories?.[r.steam_id] ?? EMPTY_INVENTORY,
-    }))
+    .map((r) => {
+      const s = stats.get(r.steam_id)
+      return {
+        steamId: r.steam_id,
+        name: r.player_name,
+        data: loadouts[r.steam_id] ?? null,
+        inventory: inventories?.[r.steam_id] ?? EMPTY_INVENTORY,
+        kills: s?.kills ?? 0,
+        assists: s?.assists ?? 0,
+        deaths: s?.deaths ?? 0,
+      }
+    })
+}
+
+function teamLabel(
+  clanName: string,
+  entries: PlayerRosterEntry[] | undefined,
+  side: TeamSide,
+): string {
+  if (clanName) return clanName
+  const first = entries?.find((e) => e.team_side === side)
+  if (first) return `team_${first.player_name}`
+  return side
 }
 
 export function TeamBars() {
@@ -68,123 +94,141 @@ export function TeamBars() {
 
   const loadouts = useLoadoutSnapshot()
   const { data: roundLoadouts } = useRoundLoadouts(demoId)
+  const { data: scoreboard } = useScoreboard(demoId)
   const activeInventories = activeRound
     ? roundLoadouts?.[activeRound.round_number]
     : undefined
 
   const ctPlayers = useMemo(
-    () => joinRoster(roster, loadouts, activeInventories, "CT"),
-    [roster, loadouts, activeInventories],
+    () => joinRoster(roster, loadouts, activeInventories, scoreboard, "CT"),
+    [roster, loadouts, activeInventories, scoreboard],
   )
   const tPlayers = useMemo(
-    () => joinRoster(roster, loadouts, activeInventories, "T"),
-    [roster, loadouts, activeInventories],
+    () => joinRoster(roster, loadouts, activeInventories, scoreboard, "T"),
+    [roster, loadouts, activeInventories, scoreboard],
   )
 
   if (!demoId || !roster) return null
 
+  const tTeamName = teamLabel(activeRound?.t_team_name ?? "", roster, "T")
+  const ctTeamName = teamLabel(activeRound?.ct_team_name ?? "", roster, "CT")
+
   return (
     <>
       <div
-        data-testid="team-bar-ct"
-        className="pointer-events-none absolute left-3 top-1/2 z-10 flex w-[208px] -translate-y-1/2 flex-col gap-1.5"
+        data-testid="team-bar-t"
+        className="pointer-events-none absolute left-4 top-[60px] z-10 flex w-[230px] flex-col gap-1"
       >
-        {ctPlayers.map((p) => (
-          <PlayerRow key={p.steamId} player={p} side="CT" />
+        <SectionLabel side="T" team={tTeamName} />
+        {tPlayers.map((p) => (
+          <PlayerRow key={p.steamId} player={p} />
         ))}
       </div>
       <div
-        data-testid="team-bar-t"
-        className="pointer-events-none absolute right-3 top-1/2 z-10 flex w-[208px] -translate-y-1/2 flex-col gap-1.5"
+        data-testid="team-bar-ct"
+        className="pointer-events-none absolute right-4 top-[60px] z-10 flex w-[230px] flex-col gap-1"
       >
-        {tPlayers.map((p) => (
-          <PlayerRow key={p.steamId} player={p} side="T" />
+        <SectionLabel side="CT" team={ctTeamName} />
+        {ctPlayers.map((p) => (
+          <PlayerRow key={p.steamId} player={p} />
         ))}
       </div>
     </>
   )
 }
 
+function SectionLabel({ side, team }: { side: TeamSide; team: string }) {
+  const isT = side === "T"
+  return (
+    <div
+      data-testid={`team-bar-label-${side.toLowerCase()}`}
+      className="flex items-baseline gap-1.5 pb-1.5 pl-0.5 text-[11px]"
+    >
+      <span
+        className={cn(
+          "font-semibold tracking-wide",
+          isT ? "text-amber-400" : "text-sky-400",
+        )}
+      >
+        {side}
+      </span>
+      <span className="text-white/30">·</span>
+      <span className="text-white/55">{team}</span>
+    </div>
+  )
+}
+
 const PlayerRow = memo(function PlayerRow({
   player,
-  side,
 }: {
   player: PlayerLoadout
-  side: TeamSide
 }) {
   const data = player.data
   const isAlive = data?.is_alive ?? true
-  const isCt = side === "CT"
-  // Tone retains the original `bg-sky-500` / `bg-orange-500` literals so any
-  // downstream tooling matching against side colors keeps working — they are
-  // now layered as a thin side-stripe rather than a full header bar.
-  const tone = isCt ? "bg-sky-500" : "bg-orange-500"
-  const headerName = isCt ? "text-sky-200" : "text-orange-200"
-  const moneyText = data ? `$${data.money}` : ""
+  const moneyText = data ? `$${data.money.toLocaleString()}` : ""
   const weapon = pickPrimary(data, player.inventory)
 
   return (
     <div
       data-testid={`team-bar-row-${player.steamId}`}
       className={cn(
-        "hud-panel relative overflow-hidden rounded-md text-xs text-white",
-        isCt ? "hud-stripe-ct" : "hud-stripe-t",
+        "relative overflow-hidden rounded-md border border-white/[0.06] bg-[#15181D] px-3 py-2.5 text-xs text-white",
         !isAlive && "opacity-40 grayscale",
       )}
     >
-      {/* Side stripe — thin glowing edge keyed off the original tone classes */}
-      <span
-        aria-hidden="true"
-        className={cn(
-          "absolute top-0 h-full w-[2px] opacity-90",
-          tone,
-          isCt ? "left-0" : "right-0",
-        )}
-      />
-      <div
-        className={cn(
-          "flex items-center gap-2 px-2.5 pt-1.5",
-          isCt ? "flex-row" : "flex-row-reverse",
-        )}
-      >
+      <div className="flex items-center gap-2">
         {weapon ? (
-          <WeaponIcon name={weapon} className="h-4 w-auto text-white/85" />
+          <WeaponIcon name={weapon} className="h-3.5 w-auto text-white/60" />
         ) : (
-          <span className="h-4 w-4" />
+          <span className="h-3.5 w-4" />
         )}
-        <span
-          className={cn(
-            "hud-callsign flex-1 truncate text-[11px] font-semibold leading-none",
-            headerName,
-            isCt ? "text-left" : "text-right",
-          )}
-        >
+        <span className="flex-1 truncate text-[12.5px] font-semibold leading-none text-white">
           {player.name}
         </span>
+        <KDAStat
+          kills={player.kills}
+          assists={player.assists}
+          deaths={player.deaths}
+        />
       </div>
-      <WeaponLabelRow data={data} side={side} />
-      <HealthRow data={data} side={side} />
-      <div
-        className={cn(
-          "flex items-center gap-2 px-2.5 pb-1.5 pt-0.5",
-          isCt
-            ? "flex-row justify-between"
-            : "flex-row-reverse justify-between",
-        )}
-      >
+      <HealthRow data={data} />
+      <div className="mt-2 flex items-center gap-1.5">
+        <LoadoutIcons data={data} inventory={player.inventory} />
         <span
           className={cn(
-            "font-mono text-[11px] tabular-nums text-emerald-300",
-            !isCt && "text-right",
+            "ml-auto text-[11px] font-medium tabular-nums",
+            data && data.money > 0 ? "text-white/75" : "text-white/30",
           )}
         >
           {moneyText}
         </span>
-        <LoadoutIcons data={data} inventory={player.inventory} side={side} />
       </div>
     </div>
   )
 })
+
+function KDAStat({
+  kills,
+  assists,
+  deaths,
+}: {
+  kills: number
+  assists: number
+  deaths: number
+}) {
+  return (
+    <span
+      data-testid="team-bar-kda"
+      className="flex items-baseline gap-1 text-[12px] leading-none tabular-nums"
+    >
+      <span className="font-semibold text-white">{kills}</span>
+      <span className="text-white/25">/</span>
+      <span className="text-white/55">{assists}</span>
+      <span className="text-white/25">/</span>
+      <span className="text-white/55">{deaths}</span>
+    </span>
+  )
+}
 
 function getHealthBarClass(health: number): string {
   if (health > 60) return "bg-emerald-500"
@@ -198,83 +242,54 @@ function getHealthTextClass(health: number): string {
   return "text-red-400"
 }
 
-const WeaponLabelRow = memo(function WeaponLabelRow({
-  data,
-  side,
-}: {
-  data: TickData | null
-  side: TeamSide
-}) {
-  if (!data || !data.is_alive || !data.weapon) return null
-  const isCt = side === "CT"
-  return (
-    <div
-      data-testid={`team-bar-weapon-${data.steam_id}`}
-      className={cn(
-        "flex items-center px-2 py-0.5",
-        isCt ? "flex-row justify-start" : "flex-row-reverse justify-start",
-      )}
-    >
-      <WeaponIcon name={data.weapon} className="h-3 w-auto opacity-90" />
-    </div>
-  )
-})
-
-const HealthRow = memo(function HealthRow({
-  data,
-  side,
-}: {
-  data: TickData | null
-  side: TeamSide
-}) {
+const HealthRow = memo(function HealthRow({ data }: { data: TickData | null }) {
   if (!data) return null
   const health = Math.max(0, Math.min(100, data.health))
   const armor = Math.max(0, Math.min(100, data.armor))
-  const isCt = side === "CT"
   const fillPct = `${health}%`
 
   return (
     <div
       data-testid={`team-bar-health-${data.steam_id}`}
-      className={cn(
-        "flex items-center gap-2 px-2.5 pb-0.5 pt-0.5",
-        isCt ? "flex-row" : "flex-row-reverse",
-      )}
+      className="mt-2 flex items-center gap-2"
     >
       <span
         className={cn(
-          "hud-display w-7 shrink-0 text-[15px] font-semibold leading-none tabular-nums",
+          "w-8 shrink-0 text-left text-[18px] font-bold leading-none tabular-nums",
           getHealthTextClass(health),
-          isCt ? "text-left" : "text-right",
         )}
       >
         {health}
       </span>
-      <div className="relative h-1 flex-1 overflow-hidden rounded-full bg-white/[0.06] ring-1 ring-inset ring-white/5">
+      <div className="relative h-[3px] flex-1 overflow-hidden rounded-full bg-white/[0.06]">
         <div
           data-testid={`team-bar-health-fill-${data.steam_id}`}
           className={cn(
             "h-full rounded-full transition-[width] duration-150 ease-out",
             getHealthBarClass(health),
-            !isCt && "ml-auto",
           )}
           style={{ width: fillPct }}
         />
       </div>
       <div
-        className={cn(
-          "flex w-9 shrink-0 items-center gap-0.5 font-mono tabular-nums text-white/70",
-          isCt ? "flex-row justify-end" : "flex-row-reverse justify-end",
-        )}
-        title={`Armor ${armor}`}
+        className="flex shrink-0 items-center gap-1 tabular-nums"
+        title={data.has_helmet ? `Armor ${armor} + helmet` : `Armor ${armor}`}
       >
+        <span
+          className={cn(
+            "text-[11px] font-medium",
+            armor > 0 ? "text-white/75" : "text-white/30",
+          )}
+        >
+          {armor}
+        </span>
         <Shield
           className={cn(
             "h-3 w-3",
-            armor > 0 ? "text-sky-300" : "text-white/30",
+            armor > 0 ? "text-white/55" : "text-white/25",
           )}
+          fill={data.has_helmet && armor > 0 ? "currentColor" : "none"}
         />
-        <span className="text-[10px]">{armor}</span>
       </div>
     </div>
   )
@@ -296,27 +311,15 @@ function EquipmentIcon({ path }: { path: string }) {
 const LoadoutIcons = memo(function LoadoutIcons({
   data,
   inventory,
-  side,
 }: {
   data: TickData | null
   inventory: string[]
-  side: TeamSide
 }) {
   if (!data) return null
   const flashCount = countInventory(inventory, isFlash)
-  const reverse = side === "T"
   return (
-    <div
-      className={cn(
-        "flex items-center gap-1",
-        reverse ? "flex-row-reverse" : "flex-row",
-      )}
-    >
-      {data.has_helmet && <EquipmentIcon path="/equipment/helmet.svg" />}
+    <div className="flex items-center gap-1">
       {data.has_defuser && <EquipmentIcon path="/equipment/defuser.svg" />}
-      {hasWeapon(inventory, "Kevlar Vest") && !data.has_helmet && (
-        <EquipmentIcon path="/equipment/kevlar.svg" />
-      )}
       {hasWeapon(inventory, "C4") && <WeaponIcon name="C4" {...ICON_PROPS} />}
       {hasWeapon(inventory, "Zeus x27") && (
         <WeaponIcon name="Zeus x27" {...ICON_PROPS} />

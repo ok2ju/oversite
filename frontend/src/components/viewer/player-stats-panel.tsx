@@ -3,14 +3,14 @@ import { X } from "lucide-react"
 import { useViewerStore } from "@/stores/viewer"
 import { useRounds } from "@/hooks/use-rounds"
 import { usePlayerStats } from "@/hooks/use-player-stats"
+import { usePlayerAnalysis } from "@/hooks/use-analysis"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { PlayerLiveHud } from "@/components/viewer/player-live-hud"
-import { AnalysisOverallGauge } from "@/components/viewer/analysis-overall-gauge"
 import type { PlayerMatchStats, PlayerRoundDetail } from "@/types/player-stats"
 import type { Round } from "@/types/round"
 
-const PANEL_WIDTH = 420
+const PANEL_WIDTH = 380
 
 const sideColor = (side: string) =>
   side === "CT"
@@ -24,6 +24,92 @@ const sideBg = (side: string) =>
     : side === "T"
       ? "bg-amber-400/30"
       : "bg-white/10"
+const sideDot = (side: string) =>
+  side === "CT"
+    ? "bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.7)]"
+    : side === "T"
+      ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.7)]"
+      : "bg-white/40"
+
+function HeaderPerformance() {
+  const demoId = useViewerStore((s) => s.demoId)
+  const steamId = useViewerStore((s) => s.selectedPlayerSteamId)
+  const { data, isLoading } = usePlayerAnalysis(demoId, steamId)
+
+  if (isLoading || !data || !data.steam_id) return null
+
+  const score = Math.max(0, Math.min(100, data.overall_score))
+  const radius = 13
+  const circumference = 2 * Math.PI * radius
+  const dash = (score / 100) * circumference
+
+  const tierStroke =
+    score >= 75
+      ? "stroke-emerald-400"
+      : score >= 50
+        ? "stroke-amber-400"
+        : "stroke-rose-400"
+  const tierText =
+    score >= 75
+      ? "text-emerald-400"
+      : score >= 50
+        ? "text-amber-400"
+        : "text-rose-400"
+  const tierGlow =
+    score >= 75
+      ? "drop-shadow(0 0 5px rgba(74,222,128,0.55))"
+      : score >= 50
+        ? "drop-shadow(0 0 5px rgba(251,191,36,0.55))"
+        : "drop-shadow(0 0 5px rgba(251,113,133,0.55))"
+  const tierLabel = score >= 75 ? "Elite" : score >= 50 ? "Solid" : "Low"
+
+  return (
+    <div
+      data-testid="player-stats-header-performance"
+      className="flex items-center gap-2"
+    >
+      <div className="flex flex-col items-end leading-none">
+        <span className="hud-callsign text-[8.5px] font-semibold uppercase tracking-[0.22em] text-white/40">
+          Perf
+        </span>
+        <span
+          className={`mt-1 text-[9.5px] font-semibold uppercase tracking-[0.18em] ${tierText}`}
+        >
+          {tierLabel}
+        </span>
+      </div>
+      <div className="relative h-9 w-9 shrink-0">
+        <svg viewBox="0 0 36 36" className="h-full w-full -rotate-90">
+          <circle
+            cx="18"
+            cy="18"
+            r={radius}
+            fill="none"
+            stroke="rgba(255,255,255,0.07)"
+            strokeWidth="2.5"
+          />
+          <circle
+            cx="18"
+            cy="18"
+            r={radius}
+            fill="none"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeDasharray={`${dash} ${circumference - dash}`}
+            className={tierStroke}
+            style={{
+              filter: tierGlow,
+              transition: "stroke-dasharray 320ms ease",
+            }}
+          />
+        </svg>
+        <span className="hud-display absolute inset-0 flex items-center justify-center text-[11.5px] font-semibold leading-none text-white tabular-nums">
+          {score}
+        </span>
+      </div>
+    </div>
+  )
+}
 
 function getActiveRoundIndex(rounds: Round[], currentTick: number): number {
   for (let i = rounds.length - 1; i >= 0; i--) {
@@ -53,11 +139,13 @@ function MatchSummary({ stats }: { stats: PlayerMatchStats }) {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded border border-white/10 bg-white/5 p-2">
-      <div className="text-[10px] uppercase tracking-wide text-white/60">
+    <div className="rounded-md border border-white/[0.07] bg-white/[0.02] px-2.5 py-2">
+      <div className="text-[10px] font-medium uppercase tracking-wide text-white/55">
         {label}
       </div>
-      <div className="tabular-nums text-white">{value}</div>
+      <div className="mt-0.5 text-[12.5px] font-medium tabular-nums leading-none text-white">
+        {value}
+      </div>
     </div>
   )
 }
@@ -73,8 +161,8 @@ function RoundStrip({
 }) {
   const maxDamage = Math.max(1, ...rounds.map((r) => r.damage))
   return (
-    <div data-testid="player-stats-round-strip" className="space-y-1">
-      <div className="text-[10px] uppercase tracking-wide text-white/60">
+    <div data-testid="player-stats-round-strip" className="space-y-1.5">
+      <div className="text-[10px] font-medium uppercase tracking-wide text-white/55">
         Per round
       </div>
       <div className="flex flex-wrap gap-1">
@@ -88,10 +176,10 @@ function RoundStrip({
               data-testid={`player-stats-round-cell-${r.round_number}`}
               data-active={active ? "true" : undefined}
               onClick={() => onSelectRound(r.round_number)}
-              className={`flex h-12 w-7 flex-col items-center justify-end rounded border text-[10px] tabular-nums ${
+              className={`flex h-12 w-7 flex-col items-center justify-end overflow-hidden rounded-[4px] border text-[10px] tabular-nums transition-colors ${
                 active
-                  ? "border-white/80 bg-white/15 text-white"
-                  : "border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+                  ? "border-white/70 bg-white/[0.12] text-white"
+                  : "border-white/[0.07] bg-white/[0.02] text-white/65 hover:bg-white/[0.08]"
               }`}
               title={`Round ${r.round_number}: ${r.kills}K / ${r.deaths}D, ${r.damage} dmg`}
             >
@@ -114,8 +202,8 @@ function RoundStrip({
 function MovementSparkline({ rounds }: { rounds: PlayerRoundDetail[] }) {
   const maxDistance = Math.max(1, ...rounds.map((r) => r.distance_units))
   return (
-    <div data-testid="player-stats-movement-sparkline" className="space-y-1">
-      <div className="text-[10px] uppercase tracking-wide text-white/60">
+    <div data-testid="player-stats-movement-sparkline" className="space-y-1.5">
+      <div className="text-[10px] font-medium uppercase tracking-wide text-white/55">
         Distance per round
       </div>
       <div className="flex h-8 items-end gap-[2px]">
@@ -149,7 +237,7 @@ function RoundDetailCard({
     return (
       <div
         data-testid="player-stats-round-empty"
-        className="rounded border border-white/10 bg-white/5 p-3 text-sm text-white/60"
+        className="rounded-md border border-white/[0.07] bg-white/[0.02] p-3 text-[12.5px] text-white/55"
       >
         No data for this round.
       </div>
@@ -162,13 +250,15 @@ function RoundDetailCard({
   return (
     <div
       data-testid="player-stats-round-detail"
-      className="space-y-3 rounded border border-white/10 bg-white/5 p-3"
+      className="space-y-3 rounded-md border border-white/[0.07] bg-white/[0.02] p-3"
     >
       <div className="flex items-baseline justify-between">
-        <span className="text-xs uppercase tracking-wide text-white/60">
+        <span className="text-[10.5px] font-medium uppercase tracking-wide text-white/55">
           Round {round.round_number}
         </span>
-        <span className={`text-xs ${sideColor(round.team_side)}`}>
+        <span
+          className={`text-[10.5px] font-semibold uppercase tracking-wide ${sideColor(round.team_side)}`}
+        >
           {round.team_side}
         </span>
       </div>
@@ -224,13 +314,13 @@ function MovementCard({
   return (
     <div
       data-testid="player-stats-movement-card"
-      className="space-y-2 rounded border border-white/10 bg-black/30 p-2 text-xs"
+      className="space-y-2 rounded-md border border-white/[0.07] bg-black/30 p-2.5"
     >
       <div className="flex items-baseline justify-between">
-        <span className="text-[10px] uppercase tracking-wide text-white/60">
+        <span className="text-[10px] font-medium uppercase tracking-wide text-white/55">
           Movement (match)
         </span>
-        <span className="tabular-nums text-white/70">
+        <span className="text-[11px] tabular-nums text-white/70">
           {movement.distance_units.toLocaleString()}u total
         </span>
       </div>
@@ -269,22 +359,22 @@ function MovementBar({
   testId?: string
 }) {
   return (
-    <div className="space-y-0.5">
+    <div className="space-y-1">
       <div className="flex items-baseline justify-between">
         <span
-          className={`text-[10px] uppercase tracking-wide text-white/60 ${
+          className={`text-[10px] font-medium uppercase tracking-wide text-white/55 ${
             helpText ? "cursor-help underline decoration-dotted" : ""
           }`}
           title={helpText}
         >
           {label}
         </span>
-        <span className="tabular-nums text-white/80">{value}%</span>
+        <span className="text-[11px] tabular-nums text-white/80">{value}%</span>
       </div>
       <Progress
         data-testid={testId}
         value={Math.max(0, Math.min(100, value))}
-        className="h-1.5 bg-white/10"
+        className="h-1 bg-white/[0.06]"
       />
     </div>
   )
@@ -292,10 +382,10 @@ function MovementBar({
 
 function DetailLists({ stats }: { stats: PlayerMatchStats }) {
   return (
-    <div className="space-y-3 text-xs">
+    <div className="space-y-3 text-[12px]">
       <Section title="Damage by weapon">
         {stats.damage_by_weapon.length === 0 ? (
-          <p className="text-white/60">No damage recorded.</p>
+          <p className="text-[12px] text-white/55">No damage recorded.</p>
         ) : (
           <ul className="space-y-1">
             {stats.damage_by_weapon.map((row) => (
@@ -304,8 +394,10 @@ function DetailLists({ stats }: { stats: PlayerMatchStats }) {
                 className="flex items-center justify-between gap-2"
                 data-testid={`player-stats-damage-weapon-${row.weapon}`}
               >
-                <span className="truncate text-white/80">{row.weapon}</span>
-                <span className="tabular-nums text-white">{row.damage}</span>
+                <span className="truncate text-white/75">{row.weapon}</span>
+                <span className="tabular-nums font-medium text-white">
+                  {row.damage}
+                </span>
               </li>
             ))}
           </ul>
@@ -313,7 +405,7 @@ function DetailLists({ stats }: { stats: PlayerMatchStats }) {
       </Section>
       <Section title="Damage by opponent">
         {stats.damage_by_opponent.length === 0 ? (
-          <p className="text-white/60">No damage recorded.</p>
+          <p className="text-[12px] text-white/55">No damage recorded.</p>
         ) : (
           <ul className="space-y-1">
             {stats.damage_by_opponent.map((row) => (
@@ -322,15 +414,19 @@ function DetailLists({ stats }: { stats: PlayerMatchStats }) {
                 className="flex items-center justify-between gap-2"
                 data-testid={`player-stats-damage-opponent-${row.steam_id}`}
               >
-                <span className="flex min-w-0 items-center gap-1">
-                  <span className={`text-[10px] ${sideColor(row.team_side)}`}>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span
+                    className={`text-[10px] font-semibold uppercase tracking-wide ${sideColor(row.team_side)}`}
+                  >
                     {row.team_side || "?"}
                   </span>
-                  <span className="truncate text-white/80">
+                  <span className="truncate text-white/75">
                     {row.player_name || row.steam_id}
                   </span>
                 </span>
-                <span className="tabular-nums text-white">{row.damage}</span>
+                <span className="tabular-nums font-medium text-white">
+                  {row.damage}
+                </span>
               </li>
             ))}
           </ul>
@@ -338,7 +434,7 @@ function DetailLists({ stats }: { stats: PlayerMatchStats }) {
       </Section>
       <Section title="Damage by hit group">
         {stats.hit_groups.length === 0 ? (
-          <p className="text-white/60">No hits recorded.</p>
+          <p className="text-[12px] text-white/55">No hits recorded.</p>
         ) : (
           <ul className="space-y-1">
             {stats.hit_groups.map((row) => (
@@ -347,10 +443,12 @@ function DetailLists({ stats }: { stats: PlayerMatchStats }) {
                 className="flex items-center justify-between gap-2"
                 data-testid={`player-stats-hit-group-${row.hit_group}`}
               >
-                <span className="truncate text-white/80">{row.label}</span>
-                <span className="tabular-nums text-white">
+                <span className="truncate text-white/75">{row.label}</span>
+                <span className="tabular-nums font-medium text-white">
                   {row.damage}{" "}
-                  <span className="text-white/50">({row.hits})</span>
+                  <span className="font-normal text-white/45">
+                    ({row.hits})
+                  </span>
                 </span>
               </li>
             ))}
@@ -367,9 +465,9 @@ function UtilityCard({ utility }: { utility: PlayerMatchStats["utility"] }) {
   return (
     <div
       data-testid="player-stats-utility-card"
-      className="space-y-2 rounded border border-white/10 bg-black/30 p-2 text-xs"
+      className="space-y-2 rounded-md border border-white/[0.07] bg-black/30 p-2.5"
     >
-      <div className="text-[10px] uppercase tracking-wide text-white/60">
+      <div className="text-[10px] font-medium uppercase tracking-wide text-white/55">
         Utility (match)
       </div>
       <div className="grid grid-cols-3 gap-2">
@@ -402,7 +500,7 @@ function Section({
 }) {
   return (
     <div className="space-y-1.5">
-      <div className="text-[10px] uppercase tracking-wide text-white/60">
+      <div className="text-[10px] font-medium uppercase tracking-wide text-white/55">
         {title}
       </div>
       {children}
@@ -410,10 +508,10 @@ function Section({
   )
 }
 
-// PlayerStatsPanel is the right-side player deep-stats overlay. It is non-modal
-// (a plain absolute aside, not a Radix Dialog) so the canvas keeps receiving
-// pointer/wheel events outside the panel rectangle. Closes via the in-header
-// X button or by clicking the same player a second time.
+// PlayerStatsPanel is the right-side player deep-stats pane. It renders as a
+// flex sibling of the viewer area, so opening it squeezes the canvas rather
+// than overlaying it (the canvas re-flows via its ResizeObserver). Closes via
+// the in-header X button or by clicking the same player a second time.
 export function PlayerStatsPanel() {
   const demoId = useViewerStore((s) => s.demoId)
   const steamId = useViewerStore((s) => s.selectedPlayerSteamId)
@@ -437,71 +535,68 @@ export function PlayerStatsPanel() {
     : null
 
   const team = stats?.team_side ?? ""
-  const sideStripe =
-    team === "CT"
-      ? "from-sky-400/80 to-sky-400/0"
-      : team === "T"
-        ? "from-orange-400/80 to-orange-400/0"
-        : "from-white/30 to-transparent"
 
   return (
     <aside
       data-testid="player-stats-panel"
-      className="hud-panel absolute right-0 top-0 z-30 flex h-full flex-col rounded-none border-l border-r-0 border-t-0 border-white/[0.07] text-white"
+      className="relative flex h-full shrink-0 flex-col border-l border-white/[0.07] bg-[#14171c] text-white"
       style={{ width: PANEL_WIDTH }}
     >
-      {/* Side accent gradient stripe along the top edge */}
-      <span
-        aria-hidden="true"
-        className={`absolute left-0 right-0 top-0 h-px bg-gradient-to-r ${sideStripe}`}
-      />
-      <header className="flex items-center justify-between gap-2 border-b border-white/[0.07] bg-white/[0.015] px-3.5 py-3">
-        <div className="flex min-w-0 items-center gap-2.5">
+      <header className="flex h-[68px] shrink-0 items-center gap-3 border-b border-white/[0.07] pl-4 pr-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           <div
-            aria-hidden="true"
-            className={`hud-display flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-[13px] font-semibold leading-none ring-1 ring-inset ${
-              team === "CT"
-                ? "bg-sky-400/15 text-sky-200 ring-sky-400/30"
-                : team === "T"
-                  ? "bg-orange-400/15 text-orange-200 ring-orange-400/30"
-                  : "bg-white/5 text-white/70 ring-white/10"
-            }`}
+            data-testid="player-stats-panel-name"
+            className="truncate text-[14px] font-semibold leading-none tracking-tight text-white"
           >
-            {(stats?.player_name ?? "P").slice(0, 2).toUpperCase()}
+            {stats?.player_name ?? (isLoading ? "Loading…" : "Player")}
           </div>
-          <div className="min-w-0">
-            <div
-              data-testid="player-stats-panel-name"
-              className="truncate text-[13px] font-semibold leading-tight"
-            >
-              {stats?.player_name ?? (isLoading ? "Loading…" : "Player")}
-            </div>
-            <div
+          <div className="flex items-center gap-1.5">
+            <span
+              aria-hidden="true"
+              className={`h-1.5 w-1.5 shrink-0 rounded-full ${sideDot(team)}`}
+            />
+            <span
               data-testid="player-stats-panel-team"
-              className={`hud-callsign text-[10px] ${sideColor(team)}`}
+              className={`text-[9.5px] font-semibold uppercase leading-none tracking-[0.22em] ${sideColor(team)}`}
             >
-              {team || "—"}
-            </div>
+              {team ? `${team} Side` : "—"}
+            </span>
           </div>
         </div>
+
+        <HeaderPerformance />
+
+        <span
+          aria-hidden="true"
+          className="h-8 w-px shrink-0 bg-white/[0.07]"
+        />
+
         <button
           type="button"
           data-testid="player-stats-panel-close"
           onClick={() => setSelectedPlayer(null)}
-          className="rounded-md p-1.5 text-white/60 ring-1 ring-inset ring-white/0 transition-all hover:bg-white/10 hover:text-white hover:ring-white/15"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-white/40 transition-colors hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30"
           aria-label="Close player panel"
         >
-          <X className="h-4 w-4" />
+          <X className="h-3.5 w-3.5" />
         </button>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 overflow-y-auto px-3 py-3">
         <Tabs defaultValue="match" className="space-y-3">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="live">Live</TabsTrigger>
-            <TabsTrigger value="match">Match</TabsTrigger>
-            <TabsTrigger value="round">Round</TabsTrigger>
-            <TabsTrigger value="detail">Detail</TabsTrigger>
+          <TabsList className="grid h-8 w-full grid-cols-4 bg-white/[0.04] p-0.5">
+            <TabsTrigger value="live" className="h-7 text-[11px] font-medium">
+              Live
+            </TabsTrigger>
+            <TabsTrigger value="match" className="h-7 text-[11px] font-medium">
+              Match
+            </TabsTrigger>
+            <TabsTrigger value="round" className="h-7 text-[11px] font-medium">
+              Round
+            </TabsTrigger>
+            <TabsTrigger value="detail" className="h-7 text-[11px] font-medium">
+              Detail
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="live" className="space-y-2">
@@ -509,9 +604,8 @@ export function PlayerStatsPanel() {
           </TabsContent>
 
           <TabsContent value="match" className="space-y-3">
-            <AnalysisOverallGauge />
             {isLoading || !stats ? (
-              <p className="text-sm text-white/60">Loading match stats…</p>
+              <p className="text-[12px] text-white/55">Loading match stats…</p>
             ) : (
               <>
                 <MatchSummary stats={stats} />
@@ -527,7 +621,7 @@ export function PlayerStatsPanel() {
 
           <TabsContent value="round" className="space-y-3">
             {isLoading || !stats ? (
-              <p className="text-sm text-white/60">Loading…</p>
+              <p className="text-[12px] text-white/55">Loading…</p>
             ) : (
               <RoundDetailCard
                 round={roundDetail}
@@ -539,7 +633,7 @@ export function PlayerStatsPanel() {
 
           <TabsContent value="detail" className="space-y-3">
             {isLoading || !stats ? (
-              <p className="text-sm text-white/60">Loading…</p>
+              <p className="text-[12px] text-white/55">Loading…</p>
             ) : (
               <DetailLists stats={stats} />
             )}

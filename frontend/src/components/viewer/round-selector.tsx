@@ -32,24 +32,23 @@ function markerBetween(prev: Round, next: Round): MarkerKind | null {
 }
 
 function pillClasses(side: string, active: boolean): string {
-  // Round picker matches the timeline design: a compact rectangular tile
-  // with a 3px winner-side underline. Active is solid white with dark text
-  // so it reads as the current selection at a glance; inactive keeps the
-  // dark chrome and lets the underline carry the win-cadence cue. The
-  // "sky" / "amber" substrings remain in both states for downstream tests.
+  // Round picker: small numeric pill with a 2px winner-side underline.
+  // Active is solid white with dark text. Inactive is transparent with the
+  // underline alone carrying the win-cadence cue. "sky" / "amber" substrings
+  // remain in both states for downstream tests.
   if (side === "CT") {
     return active
       ? "bg-white text-black border-b-sky-400 hover:bg-white"
-      : "bg-white/[0.04] text-white/85 border-b-sky-400/70 hover:bg-sky-400/15 hover:text-sky-100"
+      : "bg-transparent text-white/80 border-b-sky-400/80 hover:bg-white/[0.06] hover:text-white"
   }
   if (side === "T") {
     return active
       ? "bg-white text-black border-b-amber-400 hover:bg-white"
-      : "bg-white/[0.04] text-white/85 border-b-amber-400/70 hover:bg-amber-400/15 hover:text-amber-100"
+      : "bg-transparent text-white/80 border-b-amber-400/80 hover:bg-white/[0.06] hover:text-white"
   }
   return active
     ? "bg-white text-black border-b-white/50"
-    : "bg-white/[0.04] text-white/55 border-b-transparent hover:bg-white/10"
+    : "bg-transparent text-white/50 border-b-transparent hover:bg-white/[0.06]"
 }
 
 interface RoundSelectorProps {
@@ -104,7 +103,7 @@ export function RoundSelector({ variant = "panel" }: RoundSelectorProps = {}) {
     return (
       <div
         data-testid="round-selector"
-        className="flex max-w-full items-center gap-1.5 overflow-x-auto"
+        className="flex max-w-full items-center gap-[3px] overflow-x-auto"
       >
         {pills}
       </div>
@@ -158,7 +157,7 @@ const RoundPill = memo(function RoundPill({
         aria-label={`Round ${round.round_number}`}
         aria-current={isActive ? "true" : undefined}
         onClick={() => onSelect(round)}
-        className={`flex h-8 w-7 shrink-0 items-center justify-center rounded-[3px] border-b-[3px] border-l-0 border-r-0 border-t-0 font-mono text-[12px] font-semibold tabular-nums transition-colors duration-150 ${pillClasses(round.winner_side, isActive)}`}
+        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[3px] border-b-2 border-l-0 border-r-0 border-t-0 text-[11.5px] font-medium tabular-nums transition-colors duration-150 ${pillClasses(round.winner_side, isActive)}`}
       >
         {round.round_number}
       </button>
