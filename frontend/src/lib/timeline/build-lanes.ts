@@ -276,10 +276,10 @@ function finalizeCluster(
   }
 }
 
-// Compute the round-phase + bomb spine geometry. The timeline starts at the
-// live-phase tick, so freeze is excluded entirely. All ranges are clamped to
-// the live window so the renderer can divide by (end - start) without
-// worrying about negative widths.
+// Compute the bomb-window geometry. The timeline starts at the live-phase
+// tick, so freeze is excluded entirely. Returns the plant→end range so the
+// events track can render a single accent strip; the dual phase tints from
+// the legacy spine were dropped along with the dual-lane layout.
 function buildSpine(round: Round, events: GameEvent[]): SpineModel {
   const start = liveStart(round)
   const end = round.end_tick
@@ -294,22 +294,10 @@ function buildSpine(round: Round, events: GameEvent[]): SpineModel {
   )
   const plantTick = bombPlant?.tick ?? null
   const bombEnd = bombDefuse?.tick ?? bombExplode?.tick ?? end
-
-  const liveEnd = plantTick ?? end
-  const liveRange =
-    liveEnd > start ? { startTick: start, endTick: liveEnd } : null
-  const postPlant =
-    plantTick !== null && bombEnd > plantTick
-      ? { startTick: plantTick, endTick: bombEnd }
-      : null
   const bombBar =
     plantTick !== null ? { startTick: plantTick, endTick: bombEnd } : null
 
-  return {
-    live: liveRange,
-    postPlant,
-    bombBar,
-  }
+  return { bombBar }
 }
 
 // Pure: builds the full timeline model for a round.
@@ -373,15 +361,11 @@ export function buildLanes(input: BuildLanesInput): RoundTimelineModel {
     return true
   })
 
-  const top: TimelineEvent[] = []
-  const bottom: TimelineEvent[] = []
+  // Unified event collection. Side is kept per-event so the renderer can
+  // tint the icon chip; events are no longer split into top/bottom lists.
+  const unified: TimelineEvent[] = []
 
-  const pushToLane = (ev: TimelineEvent) => {
-    if (ev.side === "ct" || ev.side === "caused") top.push(ev)
-    else if (ev.side === "t" || ev.side === "affected") bottom.push(ev)
-  }
-
-  // (3) + (4) Filter + lane assignment for grenades.
+  // (3) + (4) Filter + side assignment for grenades.
   for (const grenade of grenades) {
     const kind: TimelineEventKind = "grenade"
     if (!passesFilters(grenade.source, kind, filters, selectedPlayerSteamId)) {
@@ -394,27 +378,27 @@ export function buildLanes(input: BuildLanesInput): RoundTimelineModel {
       side = teamToLaneSide(grenade.throwerTeam)
     }
     if (!side) continue
-    pushToLane(projectGrenade(grenade, side))
+    unified.push(projectGrenade(grenade, side))
   }
 
-  // (3) + (4) Filter + lane assignment for non-grenade events.
+  // (3) + (4) Filter + side assignment for non-grenade events.
   for (const event of eventsForLane) {
     const kind = eventKindOf(event)
     if (!kind) continue
-    // bomb_explode never renders as a lane icon — it's the right edge of the
-    // bomb spine bar.
+    // bomb_explode never renders as a marker — it's the right edge of the
+    // bomb-window accent strip.
     if (kind === "bomb_explode") continue
     if (!passesFilters(event, kind, filters, selectedPlayerSteamId)) continue
     const side = selectedPlayerSteamId
       ? playerSideForEvent(event, selectedPlayerSteamId)
       : teamSideForEvent(event)
     if (!side) continue
-    pushToLane(projectEvent(event, kind, side))
+    unified.push(projectEvent(event, kind, side))
   }
 
-  // (5) Cluster each lane independently.
-  const topLane = clusterLane(top, start, end, laneWidthPx, "top")
-  const bottomLane = clusterLane(bottom, start, end, laneWidthPx, "bottom")
+  // (5) Cluster across all events — mixed-team neighbours collapse into a
+  // single +N badge whose popout disambiguates with per-row team chips.
+  const eventsClusters = clusterLane(unified, start, end, laneWidthPx, "events")
 
   // (6) Spine geometry.
   const spine = buildSpine(round, inRound)
@@ -446,8 +430,7 @@ export function buildLanes(input: BuildLanesInput): RoundTimelineModel {
   }
 
   return {
-    topLane,
-    bottomLane,
+    events: eventsClusters,
     contacts: roundContacts,
     spine,
     roundStartTick: start,

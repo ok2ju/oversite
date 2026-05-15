@@ -76,12 +76,10 @@ export interface EventCluster {
   events: TimelineEvent[]
 }
 
-// Spine model — round phases + bomb bar geometry, expressed as tick ranges.
-// The lane renderer converts these to percentages against the live round
-// window (freeze_end_tick → end_tick) when drawing.
+// Spine model — bomb-window geometry as a tick range. The events track
+// renders this as a thin accent strip behind the event markers to keep the
+// plant→end duration visible after the dual-lane stack was collapsed.
 export interface SpineModel {
-  live: { startTick: number; endTick: number } | null
-  postPlant: { startTick: number; endTick: number } | null
   // Bomb bar: plant tick → defuse/explode/end tick.
   bombBar: { startTick: number; endTick: number } | null
 }
@@ -111,13 +109,14 @@ export interface ContactMarker {
 
 // Full model the <RoundTimeline /> component consumes.
 export interface RoundTimelineModel {
-  // Top lane: CT events in team mode, caused-by-player events in player mode.
-  topLane: EventCluster[]
-  // Bottom lane: T events in team mode, events-affecting-player in player mode.
-  bottomLane: EventCluster[]
+  // Unified event track. Each cluster carries the per-event side (ct/t in
+  // team mode, caused/affected in player mode) which the renderer uses to
+  // tint the icon chip — team-as-color replaces the old team-as-Y layout.
+  events: EventCluster[]
   // Contacts (player mode only — empty when no player is selected).
   contacts: ContactMarker[]
-  // Round phase + bomb spine.
+  // Bomb-window geometry rendered as a thin accent strip inside the events
+  // track. Empty when the round has no plant.
   spine: SpineModel
   // The round bounds the lanes are positioned against.
   roundStartTick: number

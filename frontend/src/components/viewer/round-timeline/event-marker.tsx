@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
 import { formatElapsedTime } from "@/lib/viewer/timeline-utils"
+import { sideChipClass, sideLabel } from "./side-styles"
 import type { TimelineEvent } from "@/lib/timeline/types"
 
 interface EventMarkerProps {
@@ -81,6 +82,10 @@ export function EventMarker({
   const { label, detail } = describeEvent(event)
   const clock = formatElapsedTime(event.tick - roundStartTick, tickRate)
   const useDot = event.kind === "player_hurt"
+  const chip = sideChipClass(event.side)
+  // Bomb events earn a thicker ring so plant/defuse stand out against the
+  // bomb-window accent strip drawn behind them.
+  const isBomb = event.kind === "bomb_plant" || event.kind === "bomb_defuse"
 
   return (
     <Tooltip>
@@ -89,25 +94,28 @@ export function EventMarker({
           type="button"
           data-testid={`event-marker-${event.id}`}
           data-kind={event.kind}
+          data-side={event.side}
           onClick={handleClick}
-          aria-label={`${label} at ${clock}`}
+          aria-label={`${sideLabel(event.side)} · ${label} at ${clock}`}
           className={cn(
-            "group absolute top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded p-0.5 transition-transform hover:z-20 hover:scale-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/50",
+            "group absolute top-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full p-[3px] ring-1 ring-inset transition-transform hover:z-20 hover:scale-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/50",
+            chip,
+            isBomb && "ring-[1.5px]",
           )}
           style={{ left: `${position * 100}%` }}
         >
           {useDot ? (
             <span
               aria-hidden="true"
-              className="block h-1.5 w-1.5 rounded-full bg-red-400/80 ring-1 ring-red-300/40"
+              className="block h-1.5 w-1.5 rounded-full bg-red-400/90"
             />
           ) : event.iconPath ? (
-            <span className="relative block h-4 w-4">
+            <span className="relative block h-3.5 w-3.5">
               <img
                 src={event.iconPath}
                 alt=""
                 draggable={false}
-                className="h-4 w-4 select-none object-contain drop-shadow-[0_0_2px_rgba(0,0,0,0.7)]"
+                className="h-3.5 w-3.5 select-none object-contain drop-shadow-[0_0_2px_rgba(0,0,0,0.7)]"
               />
               {event.headshot ? (
                 <img
@@ -140,7 +148,12 @@ export function EventMarker({
         </button>
       </TooltipTrigger>
       <TooltipContent side="top" align="center">
-        <div className="font-semibold">{label}</div>
+        <div className="font-semibold">
+          <span className="hud-callsign mr-1 text-[9px] tracking-wider opacity-80">
+            {sideLabel(event.side)}
+          </span>
+          {label}
+        </div>
         {detail ? <div className="text-white/70">{detail}</div> : null}
         <div className="text-white/50">@ {clock}</div>
       </TooltipContent>

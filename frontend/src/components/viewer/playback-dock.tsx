@@ -2,7 +2,11 @@
 
 import { memo, useCallback, useMemo } from "react"
 import { Play, Pause, SkipBack, SkipForward } from "lucide-react"
-import { useViewerStore } from "@/stores/viewer"
+import {
+  useViewerStore,
+  MIN_TIMELINE_ZOOM,
+  MAX_TIMELINE_ZOOM,
+} from "@/stores/viewer"
 import { useRounds } from "@/hooks/use-rounds"
 import { useRoundRoster } from "@/hooks/use-roster"
 import { formatElapsedTime } from "@/lib/viewer/timeline-utils"
@@ -129,6 +133,14 @@ const TransportRow = memo(function TransportRow({
   const setSpeed = useViewerStore((s) => s.setSpeed)
   const setTick = useViewerStore((s) => s.setTick)
   const pause = useViewerStore((s) => s.pause)
+  const timelineZoom = useViewerStore((s) => s.timelineZoom)
+  const zoomTimelineIn = useViewerStore((s) => s.zoomTimelineIn)
+  const zoomTimelineOut = useViewerStore((s) => s.zoomTimelineOut)
+  const canZoomIn = timelineZoom < MAX_TIMELINE_ZOOM - 1e-6
+  const canZoomOut = timelineZoom > MIN_TIMELINE_ZOOM + 1e-6
+  const zoomLabel = Number.isInteger(timelineZoom)
+    ? `${timelineZoom}×`
+    : `${timelineZoom.toFixed(1)}×`
 
   const roundStart = activeRound
     ? activeRound.freeze_end_tick > 0
@@ -240,19 +252,33 @@ const TransportRow = memo(function TransportRow({
         <span>—</span>
       )}
 
-      <span className="ml-auto inline-flex items-center gap-1 text-white/55">
-        <span className="text-[11px] tabular-nums">1×</span>
+      <span
+        className="ml-auto inline-flex items-center gap-1 text-white/55"
+        data-testid="timeline-zoom"
+      >
+        <span
+          className="w-7 text-right text-[11px] tabular-nums"
+          data-testid="timeline-zoom-level"
+        >
+          {zoomLabel}
+        </span>
         <button
           type="button"
-          aria-label="Zoom out"
-          className="inline-flex h-5 w-5 items-center justify-center rounded text-white/55 transition-colors hover:bg-white/[0.06] hover:text-white"
+          aria-label="Zoom timeline out"
+          data-testid="timeline-zoom-out"
+          onClick={zoomTimelineOut}
+          disabled={!canZoomOut}
+          className="inline-flex h-5 w-5 items-center justify-center rounded text-white/55 transition-colors hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-white/55"
         >
           −
         </button>
         <button
           type="button"
-          aria-label="Zoom in"
-          className="inline-flex h-5 w-5 items-center justify-center rounded text-white/55 transition-colors hover:bg-white/[0.06] hover:text-white"
+          aria-label="Zoom timeline in"
+          data-testid="timeline-zoom-in"
+          onClick={zoomTimelineIn}
+          disabled={!canZoomIn}
+          className="inline-flex h-5 w-5 items-center justify-center rounded text-white/55 transition-colors hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-white/55"
         >
           +
         </button>

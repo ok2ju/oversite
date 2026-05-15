@@ -3,6 +3,7 @@ import { useViewerStore } from "@/stores/viewer"
 import { HEADSHOT_ICON_PATH } from "@/lib/viewer/weapon-icons"
 import { formatElapsedTime } from "@/lib/viewer/timeline-utils"
 import { cn } from "@/lib/utils"
+import { sideChipClass, sideLabel, sideTextClass } from "./side-styles"
 import type { EventCluster, TimelineEvent } from "@/lib/timeline/types"
 
 interface EventClusterBadgeProps {
@@ -82,13 +83,19 @@ export function EventClusterBadge({
         )}
       >
         {stack.map((ev) => (
-          <span key={ev.id} className="relative block h-3.5 w-3.5">
+          <span
+            key={ev.id}
+            className={cn(
+              "relative flex h-4 w-4 items-center justify-center rounded-full ring-1 ring-inset",
+              sideChipClass(ev.side),
+            )}
+          >
             {ev.iconPath ? (
               <img
                 src={ev.iconPath}
                 alt=""
                 draggable={false}
-                className="h-3.5 w-3.5 select-none object-contain"
+                className="h-3 w-3 select-none object-contain"
               />
             ) : (
               <span className="block h-2 w-2 rounded-full bg-white/70" />
@@ -122,19 +129,35 @@ export function EventClusterBadge({
               type="button"
               role="menuitem"
               data-testid={`event-cluster-row-${ev.id}`}
+              data-side={ev.side}
               onClick={() => handleSeek(ev.tick)}
               className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left hover:bg-white/10 focus:outline-none focus-visible:bg-white/10"
             >
-              {ev.iconPath ? (
-                <img
-                  src={ev.iconPath}
-                  alt=""
-                  draggable={false}
-                  className="h-3 w-3 select-none object-contain"
-                />
-              ) : (
-                <span className="h-2 w-2 shrink-0 rounded-full bg-white/70" />
-              )}
+              <span
+                className={cn(
+                  "flex h-4 w-4 shrink-0 items-center justify-center rounded-full ring-1 ring-inset",
+                  sideChipClass(ev.side),
+                )}
+              >
+                {ev.iconPath ? (
+                  <img
+                    src={ev.iconPath}
+                    alt=""
+                    draggable={false}
+                    className="h-3 w-3 select-none object-contain"
+                  />
+                ) : (
+                  <span className="h-2 w-2 rounded-full bg-white/70" />
+                )}
+              </span>
+              <span
+                className={cn(
+                  "hud-callsign w-10 shrink-0 text-[9px] tracking-wider",
+                  sideTextClass(ev.side),
+                )}
+              >
+                {sideLabel(ev.side)}
+              </span>
               <span className="min-w-0 flex-1 truncate">
                 {describeShort(ev)}
               </span>

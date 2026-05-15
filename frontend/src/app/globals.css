@@ -2089,4 +2089,16 @@
       height: 140px;
     }
   }
+
+  /* Round-timeline scroll viewport: keep the scrollbar invisible so zoom
+     changes don't reflow the dock height. Users still scroll via wheel,
+     trackpad, or drag-to-scrub. */
+  .round-timeline-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    overscroll-behavior-x: contain;
+  }
+  .round-timeline-scroll::-webkit-scrollbar {
+    display: none;
+  }
 }

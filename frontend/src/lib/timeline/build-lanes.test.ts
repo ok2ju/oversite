@@ -130,13 +130,13 @@ describe("buildLanes — round-window filter", () => {
       filters: ALL_ON,
       laneWidthPx: 1000,
     })
-    expect(model.topLane).toHaveLength(1)
-    expect(model.topLane[0].tick).toBe(1500)
+    expect(model.events).toHaveLength(1)
+    expect(model.events[0].tick).toBe(1500)
   })
 })
 
-describe("buildLanes — team mode CT/T split", () => {
-  it("routes CT grenades to the top lane and T grenades to the bottom lane", () => {
+describe("buildLanes — team mode CT/T side encoding", () => {
+  it("tags CT grenades with side=ct and T grenades with side=t", () => {
     // Round-mode lanes are grenades + bomb only after Phase 4.
     const events = [
       mkEvent({
@@ -169,12 +169,14 @@ describe("buildLanes — team mode CT/T split", () => {
       filters: ALL_ON,
       laneWidthPx: 1000,
     })
-    expect(model.topLane.flatMap((c) => c.events)).toHaveLength(2)
-    expect(model.bottomLane.flatMap((c) => c.events)).toHaveLength(1)
-    expect(model.bottomLane[0].events[0].tick).toBe(1300)
+    const all = model.events.flatMap((c) => c.events)
+    expect(all.filter((e) => e.side === "ct")).toHaveLength(2)
+    const tSide = all.filter((e) => e.side === "t")
+    expect(tSide).toHaveLength(1)
+    expect(tSide[0].tick).toBe(1300)
   })
 
-  it("places bomb plants on the T lane and defuses on the CT lane", () => {
+  it("tags bomb plants with side=t and defuses with side=ct", () => {
     const events = [
       mkEvent({ event_type: "bomb_plant", tick: 1300, attacker_team: "T" }),
       mkEvent({ event_type: "bomb_defuse", tick: 1700, attacker_team: "CT" }),
@@ -187,8 +189,11 @@ describe("buildLanes — team mode CT/T split", () => {
       filters: ALL_ON,
       laneWidthPx: 1000,
     })
-    expect(model.topLane[0].events[0].kind).toBe("bomb_defuse")
-    expect(model.bottomLane[0].events[0].kind).toBe("bomb_plant")
+    const all = model.events.flatMap((c) => c.events)
+    const plant = all.find((e) => e.kind === "bomb_plant")
+    const defuse = all.find((e) => e.kind === "bomb_defuse")
+    expect(plant?.side).toBe("t")
+    expect(defuse?.side).toBe("ct")
   })
 
   it("ignores events with no team affiliation", () => {
@@ -203,13 +208,12 @@ describe("buildLanes — team mode CT/T split", () => {
       filters: ALL_ON,
       laneWidthPx: 1000,
     })
-    expect(model.topLane).toHaveLength(0)
-    expect(model.bottomLane).toHaveLength(0)
+    expect(model.events).toHaveLength(0)
   })
 })
 
-describe("buildLanes — player mode caused/affected split", () => {
-  it("places attacker-side events on the top (caused) lane and victim-side on bottom (affected)", () => {
+describe("buildLanes — player mode caused/affected side encoding", () => {
+  it("tags attacker-side events with side=caused and victim-side with side=affected", () => {
     const me = "player-1"
     const other = "player-2"
     const events = [
@@ -238,10 +242,13 @@ describe("buildLanes — player mode caused/affected split", () => {
       filters: ALL_ON,
       laneWidthPx: 1000,
     })
-    expect(model.topLane.flatMap((c) => c.events)).toHaveLength(1)
-    expect(model.topLane[0].events[0].tick).toBe(1200)
-    expect(model.bottomLane.flatMap((c) => c.events)).toHaveLength(1)
-    expect(model.bottomLane[0].events[0].tick).toBe(1500)
+    const all = model.events.flatMap((c) => c.events)
+    const caused = all.filter((e) => e.side === "caused")
+    const affected = all.filter((e) => e.side === "affected")
+    expect(caused).toHaveLength(1)
+    expect(caused[0].tick).toBe(1200)
+    expect(affected).toHaveLength(1)
+    expect(affected[0].tick).toBe(1500)
   })
 
   it("excludes events the player isn't part of", () => {
@@ -263,11 +270,10 @@ describe("buildLanes — player mode caused/affected split", () => {
       filters: ALL_ON,
       laneWidthPx: 1000,
     })
-    expect(model.topLane).toHaveLength(0)
-    expect(model.bottomLane).toHaveLength(0)
+    expect(model.events).toHaveLength(0)
   })
 
-  it("routes player_flashed to the affected lane when player is the victim", () => {
+  it("tags player_flashed with side=affected when player is the victim", () => {
     const events = [
       mkEvent({
         event_type: "player_flashed",
@@ -284,7 +290,9 @@ describe("buildLanes — player mode caused/affected split", () => {
       filters: ALL_ON,
       laneWidthPx: 1000,
     })
-    expect(model.bottomLane[0].events[0].kind).toBe("player_flashed")
+    const all = model.events.flatMap((c) => c.events)
+    expect(all[0].kind).toBe("player_flashed")
+    expect(all[0].side).toBe("affected")
   })
 })
 
@@ -321,7 +329,7 @@ describe("buildLanes — grenade entity correlation", () => {
       filters: ALL_ON,
       laneWidthPx: 1000,
     })
-    const all = model.topLane.flatMap((c) => c.events)
+    const all = model.events.flatMap((c) => c.events)
     expect(all).toHaveLength(1)
     expect(all[0].kind).toBe("grenade")
     expect(all[0].tick).toBe(1200)
@@ -353,7 +361,7 @@ describe("buildLanes — grenade entity correlation", () => {
       filters: ALL_ON,
       laneWidthPx: 1000,
     })
-    const all = model.topLane.flatMap((c) => c.events)
+    const all = model.events.flatMap((c) => c.events)
     expect(all).toHaveLength(2)
   })
 })
@@ -390,8 +398,8 @@ describe("buildLanes — clustering", () => {
       filters: ALL_ON,
       laneWidthPx: 1000,
     })
-    expect(model.topLane).toHaveLength(1)
-    expect(model.topLane[0].events).toHaveLength(3)
+    expect(model.events).toHaveLength(1)
+    expect(model.events[0].events).toHaveLength(3)
   })
 
   it("splits events spaced beyond MIN_GAP_PX into separate clusters", () => {
@@ -417,7 +425,7 @@ describe("buildLanes — clustering", () => {
       filters: ALL_ON,
       laneWidthPx: 1000,
     })
-    expect(model.topLane).toHaveLength(2)
+    expect(model.events).toHaveLength(2)
   })
 })
 
@@ -443,10 +451,7 @@ describe("buildLanes — filter chips", () => {
       filters: { ...ALL_ON, kills: false },
       laneWidthPx: 1000,
     })
-    const allKinds = [
-      ...model.topLane.flatMap((c) => c.events.map((e) => e.kind)),
-      ...model.bottomLane.flatMap((c) => c.events.map((e) => e.kind)),
-    ]
+    const allKinds = model.events.flatMap((c) => c.events.map((e) => e.kind))
     expect(allKinds).not.toContain("kill")
   })
 
@@ -459,10 +464,7 @@ describe("buildLanes — filter chips", () => {
       filters: { ...ALL_ON, utility: false },
       laneWidthPx: 1000,
     })
-    const allKinds = [
-      ...model.topLane.flatMap((c) => c.events.map((e) => e.kind)),
-      ...model.bottomLane.flatMap((c) => c.events.map((e) => e.kind)),
-    ]
+    const allKinds = model.events.flatMap((c) => c.events.map((e) => e.kind))
     expect(allKinds).not.toContain("grenade")
   })
 
@@ -475,10 +477,7 @@ describe("buildLanes — filter chips", () => {
       filters: { ...ALL_ON, bomb: false },
       laneWidthPx: 1000,
     })
-    const allKinds = [
-      ...model.topLane.flatMap((c) => c.events.map((e) => e.kind)),
-      ...model.bottomLane.flatMap((c) => c.events.map((e) => e.kind)),
-    ]
+    const allKinds = model.events.flatMap((c) => c.events.map((e) => e.kind))
     expect(allKinds).not.toContain("bomb_plant")
     expect(allKinds).not.toContain("bomb_defuse")
   })
@@ -511,17 +510,14 @@ describe("buildLanes — filter chips", () => {
       filters: { ...ALL_ON, myEvents: true },
       laneWidthPx: 1000,
     })
-    const all = [
-      ...model.topLane.flatMap((c) => c.events),
-      ...model.bottomLane.flatMap((c) => c.events),
-    ]
+    const all = model.events.flatMap((c) => c.events)
     expect(all).toHaveLength(1)
     expect(all[0].source.attacker_steam_id).toBe(me)
   })
 })
 
 describe("buildLanes — spine geometry", () => {
-  it("computes the live range from the freeze-end tick to round end", () => {
+  it("returns no bomb bar when the round has no plant", () => {
     const model = buildLanes({
       events: [],
       contacts: [],
@@ -530,9 +526,7 @@ describe("buildLanes — spine geometry", () => {
       filters: ALL_ON,
       laneWidthPx: 1000,
     })
-    expect(model.spine.live).toEqual({ startTick: 1100, endTick: 2000 })
     expect(model.spine.bombBar).toBeNull()
-    expect(model.spine.postPlant).toBeNull()
   })
 
   it("uses the live-phase tick as the lane window's start", () => {
@@ -559,8 +553,8 @@ describe("buildLanes — spine geometry", () => {
       laneWidthPx: 1000,
     })
     expect(model.roundStartTick).toBe(1100)
-    expect(model.topLane).toHaveLength(1)
-    expect(model.topLane[0].tick).toBe(1500)
+    expect(model.events).toHaveLength(1)
+    expect(model.events[0].tick).toBe(1500)
   })
 
   it("draws the bomb bar from plant to defuse when defused", () => {
@@ -577,7 +571,6 @@ describe("buildLanes — spine geometry", () => {
       laneWidthPx: 1000,
     })
     expect(model.spine.bombBar).toEqual({ startTick: 1500, endTick: 1900 })
-    expect(model.spine.postPlant).toEqual({ startTick: 1500, endTick: 1900 })
   })
 
   it("draws the bomb bar from plant to explode when not defused", () => {
@@ -619,14 +612,9 @@ describe("round-mode lane cleanup (Phase 4)", () => {
       filters: ALL_ON,
       laneWidthPx: 800,
     })
-    const topKinds = model.topLane.flatMap((c) => c.events.map((e) => e.kind))
-    const bottomKinds = model.bottomLane.flatMap((c) =>
-      c.events.map((e) => e.kind),
-    )
-    expect(topKinds).not.toContain("kill")
-    expect(bottomKinds).not.toContain("kill")
+    const allKinds = model.events.flatMap((c) => c.events.map((e) => e.kind))
+    expect(allKinds).not.toContain("kill")
     // Grenades and bomb still show up.
-    const allKinds = [...topKinds, ...bottomKinds]
     expect(allKinds).toContain("grenade")
     expect(allKinds).toContain("bomb_plant")
   })
@@ -661,10 +649,7 @@ describe("round-mode lane cleanup (Phase 4)", () => {
       filters: ALL_ON,
       laneWidthPx: 800,
     })
-    const allKinds = [
-      ...model.topLane.flatMap((c) => c.events.map((e) => e.kind)),
-      ...model.bottomLane.flatMap((c) => c.events.map((e) => e.kind)),
-    ]
+    const allKinds = model.events.flatMap((c) => c.events.map((e) => e.kind))
     expect(allKinds).not.toContain("player_hurt")
     expect(allKinds).not.toContain("player_flashed")
   })
@@ -688,7 +673,7 @@ describe("round-mode lane cleanup (Phase 4)", () => {
       filters: ALL_ON,
       laneWidthPx: 800,
     })
-    const kinds = model.topLane.flatMap((c) => c.events.map((e) => e.kind))
+    const kinds = model.events.flatMap((c) => c.events.map((e) => e.kind))
     expect(kinds).toContain("kill")
   })
 })

@@ -13,6 +13,15 @@ export interface TimelineFilters {
   myEvents: boolean
 }
 
+// Discrete zoom ladder for the round timeline track. 1× fills the dock width;
+// higher steps stretch the inner track and make the container horizontally
+// scrollable so dense rounds can be inspected without re-clustering at the
+// dock's pixel budget.
+export const TIMELINE_ZOOM_LEVELS = [1, 1.5, 2, 3, 4, 6, 8] as const
+export const MIN_TIMELINE_ZOOM = TIMELINE_ZOOM_LEVELS[0]
+export const MAX_TIMELINE_ZOOM =
+  TIMELINE_ZOOM_LEVELS[TIMELINE_ZOOM_LEVELS.length - 1]
+
 interface ViewerState {
   currentTick: number
   totalTicks: number
@@ -28,6 +37,7 @@ interface ViewerState {
   screenHeight: number
   resetViewportCounter: number
   timelineFilters: TimelineFilters
+  timelineZoom: number
   setTick: (tick: number) => void
   setTotalTicks: (total: number) => void
   togglePlay: () => void
@@ -47,6 +57,9 @@ interface ViewerState {
   setScreenSize: (w: number, h: number) => void
   resetViewport: () => void
   setTimelineFilter: (key: keyof TimelineFilters, value: boolean) => void
+  setTimelineZoom: (zoom: number) => void
+  zoomTimelineIn: () => void
+  zoomTimelineOut: () => void
   reset: () => void
 }
 
@@ -70,6 +83,25 @@ const initialState = {
     bomb: true,
     myEvents: false,
   } as TimelineFilters,
+  timelineZoom: 1,
+}
+
+function nextZoomLevel(current: number, direction: 1 | -1): number {
+  if (direction === 1) {
+    for (const level of TIMELINE_ZOOM_LEVELS) {
+      if (level > current + 1e-6) return level
+    }
+    return MAX_TIMELINE_ZOOM
+  }
+  for (let i = TIMELINE_ZOOM_LEVELS.length - 1; i >= 0; i--) {
+    if (TIMELINE_ZOOM_LEVELS[i] < current - 1e-6) return TIMELINE_ZOOM_LEVELS[i]
+  }
+  return MIN_TIMELINE_ZOOM
+}
+
+function clampZoom(zoom: number): number {
+  if (!Number.isFinite(zoom)) return MIN_TIMELINE_ZOOM
+  return Math.min(MAX_TIMELINE_ZOOM, Math.max(MIN_TIMELINE_ZOOM, zoom))
 }
 
 export const useViewerStore = create<ViewerState>()(
@@ -88,6 +120,7 @@ export const useViewerStore = create<ViewerState>()(
         mapName: null,
         selectedPlayerSteamId: null,
         viewport: { ...DEFAULT_VIEWPORT },
+        timelineZoom: 1,
       }),
     setMapName: (name) => set({ mapName: name }),
     initDemo: (opts) =>
@@ -99,6 +132,7 @@ export const useViewerStore = create<ViewerState>()(
         currentTick: 0,
         selectedPlayerSteamId: null,
         viewport: { ...DEFAULT_VIEWPORT },
+        timelineZoom: 1,
       }),
     setSelectedPlayer: (steamId) => set({ selectedPlayerSteamId: steamId }),
     setViewport: (v) => set({ viewport: v }),
@@ -112,6 +146,11 @@ export const useViewerStore = create<ViewerState>()(
       set((state) => ({
         timelineFilters: { ...state.timelineFilters, [key]: value },
       })),
+    setTimelineZoom: (zoom) => set({ timelineZoom: clampZoom(zoom) }),
+    zoomTimelineIn: () =>
+      set((state) => ({ timelineZoom: nextZoomLevel(state.timelineZoom, 1) })),
+    zoomTimelineOut: () =>
+      set((state) => ({ timelineZoom: nextZoomLevel(state.timelineZoom, -1) })),
     reset: () => set(initialState),
   })),
 )

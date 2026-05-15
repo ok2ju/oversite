@@ -52,7 +52,7 @@ export default function DemoViewerPage() {
         filters,
         laneWidthPx: 1000,
       })
-      const ticks = [...model.topLane, ...model.bottomLane]
+      const ticks = model.events
         .flatMap((c) => c.events.map((e) => e.tick))
         .sort((a, b) => a - b)
       if (ticks.length === 0) return null
