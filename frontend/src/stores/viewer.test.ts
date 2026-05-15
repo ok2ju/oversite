@@ -58,6 +58,14 @@ describe("viewerStore", () => {
     expect(useViewerStore.getState().currentRound).toBe(5)
   })
 
+  it("setRound preserves selectedPlayerSteamId", () => {
+    useViewerStore.getState().setSelectedPlayer("76561198000000001")
+    useViewerStore.getState().setRound(5)
+    expect(useViewerStore.getState().selectedPlayerSteamId).toBe(
+      "76561198000000001",
+    )
+  })
+
   it("reset clears mapName", () => {
     useViewerStore.getState().setMapName("de_mirage")
     useViewerStore.getState().reset()

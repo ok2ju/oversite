@@ -71,10 +71,8 @@ describe("PlayerStatsPanel", () => {
     const cell = await screen.findByTestId("player-stats-round-cell-2")
     await user.click(cell)
 
-    // setRound clears the selected player; this is the existing viewer
-    // contract (round change resets selection). Assert the round update went
-    // through and selection cleared.
     expect(useViewerStore.getState().currentRound).toBe(2)
+    expect(useViewerStore.getState().selectedPlayerSteamId).toBe("STEAM_A")
   })
 
   it("renders damage breakdowns under the Detail tab", async () => {

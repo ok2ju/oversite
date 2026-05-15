@@ -80,8 +80,7 @@ export const useViewerStore = create<ViewerState>()(
     togglePlay: () => set((state) => ({ isPlaying: !state.isPlaying })),
     pause: () => set({ isPlaying: false }),
     setSpeed: (speed) => set({ speed }),
-    setRound: (round) =>
-      set({ currentRound: round, selectedPlayerSteamId: null }),
+    setRound: (round) => set({ currentRound: round }),
     setDemoId: (id) =>
       set({
         demoId: id,

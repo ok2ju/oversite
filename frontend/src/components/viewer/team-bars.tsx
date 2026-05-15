@@ -91,6 +91,8 @@ function teamLabel(
 export function TeamBars() {
   const demoId = useViewerStore((s) => s.demoId)
   const currentTick = useViewerStore((s) => s.currentTick)
+  const selectedSteamId = useViewerStore((s) => s.selectedPlayerSteamId)
+  const setSelectedPlayer = useViewerStore((s) => s.setSelectedPlayer)
 
   const { data: rounds } = useRounds(demoId)
   const activeRound = useMemo(() => {
@@ -132,7 +134,13 @@ export function TeamBars() {
       >
         <SectionLabel side="T" team={tTeamName} />
         {tPlayers.map((p) => (
-          <PlayerRow key={p.steamId} player={p} side="T" />
+          <PlayerRow
+            key={p.steamId}
+            player={p}
+            side="T"
+            isSelected={selectedSteamId === p.steamId}
+            onSelect={setSelectedPlayer}
+          />
         ))}
       </div>
       <div
@@ -141,7 +149,13 @@ export function TeamBars() {
       >
         <SectionLabel side="CT" team={ctTeamName} />
         {ctPlayers.map((p) => (
-          <PlayerRow key={p.steamId} player={p} side="CT" />
+          <PlayerRow
+            key={p.steamId}
+            player={p}
+            side="CT"
+            isSelected={selectedSteamId === p.steamId}
+            onSelect={setSelectedPlayer}
+          />
         ))}
       </div>
     </>
@@ -172,21 +186,33 @@ function SectionLabel({ side, team }: { side: TeamSide; team: string }) {
 const PlayerRow = memo(function PlayerRow({
   player,
   side,
+  isSelected,
+  onSelect,
 }: {
   player: PlayerLoadout
   side: TeamSide
+  isSelected: boolean
+  onSelect: (steamId: string | null) => void
 }) {
   const data = player.data
   const isAlive = data?.is_alive ?? true
   const moneyText = data ? `$${data.money.toLocaleString()}` : ""
   const weapon = pickPrimary(data, player.inventory)
   const nameColor = side === "T" ? "text-amber-400" : "text-sky-400"
+  const selectedRing =
+    side === "T"
+      ? "ring-2 ring-amber-400/70 ring-offset-1 ring-offset-black/40 border-amber-400/50 bg-amber-400/[0.06] shadow-[0_0_12px_rgba(251,191,36,0.25)]"
+      : "ring-2 ring-sky-400/70 ring-offset-1 ring-offset-black/40 border-sky-400/50 bg-sky-400/[0.06] shadow-[0_0_12px_rgba(56,189,248,0.25)]"
 
   return (
-    <div
+    <button
+      type="button"
       data-testid={`team-bar-row-${player.steamId}`}
+      aria-pressed={isSelected}
+      onClick={() => onSelect(isSelected ? null : player.steamId)}
       className={cn(
-        "relative overflow-hidden rounded-md border border-white/[0.06] bg-[#15181D] px-3 py-2.5 text-xs text-white",
+        "pointer-events-auto relative w-full cursor-pointer overflow-hidden rounded-md border border-white/[0.06] bg-[#15181D] px-3 py-2.5 text-left text-xs text-white outline-none transition-[background-color,border-color,box-shadow] duration-150 hover:border-white/15 hover:bg-[#1A1F26] focus-visible:ring-2 focus-visible:ring-white/40",
+        isSelected && selectedRing,
         !isAlive && "opacity-40 grayscale",
       )}
     >
@@ -222,7 +248,7 @@ const PlayerRow = memo(function PlayerRow({
           {moneyText}
         </span>
       </div>
-    </div>
+    </button>
   )
 })
 
