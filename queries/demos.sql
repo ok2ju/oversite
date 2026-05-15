@@ -7,8 +7,17 @@ RETURNING *;
 SELECT * FROM demos WHERE id = @id;
 
 -- name: ListDemos :many
-SELECT * FROM demos
-ORDER BY created_at DESC
+SELECT
+    d.*,
+    CAST(COALESCE(s.ct_score, 0) AS INTEGER) AS final_ct_score,
+    CAST(COALESCE(s.t_score, 0) AS INTEGER) AS final_t_score
+FROM demos d
+LEFT JOIN (
+    SELECT demo_id, MAX(ct_score) AS ct_score, MAX(t_score) AS t_score
+    FROM rounds
+    GROUP BY demo_id
+) s ON s.demo_id = d.id
+ORDER BY d.created_at DESC
 LIMIT @limit_val OFFSET @offset_val;
 
 -- name: UpdateDemoStatus :one

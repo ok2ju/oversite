@@ -132,7 +132,7 @@ export function TeamBars() {
       >
         <SectionLabel side="T" team={tTeamName} />
         {tPlayers.map((p) => (
-          <PlayerRow key={p.steamId} player={p} />
+          <PlayerRow key={p.steamId} player={p} side="T" />
         ))}
       </div>
       <div
@@ -141,7 +141,7 @@ export function TeamBars() {
       >
         <SectionLabel side="CT" team={ctTeamName} />
         {ctPlayers.map((p) => (
-          <PlayerRow key={p.steamId} player={p} />
+          <PlayerRow key={p.steamId} player={p} side="CT" />
         ))}
       </div>
     </>
@@ -171,13 +171,16 @@ function SectionLabel({ side, team }: { side: TeamSide; team: string }) {
 
 const PlayerRow = memo(function PlayerRow({
   player,
+  side,
 }: {
   player: PlayerLoadout
+  side: TeamSide
 }) {
   const data = player.data
   const isAlive = data?.is_alive ?? true
   const moneyText = data ? `$${data.money.toLocaleString()}` : ""
   const weapon = pickPrimary(data, player.inventory)
+  const nameColor = side === "T" ? "text-amber-400" : "text-sky-400"
 
   return (
     <div
@@ -193,7 +196,12 @@ const PlayerRow = memo(function PlayerRow({
         ) : (
           <span className="h-3.5 w-4" />
         )}
-        <span className="flex-1 truncate text-[12.5px] font-semibold leading-none text-white">
+        <span
+          className={cn(
+            "flex-1 truncate text-[12.5px] font-semibold leading-none",
+            nameColor,
+          )}
+        >
           {player.name}
         </span>
         <KDAStat

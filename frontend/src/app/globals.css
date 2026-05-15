@@ -904,14 +904,14 @@
    * fight the brand color.
    * ============================================================ */
   .mo-wrap {
-    --team-a: #b070ff;
-    --team-a-strong: #c990ff;
-    --team-a-soft: rgba(176, 112, 255, 0.18);
-    --team-a-faint: rgba(176, 112, 255, 0.08);
-    --team-b: #2dd4bf;
-    --team-b-strong: #5be7d4;
-    --team-b-soft: rgba(45, 212, 191, 0.18);
-    --team-b-faint: rgba(45, 212, 191, 0.08);
+    --team-a: #c77dff;
+    --team-a-strong: #d89dff;
+    --team-a-soft: rgba(199, 125, 255, 0.18);
+    --team-a-faint: rgba(199, 125, 255, 0.08);
+    --team-b: #ffd23f;
+    --team-b-strong: #ffdf6b;
+    --team-b-soft: rgba(255, 210, 63, 0.18);
+    --team-b-faint: rgba(255, 210, 63, 0.08);
     /* CS2 side identity — orange for T, sky blue for CT. Used in the half
        breakdown pills, round result strip, and anywhere we surface which
        side won, independent of team identity. */
@@ -969,25 +969,25 @@
     position: absolute;
     top: 0;
     bottom: 0;
-    width: 38%;
+    width: 55%;
     z-index: 0;
     pointer-events: none;
   }
 
   .mo-hero-band-a {
     left: 0;
-    background: linear-gradient(95deg,
-        color-mix(in oklab, var(--accent) 22%, transparent) 0%,
+    background: linear-gradient(90deg,
+        color-mix(in oklab, var(--team-a) 24%, transparent) 0%,
+        color-mix(in oklab, var(--team-a) 10%, transparent) 45%,
         transparent 100%);
-    clip-path: polygon(0 0, 100% 0, 75% 100%, 0 100%);
   }
 
   .mo-hero-band-b {
     right: 0;
-    background: linear-gradient(265deg,
-        rgba(61, 143, 224, 0.22) 0%,
+    background: linear-gradient(270deg,
+        color-mix(in oklab, var(--team-b) 24%, transparent) 0%,
+        color-mix(in oklab, var(--team-b) 10%, transparent) 45%,
         transparent 100%);
-    clip-path: polygon(25% 0, 100% 0, 100% 100%, 0 100%);
   }
 
   .mo-hero-map-ghost {

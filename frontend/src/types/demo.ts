@@ -19,6 +19,8 @@ export interface Demo {
 // DemoSummary is the lighter list-row variant returned by ListDemos. The full
 // path is replaced with the basename (file_name) — the table never used
 // anything but the basename, and a 100-row page saves ~10–20 KB on the wire.
+// ct_score / t_score are the final per-side totals from the rounds table;
+// both zero means the demo hasn't been parsed yet.
 export interface DemoSummary {
   id: number
   map_name: string
@@ -30,6 +32,8 @@ export interface DemoSummary {
   duration_secs: number
   match_date: string
   created_at: string
+  ct_score: number
+  t_score: number
 }
 
 export interface DemoListResponse {

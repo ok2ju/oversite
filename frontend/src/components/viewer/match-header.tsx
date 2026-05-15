@@ -78,14 +78,14 @@ export function MatchHeader() {
       className="pointer-events-auto absolute inset-x-0 top-0 z-30 flex h-[48px] items-center gap-6 border-b border-white/[0.07] bg-[#14171c] px-5"
     >
       <Link
-        to="/demos"
+        to={`/demos/${demoId}/overview`}
         data-testid="match-header-back"
-        aria-label="Back to demos"
-        title="Back to demos"
+        aria-label="Back to match overview"
+        title="Back to match overview"
         className="inline-flex items-center gap-2 rounded-md px-1.5 py-1 text-[12.5px] text-white/55 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/30"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
-        <span>Demo</span>
+        <span>Match overview</span>
       </Link>
 
       {/* Scoreboard: T (gold) — vs — CT (blue) */}

@@ -41,6 +41,19 @@ export function formatDate(iso: string): string {
   })
 }
 
+function renderScore(demo: DemoSummary) {
+  if (demo.status !== "ready" || (demo.ct_score === 0 && demo.t_score === 0)) {
+    return <span className="text-[var(--text-muted)]">—</span>
+  }
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="score-cell">{demo.t_score}</span>
+      <span className="text-[var(--text-muted)]">:</span>
+      <span className="score-cell">{demo.ct_score}</span>
+    </span>
+  )
+}
+
 export function filterDemos(
   demos: DemoSummary[],
   search: string,
@@ -214,7 +227,7 @@ export function LibraryTable({
                     </div>
                   </div>
                 </td>
-                <td className="tabular text-[var(--text-muted)]">—</td>
+                <td className="tabular">{renderScore(demo)}</td>
                 <td className="tabular text-[var(--text-muted)]">
                   {formatDate(demo.match_date || demo.created_at)}
                 </td>

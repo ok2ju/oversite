@@ -32,6 +32,8 @@ function makeDemo(overrides: Partial<DemoSummary>): DemoSummary {
     duration_secs: 0,
     match_date: "",
     created_at: "",
+    ct_score: 0,
+    t_score: 0,
     ...overrides,
   }
 }

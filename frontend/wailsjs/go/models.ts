@@ -311,6 +311,8 @@ export namespace main {
 	    duration_secs: number;
 	    match_date: string;
 	    created_at: string;
+	    ct_score: number;
+	    t_score: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new DemoSummary(source);
@@ -328,6 +330,8 @@ export namespace main {
 	        this.duration_secs = source["duration_secs"];
 	        this.match_date = source["match_date"];
 	        this.created_at = source["created_at"];
+	        this.ct_score = source["ct_score"];
+	        this.t_score = source["t_score"];
 	    }
 	}
 	export class DemoListResult {

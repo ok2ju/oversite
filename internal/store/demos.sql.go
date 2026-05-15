@@ -90,8 +90,17 @@ func (q *Queries) GetDemoByID(ctx context.Context, id int64) (Demo, error) {
 }
 
 const listDemos = `-- name: ListDemos :many
-SELECT id, map_name, file_path, file_size, status, total_ticks, tick_rate, duration_secs, match_date, created_at FROM demos
-ORDER BY created_at DESC
+SELECT
+    d.id, d.map_name, d.file_path, d.file_size, d.status, d.total_ticks, d.tick_rate, d.duration_secs, d.match_date, d.created_at,
+    CAST(COALESCE(s.ct_score, 0) AS INTEGER) AS final_ct_score,
+    CAST(COALESCE(s.t_score, 0) AS INTEGER) AS final_t_score
+FROM demos d
+LEFT JOIN (
+    SELECT demo_id, MAX(ct_score) AS ct_score, MAX(t_score) AS t_score
+    FROM rounds
+    GROUP BY demo_id
+) s ON s.demo_id = d.id
+ORDER BY d.created_at DESC
 LIMIT ?2 OFFSET ?1
 `
 
@@ -100,15 +109,30 @@ type ListDemosParams struct {
 	LimitVal  int64
 }
 
-func (q *Queries) ListDemos(ctx context.Context, arg ListDemosParams) ([]Demo, error) {
+type ListDemosRow struct {
+	ID           int64
+	MapName      string
+	FilePath     string
+	FileSize     int64
+	Status       string
+	TotalTicks   int64
+	TickRate     float64
+	DurationSecs int64
+	MatchDate    string
+	CreatedAt    string
+	FinalCtScore int64
+	FinalTScore  int64
+}
+
+func (q *Queries) ListDemos(ctx context.Context, arg ListDemosParams) ([]ListDemosRow, error) {
 	rows, err := q.db.QueryContext(ctx, listDemos, arg.OffsetVal, arg.LimitVal)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Demo
+	var items []ListDemosRow
 	for rows.Next() {
-		var i Demo
+		var i ListDemosRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.MapName,
@@ -120,6 +144,8 @@ func (q *Queries) ListDemos(ctx context.Context, arg ListDemosParams) ([]Demo, e
 			&i.DurationSecs,
 			&i.MatchDate,
 			&i.CreatedAt,
+			&i.FinalCtScore,
+			&i.FinalTScore,
 		); err != nil {
 			return nil, err
 		}

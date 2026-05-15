@@ -12,6 +12,8 @@ function toSummary(d: Demo): DemoSummary {
   return {
     ...rest,
     file_name: _path.split("/").pop() ?? "",
+    ct_score: 0,
+    t_score: 0,
   }
 }
 

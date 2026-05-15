@@ -23,6 +23,10 @@ type Demo struct {
 // DemoSummary is the list-row variant returned by ListDemos. FilePath is
 // replaced with FileName (basename only) — the library table never uses the
 // full path anyway and a 100-demo page saves ~10–20 KB on the wire vs Demo.
+//
+// CTScore / TScore are the final per-side totals (max across rounds). Zero
+// when the demo hasn't been parsed yet — the library table treats both-zero
+// as "no score".
 type DemoSummary struct {
 	ID           int64  `json:"id"`
 	MapName      string `json:"map_name"`
@@ -34,6 +38,8 @@ type DemoSummary struct {
 	DurationSecs int    `json:"duration_secs"`
 	MatchDate    string `json:"match_date"`
 	CreatedAt    string `json:"created_at"`
+	CTScore      int    `json:"ct_score"`
+	TScore       int    `json:"t_score"`
 }
 
 // DemoListResult is the paginated response for demo listing.

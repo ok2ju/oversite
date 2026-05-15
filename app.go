@@ -2482,7 +2482,7 @@ func storeDemoToBinding(d store.Demo) Demo {
 	}
 }
 
-func storeDemoToSummary(d store.Demo) DemoSummary {
+func storeDemoToSummary(d store.ListDemosRow) DemoSummary {
 	return DemoSummary{
 		ID:           d.ID,
 		MapName:      d.MapName,
@@ -2494,6 +2494,8 @@ func storeDemoToSummary(d store.Demo) DemoSummary {
 		DurationSecs: int(d.DurationSecs),
 		MatchDate:    d.MatchDate,
 		CreatedAt:    d.CreatedAt,
+		CTScore:      int(d.FinalCtScore),
+		TScore:       int(d.FinalTScore),
 	}
 }
 
